@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next";
 import {
     Check,
     X as XIcon,
-    SkipForward,
     ArrowLeft,
     ArrowRight,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
 import { useLLMs } from "../../../app/queries/llms";
 import {
@@ -15,8 +16,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "../../../@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "../../../@/components/ui/dialog";
 
-const NewStyleGuideModal = ({ text, onCommit }) => {
+const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
     const { t } = useTranslation();
     const { data: llms, isLoading: llmsLoading } = useLLMs();
     const [selectedLLM, setSelectedLLM] = useState("");
@@ -39,6 +47,10 @@ const NewStyleGuideModal = ({ text, onCommit }) => {
     // Agent mode and research mode
     const [agentMode, setAgentMode] = useState(false);
     const [researchMode, setResearchMode] = useState(false);
+
+    // Keyboard shortcuts dialog
+    const [showKeyboardShortcutsDialog, setShowKeyboardShortcutsDialog] =
+        useState(false);
 
     // Refs for keyboard handling
     const diffReviewRef = useRef(null);
@@ -477,6 +489,27 @@ const NewStyleGuideModal = ({ text, onCommit }) => {
         });
     };
 
+    const handleAcceptAll = () => {
+        const newStates = {};
+        for (let i = 0; i < diffs.length; i++) {
+            newStates[i] = "accepted";
+        }
+        setDiffStates(newStates);
+    };
+
+    const handleRejectAll = () => {
+        const newStates = {};
+        for (let i = 0; i < diffs.length; i++) {
+            newStates[i] = "rejected";
+        }
+        setDiffStates(newStates);
+    };
+
+    // Check if there are any pending changes
+    const hasPendingChanges = diffs.some(
+        (_, index) => !diffStates[index] || diffStates[index] === "pending",
+    );
+
     const handleStyleGuideCheck = async () => {
         if (!text || !selectedLLM) {
             setError(t("Please ensure text and AI model are selected"));
@@ -535,201 +568,196 @@ const NewStyleGuideModal = ({ text, onCommit }) => {
         } else if (correctedText) {
             onCommit(correctedText);
         }
-    };
-
-    const handleAcceptAll = () => {
-        const newStates = {};
-        diffs.forEach((_, index) => {
-            newStates[index] = "accepted";
-        });
-        setDiffStates(newStates);
-    };
-
-    const handleRejectAll = () => {
-        const newStates = {};
-        diffs.forEach((_, index) => {
-            newStates[index] = "rejected";
-        });
-        setDiffStates(newStates);
+        // Close the modal after committing
+        if (onClose) {
+            onClose();
+        }
     };
 
     return (
         <div className="max-w-7xl mx-auto">
-            <div className="mb-6">
-                {/* LLM Selector */}
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        {t("AI Model")}
-                    </label>
-                    {llmsLoading ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                            {t("Loading models...")}
-                        </div>
-                    ) : (
-                        <Select
-                            value={selectedLLM}
-                            onValueChange={setSelectedLLM}
-                            disabled={isChecking}
-                        >
-                            <SelectTrigger className="w-full">
-                                <SelectValue
-                                    placeholder={t("Select an AI model...")}
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {llms
-                                    ?.filter(
-                                        (llm) =>
-                                            llm.identifier !== "labeebagent" &&
-                                            llm.identifier !==
-                                                "labeebresearchagent",
-                                    )
-                                    .map((llm) => (
-                                        <SelectItem
-                                            key={llm._id}
-                                            value={llm._id}
-                                        >
-                                            {llm.name}{" "}
-                                            {llm.isDefault
-                                                ? `(${t("Default")})`
-                                                : ""}
-                                        </SelectItem>
-                                    ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                </div>
-
-                {/* System Style Guides Section */}
-                {systemStyleGuides.length > 0 && (
+            {!(showDiffReview && diffs.length > 0) && (
+                <div className="mb-6">
+                    {/* LLM Selector */}
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            {t("Style Guide")}
+                            {t("AI Model")}
                         </label>
-                        <Select
-                            value={selectedStyleGuide}
-                            onValueChange={setSelectedStyleGuide}
-                        >
-                            <SelectTrigger className="w-full">
-                                <SelectValue
-                                    placeholder={t("Select a style guide...")}
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {systemStyleGuides.map((styleGuide) => (
-                                    <SelectItem
-                                        key={styleGuide._id}
-                                        value={styleGuide._id}
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">
-                                                {styleGuide.name}
-                                            </span>
-                                            {styleGuide.description && (
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {styleGuide.description}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                )}
-
-                {/* Agent Mode and Research Mode */}
-                <div className="mb-4 flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="agentMode"
-                            checked={agentMode}
-                            onChange={(e) => {
-                                const checked = e.target.checked;
-                                setAgentMode(checked);
-                                if (!checked) {
-                                    setResearchMode(false);
-                                }
-                            }}
-                            disabled={isChecking}
-                            className="accent-sky-500"
-                        />
-                        <label
-                            htmlFor="agentMode"
-                            className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
-                        >
-                            {t("Agent Mode")}
-                        </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id="researchMode"
-                            checked={researchMode}
-                            onChange={(e) => setResearchMode(e.target.checked)}
-                            disabled={isChecking || !agentMode}
-                            className="accent-sky-500"
-                        />
-                        <label
-                            htmlFor="researchMode"
-                            className={`text-sm cursor-pointer ${
-                                !agentMode
-                                    ? "text-gray-400 dark:text-gray-600"
-                                    : "text-gray-700 dark:text-gray-300"
-                            }`}
-                        >
-                            {t("Research Mode")}
-                        </label>
-                    </div>
-                </div>
-
-                {/* Action Button */}
-                <div className="mb-4">
-                    <button
-                        onClick={handleStyleGuideCheck}
-                        disabled={!text || !selectedLLM || isChecking}
-                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-200 text-sm font-medium flex items-center space-x-2"
-                    >
-                        {isChecking && (
-                            <svg
-                                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
+                        {llmsLoading ? (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                                {t("Loading models...")}
+                            </div>
+                        ) : (
+                            <Select
+                                value={selectedLLM}
+                                onValueChange={setSelectedLLM}
+                                disabled={isChecking}
                             >
-                                <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                ></circle>
-                                <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
-                            </svg>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue
+                                        placeholder={t("Select an AI model...")}
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {llms
+                                        ?.filter(
+                                            (llm) =>
+                                                llm.identifier !==
+                                                    "labeebagent" &&
+                                                llm.identifier !==
+                                                    "labeebresearchagent",
+                                        )
+                                        .map((llm) => (
+                                            <SelectItem
+                                                key={llm._id}
+                                                value={llm._id}
+                                            >
+                                                {llm.name}{" "}
+                                                {llm.isDefault
+                                                    ? `(${t("Default")})`
+                                                    : ""}
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
                         )}
-                        <span>
-                            {isChecking
-                                ? t("Checking...")
-                                : t("Check Style Guide")}
-                        </span>
-                    </button>
-                </div>
-
-                {/* Error Display */}
-                {error && (
-                    <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md">
-                        <p className="text-red-700 dark:text-red-400 text-sm">
-                            {error}
-                        </p>
                     </div>
-                )}
-            </div>
+
+                    {/* System Style Guides Section */}
+                    {systemStyleGuides.length > 0 && (
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {t("Style Guide")}
+                            </label>
+                            <Select
+                                value={selectedStyleGuide}
+                                onValueChange={setSelectedStyleGuide}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue
+                                        placeholder={t(
+                                            "Select a style guide...",
+                                        )}
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {systemStyleGuides.map((styleGuide) => (
+                                        <SelectItem
+                                            key={styleGuide._id}
+                                            value={styleGuide._id}
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">
+                                                    {styleGuide.name}
+                                                </span>
+                                                {styleGuide.description && (
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {styleGuide.description}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* Agent Mode and Research Mode */}
+                    <div className="mb-4 flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="agentMode"
+                                checked={agentMode}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setAgentMode(checked);
+                                    if (!checked) {
+                                        setResearchMode(false);
+                                    }
+                                }}
+                                disabled={isChecking}
+                                className="accent-sky-500"
+                            />
+                            <label
+                                htmlFor="agentMode"
+                                className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                            >
+                                {t("Agent Mode")}
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="researchMode"
+                                checked={researchMode}
+                                onChange={(e) =>
+                                    setResearchMode(e.target.checked)
+                                }
+                                disabled={isChecking || !agentMode}
+                                className="accent-sky-500"
+                            />
+                            <label
+                                htmlFor="researchMode"
+                                className={`text-sm cursor-pointer ${
+                                    !agentMode
+                                        ? "text-gray-400 dark:text-gray-600"
+                                        : "text-gray-700 dark:text-gray-300"
+                                }`}
+                            >
+                                {t("Research Mode")}
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="mb-4">
+                        <button
+                            onClick={handleStyleGuideCheck}
+                            disabled={!text || !selectedLLM || isChecking}
+                            className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-200 text-sm font-medium flex items-center space-x-2"
+                        >
+                            {isChecking && (
+                                <svg
+                                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        className="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                        className="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
+                                </svg>
+                            )}
+                            <span>
+                                {isChecking
+                                    ? t("Checking...")
+                                    : t("Check Style Guide")}
+                            </span>
+                        </button>
+                    </div>
+
+                    {/* Error Display */}
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md">
+                            <p className="text-red-700 dark:text-red-400 text-sm">
+                                {error}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Diff Review Interface */}
             {showDiffReview && diffs.length > 0 ? (
@@ -739,386 +767,436 @@ const NewStyleGuideModal = ({ text, onCommit }) => {
                     onKeyDown={handleKeyDown}
                     className="outline-none"
                 >
-                    {/* Keyboard shortcuts help */}
-                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md">
-                        <h5 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-                            {t("Keyboard Shortcuts")}
-                        </h5>
-                        <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                            <div>
-                                •{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    ↑/↓
-                                </kbd>{" "}
-                                or{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    ←/→
-                                </kbd>{" "}
-                                Navigate changes
+                    {/* Two-pane layout */}
+                    <div className="grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-6">
+                        {/* Left Pane: Changes List */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                    {t("Changes")} ({diffs.length})
+                                </h4>
                             </div>
-                            <div>
-                                •{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    Enter
-                                </kbd>{" "}
-                                or{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    Space
-                                </kbd>{" "}
-                                Accept change
+                            {/* Accept All / Reject All buttons */}
+                            <div className="flex gap-2 mb-3">
+                                <button
+                                    onClick={handleAcceptAll}
+                                    className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-600 rounded transition-colors flex items-center justify-center gap-1.5"
+                                >
+                                    <Check className="w-3 h-3" />
+                                    {t("Accept All")}
+                                </button>
+                                <button
+                                    onClick={handleRejectAll}
+                                    className="flex-1 px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-600 rounded transition-colors flex items-center justify-center gap-1.5"
+                                >
+                                    <XIcon className="w-3 h-3" />
+                                    {t("Reject All")}
+                                </button>
                             </div>
-                            <div>
-                                •{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    Backspace
-                                </kbd>{" "}
-                                or{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    X
-                                </kbd>{" "}
-                                Reject change
-                            </div>
-                            <div>
-                                •{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    C
-                                </kbd>{" "}
-                                Toggle context view
-                            </div>
-                            <div>
-                                •{" "}
-                                <kbd className="px-1 py-0.5 bg-blue-200 dark:bg-blue-800 rounded text-xs">
-                                    Esc
-                                </kbd>{" "}
-                                Exit review mode
-                            </div>
-                        </div>
-                    </div>
+                            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden max-h-[600px] overflow-y-auto">
+                                {diffs.map((diff, index) => {
+                                    const state =
+                                        diffStates[index] || "pending";
+                                    const isSelected =
+                                        index === currentDiffIndex;
 
-                    {/* Progress and bulk actions */}
-                    <div className="flex justify-between items-center mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
-                        <div className="flex items-center space-x-4">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {t("Change")} {currentDiffIndex + 1} {t("of")}{" "}
-                                {diffs.length}
-                            </span>
-                            <div className="flex space-x-1">
-                                {diffs.map((_, index) => (
-                                    <div
-                                        key={index}
-                                        className={`w-3 h-3 rounded-full border-2 ${
-                                            index === currentDiffIndex
-                                                ? "border-blue-500 bg-blue-200 dark:bg-blue-700"
-                                                : diffStates[index] ===
-                                                    "accepted"
-                                                  ? "border-green-500 bg-green-200 dark:bg-green-700"
-                                                  : diffStates[index] ===
-                                                      "rejected"
-                                                    ? "border-red-500 bg-red-200 dark:bg-red-700"
-                                                    : "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
-                                        }`}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex space-x-2">
-                            <button
-                                onClick={() =>
-                                    setShowContextView(!showContextView)
-                                }
-                                className={`px-3 py-1 text-xs rounded transition-colors ${
-                                    showContextView
-                                        ? "bg-blue-500 hover:bg-blue-600 text-white"
-                                        : "bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200"
-                                }`}
-                            >
-                                {showContextView
-                                    ? t("Detail View")
-                                    : t("Context View")}
-                            </button>
-                            <button
-                                onClick={handleAcceptAll}
-                                className="px-3 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
-                            >
-                                {t("Accept All")}
-                            </button>
-                            <button
-                                onClick={handleRejectAll}
-                                className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
-                            >
-                                {t("Reject All")}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Current diff display */}
-                    {diffs[currentDiffIndex] && (
-                        <div className="mb-6 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                            <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
-                                <h5 className="font-medium text-gray-900 dark:text-gray-100">
-                                    {t("Change")} {currentDiffIndex + 1}:{" "}
-                                    {diffs[currentDiffIndex].type === "change"
-                                        ? t("Modification")
-                                        : diffs[currentDiffIndex].type ===
-                                            "addition"
-                                          ? t("Addition")
-                                          : t("Deletion")}
-                                </h5>
-                            </div>
-
-                            {showContextView ? (
-                                /* Context View */
-                                <div className="p-4">
-                                    <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                        {t("Change in Context")}
-                                    </h6>
-                                    {(() => {
-                                        const currentDiff =
-                                            diffs[currentDiffIndex];
-                                        const context =
-                                            getContextAroundDiff(currentDiff);
-                                        const state =
-                                            diffStates[currentDiffIndex] ||
-                                            "pending";
-
+                                    // Truncate text for concise display
+                                    const truncateText = (
+                                        str,
+                                        maxLength = 50,
+                                    ) => {
+                                        if (!str) return t("(no text)");
+                                        if (str.length <= maxLength) return str;
                                         return (
-                                            <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                                                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                    {/* Before context */}
-                                                    <span className="text-gray-500 dark:text-gray-400">
-                                                        {context.before}
-                                                    </span>
-                                                    {/* Current change */}
-                                                    {state === "pending" ? (
-                                                        <span>
-                                                            <span className="bg-red-200 dark:bg-red-700 text-red-800 dark:text-red-200 line-through font-medium rounded px-1 mr-1">
-                                                                {
-                                                                    currentDiff.original
-                                                                }
-                                                            </span>
-                                                            <span className="bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200 font-medium rounded px-1">
-                                                                {
-                                                                    currentDiff.corrected
-                                                                }
-                                                            </span>
+                                            str.substring(0, maxLength) + "..."
+                                        );
+                                    };
+
+                                    return (
+                                        <button
+                                            key={index}
+                                            onClick={() =>
+                                                setCurrentDiffIndex(index)
+                                            }
+                                            className={`w-full text-left p-3 border-b border-gray-200 dark:border-gray-600 transition-colors ${
+                                                isSelected
+                                                    ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500"
+                                                    : "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                                            #{index + 1}
                                                         </span>
-                                                    ) : (
                                                         <span
-                                                            className={`font-medium rounded px-1 ${
+                                                            className={`text-xs px-2 py-0.5 rounded ${
+                                                                diff.type ===
+                                                                "addition"
+                                                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                                                    : diff.type ===
+                                                                        "deletion"
+                                                                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                                                      : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                                                            }`}
+                                                        >
+                                                            {diff.type ===
+                                                            "addition"
+                                                                ? t("Addition")
+                                                                : diff.type ===
+                                                                    "deletion"
+                                                                  ? t(
+                                                                        "Deletion",
+                                                                    )
+                                                                  : t("Change")}
+                                                        </span>
+                                                        <span
+                                                            className={`text-xs font-medium ${
                                                                 state ===
                                                                 "accepted"
-                                                                    ? "bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200"
-                                                                    : "bg-red-200 dark:bg-red-700 text-red-800 dark:text-red-200 line-through"
+                                                                    ? "text-green-600 dark:text-green-400"
+                                                                    : state ===
+                                                                        "rejected"
+                                                                      ? "text-red-600 dark:text-red-400"
+                                                                      : "text-gray-500 dark:text-gray-400"
                                                             }`}
                                                         >
                                                             {state ===
                                                             "accepted"
-                                                                ? currentDiff.corrected
-                                                                : currentDiff.original}
+                                                                ? t("Accepted")
+                                                                : state ===
+                                                                    "rejected"
+                                                                  ? t(
+                                                                        "Rejected",
+                                                                    )
+                                                                  : t(
+                                                                        "Pending",
+                                                                    )}
                                                         </span>
-                                                    )}
-                                                    {/* After context */}
-                                                    <span className="text-gray-500 dark:text-gray-400">
-                                                        {context.after}
-                                                    </span>
-                                                </pre>
-
-                                                {/* Show change details below context */}
-                                                {state === "pending" && (
-                                                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                            <div>
-                                                                <h7 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">
-                                                                    {t(
-                                                                        "Current",
-                                                                    )}
-                                                                </h7>
-                                                                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-2">
-                                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                                                                        "
-                                                                        {currentDiff.original ||
-                                                                            t(
-                                                                                "(no text)",
-                                                                            )}
-                                                                        "
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <h7 className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">
-                                                                    {t(
-                                                                        "Suggested",
-                                                                    )}
-                                                                </h7>
-                                                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-2">
-                                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                                                                        "
-                                                                        {currentDiff.corrected ||
-                                                                            t(
-                                                                                "(no text)",
-                                                                            )}
-                                                                        "
-                                                                    </span>
-                                                                </div>
-                                                            </div>
+                                                    </div>
+                                                    <div className="text-sm text-gray-700 dark:text-gray-300">
+                                                        <div className="line-through text-red-600 dark:text-red-400 mb-1">
+                                                            {truncateText(
+                                                                diff.original,
+                                                            )}
+                                                        </div>
+                                                        <div className="text-green-600 dark:text-green-400">
+                                                            {truncateText(
+                                                                diff.corrected,
+                                                            )}
                                                         </div>
                                                     </div>
+                                                </div>
+                                                {isSelected && (
+                                                    <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
                                                 )}
                                             </div>
-                                        );
-                                    })()}
-                                </div>
-                            ) : (
-                                /* Detail View */
-                                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-200 dark:divide-gray-600">
-                                    {/* Original text */}
-                                    <div className="p-4">
-                                        <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {t("Original")}
-                                        </h6>
-                                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-3 min-h-[80px]">
-                                            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                                                {diffs[currentDiffIndex]
-                                                    .original || (
-                                                    <span className="italic text-gray-400">
-                                                        {t("(no text)")}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Keyboard Shortcuts Button at bottom */}
+                            {diffs.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                                    <Dialog
+                                        open={showKeyboardShortcutsDialog}
+                                        onOpenChange={
+                                            setShowKeyboardShortcutsDialog
+                                        }
+                                    >
+                                        <DialogTrigger asChild>
+                                            <button className="w-full px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors flex items-center justify-center gap-2">
+                                                <span>
+                                                    {t("Keyboard Shortcuts")}
+                                                </span>
+                                            </button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>
+                                                    {t("Keyboard Shortcuts")}
+                                                </DialogTitle>
+                                            </DialogHeader>
+                                            <div className="space-y-3 py-4">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            ↑
+                                                        </kbd>
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            ↓
+                                                        </kbd>
+                                                    </div>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                        or{" "}
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            ←
+                                                        </kbd>{" "}
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            →
+                                                        </kbd>{" "}
+                                                        {t("Navigate changes")}
                                                     </span>
-                                                )}
-                                            </pre>
+                                                </div>
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            Enter
+                                                        </kbd>
+                                                    </div>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                        or{" "}
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            Space
+                                                        </kbd>{" "}
+                                                        {t("Accept change")}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            Backspace
+                                                        </kbd>
+                                                    </div>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                        or{" "}
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            X
+                                                        </kbd>{" "}
+                                                        {t("Reject change")}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            C
+                                                        </kbd>
+                                                    </div>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                        {t(
+                                                            "Toggle context view",
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono">
+                                                            Esc
+                                                        </kbd>
+                                                    </div>
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                        {t("Exit review mode")}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right Pane: Change Details + Final Preview */}
+                        <div className="space-y-4">
+                            {/* Selected Change Details */}
+                            {diffs[currentDiffIndex] && (
+                                <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                                    <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
+                                        <div className="flex items-center justify-between">
+                                            <h5 className="font-medium text-gray-900 dark:text-gray-100">
+                                                {t("Change")}{" "}
+                                                {currentDiffIndex + 1}:{" "}
+                                                {diffs[currentDiffIndex]
+                                                    .type === "change"
+                                                    ? t("Modification")
+                                                    : diffs[currentDiffIndex]
+                                                            .type === "addition"
+                                                      ? t("Addition")
+                                                      : t("Deletion")}
+                                            </h5>
+                                            <span
+                                                className={`text-xs px-2 py-1 rounded font-medium ${
+                                                    diffStates[
+                                                        currentDiffIndex
+                                                    ] === "accepted"
+                                                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                                        : diffStates[
+                                                                currentDiffIndex
+                                                            ] === "rejected"
+                                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                                          : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                                                }`}
+                                            >
+                                                {diffStates[
+                                                    currentDiffIndex
+                                                ] === "accepted"
+                                                    ? t("Accepted")
+                                                    : diffStates[
+                                                            currentDiffIndex
+                                                        ] === "rejected"
+                                                      ? t("Rejected")
+                                                      : t("Pending")}
+                                            </span>
                                         </div>
                                     </div>
 
-                                    {/* Corrected text */}
+                                    {/* Change in Context */}
                                     <div className="p-4">
-                                        <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            {t("Suggested")}
-                                        </h6>
-                                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-3 min-h-[80px]">
-                                            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                                                {diffs[currentDiffIndex]
-                                                    .corrected || (
-                                                    <span className="italic text-gray-400">
-                                                        {t("(no text)")}
-                                                    </span>
-                                                )}
-                                            </pre>
-                                        </div>
+                                        {(() => {
+                                            const currentDiff =
+                                                diffs[currentDiffIndex];
+                                            const context =
+                                                getContextAroundDiff(
+                                                    currentDiff,
+                                                );
+                                            const state =
+                                                diffStates[currentDiffIndex] ||
+                                                "pending";
+
+                                            return (
+                                                <div className="space-y-4">
+                                                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                                                        <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                                            {t(
+                                                                "Change in Context",
+                                                            )}
+                                                        </h6>
+                                                        <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {context.before}
+                                                            </span>
+                                                            {state ===
+                                                            "pending" ? (
+                                                                <span>
+                                                                    <span className="bg-red-200 dark:bg-red-700 text-red-800 dark:text-red-200 line-through font-medium rounded px-1 mr-1">
+                                                                        {
+                                                                            currentDiff.original
+                                                                        }
+                                                                    </span>
+                                                                    <span className="bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200 font-medium rounded px-1">
+                                                                        {
+                                                                            currentDiff.corrected
+                                                                        }
+                                                                    </span>
+                                                                </span>
+                                                            ) : (
+                                                                <span
+                                                                    className={`font-medium rounded px-1 ${
+                                                                        state ===
+                                                                        "accepted"
+                                                                            ? "bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200"
+                                                                            : "bg-red-200 dark:bg-red-700 text-red-800 dark:text-red-200 line-through"
+                                                                    }`}
+                                                                >
+                                                                    {state ===
+                                                                    "accepted"
+                                                                        ? currentDiff.corrected
+                                                                        : currentDiff.original}
+                                                                </span>
+                                                            )}
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                {context.after}
+                                                            </span>
+                                                        </pre>
+                                                    </div>
+
+                                                    {/* Change Details */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                                {t("Original")}
+                                                            </h6>
+                                                            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded p-3">
+                                                                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
+                                                                    {currentDiff.original || (
+                                                                        <span className="italic text-gray-400">
+                                                                            {t(
+                                                                                "(no text)",
+                                                                            )}
+                                                                        </span>
+                                                                    )}
+                                                                </pre>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <h6 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                                {t("Suggested")}
+                                                            </h6>
+                                                            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded p-3">
+                                                                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
+                                                                    {currentDiff.corrected || (
+                                                                        <span className="italic text-gray-400">
+                                                                            {t(
+                                                                                "(no text)",
+                                                                            )}
+                                                                        </span>
+                                                                    )}
+                                                                </pre>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Action buttons */}
+                                                    <div className="flex justify-end space-x-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                                                        <button
+                                                            onClick={() =>
+                                                                handleRejectDiff(
+                                                                    currentDiffIndex,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                diffStates[
+                                                                    currentDiffIndex
+                                                                ] === "rejected"
+                                                            }
+                                                            className="flex items-center px-3 py-1 text-sm bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
+                                                        >
+                                                            <XIcon className="w-4 h-4 mr-1" />
+                                                            {t("Reject")}
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleAcceptDiff(
+                                                                    currentDiffIndex,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                diffStates[
+                                                                    currentDiffIndex
+                                                                ] === "accepted"
+                                                            }
+                                                            className="flex items-center px-3 py-1 text-sm bg-green-500 hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
+                                                        >
+                                                            <Check className="w-4 h-4 mr-1" />
+                                                            {t("Accept")}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             )}
 
-                            {/* Action buttons for current diff */}
-                            <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600">
-                                <div className="flex space-x-2">
-                                    <button
-                                        onClick={() =>
-                                            setCurrentDiffIndex(
-                                                Math.max(
-                                                    0,
-                                                    currentDiffIndex - 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={currentDiffIndex === 0}
-                                        className="flex items-center px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded transition-colors"
-                                    >
-                                        <ArrowLeft className="w-4 h-4 mr-1" />
-                                        {t("Previous")}
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            setCurrentDiffIndex(
-                                                Math.min(
-                                                    diffs.length - 1,
-                                                    currentDiffIndex + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            currentDiffIndex ===
-                                            diffs.length - 1
-                                        }
-                                        className="flex items-center px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded transition-colors"
-                                    >
-                                        {t("Next")}
-                                        <ArrowRight className="w-4 h-4 ml-1" />
-                                    </button>
+                            {/* Final Preview */}
+                            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-600">
+                                    <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                        {t("Final Preview")}
+                                    </h4>
                                 </div>
-
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        {t("Status")}:
-                                        <span
-                                            className={`ml-1 font-medium ${
-                                                diffStates[currentDiffIndex] ===
-                                                "accepted"
-                                                    ? "text-green-600 dark:text-green-400"
-                                                    : diffStates[
-                                                            currentDiffIndex
-                                                        ] === "rejected"
-                                                      ? "text-red-600 dark:text-red-400"
-                                                      : "text-gray-500 dark:text-gray-400"
-                                            }`}
-                                        >
-                                            {diffStates[currentDiffIndex] ===
-                                            "accepted"
-                                                ? t("Accepted")
-                                                : diffStates[
-                                                        currentDiffIndex
-                                                    ] === "rejected"
-                                                  ? t("Rejected")
-                                                  : t("Pending")}
-                                        </span>
-                                    </span>
-                                </div>
-
-                                <div className="flex space-x-2">
-                                    <button
-                                        onClick={() =>
-                                            handleResetDiff(currentDiffIndex)
-                                        }
-                                        className="flex items-center px-3 py-1 text-sm bg-gray-500 hover:bg-gray-600 text-white rounded transition-colors"
-                                    >
-                                        <SkipForward className="w-4 h-4 mr-1" />
-                                        {t("Reset")}
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            handleRejectDiff(currentDiffIndex)
-                                        }
-                                        className="flex items-center px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
-                                    >
-                                        <XIcon className="w-4 h-4 mr-1" />
-                                        {t("Reject")}
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            handleAcceptDiff(currentDiffIndex)
-                                        }
-                                        className="flex items-center px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
-                                    >
-                                        <Check className="w-4 h-4 mr-1" />
-                                        {t("Accept")}
-                                    </button>
+                                <div className="bg-gray-50 dark:bg-gray-700 p-4 h-64 overflow-y-auto">
+                                    <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
+                                        {finalText || text}
+                                    </pre>
                                 </div>
                             </div>
                         </div>
-                    )}
-
-                    {/* Final text preview */}
-                    <div className="mt-6">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
-                            {t("Final Preview")}
-                        </h4>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md h-64 overflow-y-auto border">
-                            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                                {finalText || text}
-                            </pre>
-                        </div>
                     </div>
                 </div>
-            ) : (
-                /* Fallback: Two-pane layout for when no diffs or not in review mode */
+            ) : correctedText ? (
+                /* Fallback: Two-pane layout for when no diffs or not in review mode, but we have corrected text */
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Original Text Pane */}
                     <div>
@@ -1138,58 +1216,64 @@ const NewStyleGuideModal = ({ text, onCommit }) => {
                             {t("Style Guide Checked Text")}
                         </h4>
                         <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md h-96 overflow-y-auto border">
-                            {correctedText ? (
-                                correctedText === text ? (
-                                    <p className="text-green-600 dark:text-green-400 text-sm italic flex items-center">
-                                        <Check className="w-4 h-4 mr-2" />
-                                        {t(
-                                            "No style guide changes needed! Your text looks good.",
-                                        )}
-                                    </p>
-                                ) : (
-                                    <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                                        {correctedText}
-                                    </pre>
-                                )
-                            ) : (
-                                <p className="text-gray-500 dark:text-gray-400 text-sm italic">
-                                    {isChecking
-                                        ? t("Processing...")
-                                        : t(
-                                              "Click 'Check Style Guide' to see corrected text here",
-                                          )}
+                            {correctedText === text ? (
+                                <p className="text-green-600 dark:text-green-400 text-sm italic flex items-center">
+                                    <Check className="w-4 h-4 mr-2" />
+                                    {t(
+                                        "No style guide changes needed! Your text looks good.",
+                                    )}
                                 </p>
+                            ) : (
+                                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
+                                    {correctedText}
+                                </pre>
                             )}
                         </div>
                     </div>
                 </div>
-            )}
+            ) : null}
 
-            <div className="flex justify-end space-x-3 mt-6">
-                <button
-                    onClick={() => onCommit(text)}
-                    className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors duration-200 text-sm font-medium"
-                >
-                    {t("Keep Original")}
-                </button>
-                {showDiffReview && (
-                    <button
-                        onClick={() => setShowDiffReview(false)}
-                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors duration-200 text-sm font-medium"
-                    >
-                        {t("Exit Review Mode")}
-                    </button>
-                )}
-                <button
-                    onClick={handleUseCorrectedText}
-                    disabled={!correctedText}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-200 text-sm font-medium"
-                >
-                    {showDiffReview
-                        ? t("Use Final Text")
-                        : t("Use Corrected Text")}
-                </button>
-            </div>
+            {/* Only show buttons when we have corrected text or are in diff review */}
+            {(correctedText || (showDiffReview && diffs.length > 0)) && (
+                <div className="mt-6">
+                    {/* Show message if there are pending changes */}
+                    {showDiffReview && diffs.length > 0 && hasPendingChanges && (
+                        <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
+                            <p className="text-yellow-700 dark:text-yellow-400 text-sm">
+                                {t(
+                                    "Please accept or reject each change before using the corrected text.",
+                                )}
+                            </p>
+                        </div>
+                    )}
+                    <div className="flex justify-end space-x-3">
+                        <button
+                            onClick={() => {
+                                onCommit(text);
+                                // Close the modal after committing
+                                if (onClose) {
+                                    onClose();
+                                }
+                            }}
+                            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition-colors duration-200 text-sm font-medium"
+                        >
+                            {t("Keep Original")}
+                        </button>
+                        <button
+                            onClick={handleUseCorrectedText}
+                            disabled={
+                                !correctedText ||
+                                (showDiffReview &&
+                                    diffs.length > 0 &&
+                                    hasPendingChanges)
+                            }
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-200 text-sm font-medium"
+                        >
+                            {t("Use Corrected Text")}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
