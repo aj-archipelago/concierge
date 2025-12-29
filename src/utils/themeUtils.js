@@ -304,6 +304,33 @@ export function generateFilteredSandboxHtml(content, theme) {
                             window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
                         }
                     });
+                    
+                    // Override fetch to always include credentials for iOS Safari iframe cookie support
+                    // iOS Safari blocks cookies in iframes unless credentials: 'include' is set
+                    const originalFetch = window.fetch;
+                    window.fetch = function(url, options) {
+                        const opts = options || {};
+                        // Ensure credentials are included for same-origin requests
+                        if (!opts.credentials) {
+                            opts.credentials = 'include';
+                        }
+                        return originalFetch.call(this, url, opts);
+                    };
+                    
+                    // Also override XMLHttpRequest for compatibility with older code
+                    const OriginalXHR = window.XMLHttpRequest;
+                    window.XMLHttpRequest = function() {
+                        const xhr = new OriginalXHR();
+                        const originalOpen = xhr.open;
+                        xhr.open = function(method, url, async, user, password) {
+                            originalOpen.call(this, method, url, async, user, password);
+                            // Set withCredentials after open() is called
+                            if (url && (url.startsWith('/') || url.startsWith(window.location.origin))) {
+                                this.withCredentials = true;
+                            }
+                        };
+                        return xhr;
+                    };
                 </script>
             </head>
             <body>${bodyContent}</body>
