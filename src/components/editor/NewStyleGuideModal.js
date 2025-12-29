@@ -1237,15 +1237,17 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
             {(correctedText || (showDiffReview && diffs.length > 0)) && (
                 <div className="mt-6">
                     {/* Show message if there are pending changes */}
-                    {showDiffReview && diffs.length > 0 && hasPendingChanges && (
-                        <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
-                            <p className="text-yellow-700 dark:text-yellow-400 text-sm">
-                                {t(
-                                    "Please accept or reject each change before using the corrected text.",
-                                )}
-                            </p>
-                        </div>
-                    )}
+                    {showDiffReview &&
+                        diffs.length > 0 &&
+                        hasPendingChanges && (
+                            <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-md">
+                                <p className="text-yellow-700 dark:text-yellow-400 text-sm">
+                                    {t(
+                                        "Please accept or reject each change before using the corrected text.",
+                                    )}
+                                </p>
+                            </div>
+                        )}
                     <div className="flex justify-end space-x-3">
                         <button
                             onClick={() => {
