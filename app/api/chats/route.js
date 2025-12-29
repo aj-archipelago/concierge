@@ -3,7 +3,6 @@ import { handleError } from "../utils/auth";
 import {
     getChatsOfCurrentUser,
     createNewChat,
-    updateChat,
     searchChatTitles,
     searchChatContent,
 } from "./_lib";

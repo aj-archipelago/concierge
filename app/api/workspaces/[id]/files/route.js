@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Workspace from "../../../models/workspace.js";
+import File from "../../../models/file.js";
 import { getCurrentUser } from "../../../utils/auth.js";
 import { handleStreamingFileUpload } from "../../../utils/upload-utils.js";
 
@@ -26,6 +27,36 @@ export async function POST(request, { params }) {
         },
 
         associateFile: async (newFile, workspace, user) => {
+            // Check if a file with the same hash already exists in this workspace
+            if (newFile.hash) {
+                const existingWorkspace = await Workspace.findById(id).populate(
+                    {
+                        path: "files",
+                        match: { hash: newFile.hash },
+                    },
+                );
+
+                if (
+                    existingWorkspace &&
+                    existingWorkspace.files &&
+                    existingWorkspace.files.length > 0
+                ) {
+                    // File with this hash already exists, return existing file without adding
+                    const existingFile = existingWorkspace.files[0];
+                    const allFiles =
+                        await Workspace.findById(id).populate("files");
+
+                    // Delete the duplicate File document we just created
+                    await File.findByIdAndDelete(newFile._id);
+
+                    return {
+                        success: true,
+                        file: existingFile, // Return the existing file, not the duplicate
+                        files: allFiles ? allFiles.files : [],
+                    };
+                }
+            }
+
             // Add file reference to workspace
             const updatedWorkspace = await Workspace.findByIdAndUpdate(
                 id,
@@ -40,7 +71,11 @@ export async function POST(request, { params }) {
                 },
             ).populate("files");
 
-            return { success: true, files: updatedWorkspace.files };
+            return {
+                success: true,
+                file: newFile,
+                files: updatedWorkspace.files,
+            };
         },
 
         errorPrefix: "workspace file upload",

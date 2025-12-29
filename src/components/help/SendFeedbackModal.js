@@ -6,6 +6,7 @@ import { ServerContext } from "../../App";
 import { useTranslation } from "react-i18next";
 import { usePostFeedback } from "../../../app/queries/feedback";
 import { ScreenshotCapture } from "../common/ScreenshotCapture";
+import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
 
 function dataURItoBlob(dataURI) {
     // convert base64/URLEncoded data component to raw binary data held in a string
@@ -63,49 +64,18 @@ export default React.forwardRef(function SendFeedbackModal(
 
     // Function to handle file upload and post it to the API
     const handleFileUpload = async (file) => {
-        const promise = new Promise((resolve, reject) => {
-            // Create FormData object to hold the file data
-            const formData = new FormData();
-            formData.append("file", file);
-
-            try {
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", config.endpoints.mediaHelper(serverUrl), true);
-
-                // Monitor the upload progress
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percentage = Math.round(
-                            (event.loaded * 100) / event.total,
-                        );
-                        console.log(`File is ${percentage}% uploaded`);
-                    }
-                };
-
-                // Handle the upload response
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        const data = JSON.parse(xhr.responseText);
-                        resolve(data);
-                    } else {
-                        reject({
-                            error: `${t("File upload failed, response:")} ${xhr.statusText}`,
-                        });
-                    }
-                };
-
-                // Handle any upload errors
-                xhr.onerror = (error) => {
-                    reject({ error: t("File upload failed") });
-                };
-
-                xhr.send(formData);
-            } catch (error) {
-                reject({ error: t("File upload failed") });
-            }
-        });
-
-        return promise;
+        try {
+            const data = await uploadFileToMediaHelper(file, {
+                contextId: null, // Feedback files don't need contextId
+                checkHash: false, // No need to check hash for feedback files
+                serverUrl: config.endpoints.mediaHelper(serverUrl),
+            });
+            return data;
+        } catch (error) {
+            throw new Error(
+                error.message || t("File upload failed. Please try again."),
+            );
+        }
     };
 
     return (

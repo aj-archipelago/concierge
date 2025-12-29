@@ -1,16 +1,24 @@
-import { Bot, CheckCircle, XCircle } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { CheckCircle, XCircle, Loader2, Check } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useCancelTask, useTask } from "../../../app/queries/notifications";
 import classNames from "../../../app/utils/class-names";
 import { TASK_INFO } from "../../utils/task-info";
 import CopyButton from "../CopyButton";
 import { convertMessageToMarkdown } from "./ChatMessage";
-import EntityIcon from "./EntityIcon";
+
+// Helper functions for ephemeral content
+const hasToolCalls = (toolCalls) =>
+    Array.isArray(toolCalls) && toolCalls.length > 0;
+const hasEphemeralContent = (content) => content && content.trim();
+// Only show ephemeral content when we have actual content to display
+// Don't show empty box just because isThinking is true
+const shouldShowEphemeralContent = (content, toolCalls) =>
+    hasEphemeralContent(content) || hasToolCalls(toolCalls);
 
 const MemoizedMarkdownMessage = React.memo(
-    ({ message, onLoad }) => {
-        return convertMessageToMarkdown(message, true, onLoad);
+    ({ message, onLoad, onMermaidFix }) => {
+        return convertMessageToMarkdown(message, true, onLoad, onMermaidFix);
     },
     (prevProps, nextProps) => {
         // If messages are completely identical, no need to re-render
@@ -81,7 +89,7 @@ const MemoizedMarkdownMessage = React.memo(
     },
 );
 
-const TaskPlaceholder = ({ message }) => {
+const TaskPlaceholder = ({ message, onTaskStatusUpdate }) => {
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
 
@@ -90,6 +98,8 @@ const TaskPlaceholder = ({ message }) => {
     const [showFullOutput, setShowFullOutput] = useState(false);
     const cancelRequest = useCancelTask();
     const { t } = useTranslation();
+    const statusTextScrollRef = useRef(null);
+    const prevStatusTextRef = useRef(null);
 
     useEffect(() => {
         if (!task) {
@@ -109,6 +119,33 @@ const TaskPlaceholder = ({ message }) => {
             setExpanded(false);
         }
     }, [task]);
+
+    // Auto-scroll status text to bottom when content changes
+    useEffect(() => {
+        if (statusTextScrollRef.current && expanded && task?.statusText) {
+            // Use requestAnimationFrame to ensure DOM has updated
+            requestAnimationFrame(() => {
+                if (statusTextScrollRef.current) {
+                    statusTextScrollRef.current.scrollTop =
+                        statusTextScrollRef.current.scrollHeight;
+                }
+            });
+        }
+    }, [task?.statusText, expanded]);
+
+    // Trigger messages list scroll when task status text changes
+    useEffect(() => {
+        if (!task?.statusText) return;
+        if (prevStatusTextRef.current === task.statusText) return;
+        prevStatusTextRef.current = task.statusText;
+        // Only trigger scroll if statusText actually changed and we have content
+        if (task.statusText.trim() && onTaskStatusUpdate) {
+            // Use a small delay to ensure DOM has updated
+            requestAnimationFrame(() => {
+                onTaskStatusUpdate();
+            });
+        }
+    }, [task, onTaskStatusUpdate]);
 
     if (!task) {
         return null;
@@ -243,7 +280,10 @@ const TaskPlaceholder = ({ message }) => {
                             <div className="text-gray-600 dark:text-gray-300 text-sm font-semibold">
                                 Output
                             </div>
-                            <pre className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto">
+                            <pre
+                                ref={statusTextScrollRef}
+                                className="my-1 p-2 text-xs border bg-gray-50 dark:bg-gray-700 rounded-md relative whitespace-pre-wrap font-sans max-h-[140px] overflow-y-auto scroll-smooth"
+                            >
                                 {showFullOutput || statusText.length <= 150 ? (
                                     statusText?.trim()
                                 ) : (
@@ -307,9 +347,29 @@ const TaskPlaceholder = ({ message }) => {
 };
 
 export const EphemeralContent = React.memo(
-    ({ content, duration, isThinking }) => {
+    ({ content, toolCalls = [], duration, isThinking }) => {
         const [expanded, setExpanded] = useState(true);
+        const scrollContainerRef = useRef(null);
         const { t } = useTranslation();
+
+        // Auto-scroll to bottom when tool calls change
+        useEffect(() => {
+            if (scrollContainerRef.current && expanded) {
+                // Use requestAnimationFrame to ensure DOM has updated
+                requestAnimationFrame(() => {
+                    if (scrollContainerRef.current) {
+                        scrollContainerRef.current.scrollTop =
+                            scrollContainerRef.current.scrollHeight;
+                    }
+                });
+            }
+        }, [toolCalls.length, expanded]);
+
+        // Don't render if we have nothing to show
+        if (!shouldShowEphemeralContent(content, toolCalls)) {
+            return null;
+        }
+
         return (
             <div className="mb-2 ephemeral-content-wrapper">
                 <div
@@ -338,17 +398,61 @@ export const EphemeralContent = React.memo(
                     </svg>
                 </div>
                 {expanded && (
-                    <div className="text-gray-600 dark:text-gray-300 mt-1 ps-3 border-s-2 border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 py-2 px-3 rounded-r-md text-[12px]">
-                        {convertMessageToMarkdown({
-                            payload: content,
-                            sender: "labeeb",
-                        })}
+                    <div
+                        ref={scrollContainerRef}
+                        className="text-gray-600 dark:text-gray-300 mt-1 ps-3 rtl:ps-0 rtl:pe-3 border-s-2 rtl:border-s-0 rtl:border-e-2 border-gray-400 dark:border-gray-600 bg-gray-200 dark:bg-gray-700 py-2 px-3 rounded-r-md rtl:rounded-r-none rtl:rounded-l-md text-[12px] overflow-y-auto max-h-[7.5rem] scroll-smooth"
+                    >
+                        {hasToolCalls(toolCalls) &&
+                            toolCalls.map((toolCall, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-start gap-2 mb-1 last:mb-0 rtl:flex-row-reverse"
+                                >
+                                    <div className="flex-shrink-0 mt-0.5 rtl:order-2">
+                                        {toolCall.status === "thinking" && (
+                                            <Loader2 className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin" />
+                                        )}
+                                        {toolCall.status === "completed" && (
+                                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                                        )}
+                                        {toolCall.status === "failed" && (
+                                            <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0 rtl:order-1 rtl:text-right">
+                                        <span className="mr-1 rtl:mr-0 rtl:ml-1">
+                                            {toolCall.icon}
+                                        </span>
+                                        {toolCall.userMessage}
+                                        {toolCall.error && (
+                                            <span className="text-red-600 dark:text-red-400 ml-1 rtl:ml-0 rtl:mr-1">
+                                                ({toolCall.error})
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        {hasEphemeralContent(content) && (
+                            <div
+                                className={
+                                    hasToolCalls(toolCalls) ? "mt-2" : ""
+                                }
+                            >
+                                {convertMessageToMarkdown({
+                                    payload: content,
+                                    sender: "labeeb",
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
         );
     },
 );
+
+// Export helper functions for use in other components
+export { hasToolCalls, hasEphemeralContent, shouldShowEphemeralContent };
 
 const BotMessage = ({
     message,
@@ -365,142 +469,43 @@ const BotMessage = ({
     entities = [],
     entityIconSize,
     onLoad,
+    onTaskStatusUpdate,
+    onMermaidFix,
 }) => {
-    const { t } = useTranslation();
     const { data: serverTask } = useTask(message.taskId);
     const task = message.task || serverTask;
-
-    // Determine the entity ID to use
-    const isLoader = message.id === "loading";
-    // For the loader, use the selectedEntityId from props.
-    // For actual messages, strictly use the entityId stored on the message.
-    // Default to empty string if neither is present.
-    const entityIdToUse = isLoader
-        ? selectedEntityId || ""
-        : message.entityId || "";
-
-    const currentEntity = entityIdToUse
-        ? entities.find((e) => e.id === entityIdToUse)
-        : entities.find((e) => e.isDefault === true);
-
-    const entityDisplaySuffix = message.taskId ? t("'s Agent") : "";
-
-    const entityDisplayName = `${currentEntity ? currentEntity.name : botName}${entityDisplaySuffix}`;
-
-    // Avatar rendering
-    const avatar = currentEntity ? (
-        <EntityIcon entity={currentEntity} size={entityIconSize} />
-    ) : toolData?.avatarImage ? (
-        <img
-            src={toolData.avatarImage}
-            alt="Tool Avatar"
-            className={classNames(
-                buttonWidthClass,
-                rowHeight,
-                "rounded-full object-cover",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    ) : bot === "code" ? (
-        <Bot
-            className={classNames(
-                rowHeight,
-                buttonWidthClass,
-                "px-3",
-                "text-gray-400",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    ) : (
-        <img
-            src={getLogo(language)}
-            alt="Logo"
-            className={classNames(
-                buttonWidthClass,
-                rowHeight,
-                "p-2 rounded-full object-cover",
-            )}
-            style={{
-                width:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-                height:
-                    entityIconSize === "lg"
-                        ? 32
-                        : entityIconSize === "sm"
-                          ? 20
-                          : 16,
-            }}
-        />
-    );
-
-    // Determine top padding based on entityIconSize
-    const avatarTopPadding = entityIconSize === "sm" ? "pt-3" : "pt-1";
 
     return (
         <div
             key={message.id}
-            className="flex bg-sky-50 dark:bg-gray-700 ps-1 pt-1 relative group"
+            className={classNames(
+                "flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-b-lg rounded-tl-lg rtl:rounded-tl-none rtl:rounded-tr-lg border border-gray-300 dark:border-gray-600",
+            )}
         >
-            <div className="flex items-center gap-2 absolute top-3 end-3">
+            <div className="flex items-center gap-2 absolute top-3 end-3 z-10">
                 <CopyButton
                     item={
                         typeof message.payload === "string"
                             ? message.payload
                             : message.text
                     }
-                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
+                    className="copy-button opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
                 />
             </div>
 
             <div
                 className={classNames(
-                    basis,
-                    avatarTopPadding,
-                    "flex justify-center",
-                )}
-            >
-                {avatar}
-            </div>
-            <div
-                className={classNames(
-                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
+                    "px-2 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold">{t(entityDisplayName)}</div>
-                    {message.ephemeralContent && (
+                    {shouldShowEphemeralContent(
+                        message.ephemeralContent,
+                        message.toolCalls,
+                    ) && (
                         <EphemeralContent
                             content={message.ephemeralContent}
+                            toolCalls={message.toolCalls || []}
                             duration={message.thinkingDuration ?? 0}
                             isThinking={message.isStreaming}
                         />
@@ -511,11 +516,15 @@ const BotMessage = ({
                     >
                         <React.Fragment key={`md-${message.id}`}>
                             {message.taskId && task ? (
-                                <TaskPlaceholder message={message} />
+                                <TaskPlaceholder
+                                    message={message}
+                                    onTaskStatusUpdate={onTaskStatusUpdate}
+                                />
                             ) : (
                                 <MemoizedMarkdownMessage
                                     message={message}
                                     onLoad={onLoad}
+                                    onMermaidFix={onMermaidFix}
                                 />
                             )}
                         </React.Fragment>

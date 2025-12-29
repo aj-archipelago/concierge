@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import xxhash from "xxhash-wasm";
 import config from "../../../config/index.js";
 import File from "../models/file.js";
 import { getCurrentUser } from "./auth.js";
@@ -8,6 +7,12 @@ import {
     FILE_VALIDATION_CONFIG,
     scanForMalware,
 } from "./fileValidation.js";
+import { determineFileContextId } from "./llm-file-utils.js";
+import {
+    hashBuffer,
+    uploadBufferToMediaService,
+    setFileRetention,
+} from "./media-service-utils.js";
 
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -19,17 +24,8 @@ export const memoryLogger = {
     },
 };
 
-/**
- * Hash a buffer using xxhash64
- * @param {Buffer} buffer - The buffer to hash
- * @returns {Promise<string>} - The hash as a hex string
- */
-async function hashBuffer(buffer) {
-    const hasher = await xxhash();
-    const xxh64 = hasher.create64();
-    xxh64.update(buffer);
-    return xxh64.digest().toString(16);
-}
+// Re-export hashBuffer for backward compatibility
+export { hashBuffer } from "./media-service-utils.js";
 
 /**
  * Streaming file upload handler with validation during upload
@@ -39,7 +35,8 @@ async function hashBuffer(buffer) {
  * @param {Function} options.checkAuthorization - Function to check user authorization
  * @param {Function} options.associateFile - Function to associate file with workspace/applet
  * @param {string} options.errorPrefix - Prefix for error messages
- * @param {boolean} options.permanent - If true, use permanent storage container
+ * @param {boolean} options.permanent - If true, file will be marked as permanent
+ * @param {boolean} options.useCompoundContextId - If true, use compound contextId (workspaceId:userContextId) for file scoping
  * @returns {Object} Upload result with file data or error response
  */
 export async function handleStreamingFileUpload(request, options) {
@@ -49,6 +46,7 @@ export async function handleStreamingFileUpload(request, options) {
         associateFile,
         errorPrefix = "streaming file upload",
         permanent = false,
+        useCompoundContextId = false,
     } = options;
 
     try {
@@ -82,6 +80,23 @@ export async function handleStreamingFileUpload(request, options) {
 
         const { fileBuffer, metadata } = result.data;
 
+        // Determine contextId based on file type:
+        // - Workspace/applet artifacts (permanent=true, useCompoundContextId=false): workspaceId (shared)
+        // - User files in workspace/applet (useCompoundContextId=true): compound contextId (workspaceId:userContextId)
+        // - User files elsewhere (permanent=false, useCompoundContextId=false): userContextId
+        // Note: workspace is guaranteed to exist here due to early return above
+        const workspaceIdStr = workspace._id?.toString() || null;
+        const userContextIdStr = user?.contextId || null;
+
+        // When useCompoundContextId is true, this is a user file in workspace context (private per user)
+        // When permanent is true and not compound, this is a workspace artifact (shared)
+        const contextId = determineFileContextId({
+            isArtifact: permanent && !useCompoundContextId,
+            workspaceId: workspaceIdStr,
+            userContextId: userContextIdStr,
+            useCompoundContextId: useCompoundContextId && !!workspaceIdStr,
+        });
+
         // Check if file already exists using hash
         if (metadata.hash) {
             try {
@@ -89,11 +104,8 @@ export async function handleStreamingFileUpload(request, options) {
                 const checkUrl = new URL(mediaHelperUrl);
                 checkUrl.searchParams.set("hash", metadata.hash);
                 checkUrl.searchParams.set("checkHash", "true");
-                if (permanent) {
-                    checkUrl.searchParams.set(
-                        "container",
-                        process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME,
-                    );
+                if (contextId) {
+                    checkUrl.searchParams.set("contextId", contextId);
                 }
 
                 const checkResponse = await fetch(checkUrl);
@@ -103,6 +115,27 @@ export async function handleStreamingFileUpload(request, options) {
                         .json()
                         .catch(() => null);
                     if (checkData && checkData.url) {
+                        // If permanent flag is set, ensure existing file is also permanent
+                        if (permanent && metadata.hash) {
+                            try {
+                                await setFileRetention(
+                                    metadata.hash,
+                                    "permanent",
+                                    contextId,
+                                );
+                            } catch (retentionError) {
+                                // Log retention update failures so they are visible for debugging
+                                // This is best-effort, so we continue even if it fails
+                                console.error(
+                                    "Failed to update file retention to 'permanent' for hash",
+                                    metadata.hash,
+                                    "and contextId",
+                                    contextId,
+                                    retentionError,
+                                );
+                            }
+                        }
+
                         // Create a new File document with existing file data
                         const newFile = new File({
                             filename: checkData.filename || metadata.filename,
@@ -149,16 +182,14 @@ export async function handleStreamingFileUpload(request, options) {
             }
         }
 
-        // Determine container name based on permanent flag
-        const containerName = permanent
-            ? process.env.CORTEX_MEDIA_PERMANENT_STORE_NAME
-            : undefined;
-
         // Upload file to media service using buffer
+        // Note: permanent flag is handled inside uploadBufferToMediaService via setRetention
+        // Use workspace ID as contextId for workspace/applet files, user contextId for user files
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             metadata,
-            containerName,
+            permanent,
+            contextId,
         );
         if (uploadResult.error) {
             return { error: uploadResult.error };
@@ -222,7 +253,7 @@ export async function handleStreamingFileUpload(request, options) {
  * @param {Object} user - Current user for storage validation
  * @returns {Object} Parsed file data or error
  */
-async function parseStreamingMultipart(request, user) {
+export async function parseStreamingMultipart(request, user) {
     return new Promise((resolve, reject) => {
         try {
             const contentType = request.headers.get("content-type");
@@ -453,67 +484,8 @@ async function parseStreamingMultipart(request, user) {
     });
 }
 
-/**
- * Upload buffer to media service
- * @param {Buffer} fileBuffer - The file buffer
- * @param {Object} metadata - File metadata
- * @param {string} containerName - Optional container name for storage
- * @returns {Object} Upload result with data or error
- */
-async function uploadBufferToMediaService(fileBuffer, metadata, containerName) {
-    try {
-        let mediaHelperUrl = config.endpoints.mediaHelperDirect();
-        if (!mediaHelperUrl) {
-            throw new Error("Media helper URL is not defined");
-        }
-
-        // Add container name to query string if provided
-        if (containerName) {
-            const url = new URL(mediaHelperUrl);
-            url.searchParams.append("container", containerName);
-            mediaHelperUrl = url.toString();
-        }
-
-        // Create a Blob from the buffer to send as FormData
-        const blob = new Blob([fileBuffer], { type: metadata.mimeType });
-        const uploadFormData = new FormData();
-        uploadFormData.append("file", blob, metadata.filename);
-
-        // Add hash to FormData if provided
-        if (metadata.hash) {
-            uploadFormData.append("hash", metadata.hash);
-        }
-
-        const uploadResponse = await fetch(mediaHelperUrl, {
-            method: "POST",
-            body: uploadFormData,
-        });
-
-        if (!uploadResponse.ok) {
-            const errorBody = await uploadResponse.text();
-            throw new Error(
-                `Upload failed: ${uploadResponse.statusText}. Response body: ${errorBody}`,
-            );
-        }
-
-        const uploadData = await uploadResponse.json();
-
-        // Validate upload response
-        if (!uploadData.url) {
-            throw new Error("Media file upload failed: Missing URL");
-        }
-
-        return { success: true, data: uploadData };
-    } catch (error) {
-        console.error("Error uploading to media service:", error);
-        return {
-            error: NextResponse.json(
-                {
-                    error:
-                        "Failed to upload to media service: " + error.message,
-                },
-                { status: 500 },
-            ),
-        };
-    }
-}
+// Re-export uploadBufferToMediaService for backward compatibility
+export {
+    uploadBufferToMediaService,
+    setFileRetention,
+} from "./media-service-utils.js";

@@ -1,6 +1,6 @@
-import { useCallback } from "react";
-import axios from "../../../../app/utils/axios-client";
-import { hashMediaFile } from "../../../utils/mediaUtils";
+import { useCallback, useContext } from "react";
+import { uploadFileToMediaHelper } from "../../../utils/fileUploadUtils";
+import { AuthContext } from "../../../App";
 
 export const useFileUpload = ({
     createMediaItem,
@@ -10,6 +10,9 @@ export const useFileUpload = ({
     setSelectedImages,
     setSelectedImagesObjects,
 }) => {
+    const { user } = useContext(AuthContext);
+    // Use default user contextId (not :chat, so they don't appear in chat file collections)
+    const contextId = user?.contextId;
     const handleFileUpload = useCallback(
         async (file) => {
             if (!file) return;
@@ -17,75 +20,14 @@ export const useFileUpload = ({
             const serverUrl = "/media-helper";
 
             try {
-                // Start showing upload progress
-                const fileHash = await hashMediaFile(file);
+                // Upload file using shared utility
+                const data = await uploadFileToMediaHelper(file, {
+                    contextId,
+                    checkHash: true,
+                    serverUrl,
+                });
 
-                // Check if file exists first
-                try {
-                    const url = new URL(serverUrl, window.location.origin);
-                    url.searchParams.set("hash", fileHash);
-                    url.searchParams.set("checkHash", "true");
-
-                    const checkResponse = await axios.get(url.toString());
-                    if (
-                        checkResponse.status === 200 &&
-                        checkResponse.data?.url
-                    ) {
-                        // Create media item in database
-                        const mediaItemData = {
-                            taskId: `upload-${Date.now()}`,
-                            cortexRequestId: `upload-${Date.now()}`,
-                            prompt: t("Uploaded image"),
-                            type: "image",
-                            model: "upload",
-                            status: "completed",
-                            settings: settings,
-                        };
-
-                        // Only add URLs if they exist
-                        if (checkResponse.data.url) {
-                            mediaItemData.url = checkResponse.data.url;
-                            mediaItemData.azureUrl = checkResponse.data.url;
-                        }
-                        if (checkResponse.data.gcs) {
-                            mediaItemData.gcsUrl = checkResponse.data.gcs;
-                        }
-
-                        await createMediaItem.mutateAsync(mediaItemData);
-
-                        setTimeout(() => {
-                            promptRef.current && promptRef.current.focus();
-                        }, 0);
-                        return;
-                    }
-                } catch (err) {
-                    if (err.response?.status !== 404) {
-                        console.error("Error checking file hash:", err);
-                    }
-                }
-
-                // If we get here, we need to upload the file
-                const formData = new FormData();
-                formData.append("hash", fileHash);
-                formData.append("file", file, file.name);
-
-                const uploadUrl = new URL(serverUrl, window.location.origin);
-                uploadUrl.searchParams.set("hash", fileHash);
-
-                const response = await axios.post(
-                    uploadUrl.toString(),
-                    formData,
-                    {
-                        headers: {
-                            "Content-Type": "multipart/form-data",
-                        },
-                        onUploadProgress: (progressEvent) => {
-                            // Progress tracking removed - using generic upload message
-                        },
-                    },
-                );
-
-                if (response.data?.url) {
+                if (data?.url) {
                     // Create media item in database
                     const mediaItemData = {
                         taskId: `upload-${Date.now()}`,
@@ -98,12 +40,12 @@ export const useFileUpload = ({
                     };
 
                     // Only add URLs if they exist
-                    if (response.data.url) {
-                        mediaItemData.url = response.data.url;
-                        mediaItemData.azureUrl = response.data.url;
+                    if (data.url) {
+                        mediaItemData.url = data.url;
+                        mediaItemData.azureUrl = data.url;
                     }
-                    if (response.data.gcs) {
-                        mediaItemData.gcsUrl = response.data.gcs;
+                    if (data.gcs) {
+                        mediaItemData.gcsUrl = data.gcs;
                     }
 
                     const mediaItem =
@@ -126,6 +68,7 @@ export const useFileUpload = ({
             promptRef,
             setSelectedImages,
             setSelectedImagesObjects,
+            contextId,
         ],
     );
 

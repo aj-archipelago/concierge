@@ -159,23 +159,73 @@ const VISION = gql`
 `;
 
 const SYS_READ_MEMORY = gql`
-    query SysReadMemory($contextId: String!, $contextKey: String) {
-        sys_read_memory(contextId: $contextId, contextKey: $contextKey) {
+    query SysReadMemory(
+        $contextId: String!
+        $contextKey: String
+        $section: String
+    ) {
+        sys_read_memory(
+            contextId: $contextId
+            contextKey: $contextKey
+            section: $section
+        ) {
             result
         }
     }
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory(
+    mutation SysSaveMemory(
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
+        $section: String
     ) {
         sys_save_memory(
             aiMemory: $aiMemory
             contextId: $contextId
             contextKey: $contextKey
+            section: $section
+        ) {
+            result
+        }
+    }
+`;
+
+const SYS_READ_FILE_COLLECTION = gql`
+    query SysReadFileCollection(
+        $agentContext: [AgentContextInput]
+        $useCache: Boolean
+    ) {
+        sys_read_file_collection(
+            agentContext: $agentContext
+            useCache: $useCache
+        ) {
+            result
+        }
+    }
+`;
+
+const SYS_UPDATE_FILE_METADATA = gql`
+    mutation SysUpdateFileMetadata(
+        $agentContext: [AgentContextInput]!
+        $hash: String!
+        $displayFilename: String
+        $tags: [String!]
+        $notes: String
+        $mimeType: String
+        $permanent: Boolean
+        $inCollection: [String!]
+    ) {
+        sys_update_file_metadata(
+            agentContext: $agentContext
+            hash: $hash
+            displayFilename: $displayFilename
+            tags: $tags
+            notes: $notes
+            mimeType: $mimeType
+            permanent: $permanent
+            inCollection: $inCollection
         ) {
             result
         }
@@ -195,14 +245,12 @@ const CHAT_TITLE = gql`
 `;
 
 const SYS_ENTITY_AGENT = gql`
-    query RagStart(
+    query StartAgent(
         $chatHistory: [MultiMessage]!
-        $contextId: String
-        $contextKey: String
+        $agentContext: [AgentContextInput]
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
-        $aiStyle: String
         $title: String
         $codeRequestId: String
         $stream: Boolean
@@ -210,15 +258,14 @@ const SYS_ENTITY_AGENT = gql`
         $chatId: String
         $researchMode: Boolean
         $model: String
+        $userInfo: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            contextId: $contextId
-            contextKey: $contextKey
+            agentContext: $agentContext
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
-            aiStyle: $aiStyle
             title: $title
             codeRequestId: $codeRequestId
             stream: $stream
@@ -226,6 +273,7 @@ const SYS_ENTITY_AGENT = gql`
             chatId: $chatId
             researchMode: $researchMode
             model: $model
+            userInfo: $userInfo
         ) {
             result
             contextId
@@ -658,7 +706,12 @@ const IMAGE_FLUX = gql`
         $async: Boolean
         $input_image: String
         $input_image_2: String
+        $input_images: [String]
         $aspectRatio: String
+        $resolution: String
+        $output_format: String
+        $output_quality: Int
+        $safety_tolerance: Int
     ) {
         image_flux(
             text: $text
@@ -666,7 +719,12 @@ const IMAGE_FLUX = gql`
             async: $async
             input_image: $input_image
             input_image_2: $input_image_2
+            input_images: $input_images
             aspectRatio: $aspectRatio
+            resolution: $resolution
+            output_format: $output_format
+            output_quality: $output_quality
+            safety_tolerance: $safety_tolerance
         ) {
             result
         }
@@ -689,6 +747,55 @@ const IMAGE_GEMINI_25 = gql`
             input_image_2: $input_image_2
             input_image_3: $input_image_3
             optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_GEMINI_3 = gql`
+    query ImageGemini3(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_3(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
         ) {
             result
             resultData
@@ -841,6 +948,7 @@ const VIDEO_SEEDANCE = gql`
         $image: String
         $seed: Int
         $camera_fixed: Boolean
+        $generate_audio: Boolean
     ) {
         video_seedance(
             text: $text
@@ -852,6 +960,7 @@ const VIDEO_SEEDANCE = gql`
             image: $image
             seed: $seed
             camera_fixed: $camera_fixed
+            generate_audio: $generate_audio
         ) {
             result
         }
@@ -887,20 +996,38 @@ const CODE_HUMAN_INPUT = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String
-            $systemPrompt: String
-            $prompt: String
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
+            ) {
+                result
+                tool
+            }
+        }
+    `;
+};
+
+// Agent-specific query with agentContext and researchMode
+const getWorkspaceAgentQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $chatHistory: [MultiMessage]
+            $async: Boolean
+            $model: String
+            $agentContext: [AgentContextInput]
+            $researchMode: Boolean
+        ) {
+            ${pathwayName}(
+                chatHistory: $chatHistory
+                async: $async
+                model: $model
+                agentContext: $agentContext
+                researchMode: $researchMode
             ) {
                 result
                 tool
@@ -933,6 +1060,15 @@ const SYS_GET_ENTITIES = gql`
     query Sys_get_entities {
         sys_get_entities {
             result
+        }
+    }
+`;
+
+const SYS_TOOL_MERMAID = gql`
+    query Sys_tool_mermaid($chatHistory: [MultiMessage], $async: Boolean) {
+        sys_tool_mermaid(chatHistory: $chatHistory, async: $async) {
+            result
+            tool
         }
     }
 `;
@@ -971,12 +1107,17 @@ const QUERIES = {
     COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
+    IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SYS_READ_FILE_COLLECTION,
+    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
+    SYS_TOOL_MERMAID,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
     SELECT_SERVICES,
@@ -994,6 +1135,7 @@ const QUERIES = {
     TAGS,
     JIRA_STORY,
     getWorkspacePromptQuery,
+    getWorkspaceAgentQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,
@@ -1066,14 +1208,18 @@ export {
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SYS_READ_FILE_COLLECTION,
+    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
     SYS_GET_ENTITIES,
+    SYS_TOOL_MERMAID,
     SELECT_SERVICES,
     SUMMARY,
     HASHTAGS,
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,

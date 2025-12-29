@@ -114,7 +114,7 @@ export default function PromptList({
                 placeholder={t("Search prompts")}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="lb-input text-sm mb-3"
+                className="lb-input mb-3"
             />
             <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId="droppable">
@@ -214,11 +214,18 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             )}
                             {!isRunning && isOwner && (
                                 <button
-                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
+                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer relative z-10"
+                                    style={{ touchAction: "manipulation" }}
                                     onClick={(e) => {
                                         onEdit(prompt);
                                         e.stopPropagation();
                                         e.preventDefault();
+                                    }}
+                                    onTouchStart={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation();
                                     }}
                                     title={t("Edit prompt")}
                                 >

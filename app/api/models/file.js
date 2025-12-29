@@ -41,6 +41,11 @@ export const fileSchema = new mongoose.Schema(
             ref: "User",
             required: true,
         },
+        // Error state for files that failed validation/refresh
+        error: {
+            type: String,
+            required: false,
+        },
     },
     {
         timestamps: true,

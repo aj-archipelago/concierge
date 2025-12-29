@@ -103,15 +103,17 @@ const VISION = gql`
 `;
 
 const SYS_SAVE_MEMORY = gql`
-    query SysSaveMemory(
+    mutation SysSaveMemory(
         $aiMemory: String!
         $contextId: String!
         $contextKey: String
+        $section: String
     ) {
         sys_save_memory(
             aiMemory: $aiMemory
             contextId: $contextId
             contextKey: $contextKey
+            section: $section
         ) {
             result
         }
@@ -127,33 +129,35 @@ const CODE_HUMAN_INPUT = gql`
 `;
 
 const SYS_ENTITY_AGENT = gql`
-    query RagStart(
+    query StartAgent(
         $chatHistory: [MultiMessage]!
-        $contextId: String
-        $contextKey: String
+        $agentContext: [AgentContextInput]
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
-        $aiStyle: String
         $title: String
         $codeRequestId: String
         $stream: Boolean
         $entityId: String
         $chatId: String
+        $researchMode: Boolean
+        $model: String
+        $userInfo: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            contextId: $contextId
-            contextKey: $contextKey
+            agentContext: $agentContext
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
-            aiStyle: $aiStyle
             title: $title
             codeRequestId: $codeRequestId
             stream: $stream
             entityId: $entityId
             chatId: $chatId
+            researchMode: $researchMode
+            model: $model
+            userInfo: $userInfo
         ) {
             result
             contextId
@@ -361,24 +365,26 @@ const TRANSCRIBE = gql`
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
+        $text: String
         $language: String
         $wordTimestamped: Boolean
-        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
+        $responseFormat: String
         $async: Boolean
     ) {
         transcribe_neuralspace(
             file: $file
+            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
-            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            responseFormat: $responseFormat
             async: $async
         ) {
             result
@@ -389,25 +395,29 @@ const TRANSCRIBE_NEURALSPACE = gql`
 const TRANSCRIBE_GEMINI = gql`
     query TranscribeGemini(
         $file: String!
+        $text: String
         $language: String
         $wordTimestamped: Boolean
-        $responseFormat: String
         $maxLineCount: Int
         $maxLineWidth: Int
         $maxWordsPerLine: Int
         $highlightWords: Boolean
+        $responseFormat: String
         $async: Boolean
+        $contextId: String
     ) {
         transcribe_gemini(
             file: $file
+            text: $text
             language: $language
             wordTimestamped: $wordTimestamped
-            responseFormat: $responseFormat
             maxLineCount: $maxLineCount
             maxLineWidth: $maxLineWidth
             maxWordsPerLine: $maxWordsPerLine
             highlightWords: $highlightWords
+            responseFormat: $responseFormat
             async: $async
+            contextId: $contextId
         ) {
             result
         }
@@ -573,7 +583,12 @@ const IMAGE_FLUX = gql`
         $async: Boolean
         $input_image: String
         $input_image_2: String
+        $input_images: [String]
         $aspectRatio: String
+        $resolution: String
+        $output_format: String
+        $output_quality: Int
+        $safety_tolerance: Int
     ) {
         image_flux(
             text: $text
@@ -581,7 +596,12 @@ const IMAGE_FLUX = gql`
             async: $async
             input_image: $input_image
             input_image_2: $input_image_2
+            input_images: $input_images
             aspectRatio: $aspectRatio
+            resolution: $resolution
+            output_format: $output_format
+            output_quality: $output_quality
+            safety_tolerance: $safety_tolerance
         ) {
             result
         }
@@ -604,6 +624,55 @@ const IMAGE_GEMINI_25 = gql`
             input_image_2: $input_image_2
             input_image_3: $input_image_3
             optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_GEMINI_3 = gql`
+    query ImageGemini3(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_3(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
         ) {
             result
             resultData
@@ -756,6 +825,7 @@ const VIDEO_SEEDANCE = gql`
         $image: String
         $seed: Int
         $camera_fixed: Boolean
+        $generate_audio: Boolean
     ) {
         video_seedance(
             text: $text
@@ -767,6 +837,7 @@ const VIDEO_SEEDANCE = gql`
             image: $image
             seed: $seed
             camera_fixed: $camera_fixed
+            generate_audio: $generate_audio
         ) {
             result
         }
@@ -814,16 +885,38 @@ const AZURE_VIDEO_TRANSLATE = gql`
 const getWorkspacePromptQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
-            $text: String!
-            $systemPrompt: String
-            $prompt: String!
+            $chatHistory: [MultiMessage]
             $async: Boolean
+            $model: String
         ) {
             ${pathwayName}(
-                text: $text
-                systemPrompt: $systemPrompt
-                prompt: $prompt
+                chatHistory: $chatHistory
                 async: $async
+                model: $model
+            ) {
+                result
+                tool
+            }
+        }
+    `;
+};
+
+// Agent-specific query with agentContext and researchMode
+const getWorkspaceAgentQuery = (pathwayName) => {
+    return gql`
+        query ${pathwayName}(
+            $chatHistory: [MultiMessage]
+            $async: Boolean
+            $model: String
+            $agentContext: [AgentContextInput]
+            $researchMode: Boolean
+        ) {
+            ${pathwayName}(
+                chatHistory: $chatHistory
+                async: $async
+                model: $model
+                agentContext: $agentContext
+                researchMode: $researchMode
             ) {
                 result
                 tool
@@ -839,6 +932,7 @@ const QUERIES = {
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,
@@ -861,6 +955,7 @@ const QUERIES = {
     TAGS,
     JIRA_STORY,
     getWorkspacePromptQuery,
+    getWorkspaceAgentQuery,
     STYLE_GUIDE,
     ENTITIES,
     STORY_ANGLES,
@@ -902,6 +997,7 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
     VIDEO_VEO,
