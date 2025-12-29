@@ -155,34 +155,10 @@ export default React.forwardRef(function Sidebar(
 
     const handleNewChat = async () => {
         try {
-            // Create optimistic chat ID immediately for instant UI response
-            const optimisticChatId = `temp_${Date.now()}_${crypto.randomUUID()}`;
-
-            // Navigate immediately to the optimistic chat
-            router.push(`/chat/${String(optimisticChatId)}`);
-
-            // Start the mutation in the background with the optimistic ID
-            // The mutation will use this ID for the optimistic chat and handle server response
-            addChat.mutate(
-                { messages: [], optimisticChatId },
-                {
-                    onSuccess: (serverChat) => {
-                        // If server returned a different chat (existing unused chat),
-                        // navigate to the real chat ID
-                        if (
-                            serverChat?._id &&
-                            serverChat._id !== optimisticChatId
-                        ) {
-                            router.push(`/chat/${String(serverChat._id)}`);
-                        }
-                    },
-                    onError: (error) => {
-                        console.error("Error adding chat:", error);
-                        // On error, the optimistic chat will be rolled back by the mutation
-                        // We could navigate back to a previous chat if needed
-                    },
-                },
-            );
+            // Always call server - it will find an unused chat or create a new one
+            // Server handles all the logic, we just navigate to the result
+            const { _id } = await addChat.mutateAsync({ messages: [] });
+            router.push(`/chat/${String(_id)}`);
         } catch (error) {
             console.error("Error adding chat:", error);
         }
