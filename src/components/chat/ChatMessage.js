@@ -319,21 +319,20 @@ function convertMessageToMarkdown(
         placeholders.set(key, value);
         return key;
     };
-    
+
     // 1. Protect code blocks
-    let text = payload
-        .replace(/```[\s\S]*?```/g, ph)
-        .replace(/`[^`\n]+`/g, ph);
-    
+    let text = payload.replace(/```[\s\S]*?```/g, ph).replace(/`[^`\n]+`/g, ph);
+
     // 2. Protect math expressions ($...$) but skip currency-like content
     text = text.replace(/\$([^$\n]+?)\$/g, (match, content, offset, str) => {
         // Skip if contains "million/billion" etc. - let currency handler deal with it
-        if (/\d+\s+(?:million|billion|thousand|trillion)/i.test(content)) return match;
+        if (/\d+\s+(?:million|billion|thousand|trillion)/i.test(content))
+            return match;
         // Skip if followed by digit (likely part of currency range like $40...$50)
         if (/^\s*\d/.test(str.slice(offset + match.length))) return match;
         return ph(match);
     });
-    
+
     // 3. Mark currency amounts (will be restored by rehype plugin)
     // Use «» to avoid markdown interpreting __ as bold
     const currencyPlaceholders = new Map();
@@ -343,15 +342,19 @@ function convertMessageToMarkdown(
         currencyPlaceholders.set(key, match);
         return key;
     };
-    
+
     // Currency regex: $amount with optional K/M suffix and optional "million/billion" word
-    const currencyAmount = /\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?[KMkm]?(?:\s+(?:million|billion|thousand|trillion))?/;
+    const currencyAmount =
+        /\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?[KMkm]?(?:\s+(?:million|billion|thousand|trillion))?/;
     const currencyRange = new RegExp(
         `([-(]?)${currencyAmount.source}(?:\\s*[–—-]\\s*${currencyAmount.source.slice(1)})?(?!\\$)`,
-        'g'
+        "g",
     );
-    text = text.replace(currencyRange, (match, prefix) => prefix + currencyPh(match));
-    
+    text = text.replace(
+        currencyRange,
+        (match, prefix) => prefix + currencyPh(match),
+    );
+
     // 4. Restore code and math (currency stays as placeholders for rehype)
     for (const [key, value] of placeholders) {
         text = text.split(key).join(value);
