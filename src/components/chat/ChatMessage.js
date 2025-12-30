@@ -25,6 +25,21 @@ function transformToCitation(content) {
         .replace(/\[upload\]/g, ":cd_upload");
 }
 
+// Rehype plugin to restore currency placeholders after markdown parsing
+function restoreCurrency(placeholders) {
+    return (tree) => {
+        if (!tree?.children) return;
+        visit(tree, "text", (node) => {
+            if (!node?.value) return;
+            let text = node.value;
+            for (const [key, value] of placeholders) {
+                if (text.includes(key)) text = text.split(key).join(value);
+            }
+            if (text !== node.value) node.value = text;
+        });
+    };
+}
+
 function customMarkdownDirective() {
     return (tree) => {
         visit(
@@ -299,10 +314,62 @@ function convertMessageToMarkdown(
         ),
     };
 
+    // Protect currency amounts from being parsed as math equations
+    // Strategy: protect code → protect math → mark currency → restore code/math
+    // Currency placeholders stay until rehype plugin restores them after markdown parsing
+    const placeholders = new Map();
+    let idx = 0;
+    const ph = (value) => {
+        const key = `__PH${idx++}__`;
+        placeholders.set(key, value);
+        return key;
+    };
+
+    // 1. Protect code blocks
+    let text = payload.replace(/```[\s\S]*?```/g, ph).replace(/`[^`\n]+`/g, ph);
+
+    // 2. Protect math expressions ($...$) but skip currency-like content
+    text = text.replace(/\$([^$\n]+?)\$/g, (match, content, offset, str) => {
+        // Skip if contains "million/billion" etc. - let currency handler deal with it
+        if (/\d+\s+(?:million|billion|thousand|trillion)/i.test(content))
+            return match;
+        // Skip if followed by digit (likely part of currency range like $40...$50)
+        if (/^\s*\d/.test(str.slice(offset + match.length))) return match;
+        return ph(match);
+    });
+
+    // 3. Mark currency amounts (will be restored by rehype plugin)
+    // Use «» to avoid markdown interpreting __ as bold
+    const currencyPlaceholders = new Map();
+    let currencyIdx = 0;
+    const currencyPh = (match) => {
+        const key = `«CURRENCY${currencyIdx++}»`;
+        currencyPlaceholders.set(key, match);
+        return key;
+    };
+
+    // Currency regex: $amount with optional K/M suffix and optional "million/billion" word
+    const currencyAmount =
+        /\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?[KMkm]?(?:\s+(?:million|billion|thousand|trillion))?/;
+    const currencyRange = new RegExp(
+        `([-(]?)${currencyAmount.source}(?:\\s*[–—-]\\s*${currencyAmount.source.slice(1)})?(?!\\$)`,
+        "g",
+    );
+    text = text.replace(
+        currencyRange,
+        (match, prefix) => prefix + currencyPh(match),
+    );
+
+    // 4. Restore code and math (currency stays as placeholders for rehype)
+    for (const [key, value] of placeholders) {
+        text = text.split(key).join(value);
+    }
+    const protectedPayload = text;
+
     // Some models, like GPT-4o, will use inline LaTeX math markdown
     // and we need to change it here so that the markdown parser can
     // handle it correctly.
-    const modifiedPayload = payload
+    const modifiedPayload = protectedPayload
         .replace(/\\\[/g, "$$$")
         .replace(/\\\]/g, "$$$")
         .replace(/\\\(/g, "$$$")
@@ -332,7 +399,11 @@ function convertMessageToMarkdown(
                 remarkGfm,
                 [remarkMath, { singleDollarTextMath: true }],
             ]}
-            rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: false }]]}
+            rehypePlugins={[
+                [rehypeKatex, { strict: false }],
+                rehypeRaw,
+                [restoreCurrency, currencyPlaceholders],
+            ]}
             children={transformToCitation(modifiedPayload)}
         />
     );
