@@ -2,42 +2,40 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-// Mock react-markdown to actually process rehype plugins
-jest.mock("react-markdown", () => ({
-    __esModule: true,
-    default: ({ children, className, rehypePlugins }) => {
-        // Process text through rehype plugins if they exist
-        let processedText = typeof children === 'string' ? children : String(children);
-        
-        if (rehypePlugins && rehypePlugins.length > 0) {
-            // Create a mock tree structure that represents processed markdown
-            // After remark processing, text would be in text nodes
-            const mockTree = {
-                type: 'root',
-                children: [{
-                    type: 'element',
-                    tagName: 'p',
-                    children: [{
-                        type: 'text',
-                        value: processedText
-                    }]
-                }]
-            };
+// Mock react-markdown with realistic end-to-end behavior
+// This simulates actual markdown processing including bold/italic interpretation
+// which catches bugs like __CURRENCY_0__ being interpreted as bold
+jest.mock("react-markdown", () => {
+    const React = require("react");
+    return {
+        __esModule: true,
+        default: ({ children, className, rehypePlugins }) => {
+            let processedText = typeof children === 'string' ? children : String(children);
             
-            // Run each rehype plugin
-            rehypePlugins.forEach(plugin => {
-                try {
-                    if (typeof plugin === 'function') {
-                        // Direct transformer function
-                        plugin(mockTree);
-                    } else if (Array.isArray(plugin)) {
-                        if (plugin.length === 1 && typeof plugin[0] === 'function') {
-                            // Array with single transformer function: [transformer]
-                            plugin[0](mockTree);
-                        } else if (plugin.length === 2) {
-                            // Plugin with options: [pluginFunction, options]
-                            const pluginFn = plugin[0];
-                            const options = plugin[1];
+            // Simulate markdown processing: __text__ becomes bold, *text* becomes italic
+            // This is critical - it catches the bug where __CURRENCY_0__ gets interpreted as bold
+            processedText = processedText
+                .replace(/__(.+?)__/g, '<strong>$1</strong>')  // Bold
+                .replace(/\*(.+?)\*/g, '<em>$1</em>');          // Italic
+            
+            // Process rehype plugins if they exist (this is the real behavior we need to test)
+            if (rehypePlugins && rehypePlugins.length > 0) {
+                const mockTree = {
+                    type: 'root',
+                    children: [{
+                        type: 'element',
+                        tagName: 'p',
+                        children: [{
+                            type: 'text',
+                            value: processedText
+                        }]
+                    }]
+                };
+                
+                rehypePlugins.forEach(plugin => {
+                    try {
+                        if (Array.isArray(plugin) && plugin.length === 2) {
+                            const [pluginFn, options] = plugin;
                             if (typeof pluginFn === 'function') {
                                 const transformer = pluginFn(options);
                                 if (typeof transformer === 'function') {
@@ -45,82 +43,43 @@ jest.mock("react-markdown", () => ({
                                 }
                             }
                         }
+                    } catch (e) {
+                        console.warn('Plugin error:', e);
                     }
-                } catch (e) {
-                    // Ignore plugin errors in test
-                    console.warn('Plugin error in test:', e);
-                }
-            });
-            
-            // Extract processed text from the tree
-            const extractText = (node) => {
-                if (node.type === 'text' && node.value) {
-                    return node.value;
-                }
-                if (node.children && Array.isArray(node.children)) {
-                    return node.children.map(extractText).filter(Boolean).join('');
-                }
-                return '';
-            };
-            
-            const extracted = extractText(mockTree);
-            if (extracted) {
-                processedText = extracted;
+                });
+                
+                // Extract text from tree
+                const extractText = (node) => {
+                    if (node.type === 'text' && node.value) return node.value;
+                    if (node.children) {
+                        return node.children.map(extractText).filter(Boolean).join('');
+                    }
+                    return '';
+                };
+                
+                const extracted = extractText(mockTree);
+                if (extracted) processedText = extracted;
             }
-        }
-        
-        return (
-            <div className={className} data-testid="markdown">
-                {processedText}
-            </div>
-        );
-    },
-}));
+            
+            return React.createElement('div', { className, 'data-testid': 'markdown' }, processedText);
+        },
+    };
+});
 
-jest.mock("remark-directive", () => ({
-    __esModule: true,
-    default: () => () => {},
-}));
-
-jest.mock("remark-gfm", () => ({
-    __esModule: true,
-    default: () => () => {},
-}));
-
-jest.mock("remark-math", () => ({
-    __esModule: true,
-    default: () => () => {},
-}));
-
-// Mock rehype plugins - they need to actually process the tree
-jest.mock("rehype-katex", () => ({
-    __esModule: true,
-    default: () => (tree) => tree, // Pass through
-}));
-
-jest.mock("rehype-raw", () => ({
-    __esModule: true,
-    default: () => (tree) => tree, // Pass through
-}));
-
+// Mock ESM dependencies that cause issues
+jest.mock("remark-directive", () => ({ __esModule: true, default: () => () => {} }));
+jest.mock("remark-gfm", () => ({ __esModule: true, default: () => () => {} }));
+jest.mock("remark-math", () => ({ __esModule: true, default: () => () => {} }));
+jest.mock("rehype-katex", () => ({ __esModule: true, default: () => (tree) => tree }));
+jest.mock("rehype-raw", () => ({ __esModule: true, default: () => (tree) => tree }));
 jest.mock("katex/dist/katex.min.css", () => ({}));
-
-// Mock unist-util-visit to actually traverse and modify the tree
 jest.mock("unist-util-visit", () => ({
     visit: (tree, type, visitor) => {
-        // Recursively visit nodes matching the type
         const traverse = (node) => {
             if (!node) return;
-            
-            if (node.type === type && visitor) {
-                visitor(node);
-            }
-            
-            if (node.children) {
-                node.children.forEach(traverse);
-            }
+            if (node.type === type && visitor) visitor(node);
+            if (node.children) node.children.forEach(traverse);
         };
-        
         traverse(tree);
     },
 }));
@@ -184,35 +143,35 @@ describe("ChatMessage Currency Protection", () => {
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
             // Should not contain currency placeholders in final output
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect currency with decimals", () => {
             const { container } = renderMessage("Price: $123.45");
             const text = container.textContent || "";
             expect(text).toContain("$123.45");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect large currency amounts", () => {
             const { container } = renderMessage("Total: $1,234,567.89");
             const text = container.textContent || "";
             expect(text).toContain("$1,234,567.89");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect negative currency amounts", () => {
             const { container } = renderMessage("Loss: -$1,000");
             const text = container.textContent || "";
             expect(text).toContain("-$1,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect currency in parentheses (accounting notation)", () => {
             const { container } = renderMessage("Net: ($1,000)");
             const text = container.textContent || "";
             expect(text).toContain("($1,000)");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect currency ranges", () => {
@@ -220,7 +179,7 @@ describe("ChatMessage Currency Protection", () => {
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
             expect(text).toContain("$2,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect multiple currency amounts in same text", () => {
@@ -231,7 +190,7 @@ describe("ChatMessage Currency Protection", () => {
             expect(text).toContain("$1,000");
             expect(text).toContain("$2,000");
             expect(text).toContain("$3,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should protect currency amounts with words like million, billion", () => {
@@ -262,7 +221,7 @@ describe("ChatMessage Currency Protection", () => {
             // but we can verify the currency protection didn't interfere)
             const text = container.textContent || "";
             // Should not contain currency placeholders
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should allow block math with double dollar signs", () => {
@@ -271,7 +230,7 @@ describe("ChatMessage Currency Protection", () => {
             );
             const text = container.textContent || "";
             // Should not contain currency placeholders
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should not protect single-digit amounts that are likely math", () => {
@@ -385,7 +344,7 @@ describe("ChatMessage Currency Protection", () => {
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
             // Math should still work (can't easily verify KaTeX, but no placeholders)
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should handle multiple currencies and math expressions", () => {
@@ -395,7 +354,7 @@ describe("ChatMessage Currency Protection", () => {
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
             expect(text).toContain("$2,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
     });
 
@@ -405,7 +364,7 @@ describe("ChatMessage Currency Protection", () => {
             const text = container.textContent || "";
             // Shell variables in code should not be affected
             expect(text).toContain("$HOME");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should not process dollar signs inside inline code", () => {
@@ -439,14 +398,14 @@ describe("ChatMessage Currency Protection", () => {
             const { container } = renderMessage("$1,000 is the starting amount.");
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should handle currency at end of line", () => {
             const { container } = renderMessage("The amount is $1,000");
             const text = container.textContent || "";
             expect(text).toContain("$1,000");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
         });
 
         it("should handle currency followed by punctuation", () => {
@@ -457,7 +416,21 @@ describe("ChatMessage Currency Protection", () => {
             expect(text).toContain("$1,000");
             expect(text).toContain("$500");
             expect(text).toContain("$1,500");
-            expect(text).not.toContain("__CURRENCY_");
+            expect(text).not.toContain("«CURRENCY");
+        });
+
+        it("should not interpret currency placeholders as markdown", () => {
+            // This test ensures placeholders like «CURRENCY0» don't get processed as markdown
+            // If we used __CURRENCY_0__, markdown would interpret it as bold and break restoration
+            const { container } = renderMessage(
+                "Revenue: $40 million and $50 million in annual recurring revenue"
+            );
+            const text = container.textContent || "";
+            expect(text).toContain("$40 million");
+            expect(text).toContain("$50 million");
+            // Verify placeholders are not visible (would be if markdown processed them)
+            expect(text).not.toContain("«CURRENCY");
+            expect(text).not.toContain("CURRENCY");
         });
     });
 });

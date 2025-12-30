@@ -26,24 +26,16 @@ function transformToCitation(content) {
 }
 
 // Rehype plugin to restore currency placeholders after markdown parsing
-// Format: [restoreCurrency, placeholdersMap] in rehypePlugins array
 function restoreCurrency(placeholders) {
     return (tree) => {
         if (!tree?.children) return;
-        
         visit(tree, "text", (node) => {
-            if (!node?.value || typeof node.value !== 'string') return;
-            
-            let modified = node.value;
-            placeholders.forEach((original, placeholder) => {
-                if (modified.includes(placeholder)) {
-                    modified = modified.split(placeholder).join(original);
-                }
-            });
-            
-            if (modified !== node.value) {
-                node.value = modified;
+            if (!node?.value) return;
+            let text = node.value;
+            for (const [key, value] of placeholders) {
+                if (text.includes(key)) text = text.split(key).join(value);
             }
+            if (text !== node.value) node.value = text;
         });
     };
 }
@@ -318,91 +310,53 @@ function convertMessageToMarkdown(
     };
 
     // Protect currency amounts from being parsed as math equations
-    // Rule: $<currency pattern>$ is math, $<currency pattern> (not followed by $) is currency
-    // Examples: $10$ = math, $10M$ = math, $10M = currency, $10M-$12M = currency
-    // We need to avoid matching currency inside $...$ math expressions and code blocks
+    // Strategy: protect code → protect math → mark currency → restore code/math
+    // Currency placeholders stay until rehype plugin restores them after markdown parsing
+    const placeholders = new Map();
+    let idx = 0;
+    const ph = (value) => {
+        const key = `__PH${idx++}__`;
+        placeholders.set(key, value);
+        return key;
+    };
+    
+    // 1. Protect code blocks
+    let text = payload
+        .replace(/```[\s\S]*?```/g, ph)
+        .replace(/`[^`\n]+`/g, ph);
+    
+    // 2. Protect math expressions ($...$) but skip currency-like content
+    text = text.replace(/\$([^$\n]+?)\$/g, (match, content, offset, str) => {
+        // Skip if contains "million/billion" etc. - let currency handler deal with it
+        if (/\d+\s+(?:million|billion|thousand|trillion)/i.test(content)) return match;
+        // Skip if followed by digit (likely part of currency range like $40...$50)
+        if (/^\s*\d/.test(str.slice(offset + match.length))) return match;
+        return ph(match);
+    });
+    
+    // 3. Mark currency amounts (will be restored by rehype plugin)
+    // Use «» to avoid markdown interpreting __ as bold
     const currencyPlaceholders = new Map();
-    let currencyIndex = 0;
+    let currencyIdx = 0;
+    const currencyPh = (match) => {
+        const key = `«CURRENCY${currencyIdx++}»`;
+        currencyPlaceholders.set(key, match);
+        return key;
+    };
     
-    // First, protect code blocks (both inline and code fences) to avoid processing them
-    const codePlaceholders = new Map();
-    let codeIndex = 0;
-    let tempPayload = payload
-        // Protect code fences (```...```)
-        .replace(/```[\s\S]*?```/g, (match) => {
-            const placeholder = `__CODE_FENCE_${codeIndex}__`;
-            codePlaceholders.set(placeholder, match);
-            codeIndex++;
-            return placeholder;
-        })
-        // Protect inline code (`...`)
-        .replace(/`[^`\n]+`/g, (match) => {
-            const placeholder = `__CODE_INLINE_${codeIndex}__`;
-            codePlaceholders.set(placeholder, match);
-            codeIndex++;
-            return placeholder;
-        });
-    
-    // Then, mark all $...$ patterns to avoid matching currency inside them
-    // Only match if the content is clearly math (not currency-like)
-    // IMPORTANT: Any $...$ pattern with a closing $ should be protected as math to prevent
-    // currency regex from partially matching it (e.g., $10$ should be math, not $1 as currency)
-    const mathPlaceholders = new Map();
-    let mathIndex = 0;
-    tempPayload = tempPayload.replace(/\$([^$\n]+?)\$/g, (match, content, offset, string) => {
-        const trimmedContent = content.trim();
-        
-        // Skip if content contains currency-like patterns with words (digits followed by "million"/"billion" etc.)
-        // But still protect simple numbers like $10$ as math to avoid partial currency matching
-        if (/\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:\s+(?:million|billion|thousand|trillion))/i.test(trimmedContent)) {
-            return match; // Contains currency pattern with words, skip
-        }
-        
-        // Skip if the closing $ is immediately followed by a digit (likely currency)
-        const afterMatch = string.slice(offset + match.length);
-        if (/^\s*\d/.test(afterMatch)) {
-            return match; // Likely part of a currency expression
-        }
-        
-        // Protect as math (even if it's just digits like $10$ - this prevents currency regex from matching $1)
-        const placeholder = `__MATH_${mathIndex}__`;
-        mathPlaceholders.set(placeholder, match);
-        mathIndex++;
-        return placeholder;
-    });
-    
-    // Now protect $<currency pattern> that is NOT followed by $ (and not inside math/code)
-    // Also match optional words like "million", "billion" after the amount
-    // Handle ranges with dashes (en-dash \u2013, em-dash \u2014, or hyphen -)
-    // Match ranges first (like $150M–$200M), then single amounts with words (like $77 million)
-    let protectedPayload = tempPayload.replace(
-        /([-(]?)\$(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:[KMkm])?)(?:\s+(?:million|billion|thousand|trillion))?(?:\s*[–—-]\s*\$(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:[KMkm])?)(?:\s+(?:million|billion|thousand|trillion))?)(?!\$)/g,
-        (match, prefix) => {
-            const placeholder = `{CURRENCY_${currencyIndex}}`;
-            currencyPlaceholders.set(placeholder, match);
-            currencyIndex++;
-            return prefix + placeholder;
-        }
+    // Currency regex: $amount with optional K/M suffix and optional "million/billion" word
+    const currencyAmount = /\$\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?[KMkm]?(?:\s+(?:million|billion|thousand|trillion))?/;
+    const currencyRange = new RegExp(
+        `([-(]?)${currencyAmount.source}(?:\\s*[–—-]\\s*${currencyAmount.source.slice(1)})?(?!\\$)`,
+        'g'
     );
-    // Then match single amounts with optional words (ranges already protected won't match)
-    protectedPayload = protectedPayload.replace(
-        /([-(]?)\$(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?(?:[KMkm])?)(?:\s+(?:million|billion|thousand|trillion))?(?!\$)/g,
-        (match, prefix) => {
-            const placeholder = `{CURRENCY_${currencyIndex}}`;
-            currencyPlaceholders.set(placeholder, match);
-            currencyIndex++;
-            return prefix + placeholder;
-        }
-    );
-    protectedPayload = protectedPayload
-    // Restore math expressions
-    .replace(/__MATH_(\d+)__/g, (match) => {
-        return mathPlaceholders.get(match) || match;
-    })
-    // Restore code blocks
-    .replace(/__(CODE_FENCE|CODE_INLINE)_(\d+)__/g, (match) => {
-        return codePlaceholders.get(match) || match;
-    });
+    text = text.replace(currencyRange, (match, prefix) => prefix + currencyPh(match));
+    
+    // 4. Restore code and math (currency stays as placeholders for rehype)
+    for (const [key, value] of placeholders) {
+        text = text.split(key).join(value);
+    }
+    const protectedPayload = text;
 
     // Some models, like GPT-4o, will use inline LaTeX math markdown
     // and we need to change it here so that the markdown parser can
