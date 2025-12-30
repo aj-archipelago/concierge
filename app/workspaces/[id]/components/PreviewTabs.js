@@ -1,20 +1,11 @@
 "use client";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
+import FileManager from "@/src/components/common/FileManager";
 import MonacoEditor from "@monaco-editor/react";
 import { useParams } from "next/navigation";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 // Function to convert unpkg.com Lucide icon URLs to local routes
@@ -344,125 +335,54 @@ function FilesTab({ workspaceId, isOwner }) {
     const { t } = useTranslation();
     const [files, setFiles] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [fileToDelete, setFileToDelete] = useState(null);
 
     // Fetch files
-    useEffect(() => {
-        const fetchFiles = async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
-
-                const response = await fetch(
-                    `/api/workspaces/${workspaceId}/applet/files`,
-                );
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const result = await response.json();
-                setFiles(result.files || []);
-            } catch (err) {
-                console.error("Error fetching applet files:", err);
-                setError(err.message);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (workspaceId) {
-            fetchFiles();
-        }
-    }, [workspaceId]);
-
-    // Handle opening delete confirmation dialog
-    const handleDeleteClick = (file) => {
-        setFileToDelete(file);
-    };
-
-    // Handle confirmed file deletion
-    const handleConfirmDelete = async () => {
-        if (!isOwner || !fileToDelete) return;
-
+    const fetchFiles = useCallback(async () => {
+        if (!workspaceId) return;
         try {
+            setIsLoading(true);
             const response = await fetch(
-                `/api/workspaces/${workspaceId}/applet/files?filename=${encodeURIComponent(fileToDelete.filename)}`,
-                {
-                    method: "DELETE",
-                },
+                `/api/workspaces/${workspaceId}/applet/files`,
             );
-
             if (!response.ok) {
-                throw new Error(`Delete failed: ${response.statusText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-
             const result = await response.json();
             setFiles(result.files || []);
         } catch (err) {
-            console.error("Error deleting file:", err);
-            setError(err.message);
+            console.error("Error fetching applet files:", err);
         } finally {
-            setFileToDelete(null);
+            setIsLoading(false);
         }
-    };
+    }, [workspaceId]);
 
-    // Handle canceling delete
-    const handleCancelDelete = () => {
-        setFileToDelete(null);
-    };
+    useEffect(() => {
+        fetchFiles();
+    }, [fetchFiles]);
 
-    // Format file size
-    const formatFileSize = (bytes) => {
-        if (bytes === 0) return "0 Bytes";
-        const k = 1024;
-        const sizes = ["Bytes", "KB", "MB", "GB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-    };
+    // Delete files handler
+    const handleDelete = useCallback(
+        async (filesToRemove) => {
+            if (!isOwner) return;
 
-    // Format date
-    const formatDate = (dateString) => {
-        return (
-            new Date(dateString).toLocaleDateString() +
-            " " +
-            new Date(dateString).toLocaleTimeString()
-        );
-    };
-
-    if (isLoading) {
-        return <LoadingStatePlaceholder />;
-    }
-
-    if (error) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
-                    <svg
-                        className="w-8 h-8 text-red-400 dark:text-red-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                        />
-                    </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                    {t("Error loading files")}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                    {error}
-                </p>
-            </div>
-        );
-    }
-
-    const hasFiles = files.length > 0;
+            // Delete files one by one (API supports single file delete)
+            await Promise.all(
+                filesToRemove.map(async (file) => {
+                    const filename = file.filename || file.originalName;
+                    const response = await fetch(
+                        `/api/workspaces/${workspaceId}/applet/files?filename=${encodeURIComponent(filename)}`,
+                        { method: "DELETE" },
+                    );
+                    if (!response.ok) {
+                        throw new Error(
+                            `Delete failed: ${response.statusText}`,
+                        );
+                    }
+                }),
+            );
+        },
+        [workspaceId, isOwner],
+    );
 
     return (
         <div className="h-full flex flex-col">
@@ -478,158 +398,26 @@ function FilesTab({ workspaceId, isOwner }) {
             </div>
 
             <div className="flex-1 overflow-auto">
-                {!hasFiles ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                            <svg
-                                className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                />
-                            </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                            {t("No debug files uploaded yet")}
-                        </h3>
-                        <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                            {t(
-                                "No personal files have been uploaded while developing this applet. These files are for debugging purposes only, not for end users.",
-                            )}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {files.map((file, index) => (
-                            <div
-                                key={`${file.filename}-${index}`}
-                                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600"
-                            >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className="w-10 h-10 bg-sky-100 dark:bg-sky-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                        <svg
-                                            className="w-5 h-5 text-sky-600 dark:text-sky-400"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                            />
-                                        </svg>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                            {file.originalName}
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            {formatFileSize(file.size)} •{" "}
-                                            {formatDate(file.uploadedAt)}
-                                        </p>
-                                        {file.url && (
-                                            <p className="text-xs text-sky-600 dark:text-sky-400 truncate">
-                                                <a
-                                                    href={file.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="hover:underline"
-                                                >
-                                                    {file.url}
-                                                </a>
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                    {file.url && (
-                                        <button
-                                            onClick={() =>
-                                                window.open(file.url, "_blank")
-                                            }
-                                            className="p-1 text-gray-400 hover:text-sky-600 transition-colors"
-                                            title={t("Open file")}
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                                                />
-                                            </svg>
-                                        </button>
-                                    )}
-                                    {isOwner && (
-                                        <button
-                                            onClick={() =>
-                                                handleDeleteClick(file)
-                                            }
-                                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                            title={t("Delete file")}
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth={2}
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <FileManager
+                    files={files}
+                    isLoading={isLoading}
+                    onRefetch={fetchFiles}
+                    onDelete={isOwner ? handleDelete : undefined}
+                    emptyTitle={t("No debug files uploaded yet")}
+                    emptyDescription={t(
+                        "No personal files have been uploaded while developing this applet. These files are for debugging purposes only, not for end users.",
+                    )}
+                    showPermanentColumn={false}
+                    showDateColumn={true}
+                    enableFilenameEdit={false}
+                    enableHoverPreview={true}
+                    enableBulkActions={isOwner}
+                    enableFilter={true}
+                    enableSort={true}
+                    optimisticDelete={true}
+                    containerHeight="100%"
+                />
             </div>
-
-            {/* Delete confirmation dialog */}
-            <AlertDialog
-                open={!!fileToDelete}
-                onOpenChange={handleCancelDelete}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>{t("Delete file")}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t("Are you sure you want to delete")} "
-                            {fileToDelete?.originalName}"?{" "}
-                            {t("This action cannot be undone.")}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={handleCancelDelete}>
-                            {t("Cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleConfirmDelete}
-                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                        >
-                            {t("Delete")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
         </div>
     );
 }

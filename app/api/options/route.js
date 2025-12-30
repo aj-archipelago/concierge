@@ -5,7 +5,14 @@ export async function POST(req) {
     try {
         const body = await req.json();
 
-        const { userId, contextId, aiMemorySelfModify, aiName, aiStyle } = body;
+        const {
+            userId,
+            contextId,
+            aiMemorySelfModify,
+            aiName,
+            agentModel,
+            useCustomEntities,
+        } = body;
 
         if (!mongoose.connection.readyState) {
             throw new Error("Database is not connected");
@@ -23,8 +30,11 @@ export async function POST(req) {
             if (aiName !== undefined) {
                 user.aiName = aiName;
             }
-            if (aiStyle !== undefined) {
-                user.aiStyle = aiStyle;
+            if (agentModel !== undefined) {
+                user.agentModel = agentModel;
+            }
+            if (useCustomEntities !== undefined) {
+                user.useCustomEntities = useCustomEntities;
             }
             await user.save();
             return Response.json({ status: "success" });

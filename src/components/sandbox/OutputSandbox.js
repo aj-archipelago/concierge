@@ -263,6 +263,111 @@ const OutputSandbox = forwardRef(
             [cleanupOldPortals, removeOldPortalContainers],
         );
 
+        // Setup message handling for iframe->parent communication (outside useEffect so it's always ready)
+        useEffect(() => {
+            const handleMessage = async (event) => {
+                // Only handle messages from our iframe
+                if (
+                    !iframeRef.current ||
+                    event.source !== iframeRef.current.contentWindow
+                ) {
+                    return;
+                }
+
+                if (event.origin !== window.location.origin) {
+                    return;
+                }
+
+                // Handle fetch proxy requests from iframe
+                if (
+                    event.data &&
+                    event.data.type === "__FETCH_PROXY_REQUEST__"
+                ) {
+                    console.log(
+                        "[Fetch Proxy] Received request from iframe:",
+                        event.data.url,
+                    );
+                    try {
+                        const { requestId, url, options } = event.data;
+
+                        // Make the fetch request from the parent window
+                        const response = await fetch(url, {
+                            ...options,
+                            credentials: "include",
+                        });
+
+                        console.log(
+                            "[Fetch Proxy] Fetch completed:",
+                            response.status,
+                        );
+
+                        // Get response data
+                        const responseText = await response.text();
+                        const responseHeaders = {};
+                        response.headers.forEach((value, key) => {
+                            responseHeaders[key] = value;
+                        });
+
+                        // Send response back to iframe
+                        try {
+                            iframeRef.current.contentWindow.postMessage(
+                                {
+                                    type: "__FETCH_PROXY_RESPONSE__",
+                                    requestId: requestId,
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    headers: responseHeaders,
+                                    body: responseText,
+                                },
+                                window.location.origin,
+                            );
+                            console.log(
+                                "[Fetch Proxy] Response sent to iframe",
+                            );
+                        } catch (postError) {
+                            // Iframe may have been closed/unmounted
+                            console.warn(
+                                "[Fetch Proxy] Failed to send response to iframe:",
+                                postError,
+                            );
+                        }
+                    } catch (error) {
+                        console.error(
+                            "[Fetch Proxy] Error making request:",
+                            error,
+                        );
+                        // Send error back to iframe
+                        try {
+                            iframeRef.current.contentWindow.postMessage(
+                                {
+                                    type: "__FETCH_PROXY_RESPONSE__",
+                                    requestId: event.data.requestId,
+                                    error: error.message || "Fetch proxy error",
+                                },
+                                window.location.origin,
+                            );
+                        } catch (postError) {
+                            // Iframe may have been closed/unmounted
+                            console.warn(
+                                "[Fetch Proxy] Failed to send error to iframe:",
+                                postError,
+                            );
+                        }
+                    }
+                    return;
+                }
+
+                // Handle other messages from the iframe
+                console.log("Message from sandbox:", event.data);
+            };
+
+            window.addEventListener("message", handleMessage);
+
+            return () => {
+                window.removeEventListener("message", handleMessage);
+            };
+        }, []);
+
         useEffect(() => {
             if (!iframeRef.current) {
                 return;
@@ -585,21 +690,6 @@ const OutputSandbox = forwardRef(
 
                         // Process any existing pre elements
                         processPreElements(frameDoc);
-
-                        // Setup message handling for iframe->parent communication
-                        iframe.contentWindow.addEventListener(
-                            "message",
-                            (event) => {
-                                if (event.origin !== window.location.origin) {
-                                    return;
-                                }
-                                // Handle messages from the iframe
-                                console.log(
-                                    "Message from sandbox:",
-                                    event.data,
-                                );
-                            },
-                        );
 
                         setIsLoading(false);
                         isInitializedRef.current = true;

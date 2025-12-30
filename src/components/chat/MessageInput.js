@@ -1,27 +1,17 @@
 import React from "react";
-import { useApolloClient } from "@apollo/client";
 import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
-import { useContext, useEffect, useState } from "react";
-import { FilePlus, XCircle, StopCircle, Send } from "lucide-react";
-import { useDispatch } from "react-redux";
+import { useContext, useEffect, useState, useRef } from "react";
+import { Paperclip, XCircle, StopCircle, Send } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
-import { v4 as uuidv4 } from "uuid";
+import { useTranslation } from "react-i18next";
 import { useGetActiveChatId } from "../../../app/queries/chats";
-import { useAddDocument } from "../../../app/queries/uploadedDocs";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext } from "../../App";
-import { COGNITIVE_INSERT } from "../../graphql";
-import {
-    clearFileLoading,
-    loadingError,
-    setFileLoading,
-} from "../../stores/fileUploadSlice";
 import {
     ACCEPTED_FILE_TYPES,
-    getFilename,
-    isRagFileUrl,
     isSupportedFileUrl,
+    generateFilenameFromMimeType,
 } from "../../utils/mediaUtils";
 import {
     AlertDialog,
@@ -33,7 +23,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const DynamicFilepond = dynamic(() => import("./MyFilePond"), {
+const DynamicFileUploader = dynamic(() => import("./FileUploader"), {
     ssr: false,
 });
 
@@ -48,15 +38,11 @@ function MessageInput({
     onStopStreaming,
     initialShowFileUpload = false,
 }) {
+    const { t } = useTranslation();
     const activeChatId = useGetActiveChatId();
 
-    const { user, userState, debouncedUpdateUserState } =
-        useContext(AuthContext);
-    const contextId = user?.contextId;
-    const dispatch = useDispatch();
-    const client = useApolloClient();
+    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-    const addDocument = useAddDocument();
     const MAX_INPUT_LENGTH = 100000;
     const [lengthLimitAlert, setLengthLimitAlert] = useState({
         show: false,
@@ -78,33 +64,57 @@ function MessageInput({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeChatId]); // Only depend on activeChatId, not userState
 
+    // Reset sending lock when loading becomes false (message send completed)
+    useEffect(() => {
+        if (!loading) {
+            isSendingRef.current = false;
+        }
+    }, [loading]);
+
     const [inputValue, setInputValue] = useState("");
     const [urlsData, setUrlsData] = useState([]);
     const [files, setFiles] = useState([]);
     const [showFileUpload, setShowFileUpload] = useState(initialShowFileUpload);
+    const [isDragging, setIsDragging] = useState(false);
+    const isSendingRef = useRef(false);
 
     const prepareMessage = (inputText) => {
-        return [
-            JSON.stringify({ type: "text", text: inputText }),
-            ...(urlsData || [])?.map(
-                ({ url, gcs, converted, originalFilename }) => {
-                    const obj = {
-                        type: "image_url",
-                    };
+        const textPart = [JSON.stringify({ type: "text", text: inputText })];
 
-                    obj.gcs = converted?.gcs || gcs;
-                    obj.url = converted?.url || url;
-                    obj.image_url = { url: converted?.url || url };
+        if (!urlsData || urlsData.length === 0) {
+            return textPart;
+        }
 
-                    // Include original filename if available
-                    if (originalFilename) {
-                        obj.originalFilename = originalFilename;
-                    }
+        const fileParts = urlsData.map(
+            ({ url, gcs, converted, displayFilename, hash }) => {
+                const obj = {
+                    type: "image_url",
+                };
 
-                    return JSON.stringify(obj);
-                },
-            ),
-        ];
+                const fileUrl = converted?.url || url;
+
+                obj.gcs = converted?.gcs || gcs;
+                obj.url = fileUrl;
+                obj.image_url = { url: fileUrl };
+
+                // Include hash if available
+                if (hash) {
+                    obj.hash = hash;
+                }
+
+                // Note: displayFilename is NOT included in payload sent to server
+                // It will be stored locally in the message object for display purposes
+                // For backward compatibility, we include it in the payload for now
+                // but the server will ignore it
+                if (displayFilename) {
+                    obj.displayFilename = displayFilename;
+                }
+
+                return JSON.stringify(obj);
+            },
+        );
+
+        return [...textPart, ...fileParts];
     };
 
     const handleInputChange = (event) => {
@@ -132,15 +142,27 @@ function MessageInput({
         }
     };
 
-    const handleFormSubmit = (event) => {
+    const handleFormSubmit = async (event) => {
         event.preventDefault();
         if (isUploadingMedia) {
             return; // Prevent submission if a file is uploading
         }
 
-        if (!loading && inputValue) {
-            const message = prepareMessage(inputValue);
-            onSend(urlsData && urlsData.length > 0 ? message : inputValue);
+        // Prevent duplicate sends - check both loading prop and sending lock ref
+        if (isSendingRef.current || loading || !inputValue) {
+            return;
+        }
+
+        // Set sending lock immediately to prevent race conditions
+        isSendingRef.current = true;
+
+        try {
+            const message =
+                urlsData && urlsData.length > 0
+                    ? prepareMessage(inputValue)
+                    : [JSON.stringify({ type: "text", text: inputValue })];
+
+            onSend(message);
             setInputValue("");
             setFiles([]);
             setUrlsData([]);
@@ -154,98 +176,135 @@ function MessageInput({
                     },
                 }));
             }
+        } catch (error) {
+            // If sending fails, reset the lock so user can try again
+            isSendingRef.current = false;
+            console.error("Error sending message:", error);
         }
     };
 
     const addUrl = (urlData) => {
         const { url } = urlData;
 
-        // Check if activeChatId is available
-        if (!activeChatId) {
-            console.warn("Cannot upload file: No active chat ID available");
+        // Media urls, will be sent with active message
+        if (isSupportedFileUrl(url)) {
+            const currentUrlsData = urlsData;
+            const isDuplicate = currentUrlsData.some(
+                (existingUrl) => existingUrl.hash === urlData.hash,
+            );
+            if (!isDuplicate) {
+                console.log("Adding new URL data:", urlData);
+                setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
+            } else {
+                console.log("Skipping duplicate URL with hash:", urlData.hash);
+            }
+        } else {
+            console.log("URL is not supported:", url);
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!viewingReadOnlyChat && activeChatId) {
+            setIsDragging(true);
+        }
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only set dragging to false if we're actually leaving the component
+        // Check if we're moving to a child element
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        if (
+            x < rect.left ||
+            x > rect.right ||
+            y < rect.top ||
+            y > rect.bottom
+        ) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (viewingReadOnlyChat || !activeChatId) {
             return;
         }
 
-        const fetchData = async (url) => {
-            if (!url) return;
-
-            try {
-                const docId = uuidv4();
-                const filename = getFilename(url);
-
-                dispatch(setFileLoading());
-
-                client
-                    .query({
-                        query: COGNITIVE_INSERT,
-                        variables: {
-                            file: url,
-                            privateData: true,
-                            contextId,
-                            docId,
-                            chatId: activeChatId,
-                        },
-                        fetchPolicy: "network-only",
-                    })
-                    .then(() => {
-                        // completed successfully
-                        addDocument.mutateAsync({
-                            docId,
-                            filename,
-                            chatId: activeChatId,
-                        });
-                        dispatch(clearFileLoading());
-                    })
-                    .catch((err) => {
-                        console.error(err);
-                        dispatch(loadingError(err.toString()));
-                    });
-            } catch (err) {
-                console.warn("Error in file upload", err);
-                dispatch(loadingError(err.toString()));
-            }
-        };
-
-        //check if url is rag type and process accordingly
-        if (isRagFileUrl(url)) {
-            fetchData(url);
-        } else {
-            //media urls, will be sent with active message
-            if (isSupportedFileUrl(url)) {
-                const currentUrlsData = urlsData;
-                const isDuplicate = currentUrlsData.some(
-                    (existingUrl) => existingUrl.hash === urlData.hash,
-                );
-                if (!isDuplicate) {
-                    console.log("Adding new URL data:", urlData);
-                    setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
-                } else {
-                    console.log(
-                        "Skipping duplicate URL with hash:",
-                        urlData.hash,
-                    );
-                }
-            } else {
-                console.log("URL is not supported:", url);
-            }
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length === 0) {
+            return;
         }
+
+        // Filter to only accepted file types
+        const validFiles = droppedFiles.filter((file) =>
+            ACCEPTED_FILE_TYPES.includes(file.type),
+        );
+
+        if (validFiles.length === 0) {
+            return;
+        }
+
+        // Show file uploader if not already shown
+        if (!showFileUpload) {
+            setShowFileUpload(true);
+        }
+
+        // Add files to the uploader
+        const newFiles = validFiles.map((file) => ({
+            id: `file-${Date.now()}-${Math.random()}`,
+            source: file,
+            file: file,
+            filename: file.name,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            status: "pending",
+            progress: 0,
+        }));
+
+        setFiles((prevFiles) => [...prevFiles, ...newFiles]);
     };
 
     return (
         <div>
-            {showFileUpload && (
-                <DynamicFilepond
-                    addUrl={addUrl}
-                    files={files}
-                    setFiles={setFiles}
-                    setIsUploadingMedia={setIsUploadingMedia}
-                    setUrlsData={setUrlsData}
-                />
-            )}
-            <div className="rounded-md border border-gray-200 dark:border-gray-600 mt-3">
+            <div
+                className={classNames(
+                    "rounded-md border-2 mt-1",
+                    isDragging
+                        ? "border-sky-500 border-dashed bg-sky-50 dark:bg-sky-900/20"
+                        : "border-gray-300 dark:border-gray-500",
+                    "bg-white dark:bg-gray-800",
+                    showFileUpload && "overflow-hidden",
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                {showFileUpload && (
+                    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 pt-2">
+                        <DynamicFileUploader
+                            addUrl={addUrl}
+                            files={files}
+                            setFiles={setFiles}
+                            setIsUploadingMedia={setIsUploadingMedia}
+                            setUrlsData={setUrlsData}
+                        />
+                    </div>
+                )}
                 <form
                     onSubmit={handleFormSubmit}
-                    className="flex items-end rounded-md bg-white dark:bg-gray-800"
+                    className={classNames(
+                        "flex items-end rounded-md",
+                        showFileUpload && "pt-2",
+                    )}
                 >
                     {enableRag && (
                         <div className="flex items-end px-3 pb-2.5">
@@ -253,25 +312,38 @@ function MessageInput({
                                 <button
                                     type="button"
                                     data-testid="file-plus-button"
-                                    disabled={!activeChatId}
+                                    disabled={
+                                        !activeChatId || viewingReadOnlyChat
+                                    }
                                     onClick={() => {
-                                        if (activeChatId) {
+                                        if (
+                                            activeChatId &&
+                                            !viewingReadOnlyChat
+                                        ) {
                                             setShowFileUpload(true);
                                         }
                                     }}
                                     className={`rounded-full flex items-center justify-center ${
-                                        activeChatId
+                                        activeChatId && !viewingReadOnlyChat
                                             ? "hover:bg-gray-100 dark:hover:bg-gray-700"
                                             : "cursor-not-allowed opacity-50"
                                     }`}
                                     title={
-                                        !activeChatId
-                                            ? "File upload requires an active chat"
-                                            : "Upload files"
+                                        viewingReadOnlyChat
+                                            ? t("Read-only mode")
+                                            : !activeChatId
+                                              ? t(
+                                                    "File upload requires an active chat",
+                                                )
+                                              : t("Upload files")
                                     }
                                 >
-                                    <FilePlus
-                                        className={`w-5 h-5 ${activeChatId ? "text-gray-500" : "text-gray-300"}`}
+                                    <Paperclip
+                                        className={`w-5 h-5 ${
+                                            activeChatId && !viewingReadOnlyChat
+                                                ? "text-gray-500"
+                                                : "text-gray-400"
+                                        }`}
                                     />
                                 </button>
                             ) : (
@@ -293,15 +365,19 @@ function MessageInput({
                             className={classNames(
                                 `w-full border-0 outline-none focus:shadow-none text-base md:text-sm [.docked_&]:md:text-sm focus:ring-0 pt-2 resize-none bg-transparent dark:bg-transparent`,
                                 enableRag ? "px-1" : "px-3 rounded-s",
+                                viewingReadOnlyChat
+                                    ? "text-gray-400 dark:text-gray-400 cursor-not-allowed placeholder:text-gray-400 dark:placeholder:text-gray-400"
+                                    : "",
                             )}
                             rows={1}
                             disabled={viewingReadOnlyChat}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
-                                    // Immediately check upload state again to prevent race conditions
+                                    // Immediately check upload state and sending lock to prevent race conditions
                                     if (
                                         isUploadingMedia ||
+                                        isSendingRef.current ||
                                         loading ||
                                         inputValue === "" ||
                                         viewingReadOnlyChat
@@ -331,21 +407,33 @@ function MessageInput({
 
                                 const pastedHtmlContent =
                                     e.clipboardData.getData("text/html");
-                                if (
-                                    pastedHtmlContent &&
-                                    pastedHtmlContent.length > MAX_INPUT_LENGTH
-                                ) {
-                                    setLengthLimitAlert({
-                                        show: true,
-                                        actualLength: pastedHtmlContent.length,
-                                        source: "paste",
-                                    });
-                                    e.preventDefault();
-                                    return; // Stop further paste processing
+                                if (pastedHtmlContent) {
+                                    // Extract actual text content from HTML to check length
+                                    const tempDiv =
+                                        document.createElement("div");
+                                    tempDiv.innerHTML = pastedHtmlContent;
+                                    const htmlTextContent =
+                                        tempDiv.textContent ||
+                                        tempDiv.innerText ||
+                                        "";
+
+                                    if (
+                                        htmlTextContent.length >
+                                        MAX_INPUT_LENGTH
+                                    ) {
+                                        setLengthLimitAlert({
+                                            show: true,
+                                            actualLength:
+                                                htmlTextContent.length,
+                                            source: "paste",
+                                        });
+                                        e.preventDefault();
+                                        return; // Stop further paste processing
+                                    }
                                 }
 
                                 const items = e.clipboardData.items;
-                                let hasActualFileProcessed = false; // True if a file is successfully added to FilePond
+                                let hasActualFileProcessed = false; // True if a file is successfully added to FileUploader
                                 let hasPlainText = false;
                                 let hasHtmlContent = false;
                                 let potentialHtmlImageSrc = null;
@@ -435,16 +523,39 @@ function MessageInput({
                                     if (!showFileUpload) {
                                         setShowFileUpload(true);
                                     }
-                                    const pondFile = {
-                                        source: fileToProcess,
-                                        options: {
-                                            type: "local",
-                                            file: fileToProcess,
-                                        },
+
+                                    // Generate filename if file doesn't have one
+                                    let fileWithName = fileToProcess;
+                                    let filename = fileToProcess.name;
+
+                                    if (!filename || filename.trim() === "") {
+                                        filename =
+                                            generateFilenameFromMimeType(
+                                                fileToProcess,
+                                            );
+                                        // Create a new File object with the generated name
+                                        // This ensures the filename is preserved during upload
+                                        fileWithName = new File(
+                                            [fileToProcess],
+                                            filename,
+                                            { type: fileToProcess.type },
+                                        );
+                                    }
+
+                                    const uploadFile = {
+                                        id: `file-${Date.now()}-${Math.random()}`,
+                                        source: fileWithName,
+                                        file: fileWithName,
+                                        filename: filename,
+                                        name: filename,
+                                        type: fileToProcess.type,
+                                        size: fileToProcess.size,
+                                        status: "pending",
+                                        progress: 0,
                                     };
                                     setFiles((prevFiles) => [
                                         ...prevFiles,
-                                        pondFile,
+                                        uploadFile,
                                     ]);
                                     hasActualFileProcessed = true;
                                 }
@@ -473,11 +584,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;
@@ -518,11 +633,15 @@ function MessageInput({
                                             setFiles((prevFiles) => [
                                                 ...prevFiles,
                                                 {
+                                                    id: `file-${Date.now()}-${Math.random()}`,
                                                     source: file,
-                                                    options: {
-                                                        type: "local",
-                                                        file: file,
-                                                    },
+                                                    file: file,
+                                                    filename: file.name,
+                                                    name: file.name,
+                                                    type: file.type,
+                                                    size: file.size,
+                                                    status: "pending",
+                                                    progress: 0,
                                                 },
                                             ]);
                                             hasActualFileProcessed = true;
@@ -578,20 +697,27 @@ function MessageInput({
                             disabled={
                                 !isStreaming &&
                                 !loading &&
-                                (loading ||
-                                    inputValue === "" ||
+                                (inputValue === "" ||
                                     isUploadingMedia ||
                                     viewingReadOnlyChat)
                             }
                             className={classNames(
-                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-300 dark:disabled:text-gray-600 active:text-gray-800 flex items-end",
+                                "ml-2 px-3 pb-2.5 text-base text-emerald-600 hover:text-emerald-600 disabled:text-gray-400 dark:disabled:text-gray-400 active:text-gray-800 flex items-end disabled:cursor-not-allowed",
                             )}
                         >
                             {isStreaming || loading ? (
                                 <StopCircle className="w-5 h-5 text-red-500" />
                             ) : (
                                 <span className="rtl:scale-x-[-1]">
-                                    <Send className="w-5 h-5 text-gray-400" />
+                                    <Send
+                                        className={`w-5 h-5 ${
+                                            inputValue === "" ||
+                                            isUploadingMedia ||
+                                            viewingReadOnlyChat
+                                                ? "text-gray-400"
+                                                : "text-emerald-600"
+                                        }`}
+                                    />
                                 </span>
                             )}
                         </button>

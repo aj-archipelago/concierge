@@ -10,7 +10,7 @@ function TranslatePage() {
     const [inputText, setInputText] = useState("");
     const [translatedText, setTranslatedText] = useState("");
     const [translationLanguage, setTranslationLanguage] = useState("en");
-    const [translationStrategy, setTranslationStrategy] = useState("GPT-5");
+    const [translationStrategy, setTranslationStrategy] = useState("GPT-5.2");
 
     useEffect(() => {
         if (userState?.translate?.inputText) {

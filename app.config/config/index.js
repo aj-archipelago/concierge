@@ -22,12 +22,16 @@ const LLM_IDENTIFIERS = {
     gpt41mini: "gpt41mini",
     gpt41nano: "gpt41nano",
     gpt5: "gpt5",
+    gpt51: "gpt51",
+    gpt52: "gpt52",
     gpt5chat: "gpt5chat",
     gpt5mini: "gpt5mini",
     gpt5nano: "gpt5nano",
     o3: "o3",
     gemini25pro: "gemini25pro",
     gemini25flash: "gemini25flash",
+    gemini3flash: "gemini3flash",
+    gemini3pro: "gemini3pro",
     claude37sonnet: "claude37sonnet",
     claude4sonnet: "claude4sonnet",
     claude45haiku: "claude45haiku",
@@ -36,6 +40,7 @@ const LLM_IDENTIFIERS = {
     grok4azure: "grok4azure",
     grok4fastreasoningazure: "grok4fastreasoningazure",
     grok4fastnonreasoningazure: "grok4fastnonreasoningazure",
+    grok41fastreasoning: "grok41fastreasoning",
     labeebagent: "labeebagent",
     labeebresearchagent: "labeebresearchagent",
 };
@@ -106,6 +111,18 @@ const config = {
                 cortexModelName: "oai-gpt5",
             },
             {
+                identifier: LLM_IDENTIFIERS.gpt51,
+                name: "GPT 5.1",
+                cortexPathwayName: "run_workspace_prompt",
+                cortexModelName: "oai-gpt51",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gpt52,
+                name: "GPT 5.2",
+                cortexPathwayName: "run_workspace_prompt",
+                cortexModelName: "oai-gpt52",
+            },
+            {
                 identifier: LLM_IDENTIFIERS.gpt5chat,
                 name: "GPT 5 Chat",
                 cortexPathwayName: "run_workspace_prompt",
@@ -141,6 +158,18 @@ const config = {
                 name: "Gemini 2.5 Flash",
                 cortexPathwayName: "run_workspace_prompt",
                 cortexModelName: "gemini-flash-25-vision",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gemini3flash,
+                name: "Gemini 3 Flash",
+                cortexPathwayName: "run_workspace_prompt",
+                cortexModelName: "gemini-flash-3-vision",
+            },
+            {
+                identifier: LLM_IDENTIFIERS.gemini3pro,
+                name: "Gemini 3 Pro",
+                cortexPathwayName: "run_workspace_prompt",
+                cortexModelName: "gemini-pro-3-vision",
             },
             // Anthropic (Claude)
             {
@@ -192,20 +221,27 @@ const config = {
                 cortexPathwayName: "run_workspace_prompt",
                 cortexModelName: "xai-grok-4-fast-non-reasoning",
             },
+            {
+                identifier: LLM_IDENTIFIERS.grok41fastreasoning,
+                name: "Grok 4.1 Fast Reasoning",
+                cortexPathwayName: "run_workspace_prompt",
+                cortexModelName: "xai-grok-4-1-fast-reasoning",
+            },
             // Labeeb
             {
                 identifier: LLM_IDENTIFIERS.labeebagent,
                 name: "Labeeb Agent",
-                cortexPathwayName: "run_labeeb_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
             },
             {
                 identifier: LLM_IDENTIFIERS.labeebresearchagent,
                 name: "Labeeb Research Agent",
-                cortexPathwayName: "run_labeeb_research_agent",
+                cortexPathwayName: "run_workspace_agent",
                 cortexModelName: CORTEX_AGENTIC_MODEL,
                 isAgentic: true,
+                isResearchAgent: true, // Uses run_workspace_agent with researchMode=true
             },
         ],
     },

@@ -7,15 +7,8 @@ import React, {
 } from "react";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import classNames from "../../../app/utils/class-names";
-import config from "../../../config";
-import { useTranslation } from "react-i18next";
-import i18next from "i18next";
 import Loader from "../../../app/components/loader";
-import { EphemeralContent } from "./BotMessage";
-import EntityIcon from "./EntityIcon";
-import { AuthContext } from "../../App";
-import { useContext } from "react";
-import { Bot } from "lucide-react";
+import { EphemeralContent, shouldShowEphemeralContent } from "./BotMessage";
 
 // Memoize the content component to prevent re-renders when only the loader position changes
 const StreamingContent = React.memo(function StreamingContent({
@@ -56,6 +49,7 @@ const StreamingContent = React.memo(function StreamingContent({
 const StreamingMessage = React.memo(function StreamingMessage({
     content,
     ephemeralContent,
+    toolCalls,
     bot,
     thinkingDuration,
     isThinking,
@@ -63,16 +57,11 @@ const StreamingMessage = React.memo(function StreamingMessage({
     entities,
     entityIconSize,
 }) {
-    const relativeContainerRef = useRef(null);
+    const contentContainerRef = useRef(null); // Ref for the non-ephemeral content container
     const [loaderPosition, setLoaderPosition] = useState({ x: 0, y: 0 });
     const [showLoader, setShowLoader] = useState(true);
     const lastUpdateRef = useRef(Date.now());
     const loaderTimeoutRef = useRef(null);
-    const { t } = useTranslation();
-    const { language } = i18next;
-    const { getLogo } = config.global;
-    const { user } = useContext(AuthContext);
-    const defaultAiName = user?.aiName;
 
     // Track if we've ever shown ephemeral content
     useEffect(() => {
@@ -85,10 +74,10 @@ const StreamingMessage = React.memo(function StreamingMessage({
         // Constants for loader positioning
         const LOADER_BASELINE_OFFSET = 6; // Offset needed to align loader with text baseline
 
-        const containerNode = relativeContainerRef.current;
+        const containerNode = contentContainerRef.current;
         if (!containerNode) return;
 
-        // Determine the last element with content
+        // Determine the last element with content within the non-ephemeral content area
         const targetNode = containerNode.querySelector(".chat-message-bot");
 
         if (!targetNode) {
@@ -154,7 +143,7 @@ const StreamingMessage = React.memo(function StreamingMessage({
     const handleContentUpdate = useCallback(
         (contentNode) => {
             // contentNode here is the StreamingContent's div
-            if (!contentNode || !relativeContainerRef.current) return;
+            if (!contentNode || !contentContainerRef.current) return;
 
             if (contentNode.textContent?.trim() === "") return;
 
@@ -199,87 +188,26 @@ const StreamingMessage = React.memo(function StreamingMessage({
         };
     }, []);
 
-    let rowHeight = "h-12 [.docked_&]:h-10";
-    let basis =
-        "min-w-[3rem] basis-12 [.docked_&]:basis-10 [.docked_&]:min-w-[2.5rem]";
-    let buttonWidthClass = "w-12 [.docked_&]:w-10";
-
-    const currentEntity = selectedEntityId
-        ? entities.find((e) => e.id === selectedEntityId)
-        : null;
-
-    const botName =
-        currentEntity?.name ||
-        (bot === "code"
-            ? config?.code?.botName
-            : defaultAiName || config?.chat?.botName);
-
-    // Determine top padding based on entityIconSize
-    const avatarTopPadding = entityIconSize === "sm" ? "pt-3" : "pt-1";
-
-    const avatar = useMemo(() => {
-        return currentEntity ? (
-            <EntityIcon entity={currentEntity} size={entityIconSize} />
-        ) : bot === "code" ? (
-            <Bot
-                className={classNames(
-                    rowHeight,
-                    buttonWidthClass,
-                    "px-3",
-                    "text-gray-400",
-                )}
-            />
-        ) : (
-            <img
-                src={getLogo(language)}
-                alt="Logo"
-                className={classNames(
-                    basis,
-                    "p-2",
-                    buttonWidthClass,
-                    rowHeight,
-                )}
-            />
-        );
-    }, [
-        bot,
-        getLogo,
-        language,
-        basis,
-        buttonWidthClass,
-        rowHeight,
-        entityIconSize,
-        currentEntity,
-    ]);
-
     return (
-        <div className="flex bg-sky-50 dark:bg-gray-700 ps-1 pt-1 relative group">
+        <div className="flex bg-white dark:bg-gray-800 ps-1 pt-1 relative group rounded-b-lg rounded-tl-lg rtl:rounded-tl-none rtl:rounded-tr-lg border border-gray-300 dark:border-gray-600">
             <div
                 className={classNames(
-                    basis,
-                    avatarTopPadding,
-                    "flex justify-center",
-                )}
-            >
-                {avatar}
-            </div>
-            <div
-                className={classNames(
-                    "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
+                    "px-2 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3 w-full",
                 )}
             >
                 <div className="flex flex-col">
-                    <div className="font-semibold text-gray-900 dark:text-gray-100">
-                        {t(botName)}
-                    </div>
-                    <div className="relative" ref={relativeContainerRef}>
-                        {ephemeralContent && (
-                            <EphemeralContent
-                                content={ephemeralContent}
-                                duration={thinkingDuration}
-                                isThinking={isThinking}
-                            />
-                        )}
+                    {shouldShowEphemeralContent(
+                        ephemeralContent,
+                        toolCalls,
+                    ) && (
+                        <EphemeralContent
+                            content={ephemeralContent}
+                            toolCalls={toolCalls || []}
+                            duration={thinkingDuration}
+                            isThinking={isThinking}
+                        />
+                    )}
+                    <div className="relative" ref={contentContainerRef}>
                         <StreamingContent
                             content={content}
                             onContentUpdate={handleContentUpdate}

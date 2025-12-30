@@ -1,14 +1,10 @@
 import { getClient, QUERIES } from "../../../src/graphql";
-import LLM from "../models/llm";
-import Prompt from "../models/prompt";
 import Run from "../models/run";
 import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
-import {
-    getLLMWithFallback,
-    buildWorkspacePromptVariables,
-} from "../utils/llm-file-utils";
-import config from "../../../config";
+import { buildWorkspacePromptVariables } from "../utils/llm-file-utils";
+import { getPromptWithMigration } from "../utils/prompt-utils";
+import { filterValidFiles } from "../utils/file-validation-utils";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -19,57 +15,76 @@ export async function POST(req, res) {
 
     const user = await getCurrentUser();
 
-    const { getWorkspacePromptQuery } = QUERIES;
+    const { getWorkspacePromptQuery, getWorkspaceAgentQuery } = QUERIES;
 
     try {
-        let responseText;
+        const promptData = await getPromptWithMigration(promptId);
+        if (!promptData) {
+            return Response.json(
+                { message: "Prompt not found" },
+                { status: 404 },
+            );
+        }
 
-        const prompt = await Prompt.findById(promptId).populate("files");
-
-        const llmId = prompt.llm;
-        const llm = await getLLMWithFallback(LLM, llmId);
-
-        const pathwayName = llm.cortexPathwayName;
-        const model = llm.cortexModelName;
+        const { prompt, pathwayName, model, researchMode, agentMode } =
+            promptData;
 
         // Fetch workspace to get systemPrompt (workspace context)
         let workspaceSystemPrompt = systemPrompt;
+        let workspace = null;
         if (workspaceId) {
-            const workspace = await Workspace.findById(workspaceId);
+            workspace = await Workspace.findById(workspaceId);
             if (workspace && workspace.systemPrompt) {
                 workspaceSystemPrompt = workspace.systemPrompt;
             }
         }
 
         // Collect all files (client files + prompt files)
+        // Filter out errored files
         const allFiles = [];
         if (files && files.length > 0) {
             allFiles.push(...files);
         }
         if (prompt.files && prompt.files.length > 0) {
-            allFiles.push(...prompt.files);
+            const validPromptFiles = await filterValidFiles(prompt.files);
+            allFiles.push(...validPromptFiles);
         }
 
-        // Build variables: systemPrompt (workspace context), prompt (prompt text), text (user input)
+        // Build variables - include agentContext only for agent pathways
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: prompt.text,
             text: text,
             files: allFiles,
+            workspaceId: workspace?._id?.toString() || null,
+            workspaceContextKey: workspace?.contextKey || null,
+            userContextId: user?.contextId || null,
+            userContextKey: user?.contextKey || null,
+            useCompoundContextId: true, // Use compound contextId for user files
         });
 
-        if (model !== config.cortex?.AGENTIC_MODEL) {
-            variables.model = model;
-        }
+        variables.model = model;
 
-        const query = getWorkspacePromptQuery(pathwayName);
+        // Use agent query for agent pathways, regular query for non-agent
+        let query;
+        if (agentMode) {
+            // Pass researchMode for agent pathways
+            if (researchMode) {
+                variables.researchMode = true;
+            }
+            query = getWorkspaceAgentQuery(pathwayName);
+        } else {
+            // Non-agent pathways don't use agentContext or researchMode
+            delete variables.agentContext;
+            query = getWorkspacePromptQuery(pathwayName);
+        }
 
         const response = await getClient().query({
             query,
             variables,
         });
 
-        responseText =
+        const responseText =
             response.data[pathwayName].result || "The response was empty";
 
         // Extract citations from the tool field if available
@@ -78,8 +93,9 @@ export async function POST(req, res) {
             try {
                 const toolData = JSON.parse(response.data[pathwayName].tool);
                 citations = toolData.citations || [];
-            } catch (e) {}
-        } else {
+            } catch (e) {
+                // Ignore parse errors
+            }
         }
 
         const run = await Run.create({
@@ -101,4 +117,4 @@ export async function POST(req, res) {
     }
 }
 
-export const dynamic = "force-dynamic"; // defaults to auto
+export const dynamic = "force-dynamic";

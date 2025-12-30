@@ -72,7 +72,7 @@ export const getIndexInFinalText = (
                         // check using regex if nextChar is alphanumeric and not punctuation
                         if (
                             nextChar &&
-                            nextChar.match(/^[0-9a-zA-Z]+$/) &&
+                            nextChar.match(/^[0-9a-zA-Z]$/) &&
                             !doesSuggestionEndWithWhiteSpace
                         ) {
                             result += " ";
@@ -93,7 +93,7 @@ export const getIndexInFinalText = (
                     finalIndex += suggestion.suspect?.length;
                 }
 
-                index += suggestion.suspect?.length;
+                index += suggestion.suspect?.length || 0;
                 suggestionIndex++;
             } else {
                 result += char;
@@ -178,7 +178,7 @@ export const getFinalText = (originalText, suggestions, manualEdits) => {
                 // check using regex if nextChar is alphanumeric and not punctuation
                 if (
                     nextChar &&
-                    nextChar.match(/^[0-9a-zA-Z]+$/) &&
+                    nextChar.match(/^[0-9a-zA-Z]$/) &&
                     !doesSuggestionEndWithWhiteSpace
                 ) {
                     result += " ";
@@ -192,7 +192,7 @@ export const getFinalText = (originalText, suggestions, manualEdits) => {
                 );
             }
 
-            index += suggestion.suspect?.length;
+            index += suggestion.suspect?.length || 0;
             suggestionIndex++;
         } else {
             result += char;

@@ -11,7 +11,7 @@ function ReplayButton({ onClick, className = "absolute top-1 end-1" }) {
             onClick={onClick}
             title={t("Replay from this message")}
         >
-            <RotateCcw />
+            <RotateCcw className="w-3.5 h-3.5" />
         </button>
     );
 }

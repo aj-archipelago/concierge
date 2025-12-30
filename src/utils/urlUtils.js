@@ -84,3 +84,61 @@ export function getYoutubeVideoId(url) {
     const urlObj = new URL(embedUrl);
     return urlObj.pathname.slice(7); // Remove '/embed/'
 }
+
+/**
+ * Extracts YouTube video ID from various YouTube URL formats
+ * Supports watch URLs, embed URLs, youtu.be URLs, and shorts URLs
+ *
+ * @param {string} url - The YouTube URL
+ * @returns {string|null} - The video ID if found, null otherwise
+ */
+export function extractYoutubeVideoId(url) {
+    if (!url) return null;
+
+    try {
+        const urlObj = new URL(url);
+
+        // Handle standard youtube.com URLs
+        if (
+            urlObj.hostname === "youtube.com" ||
+            urlObj.hostname === "www.youtube.com"
+        ) {
+            if (urlObj.pathname === "/watch") {
+                return urlObj.searchParams.get("v");
+            } else if (urlObj.pathname.startsWith("/embed/")) {
+                return urlObj.pathname.slice(7).split("?")[0]; // Remove '/embed/' and query params
+            } else if (urlObj.pathname.startsWith("/shorts/")) {
+                return urlObj.pathname.slice(8).split("?")[0]; // Remove '/shorts/' and query params
+            }
+        }
+
+        // Handle shortened youtu.be URLs
+        if (urlObj.hostname === "youtu.be") {
+            return urlObj.pathname.slice(1).split("?")[0]; // Remove leading '/' and query params
+        }
+
+        // Fallback: try regex matching for edge cases
+        const videoIdMatch = url.match(
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^?&]+)/,
+        );
+        return videoIdMatch ? videoIdMatch[1] : null;
+    } catch (err) {
+        // Fallback: try regex matching if URL parsing fails
+        const videoIdMatch = url.match(
+            /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^?&]+)/,
+        );
+        return videoIdMatch ? videoIdMatch[1] : null;
+    }
+}
+
+/**
+ * Gets YouTube thumbnail URL for a video ID
+ *
+ * @param {string} videoId - The YouTube video ID
+ * @param {string} quality - Thumbnail quality: 'maxresdefault', 'hqdefault', 'mqdefault', 'sddefault', 'default'
+ * @returns {string} - The thumbnail URL
+ */
+export function getYoutubeThumbnailUrl(videoId, quality = "maxresdefault") {
+    if (!videoId) return null;
+    return `https://img.youtube.com/vi/${videoId}/${quality}.jpg`;
+}

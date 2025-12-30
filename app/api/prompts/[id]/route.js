@@ -1,10 +1,17 @@
-import Prompt from "../../models/prompt";
+import { getPromptWithMigration } from "../../utils/prompt-utils";
 
 export async function GET(req, { params }) {
     const { id } = params;
     try {
-        const prompt = await Prompt.findById(id).populate("files");
-        return Response.json(prompt);
+        // Automatically migrate if needed when fetching prompt
+        const promptData = await getPromptWithMigration(id);
+        if (!promptData) {
+            return Response.json(
+                { message: "Prompt not found" },
+                { status: 404 },
+            );
+        }
+        return Response.json(promptData.prompt);
     } catch (e) {
         return Response.json({ message: e.message }, { status: 500 });
     }

@@ -20,9 +20,6 @@ async function getXXHashInstance() {
     return xxhashInstance;
 }
 
-// RAG File Type Extensions
-export const RAG_EXTENSIONS = [];
-
 // File type definitions
 export const DOC_EXTENSIONS = [
     ".pdf",
@@ -76,7 +73,6 @@ export const AUDIO_EXTENSIONS = [
     ".flac",
 ];
 
-export const RAG_MIME_TYPES = RAG_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
 export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
@@ -98,11 +94,6 @@ export function getExtension(url) {
     const filename = url.split("?")[0].split("#")[0];
     const lastDotIndex = filename.lastIndexOf(".");
     return lastDotIndex > 0 ? filename.slice(lastDotIndex).toLowerCase() : "";
-}
-
-export function isRagFileUrl(url) {
-    const urlExt = getExtension(url);
-    return RAG_EXTENSIONS.includes(urlExt);
 }
 
 export function isDocumentUrl(url) {
@@ -196,6 +187,34 @@ export function getFilename(url) {
         console.error("Error parsing URL:", error);
         return "";
     }
+}
+
+/**
+ * Generates a filename from a File object's MIME type if it doesn't have a name
+ * @param {File} file - The file object to generate a filename for
+ * @returns {string} The generated filename (kept in English for file system compatibility)
+ */
+export function generateFilenameFromMimeType(file) {
+    if (file.name && file.name.trim() !== "") {
+        return file.name;
+    }
+
+    // Generate filename based on MIME type using mime-types package
+    // Note: Filename is kept in English for file system compatibility
+    const mimeType = file.type || "";
+    let extension = "";
+
+    if (mimeType) {
+        // Use mime.extension() to get the default extension for the MIME type
+        extension = mime.extension(mimeType) || "";
+    }
+
+    // If we got an extension, use it; otherwise fall back to "bin"
+    if (extension) {
+        return `pasted-file.${extension}`;
+    }
+
+    return "pasted-file";
 }
 
 // Media file utilities

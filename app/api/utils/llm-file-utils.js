@@ -1,85 +1,174 @@
-import config from "../../../config/index.js";
+import config from "../../../config";
 
 /**
- * Generate short-lived URL from file hash using the media helper service
- * The checkHash operation now always returns short-lived URLs by default
- * @param {Object} file - File object with hash, url, filename properties
- * @param {number} minutes - Duration in minutes for the short-lived URL (default: 5)
- * @returns {Promise<string>} - Short-lived URL or fallback to original URL
+ * Create a compound contextId for workspace-specific user files
+ * This allows each user to have their own private file collection within a workspace
+ * @param {string} workspaceId - Workspace ID
+ * @param {string} userContextId - User context ID
+ * @returns {string} - Compound contextId in format "workspaceId:userContextId"
  */
-export async function generateShortLivedUrl(file, minutes = 5) {
-    // Only generate short-lived URL if file has a hash
-    if (!file.hash) {
-        throw new Error("No hash found for file " + file.originalName);
-    }
-
-    try {
-        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
-        if (!mediaHelperUrl) {
-            throw new Error("mediaHelperDirect endpoint is not defined");
-        }
-
-        // Generate short-lived URL using checkHash (always returns short-lived URLs)
-        const shortLivedResponse = await fetch(
-            `${mediaHelperUrl}?hash=${file.hash}&checkHash=true&shortLivedMinutes=${minutes}`,
-            {
-                method: "GET",
-            },
-        );
-
-        if (!shortLivedResponse.ok) {
-            console.warn(
-                `Failed to generate short-lived URL for hash ${file.hash}, using original URL. Status: ${shortLivedResponse.status}`,
-            );
-            return file.url;
-        }
-
-        const shortLivedData = await shortLivedResponse.json();
-
-        if (!shortLivedData.shortLivedUrl) {
-            throw new Error("No short-lived URL found for hash " + file.hash);
-        }
-
-        // checkHash now always returns shortLivedUrl, but keep fallback for safety
-        return shortLivedData.shortLivedUrl;
-    } catch (error) {
-        console.error(
-            `Error generating short-lived URL for hash ${file.hash}:`,
-            error,
-        );
-        return file.url; // Fallback to original URL
-    }
+export function createCompoundContextId(workspaceId, userContextId) {
+    return `${workspaceId}:${userContextId}`;
 }
 
 /**
- * Prepare file content for chat history with short-lived URLs
- * @param {Array} files - Array of file objects
- * @returns {Promise<Array>} - Array of stringified file content objects
+ * Determine the appropriate contextId for a file based on its type
+ * @param {Object} options - Options for contextId determination
+ * @param {boolean} options.isArtifact - Whether this is a workspace/applet artifact (permanent, shared)
+ * @param {string|null} options.workspaceId - Workspace ID if available
+ * @param {string|null} options.userContextId - User context ID for user-submitted files
+ * @param {boolean} options.useCompoundContextId - If true, creates a compound contextId for user files in workspaces
+ * @returns {string|null} - The appropriate contextId, or null if neither is available
  */
-export async function prepareFileContentForLLM(files) {
-    if (!files || files.length === 0) return [];
+export function determineFileContextId({
+    isArtifact = false,
+    workspaceId = null,
+    userContextId = null,
+    useCompoundContextId = false,
+}) {
+    // Workspace/applet artifacts use workspaceId (shared across all users)
+    if (isArtifact && workspaceId) {
+        return workspaceId;
+    }
+    // User-submitted files in workspace context use compound contextId
+    // This allows each user to have private files per workspace
+    if (useCompoundContextId && workspaceId && userContextId) {
+        return createCompoundContextId(workspaceId, userContextId);
+    }
+    // User-submitted files use userContextId (user-specific)
+    return userContextId || null;
+}
 
-    // Generate short-lived URLs for all files
-    const filePromises = files.map(async (file) => {
-        const shortLivedUrl = await generateShortLivedUrl(file);
-
-        const obj = {
-            type: "image_url",
-        };
-
-        obj.gcs = file.gcsUrl || file.gcs || file.url;
-        obj.url = shortLivedUrl; // Use short-lived URL for security
-        obj.image_url = { url: shortLivedUrl }; // Use short-lived URL for security
-
-        // Include original filename if available
-        if (file.originalName || file.originalFilename) {
-            obj.originalFilename = file.originalName || file.originalFilename;
+/**
+ * Fetch a 5-minute short-lived URL for a file from media-helper using checkHash
+ * @param {string} hash - File hash
+ * @param {string} contextId - Context ID for file scoping
+ * @returns {Promise<string|null>} Short-lived URL or null if fetch fails
+ */
+export async function fetchShortLivedUrl(hash, contextId) {
+    try {
+        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        if (!mediaHelperUrl) {
+            console.warn("Media helper URL not configured, using original URL");
+            return null;
         }
 
-        return JSON.stringify(obj);
-    });
+        const url = new URL(mediaHelperUrl);
+        url.searchParams.set("hash", hash);
+        url.searchParams.set("checkHash", "true");
+        if (contextId) {
+            url.searchParams.set("contextId", contextId);
+        }
+        // Request 5-minute short-lived URL (300 seconds)
+        url.searchParams.set("shortLived", "true");
+        url.searchParams.set("duration", "300");
 
-    return Promise.all(filePromises);
+        const requestUrl = url.toString();
+        const response = await fetch(requestUrl);
+        if (response.ok) {
+            const data = await response.json().catch((err) => {
+                console.warn("Failed to parse short-lived URL response:", err);
+                return null;
+            });
+            // Media-helper returns short-lived URL in shortLivedUrl field
+            if (data && data.shortLivedUrl) {
+                return data.shortLivedUrl;
+            }
+            // Fallback to regular url if shortLivedUrl not available
+            if (data && data.url) {
+                return data.url;
+            }
+            console.warn("Short-lived URL response missing url fields:", data);
+        } else {
+            const errorText = await response.text().catch(() => "");
+            console.warn(
+                "Short-lived URL fetch failed:",
+                response.status,
+                errorText,
+            );
+        }
+    } catch (error) {
+        console.warn("Failed to fetch short-lived URL:", error);
+    }
+    return null;
+}
+
+/**
+ * Prepare file content for chat history
+ * For workspaces/applets/system workspaces: fetches 5-minute short-lived URLs
+ * For chat: uses original URLs (chat goes through agentic pathway which handles URLs)
+ * @param {Array} files - Array of file objects
+ * @param {string} workspaceId - Optional workspace ID for workspace artifacts
+ * @param {string} userContextId - Optional user context ID for user-submitted files
+ * @param {boolean} fetchShortLivedUrls - Whether to fetch short-lived URLs (default: true for workspaces/applets)
+ * @param {boolean} useCompoundContextId - Whether to use compound contextId for user files in workspaces
+ * @returns {Promise<Array>} Array of stringified file content objects
+ */
+export async function prepareFileContentForLLM(
+    files,
+    workspaceId = null,
+    userContextId = null,
+    fetchShortLivedUrls = true,
+    useCompoundContextId = false,
+) {
+    if (!files || files.length === 0) return [];
+
+    // Format files like chat does
+    // Files with _id are workspace/applet artifacts (use workspaceId)
+    // Files without _id are user-submitted files (use compound contextId or userContextId)
+    const fileObjects = await Promise.all(
+        files.map(async (file) => {
+            const contextId = determineFileContextId({
+                isArtifact: !!file._id,
+                workspaceId,
+                userContextId,
+                useCompoundContextId: !file._id && useCompoundContextId, // Only for user files
+            });
+
+            const originalUrl = file.converted?.url || file.url;
+            const gcsUrl =
+                file.converted?.gcs || file.gcsUrl || file.gcs || file.url;
+
+            // Fetch 5-minute short-lived URL if requested and hash is available
+            // Use converted hash if available (for converted files), otherwise use original hash
+            let fileUrl = originalUrl;
+            const hashToUse = file.converted?.hash || file.hash;
+            if (fetchShortLivedUrls && hashToUse && contextId) {
+                const shortLivedUrl = await fetchShortLivedUrl(
+                    hashToUse,
+                    contextId,
+                );
+                if (shortLivedUrl) {
+                    fileUrl = shortLivedUrl;
+                }
+            }
+
+            const obj = {
+                type: "image_url",
+            };
+
+            obj.gcs = gcsUrl;
+            obj.url = fileUrl;
+            obj.image_url = { url: fileUrl };
+
+            // Include hash if available (Cortex uses this to look up files)
+            // Use converted hash if available, otherwise use original hash
+            const hashToInclude = file.converted?.hash || file.hash;
+            if (hashToInclude) {
+                obj.hash = hashToInclude;
+            }
+
+            // Include contextId so Cortex knows where to look up the file
+            // workspaceId for workspace artifacts, userContextId for user files
+            if (contextId) {
+                obj.contextId = contextId;
+            }
+
+            return JSON.stringify(obj);
+        }),
+    );
+
+    return fileObjects;
 }
 
 /**
@@ -112,6 +201,57 @@ export async function getAnyAgenticLLM(LLM) {
 }
 
 /**
+ * Build agentContext array for Cortex API
+ * @param {Object} params
+ * @param {string} params.workspaceId - Workspace ID (used as primary contextId for workspace files)
+ * @param {string} params.workspaceContextKey - Workspace context key
+ * @param {string} params.userContextId - User context ID
+ * @param {string} params.userContextKey - User context key
+ * @param {boolean} params.includeCompoundContext - If true, include compound contextId for user files in workspaces
+ * @returns {Array} agentContext array for Cortex API
+ */
+export function buildAgentContext({
+    workspaceId = null,
+    workspaceContextKey = null,
+    userContextId = null,
+    userContextKey = null,
+    includeCompoundContext = false,
+}) {
+    const contexts = [];
+
+    // For workspace prompt executions: workspace context is the default
+    if (workspaceId) {
+        contexts.push({
+            contextId: workspaceId,
+            contextKey: workspaceContextKey || "",
+            default: true,
+        });
+
+        // Add compound context for user files in workspace
+        if (includeCompoundContext && userContextId) {
+            const compoundContextId = createCompoundContextId(
+                workspaceId,
+                userContextId,
+            );
+            contexts.push({
+                contextId: compoundContextId,
+                contextKey: userContextKey || "",
+                default: false,
+            });
+        }
+    } else if (userContextId) {
+        // For user chat: user context is the only/default context
+        contexts.push({
+            contextId: userContextId,
+            contextKey: userContextKey || "",
+            default: true,
+        });
+    }
+
+    return contexts;
+}
+
+/**
  * Build variables for workspace prompt query
  * Always returns chatHistory format with system message and user message
  * @param {Object} params
@@ -120,7 +260,12 @@ export async function getAnyAgenticLLM(LLM) {
  * @param {string} params.text - User input text
  * @param {Array} params.files - Array of files (optional)
  * @param {Array} params.chatHistory - Existing chat history (optional)
- * @returns {Promise<Object>} Variables object with chatHistory for GraphQL query
+ * @param {string} params.workspaceId - Optional workspace ID for workspace artifacts
+ * @param {string} params.userContextId - Optional user context ID for user-submitted files
+ * @param {string} params.userContextKey - Optional user context key for user-submitted files
+ * @param {string} params.workspaceContextKey - Optional workspace context key for workspace files
+ * @param {boolean} params.useCompoundContextId - If true, use compound contextId for user files
+ * @returns {Promise<Object>} Variables object with chatHistory and agentContext for GraphQL query
  */
 export async function buildWorkspacePromptVariables({
     systemPrompt,
@@ -128,6 +273,11 @@ export async function buildWorkspacePromptVariables({
     text,
     files = [],
     chatHistory = null,
+    workspaceId = null,
+    userContextId = null,
+    userContextKey = null,
+    workspaceContextKey = null,
+    useCompoundContextId = true,
 }) {
     // Combine prompt + text for user message
     const combinedUserText = prompt
@@ -136,8 +286,25 @@ export async function buildWorkspacePromptVariables({
             : prompt
         : text || "";
 
+    // Build agentContext for Cortex API
+    const agentContext = buildAgentContext({
+        workspaceId,
+        workspaceContextKey,
+        userContextId,
+        userContextKey,
+        includeCompoundContext: useCompoundContextId,
+    });
+
     const fileContent =
-        files && files.length > 0 ? await prepareFileContentForLLM(files) : [];
+        files && files.length > 0
+            ? await prepareFileContentForLLM(
+                  files,
+                  workspaceId,
+                  userContextId,
+                  true, // Fetch short-lived URLs for workspaces/applets
+                  useCompoundContextId,
+              )
+            : [];
 
     let finalChatHistory = [];
 
@@ -193,6 +360,17 @@ export async function buildWorkspacePromptVariables({
             });
         }
 
+        // Add UX display context system message
+        finalChatHistory.push({
+            role: "system",
+            content: [
+                JSON.stringify({
+                    type: "text",
+                    text: "Your output is being displayed in the user interface or used as an API response, not in an interactive chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+                }),
+            ],
+        });
+
         // Add user message with combined prompt+text and files
         const userContent = [];
         if (combinedUserText) {
@@ -232,7 +410,14 @@ export async function buildWorkspacePromptVariables({
         }
     }
 
-    return {
+    const result = {
         chatHistory: finalChatHistory,
     };
+
+    // Include agentContext if we have any contexts
+    if (agentContext.length > 0) {
+        result.agentContext = agentContext;
+    }
+
+    return result;
 }

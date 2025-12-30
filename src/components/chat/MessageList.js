@@ -8,7 +8,7 @@ import React, {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { UserCircle, X } from "lucide-react";
+import { User } from "lucide-react";
 import Loader from "../../../app/components/loader";
 import classNames from "../../../app/utils/class-names";
 import config from "../../../config";
@@ -18,16 +18,22 @@ import {
     isAudioUrl,
     isVideoUrl,
     DOC_EXTENSIONS,
-    getFileIcon,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
 } from "../../utils/mediaUtils";
 import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
-import ChatImage from "../images/ChatImage";
+import MediaCard from "./MediaCard";
 import { AuthContext } from "../../App";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
+import { useApolloClient } from "@apollo/client";
+import {
+    purgeFile,
+    createFilePlaceholder,
+} from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -98,25 +104,48 @@ const getYoutubeEmbedUrl = (url) => {
     return null;
 };
 
-// Add memoized YouTube component
-const MemoizedYouTubeEmbed = React.memo(({ url, onLoad }) => {
-    return (
-        <iframe
-            title={`YouTube video ${url.split("/").pop()}`}
-            onLoad={onLoad}
-            src={url}
-            className="w-full rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-            style={{
-                width: "100%",
-                maxWidth: "640px",
-                aspectRatio: "16/9",
-                backgroundColor: "transparent",
-            }}
-            allowFullScreen
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
-    );
-});
+/**
+ * Determines if a message should cluster with the previous message.
+ * Centralized logic for message grouping.
+ *
+ * Rules:
+ * - User messages NEVER cluster (always start a new group)
+ * - Assistant messages ALWAYS cluster with preceding user messages
+ * - Coding agent messages ALWAYS cluster with whatever precedes them
+ *
+ * @param {Object} message - Current message
+ * @param {Object|null} prevMessage - Previous message
+ * @param {Object|null} nextMessage - Next message (unused but kept for API consistency)
+ * @returns {boolean} - True if message should cluster with previous
+ */
+const shouldClusterWithPrevious = (message, prevMessage, nextMessage) => {
+    // User messages always start a new group
+    if (message.sender !== "labeeb") {
+        return false;
+    }
+
+    // Need a previous message to cluster with
+    if (!prevMessage) {
+        return false;
+    }
+
+    const isCodingAgentMessage = !!message.taskId;
+    const prevIsUser = prevMessage.sender !== "labeeb";
+
+    // Assistant messages (non-coding agent) cluster with preceding user messages
+    if (!isCodingAgentMessage && prevIsUser) {
+        return true;
+    }
+
+    // Coding agent messages cluster with whatever precedes them (assistant or coding agent)
+    if (isCodingAgentMessage && !prevIsUser) {
+        return true;
+    }
+
+    return false;
+};
+
+// Removed MemoizedYouTubeEmbed - now using MediaCard
 
 // Create a memoized component for the static message list content
 const MessageListContent = React.memo(function MessageListContent({
@@ -130,6 +159,7 @@ const MessageListContent = React.memo(function MessageListContent({
     getYoutubeEmbedUrl,
     onDeleteFile,
     t,
+    isStreaming = false,
 }) {
     return messages.map((message, index) => {
         const newMessage = { ...message };
@@ -142,7 +172,39 @@ const MessageListContent = React.memo(function MessageListContent({
                 .map((t, index2) => {
                     try {
                         const obj = JSON.parse(t);
-                        // Skip items marked to be hidden from client
+
+                        // Show deleted file indicator if it's a deleted file placeholder
+                        if (
+                            obj.hideFromClient === true &&
+                            obj.isDeletedFile === true
+                        ) {
+                            const deletedFilename =
+                                obj.deletedFilename || "file";
+                            // Determine file type from extension for ghost card
+                            const deletedExt = getExtension(deletedFilename);
+                            let deletedType = "file";
+                            if (
+                                isVideoUrl(deletedFilename) ||
+                                VIDEO_EXTENSIONS.includes(deletedExt)
+                            ) {
+                                deletedType = "video";
+                            } else if (IMAGE_EXTENSIONS.includes(deletedExt)) {
+                                deletedType = "image";
+                            }
+
+                            return (
+                                <MediaCard
+                                    key={`deleted-file-${index}-${index2}`}
+                                    type={deletedType}
+                                    src={null}
+                                    filename={deletedFilename}
+                                    isDeleted={true}
+                                    t={t}
+                                />
+                            );
+                        }
+
+                        // Skip other items marked to be hidden from client
                         if (obj.hideFromClient === true) {
                             return null;
                         }
@@ -151,37 +213,31 @@ const MessageListContent = React.memo(function MessageListContent({
                         } else if (obj.type === "image_url") {
                             const src =
                                 obj?.url || obj?.image_url?.url || obj?.gcs;
-                            const originalFilename = obj?.originalFilename;
-                            if (isVideoUrl(src)) {
-                                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
-                                if (youtubeEmbedUrl) {
-                                    return (
-                                        <MemoizedYouTubeEmbed
-                                            key={youtubeEmbedUrl}
-                                            url={youtubeEmbedUrl}
-                                            onLoad={() =>
-                                                handleMessageLoad(newMessage.id)
-                                            }
-                                        />
-                                    );
-                                }
-                                return (
-                                    <video
-                                        onLoadedData={() =>
-                                            handleMessageLoad(newMessage.id)
-                                        }
-                                        key={`video-${index}-${index2}`}
-                                        src={src}
-                                        className="max-h-[20%] max-w-[60%] [.docked_&]:max-w-[90%] rounded border-0 my-2 shadow-lg dark:shadow-black/30"
-                                        style={{
-                                            backgroundColor: "transparent",
-                                        }}
-                                        controls
-                                        preload="metadata"
-                                        playsInline
-                                    />
+                            const displayFilename =
+                                obj?.displayFilename || obj?.originalFilename;
+
+                            // Use display filename if available, otherwise extract from URL
+                            if (!src) {
+                                return null;
+                            }
+
+                            let filename;
+                            let ext;
+                            try {
+                                filename =
+                                    displayFilename ||
+                                    decodeURIComponent(getFilename(src));
+                                ext = getExtension(src);
+                            } catch (e) {
+                                console.error(
+                                    "Error extracting filename/extension:",
+                                    e,
                                 );
-                            } else if (isAudioUrl(src)) {
+                                return null;
+                            }
+
+                            // Handle audio files separately (keep existing audio player)
+                            if (isAudioUrl(src)) {
                                 return (
                                     <audio
                                         onLoadedData={() =>
@@ -195,87 +251,99 @@ const MessageListContent = React.memo(function MessageListContent({
                                 );
                             }
 
-                            // Use original filename if available, otherwise extract from URL
-                            if (!src) {
-                                return null;
-                            }
-
-                            let filename;
-                            let ext;
-                            try {
-                                filename =
-                                    originalFilename ||
-                                    decodeURIComponent(getFilename(src));
-                                ext = getExtension(src);
-                            } catch (e) {
-                                console.error(
-                                    "Error extracting filename/extension:",
-                                    e,
-                                );
-                                return null;
-                            }
-
+                            // Handle document files with MediaCard
                             if (DOC_EXTENSIONS.includes(ext)) {
-                                const Icon = getFileIcon(filename);
                                 return (
-                                    <div
+                                    <MediaCard
                                         key={`file-${index}-${index2}`}
-                                        className="bg-neutral-100 dark:bg-gray-700 py-2 ps-2 pe-2 m-2 shadow-md rounded-lg border dark:border-gray-600 flex gap-2 items-center group relative"
-                                    >
-                                        <a
-                                            href={src}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex gap-2 items-center flex-1 min-w-0"
-                                        >
-                                            <Icon className="w-6 h-6 text-red-500 flex-shrink-0" />
-                                            <span className="truncate">
-                                                {filename}
-                                            </span>
-                                        </a>
-                                        {onDeleteFile && t && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    onDeleteFile(
-                                                        newMessage.id,
-                                                        index2,
-                                                    );
-                                                }}
-                                                className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 rounded p-1 transition-opacity flex-shrink-0 order-last rtl:order-first"
-                                                title={
-                                                    typeof t === "function"
-                                                        ? t(
-                                                              "Remove file from chat",
-                                                          )
-                                                        : "Remove file from chat"
-                                                }
-                                                aria-label={
-                                                    typeof t === "function"
-                                                        ? t(
-                                                              "Remove file from chat",
-                                                          )
-                                                        : "Remove file from chat"
-                                                }
-                                            >
-                                                <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                                            </button>
-                                        )}
-                                    </div>
+                                        type="file"
+                                        src={src}
+                                        filename={filename}
+                                        onDeleteFile={
+                                            onDeleteFile && t
+                                                ? () =>
+                                                      onDeleteFile(
+                                                          newMessage.id,
+                                                          index2,
+                                                      )
+                                                : undefined
+                                        }
+                                        t={t}
+                                    />
                                 );
                             }
 
-                            return (
-                                <div key={src}>
-                                    <ChatImage
+                            // Handle videos (including YouTube)
+                            if (isVideoUrl(src)) {
+                                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                                if (youtubeEmbedUrl) {
+                                    return (
+                                        <MediaCard
+                                            key={`youtube-${index}-${index2}`}
+                                            type="youtube"
+                                            src={src}
+                                            filename={filename}
+                                            youtubeEmbedUrl={youtubeEmbedUrl}
+                                            onLoad={() =>
+                                                handleMessageLoad(newMessage.id)
+                                            }
+                                            onDeleteFile={
+                                                onDeleteFile && t
+                                                    ? () =>
+                                                          onDeleteFile(
+                                                              newMessage.id,
+                                                              index2,
+                                                          )
+                                                    : undefined
+                                            }
+                                            t={t}
+                                        />
+                                    );
+                                }
+                                return (
+                                    <MediaCard
+                                        key={`video-${index}-${index2}`}
+                                        type="video"
                                         src={src}
-                                        alt="uploadedimage"
+                                        filename={filename}
                                         onLoad={() =>
                                             handleMessageLoad(newMessage.id)
                                         }
+                                        onDeleteFile={
+                                            onDeleteFile && t
+                                                ? () =>
+                                                      onDeleteFile(
+                                                          newMessage.id,
+                                                          index2,
+                                                      )
+                                                : undefined
+                                        }
+                                        t={t}
                                     />
-                                </div>
+                                );
+                            }
+
+                            // Handle images
+                            return (
+                                <MediaCard
+                                    key={`image-${index}-${index2}`}
+                                    type="image"
+                                    src={src}
+                                    filename={filename}
+                                    onLoad={() =>
+                                        handleMessageLoad(newMessage.id)
+                                    }
+                                    onDeleteFile={
+                                        onDeleteFile && t
+                                            ? () =>
+                                                  onDeleteFile(
+                                                      newMessage.id,
+                                                      index2,
+                                                  )
+                                            : undefined
+                                    }
+                                    t={t}
+                                />
                             );
                         }
                         return null;
@@ -285,14 +353,112 @@ const MessageListContent = React.memo(function MessageListContent({
                     }
                 })
                 .filter((item) => item !== null); // Remove null items (hidden from client)
-            display = <>{arr}</>;
+
+            // Group consecutive MediaCard components together so they can be on the same line
+            const grouped = [];
+            let currentGroup = [];
+
+            arr.forEach((item, idx) => {
+                // Check if item is a MediaCard component (all media types: image, video, youtube, file)
+                const isMediaCard =
+                    React.isValidElement(item) &&
+                    (item.key?.includes("image-") ||
+                        item.key?.includes("video-") ||
+                        item.key?.includes("youtube-") ||
+                        item.key?.includes("file-"));
+
+                if (isMediaCard) {
+                    currentGroup.push(item);
+                } else {
+                    if (currentGroup.length > 0) {
+                        grouped.push(
+                            <div
+                                key={`media-group-${idx}`}
+                                className="flex flex-wrap gap-2 my-2"
+                            >
+                                {currentGroup}
+                            </div>,
+                        );
+                        currentGroup = [];
+                    }
+                    grouped.push(item);
+                }
+            });
+
+            // Add any remaining media group
+            if (currentGroup.length > 0) {
+                grouped.push(
+                    <div
+                        key={`media-group-end`}
+                        className="flex flex-wrap gap-2 my-2"
+                    >
+                        {currentGroup}
+                    </div>,
+                );
+            }
+
+            display = <>{grouped}</>;
         } else {
             display = newMessage.payload;
         }
 
+        // Determine clustering using centralized logic
+        const prevMessage = index > 0 ? messages[index - 1] : null;
+        const nextMessage =
+            index < messages.length - 1 ? messages[index + 1] : null;
+        const nextNextMessage =
+            index < messages.length - 2 ? messages[index + 2] : null;
+        const clusterWithPrevious = shouldClusterWithPrevious(
+            newMessage,
+            prevMessage,
+            nextMessage,
+        );
+
+        // Check if next message will cluster with this one (to control spacing)
+        const nextWillCluster = nextMessage
+            ? shouldClusterWithPrevious(
+                  nextMessage,
+                  newMessage,
+                  nextNextMessage,
+              )
+            : false;
+        // Check if this message has a codeRequestId (coding agent message will follow)
+        let hasCodeRequest = false;
+        if (newMessage.tool && newMessage.sender === "labeeb") {
+            try {
+                const tool = JSON.parse(newMessage.tool);
+                hasCodeRequest = !!tool?.codeRequestId;
+            } catch (e) {
+                // Invalid JSON, ignore
+            }
+        }
+        // User messages always have reduced bottom margin (assistant/streaming always cluster with them)
+        // Assistant messages with codeRequestId should also have reduced margin (coding agent will follow)
+        const isUserMessage = newMessage.sender !== "labeeb";
+        const shouldReduceBottomMargin =
+            nextWillCluster || isUserMessage || hasCodeRequest;
+
+        // Control spacing at the list level based on clustering
+        // Spacing is controlled by bottom margin of each message
+        // If clustering with previous, remove top margin to eliminate gap
+        // Bottom margin: reduced if next message will cluster or if streaming will cluster, normal otherwise
+        const spacingClasses = [];
+        if (clusterWithPrevious) {
+            spacingClasses.push("mt-0");
+        }
+        spacingClasses.push(shouldReduceBottomMargin ? "mb-1" : "mb-6");
+        const className = classNames(...spacingClasses);
+
         return (
-            <div key={newMessage.id} id={`message-${newMessage.id}`}>
-                {renderMessage({ ...newMessage, payload: display })}
+            <div
+                key={newMessage.id}
+                id={`message-${newMessage.id}`}
+                className={className}
+            >
+                {renderMessage({
+                    ...newMessage,
+                    payload: display,
+                })}
             </div>
         );
     });
@@ -308,13 +474,17 @@ const MessageList = React.memo(
             chatId,
             streamingContent,
             isStreaming,
+            isChatLoading,
             onSend,
             ephemeralContent,
+            toolCalls,
             thinkingDuration,
             isThinking,
             selectedEntityId,
             entities,
             entityIconSize,
+            contextId,
+            contextKey,
         },
         ref,
     ) {
@@ -390,6 +560,7 @@ const MessageList = React.memo(
         }, [messages]);
 
         const updateChatHook = useUpdateChat();
+        const apolloClient = useApolloClient();
 
         const rowHeight = "h-12 [.docked_&]:h-10";
         const basis =
@@ -431,65 +602,108 @@ const MessageList = React.memo(
                     return;
                 }
 
-                // Get the file info before deleting it
-                let deletedFileInfo = null;
+                // Parse file object and extract filename
+                let fileObj = null;
+                let filename = null;
                 try {
-                    const fileObj = JSON.parse(message.payload[fileIndex]);
-                    if (fileObj.type === "image_url") {
-                        const filename =
+                    fileObj = JSON.parse(message.payload[fileIndex]);
+                    if (
+                        fileObj.type === "image_url" ||
+                        fileObj.type === "file"
+                    ) {
+                        filename =
+                            fileObj.displayFilename ||
                             fileObj.originalFilename ||
                             decodeURIComponent(
                                 getFilename(
                                     fileObj?.url ||
                                         fileObj?.image_url?.url ||
-                                        fileObj?.gcs,
+                                        fileObj?.gcs ||
+                                        fileObj?.file,
                                 ),
                             );
-                        deletedFileInfo = filename;
                     }
                 } catch (e) {
                     console.error("Error parsing file object:", e);
                 }
 
-                // Replace the deleted file with a hidden text message explaining the deletion
-                const updatedPayload = [...message.payload];
-                if (deletedFileInfo) {
-                    // Replace the file with a hidden text message
-                    updatedPayload[fileIndex] = JSON.stringify({
-                        type: "text",
-                        text: t("File deleted by user: {{filename}}", {
-                            filename: deletedFileInfo,
-                        }),
-                        hideFromClient: true,
-                    });
-                } else {
-                    // If we couldn't get file info, just remove it
-                    updatedPayload.splice(fileIndex, 1);
+                if (!fileObj) {
+                    console.error("Could not parse file object");
+                    return;
                 }
 
-                const updatedMessage = {
-                    ...message,
-                    payload: updatedPayload,
+                // Normalize file object for memory files matching
+                // matchesFile expects url at top level, not in image_url.url
+                const normalizedFileObj = {
+                    ...fileObj,
+                    url: fileObj.url || fileObj.image_url?.url || null,
                 };
 
-                // Create updated messages array
-                const updatedMessages = [...messages];
-                updatedMessages[messageIndex] = updatedMessage;
-
+                // Update UI immediately by replacing file with placeholder
+                // Then do cloud/memory deletion in background
                 try {
-                    // Update the chat with the modified messages
-                    // Note: This function is designed to be extended with server-side DELETE later
+                    // First, update chat message immediately for fast UI response
+                    const placeholder = createFilePlaceholder(
+                        fileObj,
+                        t,
+                        filename,
+                    );
+                    const updatedMessages = messages.map((msg, idx) => {
+                        if (
+                            idx === messageIndex &&
+                            Array.isArray(msg.payload)
+                        ) {
+                            const updatedPayload = [...msg.payload];
+                            updatedPayload[fileIndex] = placeholder;
+                            return { ...msg, payload: updatedPayload };
+                        }
+                        return msg;
+                    });
+
+                    // Update chat immediately
                     await updateChatHook.mutateAsync({
                         chatId: String(chatId),
                         messages: updatedMessages,
                     });
+
+                    // Close dialog immediately
                     setFileToDelete(null);
+
+                    // Then do cloud and memory deletion in background (fire and forget)
+                    purgeFile({
+                        fileObj: normalizedFileObj,
+                        apolloClient,
+                        contextId,
+                        contextKey,
+                        chatId: null, // Skip chat update since we already did it
+                        messages: null,
+                        updateChatHook: null,
+                        t,
+                        filename,
+                        skipCloudDelete: false,
+                        skipUserFileCollection: false, // CFH handles it automatically
+                    }).catch((error) => {
+                        console.error(
+                            "Background file deletion failed:",
+                            error,
+                        );
+                        // Errors are logged but don't affect UX
+                    });
                 } catch (error) {
-                    console.error("Failed to delete file from chat:", error);
+                    console.error("Failed to delete file:", error);
+                    setFileToDelete(null);
                     // TODO: Show user-friendly error message
                 }
             },
-            [chatId, messages, updateChatHook, t],
+            [
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                contextId,
+                contextKey,
+                apolloClient,
+            ],
         );
 
         const handleMessageLoad = useCallback((messageId) => {
@@ -507,6 +721,200 @@ const MessageList = React.memo(
                 }),
             );
         }, []);
+
+        // Callback to update mermaid code in a message
+        const handleMermaidFix = useCallback(
+            async (messageId, brokenCode, fixedCode) => {
+                if (!chatId || !messageId || !brokenCode || !fixedCode) {
+                    return;
+                }
+
+                // Find the message
+                const messageIndex = messages.findIndex(
+                    (m) => m.id === messageId || m._id === messageId,
+                );
+
+                if (messageIndex === -1) {
+                    console.error(
+                        "Message not found for mermaid fix:",
+                        messageId,
+                    );
+                    return;
+                }
+
+                const message = messages[messageIndex];
+                let updatedPayload = message.payload;
+
+                // Normalize code for comparison (remove extra whitespace, normalize line endings)
+                const normalizeCode = (code) => {
+                    return code
+                        .trim()
+                        .replace(/\r\n/g, "\n")
+                        .replace(/\r/g, "\n")
+                        .replace(/\n{3,}/g, "\n\n");
+                };
+
+                const normalizedBrokenCode = normalizeCode(brokenCode);
+
+                // Replace the mermaid code block - we know which block it is, just replace it
+                const replaceMermaidCode = (text) => {
+                    // Find mermaid blocks and replace the one containing brokenCode
+                    const mermaidBlockRegex = /```mermaid\s*([\s\S]*?)\s*```/g;
+                    let replaced = false;
+                    return text.replace(
+                        mermaidBlockRegex,
+                        (fullMatch, codeContent) => {
+                            // If this block matches the broken code (normalized), replace it
+                            // Only replace the first match to avoid replacing multiple blocks
+                            if (
+                                !replaced &&
+                                normalizeCode(codeContent) ===
+                                    normalizedBrokenCode
+                            ) {
+                                replaced = true;
+                                return `\`\`\`mermaid\n${fixedCode}\n\`\`\``;
+                            }
+                            return fullMatch;
+                        },
+                    );
+                };
+
+                // Helper to recursively process payload items
+                const processPayloadItem = (item) => {
+                    if (typeof item === "string") {
+                        // Try to parse as JSON in case it's a stringified object
+                        try {
+                            const parsed = JSON.parse(item);
+                            if (parsed && typeof parsed === "object") {
+                                // Recursively process object properties
+                                if (
+                                    parsed.text &&
+                                    typeof parsed.text === "string"
+                                ) {
+                                    const processedText = replaceMermaidCode(
+                                        parsed.text,
+                                    );
+                                    if (processedText !== parsed.text) {
+                                        return JSON.stringify({
+                                            ...parsed,
+                                            text: processedText,
+                                        });
+                                    }
+                                }
+                                // Check other string properties
+                                const processed = { ...parsed };
+                                let changed = false;
+                                for (const key in processed) {
+                                    if (
+                                        typeof processed[key] === "string" &&
+                                        key !== "text"
+                                    ) {
+                                        const processedValue =
+                                            replaceMermaidCode(processed[key]);
+                                        if (processedValue !== processed[key]) {
+                                            processed[key] = processedValue;
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                                if (changed) {
+                                    return JSON.stringify(processed);
+                                }
+                            }
+                        } catch (e) {
+                            // Not JSON, treat as plain string
+                        }
+                        // Process as plain string
+                        return replaceMermaidCode(item);
+                    }
+                    return item;
+                };
+
+                // Check if payload contains mermaid blocks before processing
+                const payloadStr =
+                    typeof updatedPayload === "string"
+                        ? updatedPayload
+                        : JSON.stringify(updatedPayload);
+                const hasMermaidBlocks = /```mermaid/.test(payloadStr);
+
+                if (typeof updatedPayload === "string") {
+                    const before = updatedPayload;
+                    updatedPayload = processPayloadItem(updatedPayload);
+                    // Check if anything changed
+                    if (before === updatedPayload) {
+                        // Only warn if we actually expected to find a match
+                        if (hasMermaidBlocks) {
+                            console.warn(
+                                "Mermaid code block not found in message payload for replacement",
+                                {
+                                    messageId,
+                                    brokenCodeLength: brokenCode.length,
+                                    payloadPreview: String(before).substring(
+                                        0,
+                                        200,
+                                    ),
+                                },
+                            );
+                        }
+                        return;
+                    }
+                } else if (Array.isArray(updatedPayload)) {
+                    let changed = false;
+                    updatedPayload = updatedPayload.map((item) => {
+                        const processed = processPayloadItem(item);
+                        if (processed !== item) {
+                            changed = true;
+                        }
+                        return processed;
+                    });
+                    if (!changed) {
+                        // Only warn if we actually expected to find a match
+                        if (hasMermaidBlocks) {
+                            console.warn(
+                                "Mermaid code block not found in message payload for replacement",
+                                {
+                                    messageId,
+                                    brokenCodeLength: brokenCode.length,
+                                    payloadType: "array",
+                                },
+                            );
+                        }
+                        return;
+                    }
+                } else {
+                    // Payload is neither string nor array - can't process
+                    console.warn(
+                        "Mermaid fix: unexpected payload format",
+                        typeof updatedPayload,
+                    );
+                    return;
+                }
+
+                // Create updated messages array
+                const updatedMessages = [...messages];
+                updatedMessages[messageIndex] = {
+                    ...message,
+                    payload: updatedPayload,
+                };
+
+                // Update the chat
+                try {
+                    await updateChatHook.mutateAsync({
+                        chatId: String(chatId),
+                        messages: updatedMessages,
+                    });
+                    console.log(
+                        "Successfully updated message with fixed mermaid code",
+                    );
+                } catch (error) {
+                    console.error(
+                        "Error updating message with fixed mermaid code:",
+                        error,
+                    );
+                }
+            },
+            [chatId, messages, updateChatHook],
+        );
 
         const handleImageLoad = useCallback(
             (messageId) => {
@@ -571,6 +979,12 @@ const MessageList = React.memo(
             [messages, onSend],
         );
 
+        // Callback to trigger scroll when task status updates
+        const handleTaskStatusUpdate = useCallback(() => {
+            // Scroll messages list to bottom when task status changes
+            scrollBottomRef.current?.resetScrollState();
+        }, []);
+
         const renderMessage = useCallback(
             (message) => {
                 const toolData = parseToolData(message.tool);
@@ -593,23 +1007,22 @@ const MessageList = React.memo(
                             entityIconSize={entityIconSize}
                             entityIconClasses={classNames(basis)}
                             onLoad={() => handleMessageLoad(message.id)}
+                            onTaskStatusUpdate={handleTaskStatusUpdate}
+                            onMermaidFix={(brokenCode, fixedCode) =>
+                                handleMermaidFix(
+                                    message.id,
+                                    brokenCode,
+                                    fixedCode,
+                                )
+                            }
                         />
                     );
                 }
-                const avatar = (
-                    <UserCircle
-                        className={classNames(
-                            rowHeight,
-                            buttonWidthClass,
-                            "p-2",
-                            "text-gray-300",
-                        )}
-                    />
-                );
+
                 return (
                     <div
                         key={message.id}
-                        className="flex ps-1 pt-1 relative group"
+                        className="flex bg-sky-100 dark:bg-gray-600 ps-1 pt-1 relative group rounded-t-lg rounded-br-lg rtl:rounded-br-none rtl:rounded-bl-lg"
                     >
                         <div className="flex items-center gap-2 absolute top-3 end-3">
                             <ReplayButton
@@ -635,13 +1048,26 @@ const MessageList = React.memo(
                                 className="opacity-0 group-hover:opacity-60 hover:opacity-100 transition-opacity"
                             />
                         </div>
-                        <div className={classNames(basis)}>{avatar}</div>
+                        <div className="absolute top-[10px] start-3 flex items-center justify-center w-6 h-6 rounded-full bg-sky-200 dark:bg-sky-900/30 overflow-hidden">
+                            {user?.picture || user?.profilePicture ? (
+                                <img
+                                    src={user.picture || user.profilePicture}
+                                    alt={user?.name || "User"}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : user?.initials ? (
+                                <span className="text-xs font-medium text-sky-600 dark:text-sky-400 leading-none">
+                                    {user.initials}
+                                </span>
+                            ) : (
+                                <User className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                            )}
+                        </div>
                         <div
                             className={classNames(
-                                "px-1 pb-3 pt-2 [.docked_&]:px-0 [.docked_&]:py-3",
+                                "px-1 pb-3 pt-2 ps-10 [.docked_&]:px-0 [.docked_&]:ps-10 [.docked_&]:py-3 w-full",
                             )}
                         >
-                            <div className="font-semibold">{t("You")}</div>
                             <pre className="chat-message-user">
                                 {message.payload}
                             </pre>
@@ -657,13 +1083,15 @@ const MessageList = React.memo(
                 language,
                 messageRef,
                 rowHeight,
-                t,
                 botName,
                 selectedEntityId,
                 entities,
                 entityIconSize,
+                handleTaskStatusUpdate,
+                handleMermaidFix,
                 messages,
                 handleMessageLoad,
+                user,
             ],
         );
 
@@ -672,11 +1100,13 @@ const MessageList = React.memo(
         return (
             <ScrollToBottom ref={scrollBottomRef} loadComplete={loadComplete}>
                 <div className="flex flex-col">
-                    {messages.length === 0 && !isStreaming && (
-                        <div className="no-message-message text-gray-400 dark:text-gray-500">
-                            {t("Send a message to start a conversation")}
-                        </div>
-                    )}
+                    {messages.length === 0 &&
+                        !isStreaming &&
+                        !isChatLoading && (
+                            <div className="no-message-message text-gray-400 dark:text-gray-500">
+                                {t("Send a message to start a conversation")}
+                            </div>
+                        )}
                     <div className="flex-1 overflow-hidden">
                         <MessageListContent
                             messages={messages}
@@ -689,19 +1119,47 @@ const MessageList = React.memo(
                             getYoutubeEmbedUrl={getYoutubeEmbedUrl}
                             onDeleteFile={confirmDeleteFile}
                             t={t}
+                            isStreaming={isStreaming}
                         />
-                        {isStreaming && (
-                            <StreamingMessage
-                                content={streamingContent}
-                                ephemeralContent={ephemeralContent}
-                                bot={bot}
-                                thinkingDuration={thinkingDuration}
-                                isThinking={isThinking}
-                                selectedEntityId={selectedEntityId}
-                                entities={entities}
-                                entityIconSize={entityIconSize}
-                            />
-                        )}
+                        {isStreaming &&
+                            (() => {
+                                // Streaming messages should always cluster with previous user message
+                                const lastMessage =
+                                    messages.length > 0
+                                        ? messages[messages.length - 1]
+                                        : null;
+                                const prevIsUser =
+                                    lastMessage &&
+                                    lastMessage.sender !== "labeeb";
+                                const shouldCluster = prevIsUser;
+
+                                // Apply clustering spacing
+                                const streamingClasses = [];
+                                if (shouldCluster) {
+                                    streamingClasses.push("mt-0");
+                                }
+                                streamingClasses.push("mb-6"); // Normal bottom margin for streaming
+
+                                return (
+                                    <div
+                                        className={classNames(
+                                            ...streamingClasses,
+                                        )}
+                                    >
+                                        <StreamingMessage
+                                            content={streamingContent}
+                                            ephemeralContent={ephemeralContent}
+                                            toolCalls={toolCalls}
+                                            bot={bot}
+                                            thinkingDuration={thinkingDuration}
+                                            isThinking={isThinking}
+                                            selectedEntityId={selectedEntityId}
+                                            entities={entities}
+                                            entityIconSize={entityIconSize}
+                                        />
+                                    </div>
+                                );
+                            })()}
                         {loading &&
                             !isStreaming &&
                             renderMessage({

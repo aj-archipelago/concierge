@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import Workspace from "../models/workspace";
 import stringcase from "stringcase";
 
@@ -34,6 +35,9 @@ export async function createWorkspace({
         );
     }
 
+    // Generate a contextKey for the workspace (used for encryption)
+    const contextKey = crypto.randomBytes(32).toString("hex");
+
     const workspace = await Workspace.create({
         name,
         slug,
@@ -41,6 +45,7 @@ export async function createWorkspace({
         prompts,
         systemPrompt,
         applet,
+        contextKey,
     });
     return workspace;
 }
