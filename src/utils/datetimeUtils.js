@@ -24,9 +24,7 @@ export function composeUserDateTimeInfo() {
     // Validate timezone and fallback if invalid
     const originalTimezone = timezone;
     if (!isValidTimezone(timezone)) {
-        console.warn(
-            `Invalid timezone "${originalTimezone}", using UTC`,
-        );
+        console.warn(`Invalid timezone "${originalTimezone}", using UTC`);
         timezone = "UTC";
     }
 
