@@ -1,4 +1,4 @@
-import { composeUserDateTimeInfo } from "../datetimeUtils";
+import { composeUserDateTimeInfo, isValidTimezone } from "../datetimeUtils";
 
 describe("datetimeUtils", () => {
     describe("composeUserDateTimeInfo", () => {
@@ -101,6 +101,19 @@ describe("datetimeUtils", () => {
         });
 
         it("should test timezone validation function directly", () => {
+            // Test the isValidTimezone function directly
+            expect(isValidTimezone("UTC")).toBe(true);
+            expect(isValidTimezone("America/New_York")).toBe(true);
+            expect(isValidTimezone("Europe/London")).toBe(true);
+            expect(isValidTimezone("Asia/Qatar")).toBe(true);
+
+            expect(isValidTimezone("Etc/Unknown")).toBe(false);
+            expect(isValidTimezone("Invalid/Timezone")).toBe(false);
+            expect(isValidTimezone("Fake/Zone")).toBe(false);
+            expect(isValidTimezone("")).toBe(false);
+        });
+
+        it("should use the actual datetime utils implementation without errors", () => {
             // Test the validation logic by importing and testing the function
             const { composeUserDateTimeInfo: originalFunction } =
                 jest.requireActual("../datetimeUtils");
@@ -109,10 +122,6 @@ describe("datetimeUtils", () => {
             const consoleSpy = jest
                 .spyOn(console, "warn")
                 .mockImplementation(() => {});
-
-            // Mock the Intl.DateTimeFormat to simulate invalid timezone
-            const originalResolvedOptions =
-                Intl.DateTimeFormat.prototype.resolvedOptions;
 
             // This test verifies the validation logic exists and works
             // We can't easily mock the resolvedOptions.timeZone to return invalid values

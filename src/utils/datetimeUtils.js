@@ -3,7 +3,7 @@
  * @param {string} timezone - Timezone identifier to validate
  * @returns {boolean} - True if the timezone identifier is valid and supported by Intl, false otherwise
  */
-function isValidTimezone(timezone) {
+export function isValidTimezone(timezone) {
     try {
         Intl.DateTimeFormat(undefined, { timeZone: timezone });
         return true;
