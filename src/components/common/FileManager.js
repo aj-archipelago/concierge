@@ -440,6 +440,7 @@ export default function FileManager({
     onSelectionChange = null,
     rowActions = null,
     headerContent = null,
+    emptyStateFilterExtra = null,
 }) {
     const { t } = useTranslation();
     const isRtl = i18next.language === "ar";
@@ -960,10 +961,16 @@ export default function FileManager({
                     emptyDescription || t("No files have been uploaded yet.")
                 }
             >
+                {/* Show emptyStateFilterExtra or filterExtra (e.g. "Show files from all conversations" checkbox) centered, grouped with message */}
+                {(emptyStateFilterExtra || filterExtra) && (
+                    <div className="mt-2 flex items-center justify-center">
+                        {emptyStateFilterExtra || filterExtra}
+                    </div>
+                )}
                 {onUploadClick && (
                     <button
                         onClick={onUploadClick}
-                        className="mt-4 flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
+                        className="mt-6 flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
                     >
                         <Upload className="w-4 h-4" />
                         {t("Upload Files")}
