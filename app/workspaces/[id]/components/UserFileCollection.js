@@ -483,6 +483,25 @@ export default function UserFileCollection({
                         </div>
                     )
                 }
+                emptyStateFilterExtra={
+                    chatId && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <Checkbox
+                                id="show-all-files-empty"
+                                checked={showAll}
+                                onCheckedChange={(checked) =>
+                                    setShowAll(checked === true)
+                                }
+                            />
+                            <Label
+                                htmlFor="show-all-files-empty"
+                                className="text-sm font-normal cursor-pointer whitespace-nowrap"
+                            >
+                                {t("Show files from all conversations")}
+                            </Label>
+                        </div>
+                    )
+                }
                 emptyTitle={t("No files available")}
                 emptyDescription={t(
                     "No files are available to this conversation yet.",
