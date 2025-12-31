@@ -33,12 +33,14 @@ import {
  * @param {Object} props
  * @param {string} props.contextId - The context ID for the file collection (e.g., "workspaceId:userId")
  * @param {string} props.contextKey - The context key for the file collection
+ * @param {string} props.workspaceId - The workspace ID (used for upload endpoint)
  * @param {Array} props.selectedFiles - Currently selected/attached files
  * @param {Function} props.onFilesSelected - Callback when selection changes
  */
 export default function UserFileCollectionPicker({
     contextId,
     contextKey,
+    workspaceId = null,
     selectedFiles = [],
     onFilesSelected,
 }) {
@@ -284,6 +286,10 @@ export default function UserFileCollectionPicker({
                 isOpen={showUploadDialog}
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleUploadComplete}
+                uploadEndpoint={
+                    workspaceId ? `/api/workspaces/${workspaceId}/files` : null
+                }
+                workspaceId={workspaceId}
                 contextId={contextId}
                 title={t("Upload Files")}
                 description={t("Upload files to add them to your collection.")}

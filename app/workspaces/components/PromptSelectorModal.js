@@ -165,6 +165,7 @@ function SelectorDialog({ setIsOpen }) {
                         <UserFileCollectionPicker
                             contextId={workspace._id}
                             contextKey={workspace.contextKey}
+                            workspaceId={workspace._id}
                             selectedFiles={selectedFiles}
                             onFilesSelected={setSelectedFiles}
                         />
