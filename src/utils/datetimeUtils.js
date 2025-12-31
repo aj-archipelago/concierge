@@ -1,4 +1,18 @@
 /**
+ * Validates if a timezone identifier is supported by the browser
+ * @param {string} timezone - Timezone identifier to validate
+ * @returns {boolean} - True if timezone is valid, false otherwise
+ */
+function isValidTimezone(timezone) {
+    try {
+        Intl.DateTimeFormat(undefined, { timeZone: timezone });
+        return true;
+    } catch (_error) {
+        return false;
+    }
+}
+
+/**
  * Composes user datetime and timezone information for sending to chat assistant
  * @returns {string} JSON string containing datetime information
  */
@@ -9,11 +23,11 @@ export function composeUserDateTimeInfo() {
 
     // Validate timezone and fallback if invalid
     const originalTimezone = timezone;
-    if (!timezone || !isValidTimezone(timezone)) {
+    if (!isValidTimezone(timezone)) {
         console.warn(
-            `Invalid timezone "${originalTimezone}", using Asia/Qatar`,
+            `Invalid timezone "${originalTimezone}", using UTC`,
         );
-        timezone = "Asia/Qatar";
+        timezone = "UTC";
     }
 
     const localDateTime = now.toLocaleString(locale, {
@@ -52,13 +66,4 @@ export function composeUserDateTimeInfo() {
             timeOfDay: timeOfDay,
         },
     });
-}
-
-function isValidTimezone(timezone) {
-    try {
-        Intl.DateTimeFormat(undefined, { timeZone: timezone });
-        return true;
-    } catch (error) {
-        return false;
-    }
 }
