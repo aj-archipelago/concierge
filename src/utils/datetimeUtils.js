@@ -1,7 +1,7 @@
 /**
- * Validates if a timezone identifier is supported by the browser
+ * Validates whether a timezone identifier is a valid IANA time zone name supported by the Intl API
  * @param {string} timezone - Timezone identifier to validate
- * @returns {boolean} - True if timezone is valid, false otherwise
+ * @returns {boolean} - True if the timezone identifier is valid and supported by Intl, false otherwise
  */
 function isValidTimezone(timezone) {
     try {
