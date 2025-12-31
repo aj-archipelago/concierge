@@ -286,7 +286,9 @@ export default function UserFileCollectionPicker({
                 isOpen={showUploadDialog}
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleUploadComplete}
-                uploadEndpoint={workspaceId ? `/api/workspaces/${workspaceId}/files` : null}
+                uploadEndpoint={
+                    workspaceId ? `/api/workspaces/${workspaceId}/files` : null
+                }
                 workspaceId={workspaceId}
                 contextId={contextId}
                 title={t("Upload Files")}
