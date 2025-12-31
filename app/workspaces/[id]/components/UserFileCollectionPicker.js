@@ -146,19 +146,26 @@ export default function UserFileCollectionPicker({
                         errorData.error || "Failed to delete workspace file",
                     );
                 }
-            } else if (workspaceId && !mongoFileId && fileHash) {
-                // We have a workspaceId but couldn't find the MongoDB _id
-                // This means either the lookup hasn't loaded yet, or the file isn't in MongoDB
-                // Log a warning and fall back to cloud-only delete
-                console.warn(
-                    `Could not find MongoDB _id for file with hash ${fileHash}. ` +
-                        `File may not be fully removed from workspace. ` +
-                        `Try refreshing and deleting again from Manage Workspace Files.`,
-                );
+            } else if (fileHash) {
+                // We have a fileHash but either:
+                // - No workspaceId (not a workspace file)
+                // - Or workspaceId but couldn't find MongoDB _id (lookup not ready or file not in MongoDB)
+                if (workspaceId && !mongoFileId) {
+                    // Log a warning when we expected to find MongoDB _id but couldn't
+                    console.warn(
+                        `Could not find MongoDB _id for file with hash ${fileHash}. ` +
+                            `File may not be fully removed from workspace. ` +
+                            `Try refreshing and deleting again from Manage Workspace Files.`,
+                    );
+                }
+                // Fall back to cloud-only delete
                 await deleteFileFromCloud(fileHash, contextId);
             } else {
-                // No workspaceId - just delete from cloud
-                await deleteFileFromCloud(fileHash, contextId);
+                // We have mongoFileId but no fileHash and no workspaceId
+                // Can't delete without either workspace API or hash
+                throw new Error(
+                    t("Cannot delete file: missing required information."),
+                );
             }
 
             // Remove from selection if selected
