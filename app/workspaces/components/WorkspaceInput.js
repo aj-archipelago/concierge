@@ -1002,64 +1002,60 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                                 ? t("Delete Files")
                                 : t("Delete File")}
                         </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {deleteConfirmation?.hasAttachments ? (
-                                <>
-                                    <div className="mb-3">
-                                        <span className="font-medium text-amber-600 dark:text-amber-400">
-                                            ⚠️ {t("Warning:")}
-                                        </span>{" "}
-                                        {deleteConfirmation?.attachedCount === 1
-                                            ? t("1 file is attached to prompts")
-                                            : t(
-                                                  "{{count}} files are attached to prompts",
-                                                  {
-                                                      count: deleteConfirmation?.attachedCount,
-                                                  },
-                                              )}
-                                        .
-                                    </div>
-                                    <div className="mb-3 space-y-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 max-h-48 overflow-y-auto">
-                                        {deleteConfirmation?.files
-                                            ?.filter((r) => r.isAttached)
-                                            .map((result) => (
-                                                <div
-                                                    key={result.file._id}
-                                                    className="text-sm"
-                                                >
-                                                    <span className="font-medium text-amber-800 dark:text-amber-200">
-                                                        {result.file
-                                                            .originalName ||
-                                                            result.file
-                                                                .filename}
-                                                    </span>
-                                                    <span className="text-amber-600 dark:text-amber-400">
-                                                        {" "}
-                                                        →{" "}
-                                                        {result.attachedPrompts
-                                                            .map((p) => p.title)
-                                                            .join(", ")}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                    </div>
-                                    <div className="text-sm">
-                                        {t(
-                                            "If you proceed, files will be automatically detached from prompts and then deleted. This action cannot be undone.",
-                                        )}
-                                    </div>
-                                </>
-                            ) : (
-                                <>
+                        {deleteConfirmation?.hasAttachments ? (
+                            <>
+                                <AlertDialogDescription>
+                                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                                        ⚠️ {t("Warning:")}
+                                    </span>{" "}
+                                    {deleteConfirmation?.attachedCount === 1
+                                        ? t("1 file is attached to prompts")
+                                        : t(
+                                              "{{count}} files are attached to prompts",
+                                              {
+                                                  count: deleteConfirmation?.attachedCount,
+                                              },
+                                          )}
+                                    .
+                                </AlertDialogDescription>
+                                <div className="mb-3 space-y-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 max-h-48 overflow-y-auto">
+                                    {deleteConfirmation?.files
+                                        ?.filter((r) => r.isAttached)
+                                        .map((result) => (
+                                            <div
+                                                key={result.file._id}
+                                                className="text-sm"
+                                            >
+                                                <span className="font-medium text-amber-800 dark:text-amber-200">
+                                                    {result.file.originalName ||
+                                                        result.file.filename}
+                                                </span>
+                                                <span className="text-amber-600 dark:text-amber-400">
+                                                    {" "}
+                                                    →{" "}
+                                                    {result.attachedPrompts
+                                                        .map((p) => p.title)
+                                                        .join(", ")}
+                                                </span>
+                                            </div>
+                                        ))}
+                                </div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
                                     {t(
-                                        "Are you sure you want to delete {{count}} file(s)? This action cannot be undone.",
-                                        {
-                                            count: deleteConfirmation?.totalCount,
-                                        },
+                                        "If you proceed, files will be automatically detached from prompts and then deleted. This action cannot be undone.",
                                     )}
-                                </>
-                            )}
-                        </AlertDialogDescription>
+                                </div>
+                            </>
+                        ) : (
+                            <AlertDialogDescription>
+                                {t(
+                                    "Are you sure you want to delete {{count}} file(s)? This action cannot be undone.",
+                                    {
+                                        count: deleteConfirmation?.totalCount,
+                                    },
+                                )}
+                            </AlertDialogDescription>
+                        )}
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={cancelDelete}>
