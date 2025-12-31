@@ -4,8 +4,18 @@
  */
 export function composeUserDateTimeInfo() {
     const now = new Date();
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+
+    // Validate timezone and fallback if invalid
+    const originalTimezone = timezone;
+    if (!timezone || !isValidTimezone(timezone)) {
+        console.warn(
+            `Invalid timezone "${originalTimezone}", using Asia/Qatar`,
+        );
+        timezone = "Asia/Qatar";
+    }
+
     const localDateTime = now.toLocaleString(locale, {
         timeZone: timezone,
         year: "numeric",
@@ -36,8 +46,19 @@ export function composeUserDateTimeInfo() {
             local: localDateTime,
             iso: isoDateTime,
             timezone: timezone,
+            originalTimezone:
+                originalTimezone !== timezone ? originalTimezone : undefined,
             dayOfWeek: dayOfWeek,
             timeOfDay: timeOfDay,
         },
     });
+}
+
+function isValidTimezone(timezone) {
+    try {
+        Intl.DateTimeFormat(undefined, { timeZone: timezone });
+        return true;
+    } catch (error) {
+        return false;
+    }
 }
