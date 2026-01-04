@@ -2,15 +2,11 @@
 import { useApolloClient } from "@apollo/client";
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { updateFileMetadata } from "./userFileCollectionUtils";
 import { getFilename as getFilenameUtil } from "@/src/components/common/FileManager";
 import { purgeFiles } from "./chatFileUtils";
-import {
-    useFileCollection,
-    getInCollection,
-    createOptimisticFile,
-    addFileOptimistically,
-} from "./useFileCollection";
+import { useFileCollection, getInCollection } from "./useFileCollection";
+import { useFileUploadHandler } from "./useFileUploadHandler";
+import { updateFileMetadata } from "./userFileCollectionUtils";
 import FileManager from "@/src/components/common/FileManager";
 import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,96 +66,16 @@ export default function UserFileCollection({
         }
     }, [allFiles, chatId, showAll]);
 
-    // Handle file upload complete
+    // Handle file upload complete using shared hook
     // Flow: [1] CFH upload done → [2] optimistic update → [3] set metadata → [4] reload
-    const handleUploadComplete = useCallback(
-        async (uploadResult) => {
-            // Normalize response (workspace upload vs media helper)
-            const fileData = uploadResult?.file || uploadResult;
-            const hash = fileData?.converted?.hash || fileData?.hash;
-
-            if (!hash) {
-                reloadFiles();
-                return;
-            }
-
-            // Check if file already exists in the collection
-            const existingFile = allFiles.find((f) => f.hash === hash);
-            let inCollection;
-
-            if (existingFile && existingFile.inCollection) {
-                const existingCollections = getInCollection(existingFile);
-                const isGlobal = existingCollections.includes("*");
-
-                if (isGlobal) {
-                    // File is global, keep it global (don't change)
-                    inCollection = ["*"];
-                } else if (chatId) {
-                    // File exists with chat-scoped collections, add current chatId if not already present
-                    if (existingCollections.includes(chatId)) {
-                        // Already in this chat's collection, keep as is
-                        inCollection = existingCollections;
-                    } else {
-                        // Add current chatId to existing collections
-                        inCollection = [...existingCollections, chatId];
-                    }
-                } else {
-                    // No chatId but file exists, keep existing collections
-                    inCollection = existingCollections;
-                }
-            } else {
-                // New file: use chatId if available, otherwise use "*" for global
-                inCollection = chatId ? [chatId] : ["*"];
-            }
-
-            // [2] Optimistic update - add file to list immediately
-            const optimisticFile = createOptimisticFile(
-                {
-                    hash,
-                    url: fileData.converted?.url || fileData.url,
-                    gcs:
-                        fileData.converted?.gcs ||
-                        fileData.gcsUrl ||
-                        fileData.gcs,
-                    displayFilename:
-                        fileData.displayFilename ||
-                        fileData.originalName ||
-                        fileData.filename,
-                    mimeType: fileData.mimeType,
-                    size: fileData.size,
-                    permanent: existingFile?.permanent || false,
-                },
-                inCollection,
-            );
-
-            addFileOptimistically(setAllFiles, optimisticFile);
-
-            // [3] Set metadata (inCollection) → [4] reload
-            try {
-                await updateFileMetadata(
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    hash,
-                    {
-                        inCollection,
-                    },
-                );
-            } catch (error) {
-                console.error("Failed to set file metadata:", error);
-            }
-            reloadFiles();
-        },
-        [
-            apolloClient,
-            contextId,
-            contextKey,
-            chatId,
-            allFiles,
-            reloadFiles,
-            setAllFiles,
-        ],
-    );
+    const handleUploadComplete = useFileUploadHandler({
+        contextId,
+        contextKey,
+        files: allFiles,
+        setFiles: setAllFiles,
+        reloadFiles,
+        chatId,
+    });
 
     // Handle file deletion
     // Follows inCollection deletion rules (unless showAll is active):
@@ -479,6 +395,25 @@ export default function UserFileCollection({
                                 className="text-sm font-normal cursor-pointer whitespace-nowrap"
                             >
                                 {t("Show all")}
+                            </Label>
+                        </div>
+                    )
+                }
+                emptyStateFilterExtra={
+                    chatId && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <Checkbox
+                                id="show-all-files-empty"
+                                checked={showAll}
+                                onCheckedChange={(checked) =>
+                                    setShowAll(checked === true)
+                                }
+                            />
+                            <Label
+                                htmlFor="show-all-files-empty"
+                                className="text-sm font-normal cursor-pointer whitespace-nowrap"
+                            >
+                                {t("Show files from all conversations")}
                             </Label>
                         </div>
                     )

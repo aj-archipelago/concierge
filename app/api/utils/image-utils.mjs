@@ -15,6 +15,10 @@ export async function normalizeProfilePicture(imageBuffer, options = {}) {
 
     try {
         const normalizedBuffer = await sharp(imageBuffer)
+            // Auto-rotate based on EXIF orientation (Sharp's default behavior)
+            // This ensures images taken in portrait mode display correctly
+            // The rotate() call applies EXIF orientation and strips the orientation tag
+            .rotate()
             // Resize to square, cropping from center to fill
             .resize(size, size, {
                 fit: "cover",
@@ -22,7 +26,7 @@ export async function normalizeProfilePicture(imageBuffer, options = {}) {
             })
             // Flatten transparency to white background
             .flatten({ background: { r: 255, g: 255, b: 255 } })
-            // Convert to JPEG
+            // Convert to JPEG (EXIF is automatically removed after rotate())
             .jpeg({ quality })
             .toBuffer();
 

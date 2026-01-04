@@ -1,18 +1,18 @@
 "use client";
 import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { deleteFileFromCloud } from "./chatFileUtils";
-import {
-    useFileCollection,
-    createOptimisticFile,
-    addFileOptimistically,
-} from "./useFileCollection";
+import { useFileCollection } from "./useFileCollection";
+import { useFileUploadHandler } from "./useFileUploadHandler";
+import { useHashToIdLookup } from "../../hooks/useHashToIdLookup";
 import FileManager, {
     createFileId,
     getFilename,
 } from "@/src/components/common/FileManager";
 import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
 import { CheckSquare, Square, Trash2, Upload, Loader2 } from "lucide-react";
+import { toast } from "react-toastify";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,16 +33,19 @@ import {
  * @param {Object} props
  * @param {string} props.contextId - The context ID for the file collection (e.g., "workspaceId:userId")
  * @param {string} props.contextKey - The context key for the file collection
+ * @param {string} props.workspaceId - The workspace ID (used for upload endpoint)
  * @param {Array} props.selectedFiles - Currently selected/attached files
  * @param {Function} props.onFilesSelected - Callback when selection changes
  */
 export default function UserFileCollectionPicker({
     contextId,
     contextKey,
+    workspaceId = null,
     selectedFiles = [],
     onFilesSelected,
 }) {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [deletingFiles, setDeletingFiles] = useState(new Set());
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
@@ -54,6 +57,9 @@ export default function UserFileCollectionPicker({
         contextKey,
         requireInCollection: false,
     });
+
+    // Build hash -> MongoDB _id lookup for workspace files
+    const hashToId = useHashToIdLookup(workspaceId);
 
     // Use FileManager's createFileId for consistent ID generation
     const getFileId = useCallback((file) => createFileId(file), []);
@@ -112,18 +118,55 @@ export default function UserFileCollectionPicker({
         if (!deleteConfirmation) return;
 
         const { file } = deleteConfirmation;
-        // deleteFileFromCloud expects the raw hash, not the prefixed ID
-        const fileHash = file?.hash || file?._id;
+        const fileHash = file?.hash;
+        // Try to get MongoDB _id from file object or hash lookup
+        const mongoFileId = file?._id || (fileHash && hashToId.get(fileHash));
 
-        if (!fileHash) return;
+        if (!fileHash && !mongoFileId) return;
 
         const fileId = getFileId(file); // For tracking deletion state
 
         try {
             setDeletingFiles((prev) => new Set(prev).add(fileId));
 
-            // Delete from cloud storage
-            await deleteFileFromCloud(fileHash, contextId);
+            // If we have workspaceId and MongoDB _id, use workspace files API
+            // This deletes from both MongoDB and cloud storage
+            if (workspaceId && mongoFileId) {
+                const response = await fetch(
+                    `/api/workspaces/${workspaceId}/files/${mongoFileId}?force=true`,
+                    { method: "DELETE" },
+                );
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    console.error(
+                        "Failed to delete workspace file:",
+                        errorData,
+                    );
+                    throw new Error(
+                        errorData.error || "Failed to delete workspace file",
+                    );
+                }
+            } else if (fileHash) {
+                // We have a fileHash but either:
+                // - No workspaceId (not a workspace file)
+                // - Or workspaceId but couldn't find MongoDB _id (lookup not ready or file not in MongoDB)
+                if (workspaceId && !mongoFileId) {
+                    // Log a warning when we expected to find MongoDB _id but couldn't
+                    console.warn(
+                        `Could not find MongoDB _id for file with hash ${fileHash}. ` +
+                            `File may not be fully removed from workspace. ` +
+                            `Try refreshing and deleting again from Manage Workspace Files.`,
+                    );
+                }
+                // Fall back to cloud-only delete
+                await deleteFileFromCloud(fileHash, contextId);
+            } else {
+                // We have mongoFileId but no fileHash and no workspaceId
+                // Can't delete without either workspace API or hash
+                throw new Error(
+                    t("Cannot delete file: missing required information."),
+                );
+            }
 
             // Remove from selection if selected
             const newSelectedFiles = selectedFiles.filter(
@@ -133,8 +176,21 @@ export default function UserFileCollectionPicker({
 
             // Reload files
             reloadFiles();
+
+            // Invalidate workspace files query so "Manage Workspace Files" updates
+            if (workspaceId) {
+                queryClient.invalidateQueries({
+                    queryKey: ["workspaceFiles", workspaceId],
+                });
+            }
         } catch (err) {
             console.error("Error deleting file:", err);
+            // Show user-facing error
+            toast.error(
+                t(
+                    "Failed to delete file. Please try again or use Manage Workspace Files.",
+                ),
+            );
         } finally {
             setDeletingFiles((prev) => {
                 const newSet = new Set(prev);
@@ -146,10 +202,14 @@ export default function UserFileCollectionPicker({
     }, [
         deleteConfirmation,
         contextId,
+        workspaceId,
+        hashToId,
+        queryClient,
         selectedFiles,
         onFilesSelected,
         reloadFiles,
         getFileId,
+        t,
     ]);
 
     // Cancel delete
@@ -157,27 +217,24 @@ export default function UserFileCollectionPicker({
         setDeleteConfirmation(null);
     }, []);
 
-    // Handle upload complete - optimistically add to files list and select
-    const handleUploadComplete = useCallback(
-        (fileData) => {
-            if (fileData) {
-                const newFile = createOptimisticFile(
-                    fileData,
-                    fileData.inCollection || ["*"],
-                );
-
-                // Optimistically add to files list
-                addFileOptimistically(setFiles, newFile);
-
-                // Also add to selection
+    // Handle upload complete using shared hook
+    const handleUploadComplete = useFileUploadHandler({
+        contextId,
+        contextKey,
+        workspaceId,
+        files,
+        setFiles,
+        reloadFiles,
+        chatId: null, // Workspace files are global, not chat-scoped
+        onUploadComplete: (newFile) => {
+            if (newFile) {
+                // Add to selection
                 onFilesSelected([...selectedFiles, newFile]);
             }
-            // Reload to get server state
-            reloadFiles();
+            // Close upload dialog
             setShowUploadDialog(false);
         },
-        [selectedFiles, onFilesSelected, reloadFiles, setFiles],
-    );
+    });
 
     // Custom header content with action buttons
     const headerContent = (
@@ -284,6 +341,10 @@ export default function UserFileCollectionPicker({
                 isOpen={showUploadDialog}
                 onClose={() => setShowUploadDialog(false)}
                 onFileUpload={handleUploadComplete}
+                uploadEndpoint={
+                    workspaceId ? `/api/workspaces/${workspaceId}/files` : null
+                }
+                workspaceId={workspaceId}
                 contextId={contextId}
                 title={t("Upload Files")}
                 description={t("Upload files to add them to your collection.")}

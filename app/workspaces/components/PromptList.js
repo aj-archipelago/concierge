@@ -2,12 +2,15 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Edit, Play, Paperclip, Loader2 } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
 import { useLLM, useLLMs } from "../../queries/llms";
 import { usePromptsByIds } from "../../queries/prompts";
 import { WorkspaceContext } from "./WorkspaceContent";
+import { workspaceMarkdownComponents } from "./markdownComponents";
 
 export default function PromptList({
     inputValid,
@@ -235,8 +238,13 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                         </div>
                     </div>
 
-                    <div className="text-gray-500 dark:text-gray-400 text-xs">
-                        {prompt.text}
+                    <div className="text-gray-500 dark:text-gray-400 text-xs max-h-[150px] overflow-auto markdown-content">
+                        <Markdown
+                            remarkPlugins={[remarkGfm]}
+                            components={workspaceMarkdownComponents}
+                        >
+                            {prompt.text}
+                        </Markdown>
                     </div>
                 </div>
                 <button

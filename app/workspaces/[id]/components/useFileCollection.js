@@ -109,7 +109,7 @@ export function useFileCollection({
  */
 export function createOptimisticFile(fileData, inCollection = ["*"]) {
     const now = new Date().toISOString();
-    return {
+    const file = {
         url: fileData.url || fileData.gcs,
         gcs: fileData.gcs,
         hash: fileData.hash,
@@ -126,6 +126,11 @@ export function createOptimisticFile(fileData, inCollection = ["*"]) {
         lastAccessed: now,
         permanent: fileData.permanent || false,
     };
+    // Preserve _id from workspace files API response (needed for prompt attachments)
+    if (fileData._id) {
+        file._id = fileData._id;
+    }
+    return file;
 }
 
 /**

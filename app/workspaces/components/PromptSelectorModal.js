@@ -9,6 +9,7 @@ import UserFileCollectionPicker from "../[id]/components/UserFileCollectionPicke
 import ModelConfiguration from "./ModelConfiguration";
 import { useHashToIdLookup } from "../hooks/useHashToIdLookup";
 import AttachedFilesList from "./AttachedFilesList";
+import MarkdownEditor from "./MarkdownEditor";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
     const { t } = useTranslation();
@@ -62,15 +63,9 @@ function SelectorDialog({ setIsOpen }) {
                     <label className="text-sm text-gray-500 mb-1 block">
                         {t("Prompt")}
                     </label>
-                    <textarea
+                    <MarkdownEditor
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        disabled={
-                            createPrompt.isPending && promptBeingAdded === text
-                        }
-                        className="lb-input"
-                        rows={5}
-                        type="text"
+                        onChange={setText}
                         placeholder={t(
                             "Enter a prompt here to run against the input",
                         )}
@@ -170,6 +165,7 @@ function SelectorDialog({ setIsOpen }) {
                         <UserFileCollectionPicker
                             contextId={workspace._id}
                             contextKey={workspace.contextKey}
+                            workspaceId={workspace._id}
                             selectedFiles={selectedFiles}
                             onFilesSelected={setSelectedFiles}
                         />
