@@ -19,6 +19,7 @@ const isValidPayload = (value) =>
     (Array.isArray(value) && value.every((item) => typeof item === "string"));
 
 const sanitizeMessage = (message) => {
+    // Include toolCalls in sanitized message
     if (!message || typeof message !== "object") return null;
 
     const payload = message.payload;
@@ -63,6 +64,7 @@ const sanitizeMessage = (message) => {
         thinkingDuration: Number.isFinite(message.thinkingDuration)
             ? message.thinkingDuration
             : 0,
+        toolCalls: Array.isArray(message.toolCalls) ? message.toolCalls : null,
     };
 
     if (message.task && typeof message.task === "object") {

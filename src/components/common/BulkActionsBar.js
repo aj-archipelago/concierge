@@ -85,9 +85,16 @@ export default function BulkActionsBar({
                         className="lb-secondary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={actions.download.ariaLabel}
                     >
-                        <Download className="h-4 w-4" />
+                        {actions.download.disabled ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4" />
+                        )}
                         <span className="hidden sm:inline">
-                            {actions.download.label}
+                            {actions.download.disabled
+                                ? actions.download.loadingLabel ||
+                                  "Creating ZIP..."
+                                : actions.download.label}
                         </span>
                     </button>
                 )}

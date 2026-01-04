@@ -95,6 +95,14 @@ const actions = {
         }),
         commitLabel: "Use Corrected Text",
     },
+    // new_styleguide: {
+    //     Icon: Plus,
+    //     title: "New style guide",
+    //     dialogClassName: "modal-wide",
+    //     type: "always-available",
+    //     SuggestionsComponent: NewStyleGuideModal,
+    //     commitLabel: "Close",
+    // },
     summarize: {
         Icon: Summarize,
         title: "Summarize",

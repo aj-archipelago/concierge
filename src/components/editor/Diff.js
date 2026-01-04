@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import * as diff from "diff";
 import PropTypes from "prop-types";
 import { useTranslation } from "react-i18next";
+import { LanguageContext } from "@/src/contexts/LanguageProvider";
 
 if (typeof window !== "undefined") {
     window.diff = diff;
@@ -65,6 +66,8 @@ const ChangeToken = ({ active, changeId, token }) => {
 };
 
 const Change = ({ token, onTokenChange }) => {
+    const { direction } = useContext(LanguageContext);
+
     const ClickableToken = ({
         children,
         className = "p-0 border-0 cursor-pointer",
@@ -97,7 +100,7 @@ const Change = ({ token, onTokenChange }) => {
                     <span className="text-red-500 line-through">
                         {removedValue}
                     </span>{" "}
-                    →&nbsp;
+                    {direction === "rtl" ? "←" : "→"}&nbsp;
                     <span className="text-green-500 font-bold">
                         {addedValue}
                     </span>
@@ -109,7 +112,7 @@ const Change = ({ token, onTokenChange }) => {
                     <span className="text-red-500 font-bold">
                         {removedValue}
                     </span>{" "}
-                    →&nbsp;
+                    {direction === "rtl" ? "←" : "→"}&nbsp;
                     <span className="text-green-500 line-through">
                         {addedValue}
                     </span>

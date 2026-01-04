@@ -10,7 +10,8 @@ export function useUpdateAiOptions() {
             contextId,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
+            useCustomEntities,
         }) => {
             // persist it to user options in the database
             const response = await axios.post(`/api/options`, {
@@ -18,7 +19,8 @@ export function useUpdateAiOptions() {
                 contextId,
                 aiMemorySelfModify,
                 aiName,
-                aiStyle,
+                agentModel,
+                useCustomEntities,
             });
             return response.data;
         },
@@ -27,7 +29,8 @@ export function useUpdateAiOptions() {
             contextId,
             aiMemorySelfModify,
             aiName,
-            aiStyle,
+            agentModel,
+            useCustomEntities,
         }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
             const previousUser = await queryClient.getQueryData([
@@ -35,19 +38,28 @@ export function useUpdateAiOptions() {
             ]);
 
             queryClient.setQueryData(["currentUser"], (old) => {
+                if (!old) return old;
                 return {
                     ...old,
                     contextId,
                     aiMemorySelfModify,
                     aiName,
-                    aiStyle,
+                    agentModel,
+                    useCustomEntities,
                 };
             });
 
             return { previousUser };
         },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+        onError: (error, variables, context) => {
+            // Rollback optimistic update on error
+            if (context?.previousUser) {
+                queryClient.setQueryData(["currentUser"], context.previousUser);
+            }
+        },
+        onSettled: () => {
+            // Always refetch to ensure we have the latest data from server
+            queryClient.refetchQueries({ queryKey: ["currentUser"] });
         },
     });
 

@@ -19,6 +19,16 @@ const promptSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "LLM",
     },
+    agentMode: {
+        type: Boolean,
+        required: false,
+        default: false,
+    },
+    researchMode: {
+        type: Boolean,
+        required: false,
+        default: false,
+    },
     files: [
         {
             type: mongoose.Schema.Types.ObjectId,

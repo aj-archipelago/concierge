@@ -2,6 +2,7 @@
 
 import CodeBlock from "../code/CodeBlock";
 import React from "react";
+import i18next from "i18next";
 import TextWithCitations from "./TextWithCitations";
 import InlineEmotionDisplay from "./InlineEmotionDisplay";
 import Markdown from "react-markdown";
@@ -12,9 +13,11 @@ import rehypeRaw from "rehype-raw";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { visit } from "unist-util-visit";
-import ChatImage from "../images/ChatImage";
+import MediaCard from "./MediaCard";
 import MermaidDiagram from "../code/MermaidDiagram";
 import MermaidPlaceholder from "../code/MermaidPlaceholder";
+import { isVideoUrl } from "../../utils/mediaUtils";
+import { getYoutubeEmbedUrl } from "../../utils/urlUtils";
 
 function transformToCitation(content) {
     return content
@@ -57,10 +60,37 @@ function customMarkdownDirective() {
     };
 }
 
-function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
+// Simple hash function for creating stable keys
+// Uses first 50 chars (or all if shorter) to create a stable identifier
+// that remains consistent as content streams in
+function simpleHash(str) {
+    if (!str || str.length === 0) return "empty";
+    // Normalize: take first 50 chars, remove leading/trailing whitespace
+    const normalized = str.trim().substring(0, 50);
+    if (normalized.length === 0) return "empty";
+
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i++) {
+        const char = normalized.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
+}
+
+function convertMessageToMarkdown(
+    message,
+    finalRender = true,
+    onLoad = null,
+    onMermaidFix = null,
+) {
     const { payload, tool } = message;
     const citations = tool ? JSON.parse(tool).citations : null;
     let componentIndex = 0; // Counter for code blocks
+
+    // Get translation function for use in components
+    // Use i18next directly since we can't use hooks in the component mapping
+    const t = i18next.t.bind(i18next);
 
     if (typeof payload !== "string") {
         return payload;
@@ -94,7 +124,62 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
         p({ node, ...rest }) {
             return <div className="mb-1" {...rest} />;
         },
-        img: ChatImage,
+        img: ({ src, alt, ...props }) => {
+            // Extract filename from src or use alt text
+            let filename = alt || "Image";
+            try {
+                if (src && !filename.includes("Image")) {
+                    // Try to extract filename from URL
+                    const url = new URL(src);
+                    const pathname = url.pathname;
+                    const urlFilename = pathname.split("/").pop();
+                    if (urlFilename && urlFilename.includes(".")) {
+                        filename = decodeURIComponent(urlFilename);
+                    } else if (alt) {
+                        filename = alt;
+                    }
+                }
+            } catch (e) {
+                // If URL parsing fails, use alt or default
+                filename = alt || "Image";
+            }
+
+            // Check if this is a video URL and render appropriate MediaCard type
+            if (isVideoUrl(src)) {
+                const youtubeEmbedUrl = getYoutubeEmbedUrl(src);
+                if (youtubeEmbedUrl) {
+                    return (
+                        <MediaCard
+                            type="youtube"
+                            src={src}
+                            filename={filename}
+                            youtubeEmbedUrl={youtubeEmbedUrl}
+                            className="my-2"
+                            t={t}
+                        />
+                    );
+                }
+                return (
+                    <MediaCard
+                        type="video"
+                        src={src}
+                        filename={filename}
+                        className="my-2"
+                        t={t}
+                    />
+                );
+            }
+
+            return (
+                <MediaCard
+                    type="image"
+                    src={src}
+                    filename={filename}
+                    className="my-2"
+                    t={t}
+                />
+            );
+        },
         cd_inline_emotion({ children, emotion }) {
             return (
                 <InlineEmotionDisplay emotion={emotion}>
@@ -105,8 +190,13 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
         cd_source(props) {
             const { children } = props;
             if (children) {
+                // Normalize children to string (children can be array or string)
+                const childrenString = Array.isArray(children)
+                    ? children.join("")
+                    : String(children);
+
                 // Try to parse as integer first
-                const sourceIndex = parseInt(children);
+                const sourceIndex = parseInt(childrenString);
                 if (
                     !isNaN(sourceIndex) &&
                     Array.isArray(citations) &&
@@ -124,7 +214,7 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
                 // If not a valid index, try to find by searchResultId
                 if (Array.isArray(citations)) {
                     const citation = citations.find(
-                        (c) => c.searchResultId === children,
+                        (c) => c.searchResultId === childrenString,
                     );
                     if (citation) {
                         return (
@@ -150,19 +240,28 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
 
             // Handle Mermaid diagrams
             if (language === "mermaid") {
+                // Normalize code to string (children can be array or string)
+                const codeString = Array.isArray(children)
+                    ? children.join("")
+                    : String(children);
+                const stableKey = `mermaid-${simpleHash(codeString)}`;
+
                 if (finalRender) {
                     return (
                         <MermaidDiagram
-                            key={`mermaid-${++componentIndex}`}
-                            code={children}
+                            key={stableKey}
+                            code={codeString}
                             onLoad={onLoad}
+                            onMermaidFix={onMermaidFix || undefined}
                         />
                     );
                 } else {
                     // During streaming, show placeholder instead of raw code
+                    // Pass the stable key as a prop to preserve animation state across remounts
                     return (
                         <MermaidPlaceholder
-                            key={`mermaid-placeholder-${++componentIndex}`}
+                            key={stableKey}
+                            spinnerKey={stableKey}
                         />
                     );
                 }
@@ -226,7 +325,7 @@ function convertMessageToMarkdown(message, finalRender = true, onLoad = null) {
                 directive,
                 customMarkdownDirective,
                 remarkGfm,
-                [remarkMath, { singleDollarTextMath: false }],
+                [remarkMath, { singleDollarTextMath: true }],
             ]}
             rehypePlugins={[rehypeRaw, [rehypeKatex, { strict: false }]]}
             children={transformToCitation(modifiedPayload)}

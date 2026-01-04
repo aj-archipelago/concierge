@@ -62,6 +62,10 @@ const messageSchema = new mongoose.Schema(
             type: Number,
             default: 0,
         },
+        toolCalls: {
+            type: mongoose.Schema.Types.Mixed,
+            default: null,
+        },
     },
     {
         timestamps: true,
@@ -100,6 +104,19 @@ const chatSchema = new mongoose.Schema(
         isChatLoading: {
             type: Boolean,
             default: false,
+        },
+        stopRequestedSubscriptionIds: {
+            type: [
+                {
+                    subscriptionId: String,
+                    timestamp: Date,
+                },
+            ],
+            default: [],
+        },
+        activeSubscriptionId: {
+            type: String,
+            default: null,
         },
         selectedEntityId: {
             type: String,

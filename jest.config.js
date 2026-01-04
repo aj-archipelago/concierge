@@ -151,6 +151,9 @@ const projects = process.env.CI
 
 // eslint-disable-next-line import/no-anonymous-default-export
 export default {
+    // Force exit after tests complete to prevent hanging from open handles
+    // (Apollo client, timers, etc. that don't clean up properly in jsdom)
+    forceExit: true,
     watchPathIgnorePatterns: ["\\.next"],
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],

@@ -67,6 +67,8 @@ export async function POST(request, { params }) {
         },
 
         errorPrefix: "applet file upload",
+        permanent: false, // User files are temporary (not workspace artifacts)
+        useCompoundContextId: true, // Use compound contextId for user-specific file scoping in applets
     });
 
     if (result.error) {

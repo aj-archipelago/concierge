@@ -304,6 +304,117 @@ export function generateFilteredSandboxHtml(content, theme) {
                             window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
                         }
                     });
+                    
+                    // Proxy fetch requests through parent window on iOS Safari to avoid Azure App Service 403 errors
+                    // iOS Safari doesn't send x-ms-client-principal-name header in iframes, causing 403
+                    // Chrome/Desktop works fine from iframe, so we only proxy on iOS Safari
+                    const originalFetch = window.fetch;
+                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    
+                    window.fetch = function(url, options) {
+                        // Normalize URL to string and check if it's a same-origin API request
+                        let urlStr;
+                        try {
+                            if (typeof url === 'string') {
+                                urlStr = url;
+                            } else if (url instanceof URL) {
+                                urlStr = url.href;
+                            } else {
+                                urlStr = String(url);
+                            }
+                        } catch (e) {
+                            urlStr = String(url);
+                        }
+                        
+                        // Check if this is a same-origin API request that needs proxying
+                        const isSameOriginApi = urlStr.startsWith('/api/') || 
+                            (urlStr.startsWith(window.location.origin) && urlStr.includes('/api/'));
+                        
+                        // Only proxy on iOS Safari for same-origin API requests
+                        if (window.parent !== window && isSameOriginApi && isIOS) {
+                            console.log('[Fetch Proxy] Proxying request:', urlStr);
+                            return new Promise((resolve, reject) => {
+                                const requestId = '__fetch_proxy_' + Date.now() + '_' + Math.random();
+                                let resolved = false;
+                                
+                                // Set up response listener
+                                const responseHandler = (event) => {
+                                    if (resolved) return;
+                                    if (event.data && event.data.type === '__FETCH_PROXY_RESPONSE__' && event.data.requestId === requestId) {
+                                        resolved = true;
+                                        window.removeEventListener('message', responseHandler);
+                                        
+                                        if (event.data.error) {
+                                            console.error('[Fetch Proxy] Error response:', event.data.error);
+                                            reject(new Error(event.data.error));
+                                        } else {
+                                            console.log('[Fetch Proxy] Success response:', event.data.status);
+                                            // Create a Response object that works with .json(), .text(), etc.
+                                            const response = new Response(event.data.body, {
+                                                status: event.data.status,
+                                                statusText: event.data.statusText,
+                                                headers: new Headers(event.data.headers || {})
+                                            });
+                                            resolve(response);
+                                        }
+                                    }
+                                };
+                                
+                                window.addEventListener('message', responseHandler);
+                                
+                                // Send request to parent
+                                // In srcdoc iframes, window.location.origin is "null" which postMessage rejects
+                                // Use '*' as target origin - we verify origin on receiving end for security
+                                try {
+                                    window.parent.postMessage({
+                                        type: '__FETCH_PROXY_REQUEST__',
+                                        requestId: requestId,
+                                        url: urlStr,
+                                        options: options || {}
+                                    }, '*');
+                                    console.log('[Fetch Proxy] Request sent to parent');
+                                } catch (error) {
+                                    resolved = true;
+                                    window.removeEventListener('message', responseHandler);
+                                    console.error('[Fetch Proxy] Failed to send:', error);
+                                    reject(new Error('Failed to send proxy request: ' + error.message));
+                                    return;
+                                }
+                                
+                                // Timeout after 60 seconds
+                                setTimeout(() => {
+                                    if (!resolved) {
+                                        resolved = true;
+                                        window.removeEventListener('message', responseHandler);
+                                        console.error('[Fetch Proxy] Timeout after 60s');
+                                        reject(new Error('Fetch proxy timeout'));
+                                    }
+                                }, 60000);
+                            });
+                        }
+                        
+                        // For non-API requests or when not in iframe, use original fetch with credentials
+                        const opts = options || {};
+                        if (!opts.credentials) {
+                            opts.credentials = 'include';
+                        }
+                        return originalFetch.call(this, url, opts);
+                    };
+                    
+                    // Also override XMLHttpRequest for compatibility with older code
+                    const OriginalXHR = window.XMLHttpRequest;
+                    window.XMLHttpRequest = function() {
+                        const xhr = new OriginalXHR();
+                        const originalOpen = xhr.open;
+                        xhr.open = function(method, url, async, user, password) {
+                            originalOpen.call(this, method, url, async, user, password);
+                            // Set withCredentials after open() is called
+                            if (url && (url.startsWith('/') || url.startsWith(window.location.origin))) {
+                                this.withCredentials = true;
+                            }
+                        };
+                        return xhr;
+                    };
                 </script>
             </head>
             <body>${bodyContent}</body>

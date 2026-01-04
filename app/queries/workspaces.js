@@ -312,6 +312,30 @@ export function useWorkspaceChat(id) {
     return mutation;
 }
 
+export function useValidateWorkspaceFiles() {
+    const queryClient = useQueryClient();
+
+    const mutation = useMutation({
+        mutationFn: async ({ workspaceId }) => {
+            const { data } = await axios.post(
+                `/api/workspaces/${workspaceId}/files/validate`,
+            );
+            return data;
+        },
+        onSuccess: (data, variables) => {
+            // Invalidate workspace and files queries to refresh UI
+            queryClient.invalidateQueries({
+                queryKey: ["workspace", variables.workspaceId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ["workspaceFiles", variables.workspaceId],
+            });
+        },
+    });
+
+    return mutation;
+}
+
 export function useWorkspaceFiles(id) {
     const query = useQuery({
         queryKey: ["workspaceFiles", id],

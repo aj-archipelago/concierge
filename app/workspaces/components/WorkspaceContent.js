@@ -12,12 +12,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { createContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-toastify";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { useCreateRun, useDeleteRun } from "../../queries/runs";
 import {
     useDeleteWorkspaceRuns,
     useWorkspace,
     useWorkspaceRuns,
+    useValidateWorkspaceFiles,
 } from "../../queries/workspaces";
 import classNames from "../../utils/class-names";
 import WorkspaceInput from "./WorkspaceInput";
@@ -31,15 +33,52 @@ export default function WorkspaceContent({ idOrSlug, user }) {
     const createRun = useCreateRun();
     const deleteRun = useDeleteRun();
     const deleteWorkspaceRuns = useDeleteWorkspaceRuns();
+    const validateFiles = useValidateWorkspaceFiles();
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("input");
     const ref = useRef(null);
+    const hasValidatedFiles = useRef(false);
 
     useEffect(() => {
         if (ref.current) {
             ref.current.scrollTop = 0;
         }
     }, [activeTab]);
+
+    // Validate files asynchronously when workspace loads
+    useEffect(() => {
+        if (
+            workspace?._id &&
+            !hasValidatedFiles.current &&
+            workspace.prompts?.length > 0
+        ) {
+            hasValidatedFiles.current = true;
+            // Run validation in background, don't block UI
+            validateFiles
+                .mutateAsync({ workspaceId: workspace._id })
+                .then((result) => {
+                    if (result?.errors > 0) {
+                        // Show toast notification if files need re-uploading
+                        const message =
+                            result.errors === 1
+                                ? t(
+                                      "1 file needs to be re-uploaded. Please check the file list.",
+                                  )
+                                : t(
+                                      "{{count}} files need to be re-uploaded. Please check the file list.",
+                                      { count: result.errors },
+                                  );
+                        toast.warning(message, {
+                            autoClose: 10000,
+                        });
+                    }
+                })
+                .catch((error) => {
+                    // Silently fail - validation is best-effort
+                    console.error("Error validating workspace files:", error);
+                });
+        }
+    }, [workspace?._id, workspace?.prompts, validateFiles, t]);
 
     return (
         <WorkspaceContext.Provider

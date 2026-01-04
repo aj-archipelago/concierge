@@ -71,9 +71,9 @@ export default function DigestBlockList() {
                         : "sm:grid-cols-1",
                 )}
             >
-                {digest.blocks.map((block) => (
+                {digest.blocks.map((block, index) => (
                     <DigestBlock
-                        key={block._id}
+                        key={block._id || block.id || `block-${index}`}
                         block={block}
                         contentClassName={
                             digest.blocks.length > 2

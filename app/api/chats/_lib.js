@@ -5,6 +5,87 @@ import mongoose from "mongoose";
 import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
 
+/**
+ * Removes artifacts from the tool field of a message to prevent storing large base64 data
+ * Artifacts should not be stored in messages as they make requests too large
+ */
+function removeArtifactsFromTool(tool) {
+    if (!tool) return tool;
+
+    try {
+        // Parse tool if it's a string
+        const toolObj = typeof tool === "string" ? JSON.parse(tool) : tool;
+
+        // If it's not an object, return as-is
+        if (typeof toolObj !== "object" || toolObj === null) {
+            return tool;
+        }
+
+        // Remove artifacts field if present
+        if ("artifacts" in toolObj) {
+            const { artifacts, ...toolWithoutArtifacts } = toolObj;
+            // Stringify back if original was a string
+            return typeof tool === "string"
+                ? JSON.stringify(toolWithoutArtifacts)
+                : toolWithoutArtifacts;
+        }
+
+        return tool;
+    } catch (e) {
+        // If parsing fails, return original tool
+        console.warn("Failed to parse tool field for artifact removal:", e);
+        return tool;
+    }
+}
+
+/**
+ * Removes artifacts from all messages to prevent storing large base64 data
+ */
+export function removeArtifactsFromMessages(messages) {
+    if (!Array.isArray(messages)) return messages;
+
+    return messages.map((msg) => {
+        if (!msg || typeof msg !== "object") return msg;
+
+        // Remove artifacts from tool field
+        if (msg.tool) {
+            return {
+                ...msg,
+                tool: removeArtifactsFromTool(msg.tool),
+            };
+        }
+
+        return msg;
+    });
+}
+
+/**
+ * Sanitizes a message object to remove Mongoose metadata fields (createdAt, updatedAt)
+ * that shouldn't be sent to the client or included in updates.
+ * Also removes artifacts from tool field to prevent sending large base64 data.
+ */
+export function sanitizeMessage(msg) {
+    if (!msg) return null;
+    const msgObj = msg.toObject ? msg.toObject() : msg;
+    return {
+        payload: msgObj.payload,
+        sender: msgObj.sender,
+        tool: removeArtifactsFromTool(msgObj.tool) || null,
+        sentTime: msgObj.sentTime,
+        direction: msgObj.direction,
+        position: msgObj.position,
+        entityId: msgObj.entityId || null,
+        taskId: msgObj.taskId || null,
+        isServerGenerated: msgObj.isServerGenerated || false,
+        ephemeralContent: msgObj.ephemeralContent || null,
+        thinkingDuration: msgObj.thinkingDuration || 0,
+        // Preserve toolCalls if it's an array, otherwise set to null (never undefined)
+        toolCalls: Array.isArray(msgObj.toolCalls) ? msgObj.toolCalls : null,
+        task: msgObj.task || null,
+        _id: msgObj._id, // Keep _id for client-side reference
+    };
+}
+
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
@@ -98,8 +179,12 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
+    // Remove artifacts from messages before saving to prevent storing large base64 data
+    const messagesWithoutArtifacts =
+        removeArtifactsFromMessages(normalizedMessages);
+
     // Only look for existing unused chat if we're creating a new empty chat
-    if (normalizedMessages.length === 0) {
+    if (messagesWithoutArtifacts.length === 0) {
         // Find the latest unused chat (one-way gate: once used, never unused again)
         const unusedChat = await Chat.findOne({
             userId: currentUser._id,
@@ -114,9 +199,9 @@ export async function createNewChat(data) {
 
     const chat = new Chat({
         userId,
-        messages: normalizedMessages,
-        isUnused: normalizedMessages.length === 0,
-        title: title || getSimpleTitle(normalizedMessages[0] || ""),
+        messages: messagesWithoutArtifacts,
+        isUnused: messagesWithoutArtifacts.length === 0,
+        title: title || getSimpleTitle(messagesWithoutArtifacts[0] || ""),
     });
 
     await chat.save();
@@ -171,10 +256,15 @@ export async function getChatById(chatId) {
         selectedEntityId,
         researchMode,
     } = chat;
+
+    // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
+    // that shouldn't be sent to the client
+    const sanitizedMessages = (messages || []).map(sanitizeMessage);
+
     const result = {
         _id,
         title,
-        messages,
+        messages: sanitizedMessages,
         isPublic,
         readOnly: isReadOnly,
         isChatLoading,
@@ -311,6 +401,101 @@ export async function getUserChatInfo() {
 export async function getActiveChatId() {
     const { activeChatId } = await getUserChatInfo();
     return activeChatId;
+}
+
+// Timeout for stop requested subscription IDs (30 minutes)
+// Streams should complete well before this, so any IDs older than this are orphaned
+export const STOP_REQUESTED_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Helper to extract subscriptionId from entry (handles both legacy string and new object format)
+ */
+export function getEntrySubscriptionId(entry) {
+    if (typeof entry === "string") return entry;
+    return entry?.subscriptionId;
+}
+
+/**
+ * Helper to check if entry matches subscriptionId (with type coercion)
+ */
+function entryMatchesSubscriptionId(entry, normalizedId) {
+    const entryId = getEntrySubscriptionId(entry);
+    return entryId && String(entryId) === normalizedId;
+}
+
+/**
+ * Clean up stale stop requested subscription IDs
+ * Removes entries older than STOP_REQUESTED_TIMEOUT_MS
+ * Also removes legacy string format entries
+ */
+export function cleanupStaleStopRequestedIds(stopRequestedIds) {
+    if (!Array.isArray(stopRequestedIds)) return [];
+    const now = Date.now();
+    return stopRequestedIds.filter((entry) => {
+        // Handle legacy string format - remove it (no timestamp, can't verify age)
+        if (typeof entry === "string") {
+            return false;
+        }
+        // Handle new format (object with timestamp)
+        if (entry && entry.subscriptionId && entry.timestamp) {
+            const age = now - new Date(entry.timestamp).getTime();
+            return age < STOP_REQUESTED_TIMEOUT_MS;
+        }
+        // Invalid format - remove it
+        return false;
+    });
+}
+
+/**
+ * Check if a subscription ID is in the stop requested array
+ * Handles type coercion for robust comparison
+ */
+export function isSubscriptionStopped(stopRequestedIds, subscriptionId) {
+    if (!Array.isArray(stopRequestedIds) || !subscriptionId) return false;
+    const normalizedId = String(subscriptionId);
+    return stopRequestedIds.some((entry) =>
+        entryMatchesSubscriptionId(entry, normalizedId),
+    );
+}
+
+/**
+ * Remove a subscription ID from the stop requested array
+ * Handles type coercion for robust comparison
+ */
+export function removeStoppedSubscription(stopRequestedIds, subscriptionId) {
+    if (!Array.isArray(stopRequestedIds) || !subscriptionId) return [];
+    const normalizedId = String(subscriptionId);
+    return stopRequestedIds.filter(
+        (entry) => !entryMatchesSubscriptionId(entry, normalizedId),
+    );
+}
+
+/**
+ * Add a subscription ID to the stop requested array (or update timestamp if exists)
+ * Normalizes subscriptionId to string for consistency
+ */
+export function addStoppedSubscription(stopRequestedIds, subscriptionId) {
+    if (!subscriptionId) return stopRequestedIds || [];
+    const normalizedId = String(subscriptionId);
+    const cleaned = cleanupStaleStopRequestedIds(stopRequestedIds || []);
+    const now = new Date();
+
+    // Check if already exists
+    const existingIndex = cleaned.findIndex((entry) =>
+        entryMatchesSubscriptionId(entry, normalizedId),
+    );
+
+    if (existingIndex >= 0) {
+        // Update timestamp
+        return cleaned.map((entry, index) =>
+            index === existingIndex
+                ? { subscriptionId: normalizedId, timestamp: now }
+                : entry,
+        );
+    }
+
+    // Add new entry
+    return [...cleaned, { subscriptionId: normalizedId, timestamp: now }];
 }
 
 export async function getRecentChatIds() {
