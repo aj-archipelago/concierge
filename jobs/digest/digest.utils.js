@@ -9,17 +9,31 @@ const generateDigestBlockContent = async (
     logger,
     onProgressUpdate,
 ) => {
-    let imageUtils = await import("../../src/utils/imageUtils.mjs");
-    const { processImageUrls } = imageUtils;
-
     const { prompt } = block;
 
+    const systemMessage = {
+        role: "system",
+        content: [
+            "Your output is being displayed in the user interface, not in a chat conversation. The user cannot respond to your messages. Please complete the requested task fully and do not ask follow-up questions or otherwise attempt to engage the user in conversation.",
+        ],
+    };
+
+    // Build agentContext for user (single user context as default)
+    const agentContext = user?.contextId
+        ? [
+              {
+                  contextId: user.contextId,
+                  contextKey: user.contextKey || "",
+                  default: true,
+              },
+          ]
+        : [];
+
     const variables = {
-        chatHistory: [{ role: "user", content: [prompt] }],
-        contextId: user?.contextId,
-        contextKey: user?.contextKey,
+        chatHistory: [systemMessage, { role: "user", content: [prompt] }],
+        agentContext,
         aiName: user?.aiName,
-        aiStyle: user?.aiStyle,
+        model: user?.agentModel || "oai-gpt51",
         useMemory: true,
     };
 
@@ -46,10 +60,7 @@ const generateDigestBlockContent = async (
 
         try {
             content = JSON.stringify({
-                payload: await processImageUrls(
-                    result.data.sys_entity_agent.result,
-                    process.env.SERVER_URL,
-                ),
+                payload: result.data.sys_entity_agent.result,
                 tool,
             });
         } catch (e) {

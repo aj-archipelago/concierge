@@ -2,19 +2,28 @@ import { NextResponse } from "next/server";
 import { getClient } from "../../../../../../src/graphql";
 import { QUERIES } from "../../../../../../src/graphql";
 import LLM from "../../../../models/llm";
-import Prompt from "../../../../models/prompt";
+import Workspace from "../../../../models/workspace";
+import { getCurrentUser } from "../../../../utils/auth";
 import {
-    prepareFileContentForLLM,
-    getLLMWithFallback,
     getAnyAgenticLLM,
+    buildWorkspacePromptVariables,
 } from "../../../../utils/llm-file-utils";
+import { getPromptWithMigration } from "../../../../utils/prompt-utils";
+import { filterValidFiles } from "../../../../utils/file-validation-utils";
 
 export async function POST(request, { params }) {
     try {
-        let { prompt, systemPrompt, promptId, chatHistory, files } =
-            await request.json();
+        let {
+            prompt: userInput,
+            systemPrompt,
+            promptId,
+            chatHistory,
+            files,
+        } = await request.json();
 
-        if (!prompt && !promptId && !chatHistory) {
+        const user = await getCurrentUser();
+
+        if (!userInput && !promptId && !chatHistory) {
             return NextResponse.json(
                 {
                     error: "Either prompt, promptId, or chatHistory is required",
@@ -23,123 +32,91 @@ export async function POST(request, { params }) {
             );
         }
 
-        let promptToSend = prompt;
-        let llm;
-        let promptDoc = null;
+        let promptText = null;
+        let pathwayName;
+        let model;
+        let promptFiles = [];
+        let researchMode = false;
+        let agentMode = false;
 
-        // If promptId is provided, look up the prompt and its associated LLM
         if (promptId) {
-            promptDoc = await Prompt.findById(promptId).populate("files");
-            if (!promptDoc) {
+            const promptData = await getPromptWithMigration(promptId);
+            if (!promptData) {
                 return NextResponse.json(
                     { error: "Prompt not found" },
                     { status: 404 },
                 );
             }
-            systemPrompt = promptDoc.text;
 
-            // Get the LLM associated with the prompt
-            llm = await getLLMWithFallback(LLM, promptDoc.llm);
+            promptText = promptData.prompt.text;
+            // Filter out errored files
+            promptFiles = await filterValidFiles(promptData.prompt.files || []);
+            pathwayName = promptData.pathwayName;
+            model = promptData.model;
+            researchMode = promptData.researchMode || false;
+            agentMode = promptData.agentMode || false;
         } else {
-            // No promptId provided, get default LLM
-            llm = await getAnyAgenticLLM(LLM, null);
+            // No promptId provided, get default agentic LLM
+            const llm = await getAnyAgenticLLM(LLM);
+            pathwayName = llm.cortexPathwayName;
+            model = llm.cortexModelName;
+            agentMode = true; // Default to agent mode when using agentic LLM
         }
 
-        const pathwayName = llm.cortexPathwayName;
-        const query = QUERIES.getWorkspacePromptQuery(pathwayName);
+        // Fetch workspace to get systemPrompt (workspace context)
+        let workspaceSystemPrompt = systemPrompt;
+        let workspace = null;
+        if (params.id) {
+            workspace = await Workspace.findById(params.id);
+            if (workspace && workspace.systemPrompt) {
+                workspaceSystemPrompt = workspace.systemPrompt;
+            }
+        }
 
-        // Build chatHistory on server side from individual components
-        const variables = {
-            systemPrompt,
-            model: llm.cortexModelName,
-        };
-
-        // Collect all files from different sources
+        // Collect all files (prompt files + request files)
         const allFiles = [];
-
-        // Add files from promptDoc if available
-        if (promptDoc && promptDoc.files && promptDoc.files.length > 0) {
-            allFiles.push(...promptDoc.files);
+        if (promptFiles.length > 0) {
+            allFiles.push(...promptFiles);
         }
-
-        // Add files from request body if provided
         if (files && Array.isArray(files) && files.length > 0) {
             allFiles.push(...files);
         }
 
-        // Check if we need to use chatHistory format (either provided or files present)
-        const shouldUseChatHistory = chatHistory || allFiles.length > 0;
+        // Build variables - include agentContext only for agent pathways
+        const variables = await buildWorkspacePromptVariables({
+            systemPrompt: workspaceSystemPrompt,
+            prompt: promptText,
+            text: userInput,
+            files: allFiles,
+            chatHistory: chatHistory,
+            workspaceId: workspace?._id?.toString() || null,
+            workspaceContextKey: workspace?.contextKey || null,
+            userContextId: user?.contextId || null,
+            userContextKey: user?.contextKey || null,
+            useCompoundContextId: true, // Use compound contextId for user files
+        });
 
-        if (shouldUseChatHistory) {
-            // Build chatHistory on server side
-            let finalChatHistory = [];
+        variables.model = model;
 
-            if (
-                chatHistory &&
-                Array.isArray(chatHistory) &&
-                chatHistory.length > 0
-            ) {
-                // Start with provided chatHistory
-                finalChatHistory = [...chatHistory];
-            } else {
-                // Create new chatHistory with text content
-                const contentArray = [];
-
-                if (prompt && prompt.trim()) {
-                    contentArray.push(
-                        JSON.stringify({ type: "text", text: prompt }),
-                    );
-                }
-
-                finalChatHistory = [
-                    {
-                        role: "user",
-                        content: contentArray,
-                    },
-                ];
+        // Use agent query for agent pathways, regular query for non-agent
+        let query;
+        if (agentMode) {
+            // Pass researchMode for agent pathways
+            if (researchMode) {
+                variables.researchMode = true;
             }
-
-            // Add files to the last user message in chatHistory
-            if (allFiles.length > 0) {
-                const fileContent = await prepareFileContentForLLM(allFiles);
-
-                // Find the last user message and add file content to it
-                for (let i = finalChatHistory.length - 1; i >= 0; i--) {
-                    if (finalChatHistory[i].role === "user") {
-                        // Ensure content is an array
-                        if (!Array.isArray(finalChatHistory[i].content)) {
-                            finalChatHistory[i].content = [
-                                JSON.stringify({
-                                    type: "text",
-                                    text: finalChatHistory[i].content || "",
-                                }),
-                            ];
-                        }
-
-                        // Add file content to the user's content array
-                        finalChatHistory[i].content = [
-                            ...finalChatHistory[i].content,
-                            ...fileContent,
-                        ];
-                        break;
-                    }
-                }
-            }
-
-            variables.chatHistory = finalChatHistory;
+            query = QUERIES.getWorkspaceAgentQuery(pathwayName);
         } else {
-            // No files and no chatHistory - use legacy format
-            variables.text = promptToSend;
-            variables.prompt = promptToSend;
+            // Non-agent pathways don't use agentContext or researchMode
+            delete variables.agentContext;
+            query = QUERIES.getWorkspacePromptQuery(pathwayName);
         }
 
-        // Call the AI with the prompt
         const response = await getClient().query({
             query,
             variables,
         });
 
-        // Extract the AI's response
         const aiResponse = response.data[pathwayName].result;
 
         // Extract citations from the tool field if available
@@ -153,7 +130,6 @@ export async function POST(request, { params }) {
             }
         }
 
-        // Return the response
         return NextResponse.json({
             output: aiResponse,
             citations,

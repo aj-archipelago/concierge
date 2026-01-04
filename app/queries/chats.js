@@ -618,32 +618,34 @@ export function useGetChatById(chatId) {
         queryFn: async () => {
             if (!chatId) throw new Error("chatId is required");
 
-            // Track this query with a timestamp to identify outdated responses
+            // Track this query with a timestamp (separate from mutation timestamps)
             const requestTimestamp = Date.now();
             queryClient.setQueryData(
-                ["chatRequestTimestamp", chatId],
+                ["chatQueryTimestamp", chatId],
                 requestTimestamp,
             );
 
             const response = await axios.get(`/api/chats/${String(chatId)}`);
 
-            // Check if this response is still the most recent one
-            const currentTimestamp =
-                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
-            if (requestTimestamp < currentTimestamp) {
-                // Return the current data instead of the outdated response
-                return (
-                    queryClient.getQueryData(["chat", chatId]) || response.data
+            // Check if this response is still the most recent query
+            const currentQueryTimestamp =
+                queryClient.getQueryData(["chatQueryTimestamp", chatId]) || 0;
+            if (requestTimestamp < currentQueryTimestamp) {
+                // Another query was made after this one - refetch to get latest
+                const latestResponse = await axios.get(
+                    `/api/chats/${String(chatId)}`,
                 );
+                return latestResponse.data;
             }
 
             return response.data;
         },
         enabled: !!chatId,
-        // Reduce stale time to ensure more frequent refreshes
-        staleTime: 1000 * 60, // 1 minute
-        // Add refetchOnMount to ensure fresh data when switching chats
-        refetchOnMount: true,
+        // Always refetch on mount to get fresh isChatLoading state
+        // Server sets isChatLoading: true when stream starts, false when it completes
+        staleTime: 0, // Always consider stale to ensure fresh fetches
+        refetchOnMount: "always", // Always refetch on mount
+        refetchOnWindowFocus: true, // Refetch when window regains focus
     });
 }
 
@@ -745,31 +747,123 @@ export function useUpdateChat() {
                 throw new Error("chatId is required");
             }
 
-            // Track this mutation with a timestamp
-            const requestTimestamp = Date.now();
-            queryClient.setQueryData(
-                ["chatRequestTimestamp", chatId],
-                requestTimestamp,
-            );
+            // Get the mutation timestamp that was set in onMutate (before making the request)
+            const timestamp =
+                queryClient.getQueryData(["chatMutationTimestamp", chatId]) ||
+                Date.now();
 
             const response = await axios.put(
                 `/api/chats/${String(chatId)}`,
                 updateData,
             );
 
-            return { data: response.data, timestamp: requestTimestamp };
+            return { data: response.data, timestamp };
         },
         onMutate: async ({ chatId, ...updateData }) => {
             await queryClient.cancelQueries({ queryKey: ["chat", chatId] });
             await queryClient.cancelQueries({ queryKey: ["chats"] });
             await queryClient.cancelQueries({ queryKey: ["activeChats"] });
 
-            // Track this mutation with a timestamp
+            // Track this mutation with a timestamp (set once here, used in mutationFn and onSuccess)
+            // Use separate key from queries to avoid conflicts
             const requestTimestamp = Date.now();
             queryClient.setQueryData(
-                ["chatRequestTimestamp", chatId],
+                ["chatMutationTimestamp", chatId],
                 requestTimestamp,
             );
+
+            // If updating messages, check if we're adding new messages or updating existing ones
+            // Optimistically add new messages (e.g., user just sent a message)
+            // But skip optimistic update for edits/replacements to avoid overwriting server-persisted messages
+            if (updateData.messages) {
+                const { messages, ...otherUpdates } = updateData;
+                const previousChat = queryClient.getQueryData(["chat", chatId]);
+                const previousMessages = previousChat?.messages || [];
+                const newMessages = messages || [];
+
+                // Check if we're adding new messages (new array is longer)
+                // This typically happens when a user sends a new message
+                const isAddingNewMessages =
+                    newMessages.length > previousMessages.length;
+
+                if (isAddingNewMessages) {
+                    // Optimistically add new messages for immediate UI feedback
+                    const expectedChatData = {
+                        ...previousChat,
+                        ...otherUpdates,
+                        messages: newMessages,
+                    };
+
+                    queryClient.setQueryData(
+                        ["chat", chatId],
+                        expectedChatData,
+                    );
+                    queryClient.setQueryData(["chats"], (old) => {
+                        if (!old || !old.pages) return old;
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) =>
+                                page.map((chat) =>
+                                    chat._id === chatId
+                                        ? expectedChatData
+                                        : chat,
+                                ),
+                            ),
+                        };
+                    });
+                    queryClient.setQueryData(
+                        ["activeChats"],
+                        (old) =>
+                            old?.map((chat) =>
+                                chat._id === chatId ? expectedChatData : chat,
+                            ) || [],
+                    );
+
+                    return {
+                        previousChat,
+                        timestamp: requestTimestamp,
+                        skipMessages: false, // Allow server response to update
+                    };
+                } else {
+                    // Updating/replacing existing messages - skip optimistic update
+                    // This prevents overwriting server-persisted messages
+                    const expectedChatData = {
+                        ...previousChat,
+                        ...otherUpdates,
+                    };
+
+                    queryClient.setQueryData(
+                        ["chat", chatId],
+                        expectedChatData,
+                    );
+                    queryClient.setQueryData(["chats"], (old) => {
+                        if (!old || !old.pages) return old;
+                        return {
+                            ...old,
+                            pages: old.pages.map((page) =>
+                                page.map((chat) =>
+                                    chat._id === chatId
+                                        ? expectedChatData
+                                        : chat,
+                                ),
+                            ),
+                        };
+                    });
+                    queryClient.setQueryData(
+                        ["activeChats"],
+                        (old) =>
+                            old?.map((chat) =>
+                                chat._id === chatId ? expectedChatData : chat,
+                            ) || [],
+                    );
+
+                    return {
+                        previousChat,
+                        timestamp: requestTimestamp,
+                        skipMessages: true,
+                    };
+                }
+            }
 
             const previousChat = queryClient.getQueryData(["chat", chatId]);
             const expectedChatData = { ...previousChat, ...updateData };
@@ -806,22 +900,33 @@ export function useUpdateChat() {
                 );
             }
         },
-        onSuccess: (result, { chatId }) => {
+        onSuccess: (result, { chatId }, context) => {
             const { data: updatedChat, timestamp } = result;
 
-            // Check if this response is still the most recent one
-            const currentTimestamp =
-                queryClient.getQueryData(["chatRequestTimestamp", chatId]) || 0;
-            if (timestamp < currentTimestamp) {
-                console.log(
-                    "[useUpdateChat:onSuccess] Ignoring outdated response for",
-                    chatId,
-                );
+            // Check if a newer mutation has happened (queries use separate timestamp key)
+            const currentMutationTimestamp =
+                queryClient.getQueryData(["chatMutationTimestamp", chatId]) ||
+                0;
+            if (timestamp < currentMutationTimestamp) {
+                // Another mutation happened after this one - ignore this response
                 return;
             }
 
+            // Always use server response - it has the latest state including server-persisted messages
             queryClient.setQueryData(["chat", chatId], updatedChat);
-            queryClient.invalidateQueries({ queryKey: ["chats"] });
+            // Update chats list cache directly (don't invalidate to avoid overwriting)
+            queryClient.setQueryData(["chats"], (old) => {
+                if (!old || !old.pages) return old;
+                return {
+                    ...old,
+                    pages: old.pages.map((page) =>
+                        page.map((chat) =>
+                            chat._id === chatId ? updatedChat : chat,
+                        ),
+                    ),
+                };
+            });
+            // Invalidate activeChats to refetch from server (server determines list based on recentChatIds)
             queryClient.invalidateQueries({ queryKey: ["activeChats"] });
         },
     });

@@ -243,10 +243,18 @@ function EditableTranscriptSelect({
                     setSelectedTab={setSelectedTab}
                 />
                 {isAutoTranscribing && (
-                    <div className="mt-2 flex gap-3 items-center py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 w-full max-w-[500px]">
-                        <Loader size="default" />
-                        <div className="text-gray-700 text-sm">
-                            {t("Transcribing... This may take a few minutes.")}
+                    <div className="transcription-taxonomy-container flex flex-col gap-2 overflow-y-auto mt-2">
+                        <div className="transcription-section relative">
+                            <div className="border border-gray-300 dark:border-gray-600 rounded-md py-2.5 px-2.5 bg-gray-50 dark:bg-gray-700 mb-4 min-h-[200px]">
+                                <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+                                    <Loader size="default" />
+                                    <div className="text-sm">
+                                        {t(
+                                            "Transcribing... This may take a few minutes.",
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -265,7 +273,7 @@ function EditableTranscriptSelect({
                     <input
                         autoFocus
                         type="text"
-                        className="w-[300px] text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
+                        className="w-[300px] text-base md:text-sm font-medium rounded-md py-1 my-[1px] px-3 border border-gray-300 dark:border-gray-600"
                         value={tempName}
                         onChange={(e) => setTempName(e.target.value)}
                         onKeyDown={(e) => {

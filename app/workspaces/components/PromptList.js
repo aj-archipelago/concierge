@@ -2,12 +2,15 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Edit, Play, Paperclip, Loader2 } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
 import { useLLM, useLLMs } from "../../queries/llms";
 import { usePromptsByIds } from "../../queries/prompts";
 import { WorkspaceContext } from "./WorkspaceContent";
+import { workspaceMarkdownComponents } from "./markdownComponents";
 
 export default function PromptList({
     inputValid,
@@ -114,7 +117,7 @@ export default function PromptList({
                 placeholder={t("Search prompts")}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="lb-input text-sm mb-3"
+                className="lb-input mb-3"
             />
             <DragDropContext onDragEnd={onDragEnd}>
                 <Droppable droppableId="droppable">
@@ -214,11 +217,18 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             )}
                             {!isRunning && isOwner && (
                                 <button
-                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
+                                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer relative z-10"
+                                    style={{ touchAction: "manipulation" }}
                                     onClick={(e) => {
                                         onEdit(prompt);
                                         e.stopPropagation();
                                         e.preventDefault();
+                                    }}
+                                    onTouchStart={(e) => {
+                                        e.stopPropagation();
+                                    }}
+                                    onPointerDown={(e) => {
+                                        e.stopPropagation();
                                     }}
                                     title={t("Edit prompt")}
                                 >
@@ -228,8 +238,13 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                         </div>
                     </div>
 
-                    <div className="text-gray-500 dark:text-gray-400 text-xs">
-                        {prompt.text}
+                    <div className="text-gray-500 dark:text-gray-400 text-xs max-h-[150px] overflow-auto markdown-content">
+                        <Markdown
+                            remarkPlugins={[remarkGfm]}
+                            components={workspaceMarkdownComponents}
+                        >
+                            {prompt.text}
+                        </Markdown>
                     </div>
                 </div>
                 <button

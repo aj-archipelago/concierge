@@ -71,8 +71,6 @@ class CodingTask extends BaseTask {
             throw new Error("Task message not found in chat");
         }
 
-        const isLastMessage = taskMessageIndex === chat.messages.length - 1;
-
         // Update the message in the messages array in memory first
         chat.messages[taskMessageIndex].payload =
             dataObject?.message || JSON.stringify(dataObject);
@@ -89,31 +87,6 @@ class CodingTask extends BaseTask {
                 },
             },
         );
-
-        if (!isLastMessage) {
-            // If it's not the last message, we need to fetch the chat again to get the updated messages
-            const updatedChat = await Chat.findById(chatId);
-
-            // Create a new message to add
-            const newMessage = {
-                payload: `Your coding task is now complete. [Click here](#message-${taskMessageIndex >= 0 ? chat.messages[taskMessageIndex]._id : taskId}) to see your result.`,
-                sender: "labeeb",
-                tool: null,
-                sentTime: new Date().toISOString(),
-                direction: "incoming",
-                position: "single",
-                isServerGenerated: true,
-            };
-
-            // Add the new message to the array
-            updatedChat.messages.push(newMessage);
-
-            // Save the entire chat object again
-            await Chat.findOneAndUpdate(
-                { _id: chatId },
-                { $set: { messages: updatedChat.messages } },
-            );
-        }
 
         console.log(
             "[CodingTask] Successfully completed handling chat ID:",

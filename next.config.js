@@ -80,8 +80,9 @@ const config = {
         return rewrites;
     },
     experimental: {
-        proxyTimeout: 1000 * 60 * 5, // 5 minutes
+        proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
         instrumentationHook: true,
+        serverComponentsExternalPackages: ["busboy"],
     },
     redirects: async () => {
         return redirects;
@@ -93,7 +94,12 @@ const config = {
     basePath: basePath || "",
     webpack: (config) => {
         // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime
-        config.externals.push("mongodb-client-encryption", "mongodb");
+        config.externals.push(
+            "mongodb-client-encryption",
+            "mongodb",
+            "bufferutil",
+            "utf-8-validate",
+        );
 
         // Add @ path alias
         config.resolve.alias["@"] = path.join(__dirname, "@");

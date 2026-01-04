@@ -90,7 +90,7 @@ const ChatNavigationItem = ({
                                     }}
                                     autoFocus
                                     type="text"
-                                    className="py-1 border-0 w-full text-xs bg-gray-50 dark:bg-gray-600 p-0 font-medium underline ring-0 focus:ring-0 focus:outline-none text-gray-900 dark:text-gray-100"
+                                    className="py-1 border-0 w-full text-base md:text-xs bg-gray-50 dark:bg-gray-600 p-0 font-medium underline ring-0 focus:ring-0 focus:outline-none text-gray-900 dark:text-gray-100"
                                     value={editedName}
                                     onChange={(e) =>
                                         setEditedName(e.target.value)

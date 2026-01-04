@@ -1,13 +1,15 @@
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { useCreatePrompt } from "../../queries/prompts";
-import LLMSelector from "./LLMSelector";
 import { WorkspaceContext } from "./WorkspaceContent";
-import { FilePickerModal } from "./WorkspaceInput";
-import { getFileIcon } from "../../../src/utils/mediaUtils";
+import UserFileCollectionPicker from "../[id]/components/UserFileCollectionPicker";
+import ModelConfiguration from "./ModelConfiguration";
+import { useHashToIdLookup } from "../hooks/useHashToIdLookup";
+import AttachedFilesList from "./AttachedFilesList";
+import MarkdownEditor from "./MarkdownEditor";
 
 export default function PromptSelectorModal({ isOpen, setIsOpen }) {
     const { t } = useTranslation();
@@ -30,9 +32,14 @@ function SelectorDialog({ setIsOpen }) {
     const [title, setTitle] = useState("");
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
+    const [agentMode, setAgentMode] = useState(false);
+    const [researchMode, setResearchMode] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [showFilePicker, setShowFilePicker] = useState(false);
     const { t } = useTranslation();
+
+    // Hash -> _id lookup for matching Cortex files to MongoDB files
+    const hashToId = useHashToIdLookup(workspace?._id);
 
     return (
         <>
@@ -56,31 +63,24 @@ function SelectorDialog({ setIsOpen }) {
                     <label className="text-sm text-gray-500 mb-1 block">
                         {t("Prompt")}
                     </label>
-                    <textarea
+                    <MarkdownEditor
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
-                        disabled={
-                            createPrompt.isPending && promptBeingAdded === text
-                        }
-                        className="lb-input"
-                        rows={5}
-                        type="text"
+                        onChange={setText}
                         placeholder={t(
                             "Enter a prompt here to run against the input",
                         )}
                     />
                 </div>
-                <div className="mb-4">
-                    <label className="text-sm text-gray-500 mb-1 block">
-                        {t("Model")}
-                    </label>
-                    <LLMSelector
-                        value={llm}
-                        onChange={(newValue) => {
-                            setLLM(newValue);
-                        }}
-                    />
-                </div>
+
+                <ModelConfiguration
+                    llm={llm}
+                    setLLM={setLLM}
+                    agentMode={agentMode}
+                    setAgentMode={setAgentMode}
+                    researchMode={researchMode}
+                    setResearchMode={setResearchMode}
+                />
+
                 <div className="mb-6">
                     <label className="text-sm text-gray-500 mb-1 block">
                         {t("Attached Files")}
@@ -97,44 +97,14 @@ function SelectorDialog({ setIsOpen }) {
                                 {t("Attach")}
                             </span>
                         </button>
-                        {selectedFiles.length > 0 && (
-                            <>
-                                {selectedFiles.map((file, index) => {
-                                    const fileName =
-                                        file.originalName || file.filename;
-                                    const Icon = getFileIcon(fileName);
-                                    return (
-                                        <div
-                                            key={file._id || index}
-                                            className="flex items-center gap-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 text-xs"
-                                        >
-                                            <Icon className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                                            <span
-                                                className="text-gray-700 dark:text-gray-300 truncate max-w-20"
-                                                title={fileName}
-                                            >
-                                                {fileName}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setSelectedFiles((prev) =>
-                                                        prev.filter(
-                                                            (_, i) =>
-                                                                i !== index,
-                                                        ),
-                                                    );
-                                                }}
-                                                className="hover:bg-gray-100 dark:hover:bg-gray-600 rounded-full p-0.5"
-                                                title={t("Remove file")}
-                                            >
-                                                <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </>
-                        )}
+                        <AttachedFilesList
+                            files={selectedFiles}
+                            onRemove={(index) =>
+                                setSelectedFiles((prev) =>
+                                    prev.filter((_, i) => i !== index),
+                                )
+                            }
+                        />
                     </div>
                 </div>
             </div>
@@ -149,6 +119,12 @@ function SelectorDialog({ setIsOpen }) {
                     className="lb-primary flex justify-center gap-2 px-4"
                     disabled={!title || !text}
                     onClick={async () => {
+                        // Resolve file IDs by hash lookup or existing _id (for legacy files)
+                        const fileIds = selectedFiles
+                            .filter((file) => file._id || file.hash)
+                            .map((file) => file._id || hashToId.get(file.hash))
+                            .filter(Boolean);
+
                         setPromptBeingAdded(text);
                         await createPrompt.mutateAsync({
                             workspaceId: workspace._id,
@@ -156,7 +132,9 @@ function SelectorDialog({ setIsOpen }) {
                                 title,
                                 text,
                                 llm,
-                                files: selectedFiles.map((file) => file._id),
+                                agentMode,
+                                researchMode,
+                                files: fileIds,
                             },
                         });
                         setPromptBeingAdded(null);
@@ -176,14 +154,33 @@ function SelectorDialog({ setIsOpen }) {
             </div>
 
             {/* File Picker Modal */}
-            <FilePickerModal
-                isOpen={showFilePicker}
-                onClose={() => setShowFilePicker(false)}
-                workspaceId={workspace?._id}
-                selectedFiles={selectedFiles}
-                onFilesSelected={setSelectedFiles}
-                isPublished={false}
-            />
+            <Modal
+                show={showFilePicker}
+                onHide={() => setShowFilePicker(false)}
+                title={t("Attach Files")}
+                widthClassName="max-w-2xl"
+            >
+                <div className="p-4">
+                    {workspace?._id && (
+                        <UserFileCollectionPicker
+                            contextId={workspace._id}
+                            contextKey={workspace.contextKey}
+                            workspaceId={workspace._id}
+                            selectedFiles={selectedFiles}
+                            onFilesSelected={setSelectedFiles}
+                        />
+                    )}
+                    <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                        <button
+                            type="button"
+                            onClick={() => setShowFilePicker(false)}
+                            className="lb-primary px-4 py-2"
+                        >
+                            {t("Done")}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </>
     );
 }

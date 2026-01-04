@@ -34,6 +34,11 @@ export default function AIModal({
         }
     }, [show]);
 
+    const close = useCallback(() => {
+        onHide();
+        setText("");
+    }, [onHide]);
+
     const onSelectCallback = useCallback((h) => setResult(h), [setResult]);
 
     const options = actions[action] || {};
@@ -49,6 +54,8 @@ export default function AIModal({
                     text={text}
                     args={args}
                     onSelect={onSelectCallback}
+                    onClose={action === "styleguide" ? close : undefined}
+                    onCommit={action === "styleguide" ? onCommit : undefined}
                 />
             ) : null,
         [
@@ -58,17 +65,15 @@ export default function AIModal({
             text,
             args,
             onSelectCallback,
+            action,
+            close,
+            onCommit,
         ],
     );
 
     if (!action) {
         return null;
     }
-
-    const close = () => {
-        onHide();
-        setText("");
-    };
     return (
         <>
             <Transition appear show={show} as={Fragment}>
@@ -116,42 +121,49 @@ export default function AIModal({
                                     <div className="grow h-[calc(100vh-200px)] overflow-auto">
                                         {modalBody}
                                     </div>
-                                    <div className="justify-end flex gap-2 mt-4">
-                                        <button
-                                            className="lb-secondary"
-                                            onClick={close}
-                                        >
-                                            {commitLabel
-                                                ? t("Cancel")
-                                                : t("Close")}
-                                        </button>
-                                        {commitLabel && (
+                                    {action !== "styleguide" && (
+                                        <div className="justify-end flex gap-2 mt-4">
                                             <button
-                                                className="lb-primary"
-                                                disabled={!result}
-                                                onClick={() => {
-                                                    const value =
-                                                        diffEditorRef.current
-                                                            ? diffEditorRef.current
-                                                                  .getModifiedEditor()
-                                                                  .getValue()
-                                                            : result;
-
-                                                    if (inputType === "full") {
-                                                        onCommit(value, "full");
-                                                    } else {
-                                                        onCommit(
-                                                            value,
-                                                            "selection",
-                                                        );
-                                                    }
-                                                    close();
-                                                }}
+                                                className="lb-secondary"
+                                                onClick={close}
                                             >
-                                                {t(commitLabel)}
+                                                {commitLabel
+                                                    ? t("Cancel")
+                                                    : t("Close")}
                                             </button>
-                                        )}
-                                    </div>
+                                            {commitLabel && (
+                                                <button
+                                                    className="lb-primary"
+                                                    disabled={!result}
+                                                    onClick={() => {
+                                                        const value =
+                                                            diffEditorRef.current
+                                                                ? diffEditorRef.current
+                                                                      .getModifiedEditor()
+                                                                      .getValue()
+                                                                : result;
+
+                                                        if (
+                                                            inputType === "full"
+                                                        ) {
+                                                            onCommit(
+                                                                value,
+                                                                "full",
+                                                            );
+                                                        } else {
+                                                            onCommit(
+                                                                value,
+                                                                "selection",
+                                                            );
+                                                        }
+                                                        close();
+                                                    }}
+                                                >
+                                                    {t(commitLabel)}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>

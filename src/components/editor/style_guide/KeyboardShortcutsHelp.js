@@ -45,7 +45,7 @@ export default function KeyboardShortcutsHelp() {
 
     return (
         <Popover>
-            <PopoverTrigger trigger="click" placement="top" rootClose>
+            <PopoverTrigger asChild>
                 <button className="lb-outline-secondary lb-sm">
                     View keyboard shortcuts
                 </button>

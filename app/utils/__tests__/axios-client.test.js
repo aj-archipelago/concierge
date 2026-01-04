@@ -1,4 +1,3 @@
-import axios from "axios";
 import * as authUtils from "../../../src/utils/auth";
 
 // Mock the auth utilities with default implementations

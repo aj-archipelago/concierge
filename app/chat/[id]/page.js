@@ -3,6 +3,7 @@ import {
     HydrationBoundary,
     QueryClient,
 } from "@tanstack/react-query";
+import { redirect } from "next/navigation";
 import Chat from "../../../src/components/chat/Chat";
 import { getActiveChatId, getChatById } from "../../api/chats/_lib";
 
@@ -15,7 +16,25 @@ export default async function ChatPage({ params }) {
         // route page to active chat
     }
 
-    const chat = await getChatById(id);
+    let chat;
+    try {
+        chat = await getChatById(id);
+    } catch (error) {
+        // Handle unauthorized access (e.g., user switched accounts)
+        if (error.message === "Unauthorized access") {
+            // Try to get the user's active chat instead
+            const activeChatId = await getActiveChatId();
+            if (activeChatId && activeChatId !== id) {
+                // Redirect to active chat if available
+                redirect(`/chat/${activeChatId}`);
+            }
+            // If no active chat, redirect to chat list
+            redirect("/chat");
+        }
+        // Re-throw other errors
+        throw error;
+    }
+
     if (!chat) {
         return (
             <div className="flex items-center justify-center">
@@ -41,13 +60,14 @@ export default async function ChatPage({ params }) {
         // No need to update it here during navigation
     }
 
-    // Prefetch the chat data
+    // Prefetch the chat data with a short staleTime to allow refetching
+    // This ensures we get fresh data if server persisted messages while user was away
     await queryClient.prefetchQuery({
         queryKey: ["chat", id],
         queryFn: async () => {
             return JSON.parse(JSON.stringify(chat));
         },
-        staleTime: Infinity,
+        staleTime: 0, // Always refetch on navigation to get latest server state
     });
 
     return (

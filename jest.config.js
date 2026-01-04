@@ -43,7 +43,7 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },
               transformIgnorePatterns: [
-                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+                  "/node_modules/(?!(vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
               ],
           },
       ]
@@ -98,7 +98,7 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/@uidotdev/usehooks.js",
               },
               transformIgnorePatterns: [
-                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+                  "/node_modules/(?!(vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-.*|hast-util-to-jsx-runtime|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements|devlop|@types)/)",
               ],
           },
           {
@@ -144,18 +144,21 @@ const projects = process.env.CI
                       "<rootDir>/__mocks__/@amplitude/analytics-browser.js",
               },
               transformIgnorePatterns: [
-                  "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+                  "/node_modules/(?!(vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-.*|hast-util-to-jsx-runtime|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements|devlop|@types)/)",
               ],
           },
       ];
 
 // eslint-disable-next-line import/no-anonymous-default-export
 export default {
+    // Force exit after tests complete to prevent hanging from open handles
+    // (Apollo client, timers, etc. that don't clean up properly in jsdom)
+    forceExit: true,
     watchPathIgnorePatterns: ["\\.next"],
     modulePathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     testPathIgnorePatterns: ["<rootDir>/.next", "<rootDir>/.next/standalone"],
     transformIgnorePatterns: [
-        "/node_modules/(?!(react-markdown|vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-whitespace|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements)/)",
+        "/node_modules/(?!(vfile|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-.*|hast-util-to-jsx-runtime|space-separated-tokens|comma-separated-tokens|rehype-.*|hastscript|web-namespaces|zwitch|html-void-elements|devlop|@types)/)",
     ],
     haste: {
         forceNodeFilesystemAPI: true,

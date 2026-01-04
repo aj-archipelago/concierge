@@ -191,7 +191,7 @@ function Name({ workspace, user }) {
                         </div>
                         <input
                             type="text"
-                            className="border-0 ring-1 text-xs sm:text-sm bg-gray-50 dark:bg-gray-800 p-0"
+                            className="border-0 ring-1 text-base sm:text-sm bg-gray-50 dark:bg-gray-800 p-0"
                             value={slug}
                             onChange={(e) => {
                                 setSlug(e.target.value);

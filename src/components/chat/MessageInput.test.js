@@ -15,6 +15,29 @@ import fileUploadReducer from "../../stores/fileUploadSlice";
 import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 import userEvent from "@testing-library/user-event";
 
+// Mock i18n.js first to avoid initialization issues
+jest.mock("../../i18n", () => ({
+    __esModule: true,
+    default: {
+        language: "en",
+        changeLanguage: jest.fn(),
+    },
+}));
+
+// Mock react-i18next
+jest.mock("react-i18next", () => ({
+    useTranslation: () => ({
+        t: (key) => key,
+        i18n: {
+            language: "en",
+        },
+    }),
+    initReactI18next: {
+        type: "3rdParty",
+        init: () => {},
+    },
+}));
+
 // Mock the @uidotdev/usehooks module
 jest.mock("@uidotdev/usehooks", () => ({
     useDebounce: (value) => value,
@@ -41,12 +64,21 @@ jest.mock("../../layout/Layout", () => ({
     default: ({ children }) => <div>{children}</div>,
 }));
 
-// Mock the DynamicFilePond component
+// Mock i18next-browser-languagedetector
+jest.mock("i18next-browser-languagedetector", () => ({
+    __esModule: true,
+    default: {
+        type: "languageDetector",
+        init: () => {},
+    },
+}));
+
+// Mock the DynamicFileUploader component
 jest.mock(
-    "./MyFilePond",
+    "./FileUploader",
     () => {
-        const MockFilePond = ({ addUrl, files, setFiles }) => (
-            <div data-testid="filepond-mock">
+        const MockFileUploader = ({ addUrl, files, setFiles }) => (
+            <div data-testid="fileuploader-mock">
                 <button
                     data-testid="add-url-button"
                     onClick={() =>
@@ -56,17 +88,17 @@ jest.mock(
                         })
                     }
                 >
-                    Add URL
+                    Add File URL
                 </button>
                 {files &&
                     files.map((file, index) => (
                         <div key={index} data-testid={`file-${index}`}>
-                            {file.source.name}
+                            {file.source?.name || file.filename || file.name}
                         </div>
                     ))}
             </div>
         );
-        return MockFilePond;
+        return MockFileUploader;
     },
     { virtual: true },
 );
@@ -74,10 +106,10 @@ jest.mock(
 // Mock the dynamic import to properly return the component
 jest.mock("next/dynamic", () => () => {
     const MockComponent = (props) => {
-        const DynamicComponent = require("./MyFilePond");
+        const DynamicComponent = require("./FileUploader");
         return <DynamicComponent {...props} />;
     };
-    MockComponent.displayName = "DynamicFilepond";
+    MockComponent.displayName = "DynamicFileUploader";
     return MockComponent;
 });
 
@@ -90,12 +122,6 @@ jest.mock("../../../app/queries/chats", () => ({
     useGetActiveChatId: () => mockUseGetActiveChatId(),
 }));
 
-jest.mock("../../../app/queries/uploadedDocs", () => ({
-    useAddDocument: () => ({
-        mutateAsync: jest.fn(),
-    }),
-}));
-
 // Mock the required icons
 jest.mock("lucide-react", () => ({
     Send: () => (
@@ -103,13 +129,13 @@ jest.mock("lucide-react", () => ({
             Send Icon
         </div>
     ),
-    FilePlus: (props) => (
+    Paperclip: (props) => (
         <div
             data-testid="file-plus-icon"
             aria-label="file-upload"
             className={props.className}
         >
-            File Plus Icon
+            Paperclip Icon
         </div>
     ),
     XCircle: () => (
@@ -126,7 +152,6 @@ jest.mock("lucide-react", () => ({
 
 // Mock the graphql queries
 jest.mock("../../graphql", () => ({
-    COGNITIVE_INSERT: "COGNITIVE_INSERT",
     CODE_HUMAN_INPUT: "CODE_HUMAN_INPUT",
     QUERIES: {
         SYS_ENTITY_AGENT: "SYS_ENTITY_AGENT",
@@ -136,7 +161,6 @@ jest.mock("../../graphql", () => ({
 // Mock the mediaUtils
 jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
-    isRagFileUrl: jest.fn(),
     isSupportedFileUrl: jest.fn(),
     ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
 }));
@@ -193,7 +217,7 @@ describe("MessageInput", () => {
     const mockUser = {
         contextId: "test-context-id",
         aiName: "Test AI",
-        aiStyle: "default",
+        agentModel: "oai-gpt51",
         aiMemorySelfModify: false,
     };
 
@@ -245,9 +269,61 @@ describe("MessageInput", () => {
         );
     };
 
+    // Some MessageInput behaviors rely on the parent toggling `loading` while a send is in-flight.
+    // In production, `onSend` typically triggers a request and `loading` flips true->false,
+    // which also resets MessageInput's internal "send lock" (isSendingRef).
+    const renderMessageInputWithLoadingHarness = (props = {}) => {
+        function Harness() {
+            const [loading, setLoading] = React.useState(false);
+
+            const handleSend = (message) => {
+                mockOnSend(message);
+                // Toggle loading true -> false (in a microtask) to mimic real send lifecycle
+                setLoading(true);
+                Promise.resolve().then(() => setLoading(false));
+            };
+
+            return (
+                <MessageInput
+                    onSend={handleSend}
+                    loading={loading}
+                    enableRag={true}
+                    placeholder="Send a message"
+                    viewingReadOnlyChat={false}
+                    isStreaming={false}
+                    onStopStreaming={mockOnStopStreaming}
+                    {...props}
+                />
+            );
+        }
+
+        return render(
+            <ApolloProvider client={client}>
+                <Provider store={store}>
+                    <AuthContext.Provider
+                        value={{
+                            user: mockUser,
+                            userState: {},
+                            debouncedUpdateUserState:
+                                mockDebouncedUpdateUserState,
+                        }}
+                    >
+                        <Harness />
+                    </AuthContext.Provider>
+                </Provider>
+            </ApolloProvider>,
+        );
+    };
+
     beforeEach(() => {
         jest.clearAllMocks();
         mockDebouncedUpdateUserState.mockClear();
+    });
+
+    afterAll(async () => {
+        // Clean up Apollo client to prevent open handles
+        await client.clearStore();
+        client.stop();
     });
 
     describe("Chat input state persistence", () => {
@@ -329,7 +405,7 @@ describe("MessageInput", () => {
             spy.mockRestore();
         });
 
-        it("should process image paste by showing FilePond and preparing for upload and calling preventDefault", async () => {
+        it("should process image paste by showing FileUploader and preparing for upload and calling preventDefault", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
             const mockFile = new File(["test-image-data"], "test.png", {
@@ -353,7 +429,7 @@ describe("MessageInput", () => {
             spy.mockRestore();
 
             expect(
-                await screen.findByTestId("filepond-mock"),
+                await screen.findByTestId("fileuploader-mock"),
             ).toBeInTheDocument();
             expect(
                 await screen.findByTestId("close-button"),
@@ -392,7 +468,7 @@ describe("MessageInput", () => {
             spy.mockRestore();
             expect(input.value).toBe("Initial textTest pasted text");
             expect(
-                await screen.findByTestId("filepond-mock"),
+                await screen.findByTestId("fileuploader-mock"),
             ).toBeInTheDocument();
             expect(
                 await screen.findByTestId("close-button"),
@@ -436,7 +512,7 @@ describe("MessageInput", () => {
 
             expect(input.value).toBe("Initial text Pasted text.");
             expect(
-                await screen.findByTestId("filepond-mock"),
+                await screen.findByTestId("fileuploader-mock"),
             ).toBeInTheDocument();
             expect(
                 await screen.findByTestId("close-button"),
@@ -481,7 +557,7 @@ describe("MessageInput", () => {
             spy.mockRestore();
             expect(input.value).toBe(plainTextContent);
             expect(
-                await screen.findByTestId("filepond-mock"),
+                await screen.findByTestId("fileuploader-mock"),
             ).toBeInTheDocument();
             expect(global.fetch).toHaveBeenCalledWith(
                 "data:image/png;base64,test",
@@ -531,7 +607,7 @@ describe("MessageInput", () => {
             expect(spy).not.toHaveBeenCalled();
             spy.mockRestore();
             expect(input.value).toBe(plainTextContent);
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+            expect(screen.getByTestId("fileuploader-mock")).toBeInTheDocument();
             expect(global.fetch).toHaveBeenCalledWith(
                 "data:image/png;base64,test",
             );
@@ -563,7 +639,7 @@ describe("MessageInput", () => {
             spy.mockRestore();
             expect(input.value).toBe(plainTextContent);
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
         });
 
@@ -596,7 +672,7 @@ describe("MessageInput", () => {
             });
 
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
             expect(input.value).toBe("");
             expect(spy).toHaveBeenCalled();
@@ -640,7 +716,7 @@ describe("MessageInput", () => {
             });
 
             expect(
-                await screen.findByTestId("filepond-mock"),
+                await screen.findByTestId("fileuploader-mock"),
             ).toBeInTheDocument();
             expect(
                 await screen.findByTestId("close-button"),
@@ -675,7 +751,7 @@ describe("MessageInput", () => {
             });
 
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
             expect(input.value).toBe("");
             expect(spy).not.toHaveBeenCalled(); // Default behavior (likely nothing) is allowed
@@ -694,7 +770,9 @@ describe("MessageInput", () => {
             fireEvent.click(submitButton);
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
         });
 
@@ -727,7 +805,9 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
             expect(input.value).toBe("");
         });
@@ -761,19 +841,19 @@ describe("MessageInput", () => {
             ).not.toBeInTheDocument();
         });
 
-        it("should handle file upload through FilePond", () => {
+        it("should handle file upload through FileUploader", () => {
             renderMessageInput({
                 enableRag: true,
                 initialShowFileUpload: true,
             });
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
+            expect(screen.getByTestId("fileuploader-mock")).toBeInTheDocument();
 
-            // The test now just verifies FilePond is rendered
-            // To properly test the interaction, the mock MyFilePond would need to call its props.
-            // For example, if MyFilePond calls setFiles internally:
+            // The test now just verifies FileUploader is rendered
+            // To properly test the interaction, the mock FileUploader would need to call its props.
+            // For example, if FileUploader calls setFiles internally:
             // const setFilesMock = jest.fn();
             // React.useState = jest.fn().mockReturnValueOnce([[], setFilesMock]);
-            // fireEvent(...) on the mock filepond that calls props.setFiles
+            // fireEvent(...) on the mock fileuploader that calls props.setFiles
         });
     });
 
@@ -793,7 +873,9 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledWith("Test message");
+                expect(mockOnSend).toHaveBeenCalledWith([
+                    JSON.stringify({ type: "text", text: "Test message" }),
+                ]);
             });
             expect(input.value).toBe("");
         });
@@ -865,108 +947,39 @@ describe("MessageInput", () => {
                 "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
                 "https://youtu.be/dQw4w9WgXcQ",
             ];
-            const isYoutubeUrlMock = jest
-                .fn()
-                .mockImplementation((url) => youtubeUrls.includes(url));
-            jest.spyOn(
-                require("../../utils/urlUtils"),
-                "isYoutubeUrl",
-            ).mockImplementation(isYoutubeUrlMock);
 
-            const setUrlsDataMock = jest.fn();
-            const originalUseState = React.useState;
-            jest.spyOn(React, "useState").mockImplementation((initialValue) => {
-                if (initialValue === "" && !setUrlsDataMock.mock.calls.length) {
-                    // trying to target setInputValue
-                    return originalUseState(initialValue);
-                }
-                if (
-                    Array.isArray(initialValue) &&
-                    initialValue.length === 0 &&
-                    setUrlsDataMock.mock.calls.length < 2
-                ) {
-                    // for urlsData and files
-                    if (
-                        React.useState.mock.calls
-                            .map((c) => c[0])
-                            .filter(
-                                (iv) => Array.isArray(iv) && iv.length === 0,
-                            ).length <= 2
-                    ) {
-                        // only mock for urlsData and files
-                        return [initialValue, setUrlsDataMock];
-                    }
-                }
-                return originalUseState(initialValue);
-            });
-
-            renderMessageInput({
+            renderMessageInputWithLoadingHarness({
                 enableRag: true,
                 initialShowFileUpload: false,
             });
 
-            const fileButton = screen.getByTestId("file-plus-button");
-            fireEvent.click(fileButton);
-
-            for (const youtubeUrl of youtubeUrls) {
+            // Send all YouTube URLs
+            for (let i = 0; i < youtubeUrls.length; i++) {
+                const youtubeUrl = youtubeUrls[i];
                 const input = screen.getByPlaceholderText("Send a message");
                 fireEvent.change(input, { target: { value: youtubeUrl } });
                 const submitButton = screen.getByTestId("send-button");
 
-                fireEvent.click(submitButton); // This should call onSend
+                fireEvent.click(submitButton);
 
-                expect(input.value).toBe(""); // Input cleared
+                // Wait for onSend to be called (confirms form was submitted)
+                await waitFor(() => {
+                    expect(mockOnSend).toHaveBeenCalledTimes(i + 1);
+                });
+
+                // Validate the last call matches the URL we just submitted
+                expect(mockOnSend).toHaveBeenLastCalledWith([
+                    JSON.stringify({ type: "text", text: youtubeUrl }),
+                ]);
+
+                // Verify input is cleared after submission
+                await waitFor(() => {
+                    expect(input.value).toBe("");
+                });
             }
 
-            await waitFor(() => {
-                expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
-            });
-            youtubeUrls.forEach((url) => {
-                expect(mockOnSend).toHaveBeenCalledWith(url); // Assuming onSend receives the raw URL for YouTube links
-            });
-            jest.spyOn(React, "useState").mockImplementation(originalUseState); // Restore
-        });
-
-        it("should handle document URLs", async () => {
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => true);
-            const mockQuery = jest.fn().mockResolvedValue({});
-            const mockApolloClient = { query: mockQuery };
-            jest.spyOn(
-                require("@apollo/client"),
-                "useApolloClient",
-            ).mockReturnValue(mockApolloClient);
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "getFilename",
-            ).mockImplementation(() => "doc.pdf");
-
-            renderMessageInput({
-                enableRag: true,
-                initialShowFileUpload: true,
-            });
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
-
-            const addUrlButton = screen.getByTestId("add-url-button"); // From MyFilePond mock
-            fireEvent.click(addUrlButton);
-
-            // Wait for async operations in addUrl
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            });
-
-            expect(mockQuery).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    query: "COGNITIVE_INSERT",
-                    variables: expect.objectContaining({
-                        file: "https://example.com/doc.pdf", // This comes from the mock MyFilePond
-                        contextId: "test-context-id",
-                        chatId: "test-chat-id",
-                    }),
-                }),
-            );
+            // Verify all calls were made
+            expect(mockOnSend).toHaveBeenCalledTimes(youtubeUrls.length);
         });
 
         it("should handle media URLs by adding to urlsData and enabling send", async () => {
@@ -974,10 +987,6 @@ describe("MessageInput", () => {
                 require("../../utils/mediaUtils"),
                 "isSupportedFileUrl",
             ).mockImplementation(() => true);
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => false); // Ensure it's not treated as doc
 
             const setUrlsDataMock = jest.fn();
             const originalUseState = React.useState;
@@ -1170,7 +1179,7 @@ describe("MessageInput", () => {
             fireEvent.click(fileButton);
 
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
         });
 
@@ -1198,7 +1207,7 @@ describe("MessageInput", () => {
 
             // File upload should not be shown since activeChatId is missing
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
         });
 
@@ -1240,49 +1249,12 @@ describe("MessageInput", () => {
 
             // File upload should not be shown since activeChatId is missing
             expect(
-                screen.queryByTestId("filepond-mock"),
+                screen.queryByTestId("fileuploader-mock"),
             ).not.toBeInTheDocument();
             // Fetch should not be called for data URI processing since file processing was skipped
             expect(fetchMock).not.toHaveBeenCalledWith(
                 "data:image/png;base64,test",
             );
-        });
-
-        it("should prevent addUrl processing when activeChatId is missing", async () => {
-            mockUseGetActiveChatId.mockReturnValue(null);
-
-            // Mock isRagFileUrl to return true so addUrl would normally process it
-            jest.spyOn(
-                require("../../utils/mediaUtils"),
-                "isRagFileUrl",
-            ).mockImplementation(() => true);
-
-            const mockQuery = jest.fn().mockResolvedValue({});
-            const mockApolloClient = { query: mockQuery };
-            jest.spyOn(
-                require("@apollo/client"),
-                "useApolloClient",
-            ).mockReturnValue(mockApolloClient);
-
-            renderMessageInput({
-                enableRag: true,
-                initialShowFileUpload: true,
-            });
-
-            expect(screen.getByTestId("filepond-mock")).toBeInTheDocument();
-
-            const addUrlButton = screen.getByTestId("add-url-button");
-            fireEvent.click(addUrlButton);
-
-            await act(async () => {
-                await new Promise((resolve) => setTimeout(resolve, 0));
-            });
-
-            // Should log warning and not call GraphQL query
-            expect(console.warn).toHaveBeenCalledWith(
-                "Cannot upload file: No active chat ID available",
-            );
-            expect(mockQuery).not.toHaveBeenCalled();
         });
 
         it("should enable file upload button when activeChatId is available", () => {

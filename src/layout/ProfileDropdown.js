@@ -18,10 +18,18 @@ export default function ProfileDropdown({
     return (
         <Menu as="div" className="relative inline-block text-start">
             <div>
-                <Menu.Button className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500">
-                    <span className="text-sm font-medium leading-none text-white">
-                        {initials}
-                    </span>
+                <Menu.Button className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500 overflow-hidden">
+                    {user?.profilePicture || user?.picture ? (
+                        <img
+                            src={user.profilePicture || user.picture}
+                            alt={name || "User"}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <span className="text-sm font-medium leading-none text-white">
+                            {initials}
+                        </span>
+                    )}
                 </Menu.Button>
             </div>
 

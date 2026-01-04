@@ -10,6 +10,8 @@ import {
 
 const AuthContext = createContext();
 
+const PATHS_EXCLUDED_FROM_AUTH_CHECK = ["/wp-editor/bundle.js"];
+
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {
@@ -74,6 +76,16 @@ export const AuthProvider = ({ children }) => {
 
         // Skip if window is not available (test environment)
         if (typeof window === "undefined") {
+            return;
+        }
+
+        // Check if current path is excluded from auth check
+        const currentPath = window.location.pathname;
+        const isExcludedPath = PATHS_EXCLUDED_FROM_AUTH_CHECK.some(
+            (excludedPath) => currentPath.includes(excludedPath),
+        );
+
+        if (isExcludedPath) {
             return;
         }
 

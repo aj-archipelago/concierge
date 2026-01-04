@@ -9,15 +9,15 @@ import {
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../../config";
-import { ServerContext } from "../../App";
+import { ServerContext, AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import {
     getVideoDuration,
-    hashMediaFile,
     VIDEO_EXTENSIONS,
     AUDIO_EXTENSIONS,
     MEDIA_MIME_TYPES,
 } from "../../utils/mediaUtils";
+import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import VideoSelector from "./VideoSelector";
 
@@ -139,6 +139,9 @@ function VideoInput({
     const [videoSelectorError, setVideoSelectorError] = useState(null);
     const [showVideoSelector, setShowVideoSelector] = useState(false);
     const { serverUrl } = useContext(ServerContext);
+    const { user } = useContext(AuthContext);
+    // Use default user contextId (not :chat, so they don't appear in chat file collections)
+    const contextId = user?.contextId;
     const [uploadProgress, setUploadProgress] = useState(0);
     const { direction } = useContext(LanguageContext);
     const [durationWarning, setDurationWarning] = useState(null);
@@ -178,30 +181,6 @@ function VideoInput({
 
     const processFileUpload = async (file) => {
         setFileUploading(true);
-        const fileHash = await hashMediaFile(file);
-
-        // Check if file with same hash exists
-        try {
-            const checkResponse = await fetch(
-                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}&checkHash=true`,
-            );
-            if (checkResponse.ok) {
-                const data = await checkResponse.json().catch(() => null);
-                if (data && data.url) {
-                    setUrl(data.url);
-                    setVideoInformation({
-                        videoUrl: data.url,
-                        transcriptionUrl: null,
-                    });
-                    setFileUploading(false);
-                    onUploadComplete?.(); // Notify parent that upload is complete
-                    return;
-                }
-            }
-        } catch (error) {
-            console.error("Error checking file hash:", error);
-            // Continue with upload even if hash check fails
-        }
 
         // Add file type validation using the imported MIME types
         const supportedVideoTypes = MEDIA_MIME_TYPES.filter(
@@ -248,64 +227,29 @@ function VideoInput({
             return;
         }
 
-        // Continue with upload if no match found
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("hash", fileHash);
-
+        // Upload file using shared utility
         try {
-            const xhr = new XMLHttpRequest();
-            xhr.open(
-                "POST",
-                `${config.endpoints.mediaHelper(serverUrl)}?hash=${fileHash}`,
-                true,
-            );
+            const data = await uploadFileToMediaHelper(file, {
+                contextId,
+                checkHash: true,
+                onProgress: setUploadProgress,
+                serverUrl: config.endpoints.mediaHelper(serverUrl),
+            });
 
-            // Monitor the upload progress
-            xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    const percentage = Math.round(
-                        (event.loaded * 100) / event.total,
-                    );
-                    setUploadProgress(percentage);
-                }
-            };
-
-            // Handle the upload response
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    const data = JSON.parse(xhr.responseText);
-                    const fileUrl = data.url || ``;
-                    setUrl(fileUrl);
-                    setVideoInformation({
-                        videoUrl: fileUrl,
-                        transcriptionUrl: null,
-                    });
-                    setFileUploading(false);
-                    onUploadComplete?.(); // Notify parent that upload is complete
-                } else {
-                    console.error(xhr.statusText);
-                    setFileUploadError({
-                        message: `${t("File upload failed, response:")} ${xhr.statusText}`,
-                    });
-                    setFileUploading(false);
-                    onUploadComplete?.(); // Notify parent that upload failed
-                }
-            };
-
-            // Handle any upload errors
-            xhr.onerror = (error) => {
-                console.error(error);
-                setFileUploadError({ message: t("File upload failed") });
-                setFileUploading(false);
-                onUploadComplete?.(); // Notify parent that upload failed
-            };
-
-            // Send the file
-            xhr.send(formData);
+            const fileUrl = data.url || "";
+            setUrl(fileUrl);
+            setVideoInformation({
+                videoUrl: fileUrl,
+                transcriptionUrl: null,
+            });
+            setFileUploading(false);
+            onUploadComplete?.(); // Notify parent that upload is complete
         } catch (error) {
-            console.error(error);
-            setFileUploadError({ message: t("File upload failed") });
+            console.error("File upload error:", error);
+            setFileUploadError({
+                message:
+                    error.message || t("File upload failed. Please try again."),
+            });
             setFileUploading(false);
             onUploadComplete?.(); // Notify parent that upload failed
         }

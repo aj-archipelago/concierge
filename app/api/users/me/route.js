@@ -26,6 +26,9 @@ export async function PUT(request) {
         if (data.apps) {
             user.apps = data.apps;
         }
+        if (data.profilePicture !== undefined) {
+            user.profilePicture = data.profilePicture;
+        }
 
         await user.save();
 
