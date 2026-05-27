@@ -109,6 +109,7 @@
         "dev:multiworker": "concurrently \"npm run next:dev\" \"npm run worker:dev\" \"npm run worker:dev\"",
         "next:dev": "npm run prebuild && next dev",
         "prebuild": "node ./scripts/prebuild.js",
+        "upstream:audit": "node ./scripts/upstream-audit.mjs",
         "build": "next build",
         "start": "next start",
         "lint": "next lint && npx prettier --check .",
