@@ -758,6 +758,30 @@ const IMAGE_GEMINI_25 = gql`
     }
 `;
 
+const MEDIA_PROMPT_ASSISTANT = gql`
+    query MediaPromptAssistant(
+        $prompt: String
+        $mediaType: String
+        $model: String
+        $references: [String]
+        $referenceRoles: [String]
+        $hasInputImages: Boolean
+        $referenceCount: Int
+    ) {
+        media_prompt_assistant(
+            prompt: $prompt
+            mediaType: $mediaType
+            model: $model
+            references: $references
+            referenceRoles: $referenceRoles
+            hasInputImages: $hasInputImages
+            referenceCount: $referenceCount
+        ) {
+            result
+        }
+    }
+`;
+
 const IMAGE_GEMINI_3 = gql`
     query ImageGemini3(
         $text: String!
@@ -1253,6 +1277,7 @@ const QUERIES = {
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    MEDIA_PROMPT_ASSISTANT,
     IMAGE_GEMINI_3,
     MEDIA_GENERATE,
     MEDIA_PROMPT_TAGS,
@@ -1375,6 +1400,7 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    MEDIA_PROMPT_ASSISTANT,
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
