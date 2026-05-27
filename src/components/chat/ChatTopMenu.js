@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Microscope, FileText } from "lucide-react";
+import { FileText, Microscope, Plug } from "lucide-react";
 import { useContext, useState, useEffect } from "react";
 import { AuthContext } from "../../App";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats";
@@ -11,6 +11,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import UserFileCollection from "@/app/workspaces/[id]/components/UserFileCollection";
+import McpConfigDialog from "./McpConfigDialog";
 
 function ChatTopMenu({ displayState = "full", readOnly = false }) {
     const { t } = useTranslation();
@@ -21,6 +22,7 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
     const [isResearchMode, setIsResearchMode] = useState(false);
     const [showFileCollectionDialog, setShowFileCollectionDialog] =
         useState(false);
+    const [showMcpConfigDialog, setShowMcpConfigDialog] = useState(false);
 
     useEffect(() => {
         if (chat?.researchMode !== undefined) {
@@ -67,6 +69,15 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                 >
                     <FileText className="w-4 h-4" />
                 </button>
+
+                <button
+                    onClick={() => setShowMcpConfigDialog(true)}
+                    disabled={readOnly}
+                    className="flex items-center justify-center px-3 py-1.5 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-700"
+                    title={readOnly ? t("Read-only mode") : t("Connectors")}
+                >
+                    <Plug className="w-4 h-4" />
+                </button>
             </div>
 
             <Dialog
@@ -93,6 +104,11 @@ function ChatTopMenu({ displayState = "full", readOnly = false }) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <McpConfigDialog
+                open={showMcpConfigDialog}
+                onOpenChange={setShowMcpConfigDialog}
+            />
         </>
     );
 }

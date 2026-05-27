@@ -4,6 +4,7 @@ import { getCurrentUser, handleError } from "../../../utils/auth";
 import { getClient, QUERIES, SUBSCRIPTIONS } from "../../../../../src/graphql";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
 import { buildAgentContext } from "../../../utils/llm-file-utils";
+import { buildMcpAgentConfigForUser } from "../../../utils/mcp-agent-config";
 import {
     removeArtifactsFromMessages,
     cleanupStaleStopRequestedIds,
@@ -108,6 +109,10 @@ export async function POST(req, { params }) {
                 userContextId: currentUser?.contextId || null,
                 userContextKey: currentUser?.contextKey || null,
             });
+        const { mcpConfig, mcpAvailableServers } =
+            await buildMcpAgentConfigForUser(currentUser, {
+                logPrefix: `[SSE Stream:${id}]`,
+            });
 
         // Make sys_entity_agent query to get subscriptionId
         const queryResult = await graphqlClient.query({
@@ -124,6 +129,8 @@ export async function POST(req, { params }) {
                 researchMode: researchMode || chat.researchMode || false,
                 model: model || currentUser.agentModel || "oai-gpt51",
                 userInfo,
+                mcpConfig,
+                mcpAvailableServers,
             },
             fetchPolicy: "network-only",
         });
