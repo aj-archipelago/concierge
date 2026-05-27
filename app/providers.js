@@ -2,6 +2,7 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NotificationProvider } from "../src/contexts/NotificationContext";
+import { PageContextProvider } from "../src/contexts/PageContextProvider";
 
 function makeQueryClient() {
     return new QueryClient({
@@ -40,7 +41,9 @@ export default function Providers({ children }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <NotificationProvider>{children}</NotificationProvider>
+            <NotificationProvider>
+                <PageContextProvider>{children}</PageContextProvider>
+            </NotificationProvider>
         </QueryClientProvider>
     );
 }

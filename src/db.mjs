@@ -109,6 +109,18 @@ export async function connectToDatabase() {
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
                     },
                 },
+                mcpServers: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                mcpOAuthPending: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
                 keyId: [_key],
@@ -232,6 +244,48 @@ export async function connectToDatabase() {
                 inputText: {
                     encrypt: {
                         bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.appletdatas`]: {
+            bsonType: "object",
+            properties: {
+                data: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.appletshareddatas`]: {
+            bsonType: "object",
+            properties: {
+                value: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.appletshareddatarevisions`]: {
+            bsonType: "object",
+            properties: {
+                value: {
+                    encrypt: {
+                        bsonType: "object",
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
                     },
                 },

@@ -1,4 +1,9 @@
 import { QUERIES, getClient } from "../graphql.mjs";
+import { DEFAULT_CHAT_MODEL } from "../../src/utils/constants.js";
+import {
+    buildFileAccessPlan,
+    buildRunContext,
+} from "../../src/utils/fileAccessPlanUtils.js";
 
 const APPROXIMATE_DURATION_SECONDS = 60;
 const PROGRESS_UPDATE_INTERVAL = 3000;
@@ -18,22 +23,23 @@ const generateDigestBlockContent = async (
         ],
     };
 
-    // Build agentContext for user (single user context as default)
-    const agentContext = user?.contextId
-        ? [
-              {
-                  contextId: user.contextId,
-                  contextKey: user.contextKey || "",
-                  default: true,
-              },
-          ]
-        : [];
+    const fileAccessPlan = buildFileAccessPlan({
+        userContextId: user?.contextId || null,
+        userContextKey: user?.contextKey || null,
+    });
+    const runContext = buildRunContext({
+        userContextId: user?.contextId || null,
+        userContextKey: user?.contextKey || null,
+    });
 
     const variables = {
         chatHistory: [systemMessage, { role: "user", content: [prompt] }],
-        agentContext,
+        fileAccessPlan,
+        contextId: runContext.contextId,
+        contextKey: runContext.contextKey,
+        entityId: user?.personalEntityId || "",
         aiName: user?.aiName,
-        model: user?.agentModel || "oai-gpt51",
+        model: user?.agentModel || DEFAULT_CHAT_MODEL,
         useMemory: true,
     };
 

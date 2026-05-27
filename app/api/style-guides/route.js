@@ -3,6 +3,7 @@ import StyleGuide from "../models/style-guide.js";
 import File from "../models/file.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { handleStreamingFileUpload } from "../utils/upload-utils.js";
+import { createWorkspaceSharedStorageTarget } from "../../../src/utils/storageTargets.js";
 
 // GET: retrieve all active style guides
 export async function GET() {
@@ -72,7 +73,8 @@ export async function POST(request) {
                     return { success: true, file: newFile, files: [] };
                 },
                 errorPrefix: "style guide file upload",
-                permanent: true, // Use permanent storage for style guide files
+                storageTarget:
+                    createWorkspaceSharedStorageTarget("style-guide-check"),
             });
 
             if (result.error) {
@@ -132,3 +134,5 @@ export async function POST(request) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

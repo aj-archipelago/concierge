@@ -42,6 +42,11 @@ export async function PUT(req, { params }) {
     const { id, promptId } = params;
     const attrs = await req.json();
     const user = await getCurrentUser();
+    console.info("[workspace prompts update] file counts", {
+        workspaceId: id,
+        promptId,
+        files: Array.isArray(attrs?.files) ? attrs.files.length : 0,
+    });
 
     try {
         const workspace = await Workspace.findById(id);

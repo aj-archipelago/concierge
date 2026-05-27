@@ -1,13 +1,29 @@
-FROM ubuntu:20.04 AS base
+FROM ubuntu:24.04 AS base
 
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+RUN apt-get update && apt-get install -y curl python3 make g++ && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
-    apt-get install -y curl libssl1.1 && \
-    curl -O https://downloads.mongodb.com/linux/mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz && \
+    curl -fsSL https://registry.npmjs.org/npm/-/npm-11.14.1.tgz -o /tmp/npm-11.14.1.tgz && \
+    mkdir -p /opt/npm-11.14.1 && \
+    tar -xzf /tmp/npm-11.14.1.tgz -C /opt/npm-11.14.1 --strip-components=1 && \
+    node /opt/npm-11.14.1/bin/npm-cli.js --version && \
+    printf '%s\n' '#!/bin/sh' 'exec node /opt/npm-11.14.1/bin/npm-cli.js "$@"' > /usr/local/bin/npm && \
+    printf '%s\n' '#!/bin/sh' 'exec node /opt/npm-11.14.1/bin/npx-cli.js "$@"' > /usr/local/bin/npx && \
+    chmod +x /usr/local/bin/npm /usr/local/bin/npx && \
+    rm /tmp/npm-11.14.1.tgz && \
+    apt-get install -y libssl3 && \
+    ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) MONGO_ARCH="x86_64" ;; \
+        aarch64|arm64) MONGO_ARCH="aarch64" ;; \
+        *) echo "Unsupported architecture: $ARCH. MongoDB crypt shared library is only available for x86_64 and aarch64." >&2; exit 1 ;; \
+    esac && \
+    curl -O https://downloads.mongodb.com/linux/mongo_crypt_shared_v1-linux-${MONGO_ARCH}-enterprise-ubuntu2404-8.0.4.tgz && \
+    mkdir -p /tmp/mongo_crypt && \
+    tar -xf mongo_crypt_shared_v1-linux-${MONGO_ARCH}-enterprise-ubuntu2404-8.0.4.tgz -C /tmp/mongo_crypt && \
     mkdir -p /app/mongo_crypt_lib && \
-    tar -xvf mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz -C /app/mongo_crypt_lib --strip-components=1 && \
-    rm mongo_crypt_shared_v1-linux-x86_64-enterprise-ubuntu2004-7.0.12.tgz && \
+    find /tmp/mongo_crypt -name "mongo_crypt_v1.so" -exec mv {} /app/mongo_crypt_lib/mongo_crypt_v1.so \; && \
+    rm -rf /tmp/mongo_crypt mongo_crypt_shared_v1-linux-${MONGO_ARCH}-enterprise-ubuntu2404-8.0.4.tgz && \
     chmod 755 /app/mongo_crypt_lib/mongo_crypt_v1.so && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     useradd -m appuser
@@ -16,7 +32,7 @@ ENV MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
 
 WORKDIR /home/appuser/app
 
-COPY package*.json ./
+COPY .npmrc package*.json ./
 RUN npm ci --legacy-peer-deps
 
 COPY --chown=appuser:appuser . .

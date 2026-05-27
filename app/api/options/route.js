@@ -1,5 +1,6 @@
 import User from "../models/user";
 import mongoose from "mongoose";
+import { getClient, SYS_ENTITY_UPDATE } from "../../../src/graphql";
 
 export async function POST(req) {
     try {
@@ -12,6 +13,7 @@ export async function POST(req) {
             aiName,
             agentModel,
             useCustomEntities,
+            reasoningEffort,
         } = body;
 
         if (!mongoose.connection.readyState) {
@@ -29,12 +31,53 @@ export async function POST(req) {
             }
             if (aiName !== undefined) {
                 user.aiName = aiName;
+                if (user.personalEntityId) {
+                    try {
+                        const client = getClient();
+                        await client.query({
+                            query: SYS_ENTITY_UPDATE,
+                            variables: {
+                                entityId: user.personalEntityId,
+                                contextId: user.contextId,
+                                name: aiName,
+                            },
+                            fetchPolicy: "network-only",
+                        });
+                    } catch (error) {
+                        console.warn(
+                            "Failed to sync aiName to Cortex entity:",
+                            error?.message,
+                        );
+                    }
+                }
             }
             if (agentModel !== undefined) {
                 user.agentModel = agentModel;
             }
             if (useCustomEntities !== undefined) {
                 user.useCustomEntities = useCustomEntities;
+            }
+            if (reasoningEffort !== undefined) {
+                user.reasoningEffort = reasoningEffort;
+                if (user.personalEntityId) {
+                    try {
+                        const client = getClient();
+                        await client.query({
+                            query: SYS_ENTITY_UPDATE,
+                            variables: {
+                                entityId: user.personalEntityId,
+                                contextId: user.contextId,
+                                reasoningEffort,
+                            },
+                            fetchPolicy: "network-only",
+                        });
+                    } catch (error) {
+                        console.warn(
+                            "Failed to sync reasoningEffort to Cortex entity:",
+                            error?.message,
+                        );
+                    }
+                }
             }
             await user.save();
             return Response.json({ status: "success" });

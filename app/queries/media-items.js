@@ -135,6 +135,22 @@ export function useUpdateMediaItemTags() {
     return mutation;
 }
 
+export function useAutoTagMediaItem() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ taskId }) => {
+            const response = await axios.post(
+                `/api/media-items/${taskId}/auto-tags`,
+            );
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
+        },
+    });
+}
+
 export function useMigrateMediaItems() {
     const queryClient = useQueryClient();
 
@@ -174,6 +190,24 @@ export function useCleanupOrphanedMediaItems() {
         onSuccess: (data) => {
             // Only invalidate if items were actually cleaned up
             if (data?.cleanedCount > 0) {
+                queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
+            }
+        },
+    });
+}
+
+export function useSyncMediaItemsFromStorage() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const response = await axios.post(
+                `/api/media-items/sync-from-storage`,
+            );
+            return response.data;
+        },
+        onSuccess: (data) => {
+            if (data?.syncedCount > 0) {
                 queryClient.invalidateQueries({ queryKey: ["mediaItems"] });
             }
         },

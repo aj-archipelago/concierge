@@ -4,6 +4,7 @@ import Workspace, { workspaceSchema } from "../../models/workspace";
 import WorkspaceState from "../../models/workspace-state";
 import App from "../../models/app";
 import AppletFile from "../../models/applet-file";
+import AppletSharedFile from "../../models/applet-shared-file";
 import File from "../../models/file";
 import { getCurrentUser } from "../../utils/auth";
 import { getWorkspace } from "./db";
@@ -43,12 +44,15 @@ export async function DELETE(req, { params }) {
 
     // Clean up AppletFile and File documents associated with this workspace
     if (workspace.applet) {
-        // Find all AppletFile documents for this applet
-        const appletFiles = await AppletFile.find({
-            appletId: workspace.applet,
-        }).populate("files");
+        const [appletFiles, sharedFiles] = await Promise.all([
+            AppletFile.find({
+                appletId: workspace.applet,
+            }).populate("files"),
+            AppletSharedFile.findOne({
+                appletId: workspace.applet,
+            }).populate("files"),
+        ]);
 
-        // Collect all file IDs to delete
         const fileIdsToDelete = [];
         appletFiles.forEach((appletFile) => {
             appletFile.files.forEach((file) => {
@@ -57,14 +61,20 @@ export async function DELETE(req, { params }) {
                 }
             });
         });
+        (sharedFiles?.files || []).forEach((file) => {
+            if (file?._id) {
+                fileIdsToDelete.push(file._id);
+            }
+        });
 
-        // Delete all File documents
         if (fileIdsToDelete.length > 0) {
             await File.deleteMany({ _id: { $in: fileIdsToDelete } });
         }
 
-        // Delete all AppletFile documents for this applet
-        await AppletFile.deleteMany({ appletId: workspace.applet });
+        await AppletFile.deleteMany({
+            appletId: workspace.applet,
+        });
+        await AppletSharedFile.deleteMany({ appletId: workspace.applet });
     }
 
     // Clean up workspace files if any exist

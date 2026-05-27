@@ -4,34 +4,25 @@ import axios from "../../../app/utils/axios-client";
 import {
     X,
     Link as LinkIcon,
-    Paperclip,
     CheckCircle2,
     AlertCircle,
     Loader2,
-    Play,
     RotateCw,
+    Monitor,
+    FolderOpen,
 } from "lucide-react";
+import FileCollectionPickerModal from "./FileCollectionPickerModal";
 import {
-    ACCEPTED_FILE_TYPES,
     isSupportedFileUrl,
     getFilename,
-    getVideoDuration,
-    getFileIcon,
-    getExtension,
     hashMediaFile,
 } from "../../utils/mediaUtils";
-import {
-    uploadFileToMediaHelper,
-    checkFileByHash,
-} from "../../utils/fileUploadUtils";
-import {
-    isYoutubeUrl,
-    extractYoutubeVideoId,
-    getYoutubeThumbnailUrl,
-} from "../../utils/urlUtils";
+import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
+import { createChatStorageTarget } from "../../utils/storageTargets";
+import { isYoutubeUrl } from "../../utils/urlUtils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useFilePreview, renderFilePreview } from "./useFilePreview";
+import MediaThumbnail from "../common/MediaThumbnail";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
 
@@ -40,8 +31,6 @@ let lastBytesPerMs = null;
 
 function FileThumbnail({ file, onRemove, onRetry }) {
     const { t } = useTranslation();
-    const { direction } = useContext(LanguageContext);
-    const isRTL = direction === "rtl";
 
     const displayName =
         file.displayFilename ||
@@ -54,23 +43,13 @@ function FileThumbnail({ file, onRemove, onRetry }) {
     const previewSrc =
         file.preview ||
         (typeof file.source === "string" ? file.source : null) ||
-        (file.source?.url ? file.source.url : null) ||
+        file.source?.converted?.url ||
+        file.source?.url ||
         (file.serverId ? file.serverId : null);
-
-    // Handle YouTube URLs using shared utilities
-    const isYouTube = isYoutubeUrl(previewSrc);
-    const videoId =
-        isYouTube && previewSrc ? extractYoutubeVideoId(previewSrc) : null;
-    const youtubeThumbnail = videoId
-        ? getYoutubeThumbnailUrl(videoId, "maxresdefault")
-        : null;
-
-    // Use the same file preview logic as MediaCard (uses explicit whitelist)
-    const fileType = useFilePreview(previewSrc, displayName, file.type);
-
-    // Use explicit previewability flag (CSV and other non-whitelisted types are excluded)
-    const hasPreview = fileType.isPreviewable;
-    const Icon = getFileIcon(displayName);
+    const errorMessage =
+        file.status === "error"
+            ? file.error || t("Error while uploading")
+            : null;
 
     const getStatusIcon = () => {
         if (file.status === "completed") {
@@ -101,87 +80,27 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                       ? "border-green-300 dark:border-green-700"
                       : "border-gray-300 dark:border-gray-600",
             )}
-            title={
-                file.status === "error" && file.error ? file.error : displayName
-            }
+            title={errorMessage || displayName}
         >
-            {/* Preview or icon */}
-            {isYouTube && youtubeThumbnail ? (
-                <div className="w-full h-full relative">
-                    <img
-                        src={youtubeThumbnail}
-                        alt="YouTube thumbnail"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                            // Fallback to lower quality thumbnail if maxresdefault fails
-                            if (videoId) {
-                                e.target.src = getYoutubeThumbnailUrl(
-                                    videoId,
-                                    "hqdefault",
-                                );
-                            }
-                        }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                        <Play
-                            className="w-6 h-6 text-white opacity-90"
-                            fill="white"
-                        />
-                    </div>
-                </div>
-            ) : hasPreview && previewSrc ? (
-                <div className="w-full h-full relative">
-                    {renderFilePreview({
-                        src: previewSrc,
-                        filename: displayName,
-                        fileType,
-                        className: "w-full h-full object-cover",
-                        t,
-                        compact: true, // Use compact text for uploader thumbnail
-                    })}
-                    {fileType.isVideo && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                            <Play
-                                className="w-6 h-6 text-white opacity-80"
-                                fill="white"
-                            />
-                        </div>
-                    )}
+            {file.status === "error" ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-50 px-1.5 text-center dark:bg-red-950/40">
+                    <AlertCircle className="h-5 w-5 shrink-0 text-red-500 dark:text-red-400" />
+                    <span className="max-w-full truncate text-[10px] font-medium leading-tight text-red-700 dark:text-red-300">
+                        {t("Upload failed")}
+                    </span>
                 </div>
             ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center p-2 bg-gray-100 dark:bg-gray-700">
-                    <Icon className="w-8 h-8 text-gray-500 dark:text-gray-400 mb-1" />
-                    {(() => {
-                        const extension = getExtension(displayName);
-                        const fileExtension = extension
-                            ? extension.replace(".", "").toUpperCase()
-                            : "";
-                        if (fileExtension) {
-                            return (
-                                <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-                                    {fileExtension}
-                                </span>
-                            );
-                        }
-                        // Fallback to filename if no extension
-                        return (
-                            <p
-                                className="text-[10px] text-gray-600 dark:text-gray-400 text-center truncate w-full"
-                                dir="auto"
-                            >
-                                {displayName.length > 12
-                                    ? displayName.substring(0, 10) + ".."
-                                    : displayName}
-                            </p>
-                        );
-                    })()}
-                </div>
+                <MediaThumbnail
+                    src={previewSrc}
+                    filename={displayName}
+                    mimeType={file.type}
+                    className="w-full h-full"
+                    iconSize="w-8 h-8"
+                />
             )}
 
             {/* Status overlay */}
-            {(file.status === "uploading" ||
-                file.status === "processing" ||
-                file.status === "error") && (
+            {(file.status === "uploading" || file.status === "processing") && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     {getStatusIcon()}
                 </div>
@@ -189,7 +108,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
 
             {/* Filename overlay on hover */}
             {displayName && (
-                <div className="absolute bottom-0 left-0 right-0 px-2 py-1 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                <div className="absolute bottom-0 start-0 end-0 px-2 py-1 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                     <span
                         className="text-[10px] text-white truncate block text-start"
                         dir="auto"
@@ -201,7 +120,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
 
             {/* Progress bar */}
             {(file.status === "uploading" || file.status === "processing") && (
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 dark:bg-gray-700 z-10">
+                <div className="absolute bottom-0 start-0 end-0 h-1 bg-gray-200 dark:bg-gray-700 z-10">
                     <div
                         className="h-full bg-sky-500 dark:bg-sky-400 transition-all"
                         style={{ width: `${file.progress || 0}%` }}
@@ -213,10 +132,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
             <button
                 type="button"
                 onClick={() => onRemove(file)}
-                className={cn(
-                    "absolute top-1 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                    isRTL ? "left-1" : "right-1",
-                )}
+                className="absolute top-1 end-1 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
                 title={t("Remove")}
                 aria-label={t("Remove")}
             >
@@ -228,11 +144,7 @@ function FileThumbnail({ file, onRemove, onRetry }) {
                 <button
                     type="button"
                     onClick={() => onRetry(file)}
-                    className={cn(
-                        "absolute w-6 h-6 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10",
-                        isRTL ? "left-1" : "right-1",
-                        "bottom-1",
-                    )}
+                    className="absolute w-6 h-6 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center opacity-100 transition-colors z-10 end-1 bottom-1"
                     title={t("Retry")}
                     aria-label={t("Retry")}
                 >
@@ -249,16 +161,18 @@ export default function FileUploader({
     setFiles,
     setIsUploadingMedia,
     setUrlsData,
+    chatId = null,
+    promoteChat = null,
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const { user } = useContext(AuthContext);
-    const isRTL = direction === "rtl";
     const serverUrl = "/media-helper";
     // Use default user contextId for chat files
     const contextId = user?.contextId || null;
     const [inputUrl, setInputUrl] = useState("");
     const [showUrlInput, setShowUrlInput] = useState(false);
+    const [showCollectionPicker, setShowCollectionPicker] = useState(false);
     const fileInputRef = useRef(null);
     const removedFilesRef = useRef(new Set());
     const uploadAbortControllersRef = useRef(new Map());
@@ -266,6 +180,20 @@ export default function FileUploader({
 
     // Track files internally with status
     const [internalFiles, setInternalFiles] = useState([]);
+
+    // Track blob URLs for cleanup on unmount
+    const blobUrlsRef = useRef(new Set());
+
+    // Revoke blob URLs on unmount to prevent memory leaks
+    useEffect(() => {
+        const urls = blobUrlsRef.current;
+        return () => {
+            urls.forEach((url) => {
+                URL.revokeObjectURL(url);
+            });
+            urls.clear();
+        };
+    }, []);
 
     // Sync internal files with external files prop
     useEffect(() => {
@@ -553,28 +481,11 @@ export default function FileUploader({
                     }
                 }
 
-                if (fileObj.type.startsWith("video/")) {
-                    try {
-                        const duration = await getVideoDuration(fileObj);
-                        if (duration > 3600) {
-                            throw new Error(
-                                t("Video must be less than 60 minutes long"),
-                            );
-                        }
-                    } catch (err) {
-                        console.error("Error checking video duration:", err);
-                        // Preserve the original error message if it's a validation error
-                        if (err.message && err.message.includes("60 minutes")) {
-                            throw err;
-                        }
-                        throw new Error(t("Could not verify video duration"));
-                    }
-                }
-
                 // Generate preview for images
                 let preview = null;
                 if (fileObj.type.startsWith("image/")) {
                     preview = URL.createObjectURL(fileObj);
+                    blobUrlsRef.current.add(preview);
                 }
 
                 updateFileStatus(fileId, {
@@ -583,60 +494,29 @@ export default function FileUploader({
                     progress: 0,
                 });
 
-                // Check if file exists using shared utility
+                // Chat uploads should always create a fresh file entry so
+                // folder scoping and per-upload filenames are preserved.
                 const fileHash = await hashMediaFile(fileObj);
-                const existingFile = await checkFileByHash(fileHash, {
-                    contextId,
-                    serverUrl,
-                });
 
-                if (existingFile) {
-                    // File already exists
-                    if (isSupportedFileUrl(fileObj?.name)) {
-                        const hasAzureUrl =
-                            existingFile.url &&
-                            existingFile.url.includes("blob.core.windows.net");
-                        const hasGcsUrl = existingFile.gcs;
-
-                        if (!hasAzureUrl || !hasGcsUrl) {
-                            throw new Error(
-                                t(
-                                    "Media file upload failed: Missing required storage URLs",
-                                ),
-                            );
-                        }
+                // Promote the placeholder "new" chat to a real chat before
+                // we choose a storage folder, so the file lands under the
+                // chat's real id instead of an orphaned chats/new/ folder.
+                let effectiveChatId = chatId;
+                if (promoteChat && chatId) {
+                    try {
+                        effectiveChatId = await promoteChat();
+                    } catch (err) {
+                        console.error("Chat promotion failed:", err);
+                        // Fall through with original chatId; upload still
+                        // proceeds, just lands in chats/new/ as before.
                     }
-
-                    const responseWithFilename = {
-                        ...existingFile,
-                        hash: existingFile.hash || fileHash,
-                    };
-
-                    if (
-                        isFileRemoved(fileObj.name) ||
-                        isFileRemoved(responseWithFilename.url) ||
-                        isFileRemoved(responseWithFilename.gcs)
-                    ) {
-                        processingFilesRef.current.delete(fileId);
-                        throw new Error(
-                            t(
-                                "File was removed before processing could complete.",
-                            ),
-                        );
-                    }
-
-                    processingFilesRef.current.delete(fileId);
-                    updateFileStatus(fileId, {
-                        status: "completed",
-                        progress: 100,
-                        serverId: responseWithFilename.url,
-                    });
-                    addUrl(responseWithFilename);
-                    setIsUploadingMedia(false);
-                    return;
                 }
+                const storageTarget = createChatStorageTarget(
+                    contextId,
+                    effectiveChatId,
+                );
 
-                // File doesn't exist, upload it with custom progress tracking
+                // Upload the file without hash dedupe for chat-scoped files.
                 const startTimestamp = Date.now();
                 const totalBytes = fileObj.size;
                 let cloudProgressInterval;
@@ -645,8 +525,8 @@ export default function FileUploader({
                     const responseData = await uploadFileToMediaHelper(
                         fileObj,
                         {
-                            contextId,
-                            checkHash: false, // Already checked above
+                            storageTarget,
+                            checkHash: false,
                             serverUrl,
                             getXHR: (xhr) => {
                                 uploadAbortControllersRef.current.set(fileId, {
@@ -709,9 +589,8 @@ export default function FileUploader({
                         const hasAzureUrl =
                             responseData.url &&
                             responseData.url.includes("blob.core.windows.net");
-                        const hasGcsUrl = responseData.gcs;
 
-                        if (!hasAzureUrl || !hasGcsUrl) {
+                        if (!hasAzureUrl) {
                             processingFilesRef.current.delete(fileId);
                             updateFileStatus(fileId, {
                                 status: "error",
@@ -728,12 +607,16 @@ export default function FileUploader({
                         ...responseData,
                         displayFilename: fileObj.name,
                         hash: responseData.hash || fileHash,
+                        mimeType:
+                            responseData.mimeType ||
+                            responseData.type ||
+                            fileObj.type ||
+                            "",
                     };
 
                     if (
                         isFileRemoved(fileObj.name) ||
-                        isFileRemoved(responseWithFilename.url) ||
-                        isFileRemoved(responseWithFilename.gcs)
+                        isFileRemoved(responseWithFilename.url)
                     ) {
                         processingFilesRef.current.delete(fileId);
                         updateFileStatus(fileId, {
@@ -787,6 +670,8 @@ export default function FileUploader({
             setIsUploadingMedia,
             processUrlFile,
             contextId,
+            chatId,
+            promoteChat,
         ],
     );
 
@@ -851,15 +736,8 @@ export default function FileUploader({
     const handleFileSelect = useCallback(
         (selectedFiles) => {
             const fileArray = Array.from(selectedFiles);
-            const validFiles = fileArray.filter((file) =>
-                ACCEPTED_FILE_TYPES.includes(file.type),
-            );
 
-            if (validFiles.length !== fileArray.length) {
-                alert(t("Invalid file type"));
-            }
-
-            const newFiles = validFiles.map((file, index) => ({
+            const newFiles = fileArray.map((file, index) => ({
                 id: `file-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`,
                 source: file,
                 file: file,
@@ -873,7 +751,7 @@ export default function FileUploader({
 
             setFiles((prevFiles) => [...prevFiles, ...newFiles]);
         },
-        [t, setFiles],
+        [setFiles],
     );
 
     const handleRemove = useCallback(
@@ -892,9 +770,6 @@ export default function FileUploader({
             }
             if (file.source?.url) {
                 removedFilesRef.current.add(file.source.url);
-            }
-            if (file.source?.gcs) {
-                removedFilesRef.current.add(file.source.gcs);
             }
             if (typeof file.source === "string") {
                 removedFilesRef.current.add(file.source);
@@ -933,7 +808,6 @@ export default function FileUploader({
                     prevUrls.filter(
                         (url) =>
                             url.url !== file.serverId &&
-                            url.gcs !== file.serverId &&
                             url.filename !== file.filename &&
                             url.displayFilename !== file.displayFilename,
                     ),
@@ -942,6 +816,7 @@ export default function FileUploader({
 
             if (file.preview) {
                 URL.revokeObjectURL(file.preview);
+                blobUrlsRef.current.delete(file.preview);
             }
 
             setFiles((prevFiles) => {
@@ -953,6 +828,44 @@ export default function FileUploader({
             });
         },
         [setFiles, setIsUploadingMedia, setUrlsData],
+    );
+
+    const handleAttachFromCollection = useCallback(
+        (selectedObjects) => {
+            if (!selectedObjects || selectedObjects.length === 0) return;
+
+            const attached = selectedObjects.map((file, index) => {
+                const displayFilename =
+                    file.displayName ||
+                    file.displayFilename ||
+                    file.filename ||
+                    file.name ||
+                    getFilename(file.url || "");
+                const id = `cfh-${file.blobPath || file.url || index}-${Date.now()}`;
+                const attachment = {
+                    url: file.url,
+                    displayFilename,
+                    hash: file.hash,
+                    blobPath: file.blobPath,
+                    converted: file.converted,
+                };
+                addUrl(attachment);
+                return {
+                    id,
+                    source: { url: file.url, ...file },
+                    filename: displayFilename,
+                    name: displayFilename,
+                    type: file.type || file.mimeType || "",
+                    size: file.size || 0,
+                    status: "completed",
+                    progress: 100,
+                    serverId: file.url,
+                };
+            });
+
+            setFiles((prev) => [...prev, ...attached]);
+        },
+        [addUrl, setFiles],
     );
 
     const handleRetry = useCallback(
@@ -998,93 +911,101 @@ export default function FileUploader({
                     "flex-col sm:flex-row",
                 )}
             >
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
-                        "w-full sm:w-auto",
-                        isRTL && "flex-row-reverse",
-                    )}
-                    aria-label={t("Attach files")}
-                >
-                    <Paperclip className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{t("Attach files")}</span>
-                </button>
-
-                <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:w-auto">
-                    {!showUrlInput ? (
+                {!showUrlInput ? (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className={cn(
+                                "flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
+                                "w-full sm:w-auto",
+                            )}
+                            aria-label={t("From device")}
+                        >
+                            <Monitor className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{t("From device")}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowCollectionPicker(true)}
+                            className={cn(
+                                "flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
+                                "w-full sm:w-auto",
+                            )}
+                            aria-label={t("From file collection")}
+                        >
+                            <FolderOpen className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">
+                                {t("From file collection")}
+                            </span>
+                        </button>
                         <button
                             type="button"
                             onClick={() => setShowUrlInput(true)}
                             className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
+                                "flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors h-9",
                                 "w-full sm:w-auto",
-                                isRTL && "flex-row-reverse",
                             )}
-                            aria-label={t("Add File URL")}
+                            aria-label={t("From URL")}
                         >
                             <LinkIcon className="w-4 h-4 flex-shrink-0" />
-                            <span className="truncate">
-                                {t("Add File URL")}
-                            </span>
+                            <span className="truncate">{t("From URL")}</span>
                         </button>
-                    ) : (
-                        <>
-                            <input
-                                type="text"
-                                value={inputUrl}
-                                onChange={(e) => setInputUrl(e.target.value)}
-                                placeholder={t("Enter file URL...")}
-                                className={cn(
-                                    "flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 h-9",
-                                    "min-w-0",
-                                )}
-                                dir="ltr"
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleAddUrl();
-                                    }
-                                    if (e.key === "Escape") {
-                                        setShowUrlInput(false);
-                                        setInputUrl("");
-                                    }
-                                }}
-                                autoFocus
-                                aria-label={t("Enter file URL...")}
-                            />
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={handleAddUrl}
-                                disabled={!inputUrl}
-                                className="h-9 flex-shrink-0"
-                                aria-label={t("Add")}
-                            >
-                                {t("Add")}
-                            </Button>
-                            <button
-                                type="button"
-                                onClick={() => {
+                    </>
+                ) : (
+                    <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
+                        <input
+                            type="text"
+                            value={inputUrl}
+                            onChange={(e) => setInputUrl(e.target.value)}
+                            placeholder={t("Enter file URL...")}
+                            className={cn(
+                                "flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-sky-500 h-9",
+                                "min-w-0",
+                            )}
+                            dir="ltr"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddUrl();
+                                }
+                                if (e.key === "Escape") {
                                     setShowUrlInput(false);
                                     setInputUrl("");
-                                }}
-                                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded h-9 w-9 flex items-center justify-center flex-shrink-0"
-                                aria-label={t("Close")}
-                                title={t("Close")}
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </>
-                    )}
-                </div>
+                                }
+                            }}
+                            autoFocus
+                            aria-label={t("Enter file URL...")}
+                        />
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleAddUrl}
+                            disabled={!inputUrl}
+                            className="h-9 flex-shrink-0"
+                            aria-label={t("Add")}
+                        >
+                            {t("Add")}
+                        </Button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowUrlInput(false);
+                                setInputUrl("");
+                            }}
+                            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded h-9 w-9 flex items-center justify-center flex-shrink-0"
+                            aria-label={t("Close")}
+                            title={t("Close")}
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
 
                 <input
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={ACCEPTED_FILE_TYPES.join(",")}
                     className="hidden"
                     onChange={(e) => {
                         if (e.target.files) {
@@ -1092,9 +1013,16 @@ export default function FileUploader({
                         }
                         e.target.value = "";
                     }}
-                    aria-label={t("Attach files")}
+                    aria-label={t("From device")}
                 />
             </div>
+
+            <FileCollectionPickerModal
+                isOpen={showCollectionPicker}
+                onClose={() => setShowCollectionPicker(false)}
+                chatId={chatId}
+                onAttach={handleAttachFromCollection}
+            />
         </div>
     );
 }

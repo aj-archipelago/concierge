@@ -13,6 +13,7 @@ async function createBackgroundTask({
     timeout = 5 * 60 * 1000, // default 5 minutes
     synchronous = false, // Add synchronous flag
     invokedFrom,
+    automation,
 }) {
     // Create initial progress record with pending status
     const requestProgress = await Task.create({
@@ -22,6 +23,8 @@ async function createBackgroundTask({
         progress: 0,
         metadata,
         invokedFrom,
+        automation,
+        automationRefId: automation?.automationId ?? null,
     });
 
     const jobData = {
@@ -29,6 +32,7 @@ async function createBackgroundTask({
         type,
         userId,
         metadata,
+        automation,
     };
 
     if (synchronous) {

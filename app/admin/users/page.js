@@ -28,13 +28,17 @@ export default async function UsersPage({ searchParams }) {
     const users = await User.find(searchQuery, "-__v")
         .skip(skip)
         .limit(limit)
-        .sort({ createdAt: -1 });
+        .sort({ createdAt: -1 })
+        .lean();
+
+    // Serialize for client component (ObjectIds → strings)
+    const serializedUsers = JSON.parse(JSON.stringify(users));
 
     const currentUser = await getCurrentUser();
 
     return (
         <UserManagementClient
-            initialUsers={users}
+            initialUsers={serializedUsers}
             currentUser={currentUser}
             totalPages={totalPages}
             currentPage={page}

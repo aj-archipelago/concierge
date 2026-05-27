@@ -233,12 +233,12 @@ html[dir="ltr"] {
             margin-top: 5px;
             padding: 10px;
 
-            &-labeeb {
+            &-assistant {
                 padding: 7px;
             }
         }
 
-        .chat-message-labeeb {
+        .chat-message-assistant {
             margin-top: 0;
         }
 
@@ -273,7 +273,12 @@ html[dir="ltr"] {
     margin-top: 0;
     margin-bottom: 0;
     padding-inline-end: 4px;
-    font-family: $font-family-sans-serif;
+    font-family:
+        "Noto Sans",
+        "Noto Sans Arabic",
+        system-ui,
+        -apple-system,
+        sans-serif;
     font-size: 14px;
     line-height: 1.5;
     overflow: hidden;
@@ -281,7 +286,12 @@ html[dir="ltr"] {
 
 .chat-message-bot {
     // Typography
-    font-family: $font-family-sans-serif;
+    font-family:
+        "Noto Sans",
+        "Noto Sans Arabic",
+        system-ui,
+        -apple-system,
+        sans-serif;
     font-size: 14px; // Good readability size
     line-height: 1.5; // Spacing for readability
     color: #333; // Dark color for contrast
@@ -507,7 +517,7 @@ html[dir="ltr"] {
     }
 }
 
-.chat-message-container-labeeb {
+.chat-message-container-assistant {
     background-color: $chat-primary;
 }
 
@@ -604,6 +614,13 @@ html[dir="ltr"] {
 }
 
 .chat-message {
+    font-family:
+        "Noto Sans",
+        "Noto Sans Arabic",
+        system-ui,
+        -apple-system,
+        sans-serif;
+
     pre,
     code {
         overflow-x: auto;
@@ -794,11 +811,49 @@ html[dir="ltr"] {
     white-space: pre-wrap !important;
     overflow: visible !important;
 
-    *:not(.copy-notification) {
+    pre,
+    code,
+    pre *,
+    code * {
         white-space: pre-wrap !important;
         word-break: break-word !important;
         overflow-wrap: break-word !important;
     }
+}
+
+.code-block-preview-surface {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.chat-markdown-preview,
+.chat-markdown-preview .chat-message-bot,
+.chat-markdown-preview .chat-message,
+.chat-markdown-preview .chat-message * {
+    white-space: normal !important;
+}
+
+.chat-markdown-preview .chat-message pre,
+.chat-markdown-preview .chat-message pre *,
+.chat-markdown-preview .chat-message code,
+.chat-markdown-preview .chat-message code * {
+    white-space: pre-wrap !important;
+}
+
+.chat-markdown-preview .chat-message code:not(pre code) {
+    white-space: normal !important;
+}
+
+.tool-call-box,
+.tool-badge {
+    font-family:
+        "Noto Sans",
+        "Noto Sans Arabic",
+        system-ui,
+        -apple-system,
+        sans-serif;
 }
 
 .tool-badge {

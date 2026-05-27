@@ -8,15 +8,37 @@ jest.mock("next/navigation", () => ({
     redirect: jest.fn(),
 }));
 
+const mockHeadersGet = jest.fn();
+jest.mock("next/headers", () => ({
+    headers: () => ({ get: mockHeadersGet }),
+}));
+
 // Mock the auth utility
 jest.mock("../../api/utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
 describe("AdminLayout", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
     beforeEach(() => {
         // Clear all mocks before each test
         jest.clearAllMocks();
+        mockHeadersGet.mockReturnValue("example.com");
+    });
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+    });
+
+    it("should allow non-admin users on localhost", async () => {
+        process.env.NODE_ENV = "development";
+        mockHeadersGet.mockReturnValue("localhost:3000");
+        getCurrentUser.mockResolvedValue({ role: "user" });
+
+        await AdminLayout({ children: <div>Test Content</div> });
+
+        expect(redirect).not.toHaveBeenCalled();
     });
 
     it("should redirect non-admin users to home page", async () => {

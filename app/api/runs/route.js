@@ -3,8 +3,8 @@ import Run from "../models/run";
 import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";
 import { buildWorkspacePromptVariables } from "../utils/llm-file-utils";
-import { getPromptWithMigration } from "../utils/prompt-utils";
-import { filterValidFiles } from "../utils/file-validation-utils";
+import { getPromptConfig } from "../utils/prompt-utils";
+import config from "../../../config";
 
 export async function POST(req, res) {
     const startedAt = Date.now();
@@ -18,7 +18,10 @@ export async function POST(req, res) {
     const { getWorkspacePromptQuery, getWorkspaceAgentQuery } = QUERIES;
 
     try {
-        const promptData = await getPromptWithMigration(promptId);
+        const promptData = await getPromptConfig(
+            promptId,
+            config.cortex.defaultChatModel,
+        );
         if (!promptData) {
             return Response.json(
                 { message: "Prompt not found" },
@@ -26,7 +29,7 @@ export async function POST(req, res) {
             );
         }
 
-        const { prompt, pathwayName, model, researchMode, agentMode } =
+        const { prompt, pathwayName, model, reasoningEffort, agentMode } =
             promptData;
 
         // Fetch workspace to get systemPrompt (workspace context)
@@ -39,28 +42,33 @@ export async function POST(req, res) {
             }
         }
 
-        // Collect all files (client files + prompt files)
-        // Filter out errored files
-        const allFiles = [];
-        if (files && files.length > 0) {
-            allFiles.push(...files);
-        }
-        if (prompt.files && prompt.files.length > 0) {
-            const validPromptFiles = await filterValidFiles(prompt.files);
-            allFiles.push(...validPromptFiles);
-        }
+        const promptFiles = Array.isArray(prompt.files)
+            ? prompt.files.filter(Boolean)
+            : [];
+        const requestFiles = Array.isArray(files) ? files : [];
 
-        // Build variables - include agentContext only for agent pathways
+        console.info("[workspace runs] file counts", {
+            workspaceId: workspaceId || null,
+            promptId: promptId || null,
+            requestFiles: requestFiles.length,
+            promptFiles: promptFiles.length,
+            totalFiles: requestFiles.length + promptFiles.length,
+            agentMode,
+            pathwayName,
+        });
+
+        // Build variables with explicit prompt-file and request-file routing.
         const variables = await buildWorkspacePromptVariables({
             systemPrompt: workspaceSystemPrompt,
             prompt: prompt.text,
             text: text,
-            files: allFiles,
+            sharedFiles: promptFiles,
+            userFiles: requestFiles,
+            appletId: workspace?.applet?.toString() || null,
             workspaceId: workspace?._id?.toString() || null,
             workspaceContextKey: workspace?.contextKey || null,
             userContextId: user?.contextId || null,
             userContextKey: user?.contextKey || null,
-            useCompoundContextId: true, // Use compound contextId for user files
         });
 
         variables.model = model;
@@ -68,14 +76,19 @@ export async function POST(req, res) {
         // Use agent query for agent pathways, regular query for non-agent
         let query;
         if (agentMode) {
-            // Pass researchMode for agent pathways
-            if (researchMode) {
-                variables.researchMode = true;
+            variables.entityId = user?.personalEntityId || "";
+            if (user?.aiName) {
+                variables.aiName = user.aiName;
+            }
+            // Pass reasoningEffort for agent pathways
+            if (reasoningEffort) {
+                variables.reasoningEffort = reasoningEffort;
             }
             query = getWorkspaceAgentQuery(pathwayName);
         } else {
-            // Non-agent pathways don't use agentContext or researchMode
-            delete variables.agentContext;
+            // Non-agent pathways still use fileAccessPlan for available file listing.
+            delete variables.contextId;
+            delete variables.contextKey;
             query = getWorkspacePromptQuery(pathwayName);
         }
 

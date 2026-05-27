@@ -24,9 +24,13 @@ import { AppWindow, GripVertical, X, Plus, Edit } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
+import { useDispatch } from "react-redux";
 import { useCurrentUser, useUpdateCurrentUser } from "../queries/users";
+import { useAddChat } from "../queries/chats";
 import axios from "../utils/axios-client";
 import { Search } from "lucide-react";
+import { openCanvas, setActiveCanvasChat } from "@/src/stores/chatSlice";
+import { getTextProxyUrl } from "@/src/utils/proxyUrl";
 
 function SortableAppItem({ app, onRemove, isCollapsed }) {
     const {
@@ -100,11 +104,27 @@ function SortableAppItem({ app, onRemove, isCollapsed }) {
     );
 }
 
+function resolveCanvasAppletId(app) {
+    const raw = app?.appletId;
+    if (!raw) return null;
+    if (typeof raw === "object" && raw?._id) return String(raw._id);
+    return String(raw);
+}
+
+function resolveWorkspaceId(app) {
+    const raw = app?.workspaceId;
+    if (!raw) return null;
+    if (typeof raw === "object" && raw?._id) return String(raw._id);
+    return String(raw);
+}
+
 export default function AppsPage() {
     const { t } = useTranslation();
     const router = useRouter();
+    const dispatch = useDispatch();
     const { data: currentUser, isLoading } = useCurrentUser();
     const updateUser = useUpdateCurrentUser();
+    const addChat = useAddChat();
     const [userApps, setUserApps] = useState([]);
     const [availableApps, setAvailableApps] = useState([]);
     const [activeId, setActiveId] = useState(null);
@@ -388,7 +408,7 @@ export default function AppsPage() {
                                             onChange={(e) =>
                                                 setSearchQuery(e.target.value)
                                             }
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pr-10 rtl:text-right bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
+                                            className="w-full ps-10 pe-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent rtl:pl-4 rtl:pe-10 rtl:text-right bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
                                         />
                                     </div>
                                 </div>
@@ -525,13 +545,116 @@ export default function AppsPage() {
                                                         <div className="absolute top-2 right-2 flex gap-1 rtl:left-2 rtl:right-auto">
                                                             {isOwner && (
                                                                 <button
-                                                                    onClick={(
+                                                                    onClick={async (
                                                                         e,
                                                                     ) => {
                                                                         e.stopPropagation();
-                                                                        router.push(
-                                                                            `/workspaces/${app.workspaceId}`,
-                                                                        );
+                                                                        const canvasId =
+                                                                            resolveCanvasAppletId(
+                                                                                app,
+                                                                            );
+                                                                        if (
+                                                                            canvasId
+                                                                        ) {
+                                                                            try {
+                                                                                const res =
+                                                                                    await fetch(
+                                                                                        `/api/canvas-applets/${canvasId}`,
+                                                                                    );
+                                                                                if (
+                                                                                    !res.ok
+                                                                                )
+                                                                                    return;
+                                                                                const applet =
+                                                                                    await res.json();
+                                                                                if (
+                                                                                    !applet?.filePath
+                                                                                )
+                                                                                    return;
+                                                                                const htmlRes =
+                                                                                    await fetch(
+                                                                                        getTextProxyUrl(
+                                                                                            applet.filePath,
+                                                                                        ),
+                                                                                    );
+                                                                                if (
+                                                                                    !htmlRes.ok
+                                                                                )
+                                                                                    return;
+                                                                                const htmlContent =
+                                                                                    await htmlRes.text();
+                                                                                const title =
+                                                                                    applet.name ||
+                                                                                    t(
+                                                                                        "Untitled Applet",
+                                                                                    );
+                                                                                const chat =
+                                                                                    await addChat.mutateAsync(
+                                                                                        {
+                                                                                            messages:
+                                                                                                [],
+                                                                                            title,
+                                                                                            forceNew: true,
+                                                                                            isUnused: false,
+                                                                                        },
+                                                                                    );
+                                                                                const chatId =
+                                                                                    String(
+                                                                                        chat?._id ||
+                                                                                            "",
+                                                                                    );
+                                                                                if (
+                                                                                    !chatId
+                                                                                )
+                                                                                    return;
+                                                                                dispatch(
+                                                                                    setActiveCanvasChat(
+                                                                                        chatId,
+                                                                                    ),
+                                                                                );
+                                                                                dispatch(
+                                                                                    openCanvas(
+                                                                                        {
+                                                                                            type: "html",
+                                                                                            title,
+                                                                                            htmlContent,
+                                                                                            url: applet.filePath,
+                                                                                            appletId:
+                                                                                                applet._id,
+                                                                                            workspacePath:
+                                                                                                applet.workspacePath ||
+                                                                                                null,
+                                                                                            fileHash:
+                                                                                                applet.fileHash ||
+                                                                                                null,
+                                                                                            blobPath:
+                                                                                                applet.fileBlobPath ||
+                                                                                                null,
+                                                                                        },
+                                                                                    ),
+                                                                                );
+                                                                                router.push(
+                                                                                    `/chat/${chatId}`,
+                                                                                );
+                                                                            } catch (error) {
+                                                                                console.error(
+                                                                                    "Error opening applet:",
+                                                                                    error,
+                                                                                );
+                                                                            }
+                                                                            return;
+                                                                        }
+                                                                        const wsId =
+                                                                            resolveWorkspaceId(
+                                                                                app,
+                                                                            );
+                                                                        if (
+                                                                            wsId
+                                                                        ) {
+                                                                            router.push(
+                                                                                `/workspaces/${wsId}`,
+                                                                            );
+                                                                        }
                                                                     }}
                                                                     className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                                                     title={t(

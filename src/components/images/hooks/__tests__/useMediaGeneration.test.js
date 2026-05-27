@@ -363,7 +363,7 @@ describe("useMediaGeneration settings snapshot", () => {
                         },
                     },
                 },
-                outputFolder: "Article Demo",
+                outputFolder: "Concierge Article Demo",
                 runTask,
                 createMediaItem,
                 promptRef,
@@ -377,12 +377,12 @@ describe("useMediaGeneration settings snapshot", () => {
 
         expect(runTask.mutateAsync).toHaveBeenCalledWith(
             expect.objectContaining({
-                outputFolder: "Article Demo",
+                outputFolder: "Concierge Article Demo",
             }),
         );
         expect(createMediaItem.mutateAsync).toHaveBeenCalledWith(
             expect.objectContaining({
-                outputFolder: "Article Demo",
+                outputFolder: "Concierge Article Demo",
                 status: "pending",
             }),
         );

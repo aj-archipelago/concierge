@@ -13,6 +13,8 @@ export function OpenAIIcon({ className = "w-4 h-4" }) {
             src={`${basePath || ""}/assets/${iconFile}`}
             alt="OpenAI"
             className={className}
+            loading="eager"
+            decoding="sync"
         />
     );
 }
@@ -23,6 +25,8 @@ export function GoogleGeminiIcon({ className = "w-4 h-4" }) {
             src={`${basePath || ""}/assets/google-icon.svg`}
             alt="Google"
             className={className}
+            loading="eager"
+            decoding="sync"
         />
     );
 }
@@ -33,6 +37,8 @@ export function AnthropicIcon({ className = "w-4 h-4" }) {
             src={`${basePath || ""}/assets/claude-icon.svg`}
             alt="Anthropic"
             className={className}
+            loading="eager"
+            decoding="sync"
         />
     );
 }
@@ -45,6 +51,23 @@ export function XAIGrokIcon({ className = "w-4 h-4" }) {
             src={`${basePath || ""}/assets/${iconFile}`}
             alt="XAI"
             className={className}
+            loading="eager"
+            decoding="sync"
+        />
+    );
+}
+
+export function MoonshotIcon({ className = "w-4 h-4" }) {
+    const { theme } = useContext(ThemeContext);
+    const iconFile =
+        theme === "dark" ? "moonshot-dark.svg" : "moonshot-light.svg";
+    return (
+        <img
+            src={`${basePath || ""}/assets/${iconFile}`}
+            alt="Moonshot"
+            className={className}
+            loading="eager"
+            decoding="sync"
         />
     );
 }

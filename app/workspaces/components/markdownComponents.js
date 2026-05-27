@@ -4,24 +4,30 @@
  * for markdown rendering across PromptList and WorkspaceInput components.
  */
 export const workspaceMarkdownComponents = {
-    p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-    h1: ({ node, ...props }) => (
-        <h1 className="text-sm font-bold mb-2 mt-2 first:mt-0" {...props} />
+    p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+    h1: ({ children, ...props }) => (
+        <h1 className="text-sm font-bold mb-2 mt-2 first:mt-0" {...props}>
+            {children}
+        </h1>
     ),
-    h2: ({ node, ...props }) => (
-        <h2 className="text-xs font-bold mb-1 mt-2 first:mt-0" {...props} />
+    h2: ({ children, ...props }) => (
+        <h2 className="text-xs font-bold mb-1 mt-2 first:mt-0" {...props}>
+            {children}
+        </h2>
     ),
-    h3: ({ node, ...props }) => (
-        <h3 className="text-xs font-semibold mb-1 mt-1 first:mt-0" {...props} />
+    h3: ({ children, ...props }) => (
+        <h3 className="text-xs font-semibold mb-1 mt-1 first:mt-0" {...props}>
+            {children}
+        </h3>
     ),
-    ul: ({ node, ...props }) => (
+    ul: ({ ...props }) => (
         <ul className="list-disc list-inside mb-2 space-y-0.5" {...props} />
     ),
-    ol: ({ node, ...props }) => (
+    ol: ({ ...props }) => (
         <ol className="list-decimal list-inside mb-2 space-y-0.5" {...props} />
     ),
-    li: ({ node, ...props }) => <li className="text-xs" {...props} />,
-    code: ({ node, inline, ...props }) =>
+    li: ({ ...props }) => <li className="text-xs" {...props} />,
+    code: ({ inline, ...props }) =>
         inline ? (
             <code
                 className="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-xs font-mono"
@@ -33,13 +39,13 @@ export const workspaceMarkdownComponents = {
                 {...props}
             />
         ),
-    pre: ({ node, ...props }) => (
+    pre: ({ ...props }) => (
         <pre
             className="bg-gray-200 dark:bg-gray-700 p-2 rounded text-xs font-mono overflow-x-auto mb-2"
             {...props}
         />
     ),
-    a: ({ node, href, children, ...props }) => (
+    a: ({ href, children, ...props }) => (
         <a
             href={href}
             target="_blank"
@@ -50,7 +56,7 @@ export const workspaceMarkdownComponents = {
             {children}
         </a>
     ),
-    blockquote: ({ node, ...props }) => (
+    blockquote: ({ ...props }) => (
         <blockquote
             className="border-l-4 border-gray-300 dark:border-gray-600 pl-2 italic mb-2"
             {...props}

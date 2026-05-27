@@ -1,7 +1,17 @@
 import Task from "../../models/task.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth";
-import { checkAndUpdateAbandonedTask } from "../../utils/task-utils.mjs";
+import {
+    checkAndUpdateAbandonedTask,
+    syncTaskWithBullMQJob,
+} from "../../utils/task-utils.mjs";
+
+const TERMINAL_TASK_STATUSES = new Set([
+    "abandoned",
+    "cancelled",
+    "completed",
+    "failed",
+]);
 
 export async function GET(request, { params }) {
     try {
@@ -21,6 +31,9 @@ export async function GET(request, { params }) {
             );
         }
 
+        if (!TERMINAL_TASK_STATUSES.has(task.status)) {
+            await syncTaskWithBullMQJob(task);
+        }
         const updatedTask = await checkAndUpdateAbandonedTask(task);
         return NextResponse.json(updatedTask);
     } catch (error) {

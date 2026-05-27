@@ -53,7 +53,7 @@ describe("POST /api/applet/service-token", () => {
         process.env = {
             ...originalEnv,
             NEXT_PUBLIC_ATLASSIAN_CLIENT_ID: "atlassian-client",
-            ATLASSIAN_CLIENT_CREDENTIAL: "atlassian-credential",
+            JIRA_CLIENT_SECRET: "atlassian-secret",
         };
     });
 

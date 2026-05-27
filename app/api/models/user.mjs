@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import uploadedDocsSchema from "./uploaded-docs.mjs";
-
 // Define the User schema
 const userSchema = new mongoose.Schema(
     {
@@ -45,7 +44,7 @@ const userSchema = new mongoose.Schema(
         aiName: {
             type: String,
             required: false,
-            default: "Labeeb",
+            default: "Concierge",
         },
         agentModel: {
             type: String,
@@ -56,6 +55,12 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             required: false,
             default: false,
+        },
+        reasoningEffort: {
+            type: String,
+            required: false,
+            default: "low",
+            enum: ["none", "low", "medium", "high"],
         },
         uploadedDocs: {
             type: [uploadedDocsSchema],
@@ -113,6 +118,29 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: false,
             trim: true,
+        },
+        profilePictureBlobPath: {
+            type: String,
+            required: false,
+            trim: true,
+        },
+        personalEntityId: {
+            type: String,
+            required: false,
+            trim: true,
+        },
+        personalEntityProvisioningAt: {
+            type: Date,
+            required: false,
+        },
+        mcpServers: {
+            type: mongoose.Schema.Types.Mixed,
+            required: false,
+            default: {},
+        },
+        mcpOAuthPending: {
+            type: mongoose.Schema.Types.Mixed,
+            required: false,
         },
     },
     {

@@ -31,3 +31,5 @@ export async function GET(req, res) {
         return Response.json({ error: error.message }, { status: 500 });
     }
 }
+
+export const dynamic = "force-dynamic";

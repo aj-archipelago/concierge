@@ -18,7 +18,7 @@
     - `cortexModelName`: String (required) - Model name for Cortex
     - `isDefault`: Boolean - Marks default LLM
     - `isAgentic`: Boolean - Whether model uses agentic pathway
-- **Setup**: Seeded via `instrumentation.js` from `config.data.llms`
+- **Setup**: Migrated from legacy static config; model metadata is fetched at runtime from Cortex via the `SYS_MODEL_METADATA` GraphQL query
 - **Required**: At least one LLM with `isDefault: true` in database
 
 #### Run Model (`app/api/models/run.js`)
@@ -121,7 +121,7 @@
 
 ```bash
 # Required
-MONGO_URI=mongodb://localhost:27017/labeeb  # or your MongoDB connection string
+MONGO_URI=mongodb://localhost:27017/concierge  # or your MongoDB connection string
 CORTEX_GRAPHQL_API_URL=https://<site>.azure-api.net/graphql?subscription-key=<key>
 
 # Optional (for encryption)
@@ -137,11 +137,10 @@ MONGOCRYPT_PATH=/path/to/mongocryptd
     - Database connection is established via `instrumentation.js` on app startup
     - Connection is shared across all API routes
 
-2. **LLM Seeding**:
+2. **LLM Model Metadata**:
 
-    - LLMs are seeded from `config.data.llms` in `instrumentation.js`
-    - At least one LLM must have `isDefault: true`
-    - LLMs are upserted based on `identifier` field
+    - Model metadata is fetched at runtime from Cortex via the `SYS_MODEL_METADATA` GraphQL query
+    - Legacy LLM records are migrated by `instrumentation.js` for databases that still have them
 
 3. **User Creation**:
     - Users are auto-created on first authentication

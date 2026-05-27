@@ -1,17 +1,19 @@
 import { getClient, QUERIES } from "../../../src/graphql";
-import LLM from "../models/llm";
 import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
 import {
-    buildAgentContext,
+    buildFileAccessPlan,
+    buildRunContext,
     prepareFileContentForLLM,
 } from "../utils/llm-file-utils";
+import { createWorkspaceSharedStorageTarget } from "../../../src/utils/storageTargets";
+import config from "../../../config";
 
 const STYLE_GUIDE_CONTEXT_ID = "style-guide-check";
 
 export async function POST(req, res) {
     const body = await req.json();
-    const { text, llmId, files, agentMode, researchMode } = body;
+    const { text, llmId, files, agentMode, reasoningEffort } = body;
 
     const user = await getCurrentUser();
 
@@ -20,28 +22,17 @@ export async function POST(req, res) {
     try {
         let responseText;
 
-        let llm;
-        if (llmId) {
-            llm = await LLM.findOne({ _id: llmId });
-        }
+        // llmId is a cortex model name (e.g. "oai-gpt52"), or use default
+        const model = llmId || config.cortex.defaultChatModel;
 
-        // If no LLM is found, use the default LLM
-        if (!llm) {
-            llm = await LLM.findOne({ isDefault: true });
-        }
+        const isAgentic = agentMode || false;
+        const useReasoningEffort = reasoningEffort || null;
 
-        const model = llm.cortexModelName;
-        // Allow agentMode to override LLM's isAgentic setting
-        const isAgentic =
-            agentMode !== undefined ? agentMode : llm.isAgentic || false;
-        const useResearchMode = researchMode === true;
-
-        // All agent modes use run_workspace_agent; non-agent uses LLM's pathway
         const pathwayName = isAgentic
             ? "run_workspace_agent"
-            : llm.cortexPathwayName;
+            : "run_workspace_prompt";
 
-        // Use agent query for agentic LLMs, regular query for non-agentic
+        // Use agent query for agentic mode, regular query for non-agentic
         const query = isAgentic
             ? getWorkspaceAgentQuery(pathwayName)
             : getWorkspacePromptQuery(pathwayName);
@@ -94,13 +85,12 @@ Provide only the corrected text without any titles, explanations or comments abo
         const userContextId = user?.contextId || null;
         if (files && files.length > 0) {
             // Style guide files are always in "style-guide-check" context
-            const fileContent = await prepareFileContentForLLM(
-                files,
-                STYLE_GUIDE_CONTEXT_ID, // Style guide files are always in this context
-                userContextId,
-                true, // Fetch short-lived URLs
-                false, // No compound context needed for style guide files
-            );
+            const fileContent = await prepareFileContentForLLM(files, {
+                storageTarget: createWorkspaceSharedStorageTarget(
+                    STYLE_GUIDE_CONTEXT_ID,
+                ),
+                fetchShortLivedUrls: true,
+            });
             contentArray.push(...fileContent);
         }
 
@@ -144,25 +134,34 @@ Provide only the corrected text without any titles, explanations or comments abo
 
         variables.chatHistory = chatHistory;
 
-        // Only include agentContext for agentic LLMs
+        const fileAccessPlan = buildFileAccessPlan({
+            workspaceId: STYLE_GUIDE_CONTEXT_ID,
+            userContextId,
+            userContextKey: user?.contextKey || null,
+            workspaceContextKey: null,
+        });
+        if (fileAccessPlan.length > 0) {
+            variables.fileAccessPlan = fileAccessPlan;
+        }
+
         if (isAgentic) {
-            // Build agentContext for Cortex API
-            // Style guide files are always in "style-guide-check" context
-            const agentContext = buildAgentContext({
+            const runContext = buildRunContext({
                 workspaceId: STYLE_GUIDE_CONTEXT_ID,
-                workspaceContextKey: null, // Style guide context doesn't use encryption keys
+                workspaceContextKey: null,
                 userContextId,
                 userContextKey: user?.contextKey || null,
-                includeCompoundContext: false, // No compound context for style guide files
             });
 
-            if (agentContext.length > 0) {
-                variables.agentContext = agentContext;
+            variables.contextId = runContext.contextId;
+            variables.contextKey = runContext.contextKey;
+            variables.entityId = user?.personalEntityId || "";
+            if (user?.aiName) {
+                variables.aiName = user.aiName;
             }
 
-            // Pass researchMode for agent pathways
-            if (useResearchMode) {
-                variables.researchMode = true;
+            // Pass reasoningEffort for agent pathways
+            if (useReasoningEffort) {
+                variables.reasoningEffort = useReasoningEffort;
             }
         }
 

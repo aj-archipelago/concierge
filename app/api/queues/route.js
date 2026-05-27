@@ -9,6 +9,9 @@ const QUEUES = {
     "digest-build": new Queue("digest-build", {
         connection: getRedisConnection(),
     }),
+    "automation-scheduler": new Queue("automation-scheduler", {
+        connection: getRedisConnection(),
+    }),
 };
 
 const JOB_DATA_WHITELIST = {
@@ -33,11 +36,6 @@ const JOB_DATA_WHITELIST = {
             outputType: true,
             model: true,
             settings: true,
-        },
-    },
-    coding: {
-        metadata: {
-            codeRequestId: true,
         },
     },
     "subtitle-translate": {
@@ -422,3 +420,5 @@ export async function GET(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+export const dynamic = "force-dynamic";

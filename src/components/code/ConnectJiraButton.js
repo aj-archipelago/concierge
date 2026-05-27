@@ -5,10 +5,29 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+function postAtlassianOAuthResult(message) {
+    if (typeof BroadcastChannel !== "undefined") {
+        try {
+            const channel = new BroadcastChannel("mcp-oauth");
+            channel.postMessage(message);
+            channel.close();
+        } catch {
+            // Fall through to window.opener when available.
+        }
+    }
+
+    if (window.opener) {
+        window.opener.postMessage(message, "*");
+    }
+
+    window.close();
+}
+
 export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
-    // read parameter code from querystring
+    // read parameter code and state from querystring
     const searchParams = useSearchParams();
     const [code, setCode] = useState(searchParams.get("code"));
+    const state = searchParams.get("state");
     const router = useRouter();
     const { t } = useTranslation();
 
@@ -18,6 +37,18 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
     const [refreshToken, setRefreshToken] = useState(null);
     const [error, setError] = useState(null);
     const [redirectUri, setRedirectUri] = useState("");
+    const [isConnectorCallbackFlow] = useState(
+        () =>
+            !!searchParams.get("code") &&
+            (state === "mcp" ||
+                state?.startsWith("mcp21_") ||
+                state?.startsWith("applet_")),
+    );
+    const [callbackStatus, setCallbackStatus] = useState(
+        isConnectorCallbackFlow
+            ? t("atlassian_oauth_connecting")
+            : t("atlassian_oauth_idle"),
+    );
 
     useEffect(() => {
         if (typeof localStorage !== "undefined") {
@@ -93,7 +124,63 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         [clientId, clientSecret, onTokenChange, redirectUri],
     );
 
+    // Handle MCP / applet OAuth callback: exchange code server-side, save to DB, notify opener
+    // Supports legacy "mcp", "mcp21_*" (MCP OAuth 2.1), and "applet_*" (3LO for applets)
     useEffect(() => {
+        const isMcp = state === "mcp";
+        const isMcp21 = state?.startsWith("mcp21_");
+        const isApplet = state?.startsWith("applet_");
+        if (!code || (!isMcp && !isMcp21 && !isApplet)) return;
+
+        setCallbackStatus(t("atlassian_oauth_connecting"));
+        const redirectUri = window.location.origin + "/code/jira";
+        fetch("/api/auth/atlassian/exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, redirectUri, isMcp21 }),
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.success) {
+                    setCallbackStatus(t("atlassian_oauth_connected"));
+                    postAtlassianOAuthResult({
+                        type: "atlassian-oauth-complete",
+                        success: true,
+                    });
+                } else if (!data.success) {
+                    console.error("MCP Atlassian exchange failed:", data);
+                    setCallbackStatus(
+                        data.error || t("atlassian_oauth_failed"),
+                    );
+                    postAtlassianOAuthResult({
+                        type: "atlassian-oauth-complete",
+                        success: false,
+                        error: data.error,
+                    });
+                }
+            })
+            .catch((err) => {
+                console.error("MCP Atlassian exchange error:", err);
+                setCallbackStatus(err.message || t("atlassian_oauth_failed"));
+                postAtlassianOAuthResult({
+                    type: "atlassian-oauth-complete",
+                    success: false,
+                    error: err.message,
+                });
+            });
+
+        setCode(null);
+    }, [code, state, t]);
+
+    useEffect(() => {
+        // Skip regular Jira flow if this is an MCP or applet callback
+        if (
+            state === "mcp" ||
+            state?.startsWith("mcp21_") ||
+            state?.startsWith("applet_")
+        )
+            return;
+
         if (!code) {
             // if there's no code, it means that this isn't a callback from Jira.
             // check if there's a token in local storage and verify that its good
@@ -121,49 +208,46 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         }
 
         if (code && redirectUri) {
-            // if code is present, this is a callback from Jira, exchange the
-            // code for a token
-            axios
-                .post("/api/jira/auth/token", {
-                    grant_type: "authorization_code",
-                    client_id: clientId,
-                    client_secret: clientSecret,
-                    code: code,
-                    redirect_uri: redirectUri,
-                    scope: "offline_access",
-                })
-                .then((response) => {
-                    const { data } = response;
-
-                    if (data.access_token) {
-                        setToken(data.access_token);
-                        onTokenChange(data.access_token);
+            // Exchange the code via the server-side exchange endpoint.
+            // This persists the token to the DB (as atlassian_api) so
+            // the applet SDK can access it for direct Jira API calls.
+            fetch("/api/auth/atlassian/exchange", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    code,
+                    redirectUri,
+                    isJiraPage: true,
+                }),
+            })
+                .then((res) => res.json())
+                .then((data) => {
+                    if (data.accessToken) {
+                        setToken(data.accessToken);
+                        onTokenChange(data.accessToken);
                         localStorage.setItem(
                             "jira_access_token",
-                            data.access_token,
+                            data.accessToken,
                         );
 
-                        if (data.refresh_token) {
-                            setRefreshToken(data.refresh_token);
+                        if (data.refreshToken) {
+                            setRefreshToken(data.refreshToken);
                             localStorage.setItem(
                                 "jira_refresh_token",
-                                data.refresh_token,
+                                data.refreshToken,
                             );
                         }
+                    } else {
+                        console.warn("Jira token exchange failed:", data.error);
+                        setError(data.error || "Token exchange failed");
+                        onTokenChange(null);
+                        setToken(null);
+                        setRefreshToken(null);
                     }
                 })
                 .catch((error) => {
                     console.warn("error", error);
-                    setError(
-                        error?.response?.data?.error_description ||
-                            error?.response?.data?.error ||
-                            error?.toString() ||
-                            error?.message ||
-                            error?.response?.data?.error_description ||
-                            error?.response?.data?.error ||
-                            error?.response?.data ||
-                            error?.toString(),
-                    );
+                    setError(error?.message || error?.toString());
                     onTokenChange(null);
                     setToken(null);
                     setRefreshToken(null);
@@ -175,17 +259,26 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
         }
     }, [
         code,
+        state,
         token,
         refreshToken,
         redirectUri,
-        clientId,
-        clientSecret,
         onTokenChange,
         renewToken,
         router,
     ]);
 
     const isConnectedToJira = () => !!token;
+
+    if (isConnectorCallbackFlow) {
+        return (
+            <div className="rounded-lg border border-gray-200 bg-white px-5 py-4 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-sm text-gray-700 dark:text-gray-200">
+                    {callbackStatus}
+                </p>
+            </div>
+        );
+    }
 
     if (!isConnectedToJira()) {
         const connectionUri = new URL("https://auth.atlassian.com/authorize");
@@ -224,7 +317,7 @@ export default function ConnectJiraButton({ clientSecret, onTokenChange }) {
                     <button
                         className="lb-danger"
                         onClick={() => {
-                            if (window.confirm("Are you sure?")) {
+                            if (window.confirm(t("Are you sure?"))) {
                                 setToken(null);
                                 setRefreshToken(null);
                                 onTokenChange(null);

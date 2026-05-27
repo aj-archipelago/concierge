@@ -9,7 +9,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 const redirects = [
     {
         source: "/",
-        destination: "/chat",
+        destination: "/chat/new",
         permanent: true,
     },
     {

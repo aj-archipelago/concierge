@@ -8,6 +8,7 @@ import {
     FileText as Summarize,
     Search,
     Clock,
+    Menu,
 } from "lucide-react";
 import { QUERIES } from "../../graphql";
 import CopyButton from "../CopyButton";
@@ -250,23 +251,45 @@ function Entities({ inputText }) {
 
 function Sidebar({ onAction, inputText }) {
     const [value, setValue] = useState([]);
+    const [isAccordionVisible, setIsAccordionVisible] = useState(false);
 
     return (
         <SidebarContext.Provider value={{ openItems: value }}>
-            <Accordion
-                type="multiple"
-                className="border rounded-md"
-                value={value}
-                onValueChange={setValue}
-            >
-                <Summary inputText={inputText} />
-                <Highlights inputText={inputText} onAction={onAction} />
-                <SearchKeywords inputText={inputText} />
-                <Topics inputText={inputText} />
-                <Tags inputText={inputText} />
-                <Entities inputText={inputText} />
-                <TimelineBox inputText={inputText} />
-            </Accordion>
+            {!isAccordionVisible ? (
+                <div className="flex justify-center items-center p-4">
+                    <button
+                        onClick={() => setIsAccordionVisible(true)}
+                        className="w-10 h-10 rounded-full bg-sky-500 hover:bg-sky-600 text-white flex items-center justify-center transition-colors duration-200 shadow-sm"
+                        aria-label="Show AI tools"
+                    >
+                        <Menu className="w-5 h-5" />
+                    </button>
+                </div>
+            ) : (
+                <div className="relative">
+                    <button
+                        onClick={() => setIsAccordionVisible(false)}
+                        className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 flex items-center justify-center transition-colors duration-200 shadow-sm"
+                        aria-label="Close AI tools"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                    <Accordion
+                        type="multiple"
+                        className="border rounded-md"
+                        value={value}
+                        onValueChange={setValue}
+                    >
+                        <Summary inputText={inputText} />
+                        <Highlights inputText={inputText} onAction={onAction} />
+                        <SearchKeywords inputText={inputText} />
+                        <Topics inputText={inputText} />
+                        <Tags inputText={inputText} />
+                        <Entities inputText={inputText} />
+                        <TimelineBox inputText={inputText} />
+                    </Accordion>
+                </div>
+            )}
         </SidebarContext.Provider>
     );
 }

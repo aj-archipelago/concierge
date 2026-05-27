@@ -1,35 +1,47 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import {
-    useWorkspaceApp,
-    useWorkspaceApplet,
-} from "../../../../queries/workspaces";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import PublishedAppletView from "@/src/components/PublishedAppletView";
 
 export default function PublishedAppletPage() {
     const { id } = useParams();
     const router = useRouter();
-    const {
-        data: app,
-        isLoading: appLoading,
-        error: appError,
-    } = useWorkspaceApp(id);
-    const {
-        data: applet,
-        isLoading: appletLoading,
-        error: appletError,
-    } = useWorkspaceApplet(id);
-
-    const isLoading = appLoading || appletLoading;
-    const error = appError || appletError;
+    const searchParams = useSearchParams();
+    const [data, setData] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const app = data?.app;
+    const applet = data?.applet;
 
     useEffect(() => {
-        // If app exists and has a slug, redirect to slug-based route (app store case)
-        if (!isLoading && !error && app?.slug) {
-            router.replace(`/apps/${app.slug}`);
+        const fetchApplet = async () => {
+            try {
+                const res = await fetch(
+                    `/api/published/workspaces/${encodeURIComponent(id)}/applet`,
+                );
+                if (!res.ok) throw new Error("Failed to fetch applet");
+                const json = await res.json();
+                setData(json);
+            } catch (err) {
+                setError(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (id) {
+            fetchApplet();
         }
-    }, [app, isLoading, error, router]);
+    }, [id]);
+
+    useEffect(() => {
+        if (!isLoading && !error && app?.slug) {
+            const query = searchParams.toString();
+            router.replace(
+                query ? `/apps/${app.slug}?${query}` : `/apps/${app.slug}`,
+            );
+        }
+    }, [app, isLoading, error, router, searchParams]);
 
     // Show loading while we determine if we should redirect or render
     if (isLoading) {
@@ -49,14 +61,12 @@ export default function PublishedAppletPage() {
         );
     }
 
-    // For non-app-store publishing: render applet directly from workspace
-    // Check if applet has a published version
     if (applet && typeof applet.publishedVersionIndex === "number") {
         return (
             <PublishedAppletView
                 key={applet._id || id}
                 applet={applet}
-                app={null} // No app document for non-app-store publishing
+                app={null}
                 isLoading={false}
                 error={error}
             />

@@ -23,7 +23,7 @@ describe("Text Proxy API", () => {
             getCurrentUser.mockResolvedValue(null);
 
             const req = createMockRequest(
-                "https://ajcortexfilestorage.blob.core.windows.net/file.csv",
+                "https://customerstorage.blob.core.windows.net/file.csv",
             );
             const response = await GET(req);
             const data = await response.json();
@@ -65,13 +65,14 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://ajcortexfilestorage.blob.core.windows.net/files/data.csv",
+                "https://customerstorage.blob.core.windows.net/files/data.csv",
             );
             const response = await GET(req);
 
             expect(response.status).toBe(200);
             expect(global.fetch).toHaveBeenCalledWith(
-                "https://ajcortexfilestorage.blob.core.windows.net/files/data.csv",
+                "https://customerstorage.blob.core.windows.net/files/data.csv",
+                { redirect: "follow" },
             );
         });
 
@@ -106,7 +107,7 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://ajcortexfilestorage.blob.core.windows.net/file.csv",
+                "https://customerstorage.blob.core.windows.net/file.csv",
             );
             const response = await GET(req);
             const text = await response.text();
@@ -121,7 +122,7 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://ajcortexfilestorage.blob.core.windows.net/missing.csv",
+                "https://customerstorage.blob.core.windows.net/missing.csv",
             );
             const response = await GET(req);
             const data = await response.json();

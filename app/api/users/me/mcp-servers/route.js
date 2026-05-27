@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/users/me/mcp-servers
  * Returns the user's MCP server configuration.
- * Sensitive headers (e.g. Authorization) are stripped before returning.
+ * Sensitive headers (e.g. Authorization) are included - caller must handle securely.
  */
 export async function GET() {
     try {

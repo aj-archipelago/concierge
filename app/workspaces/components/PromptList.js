@@ -7,7 +7,7 @@ import remarkGfm from "remark-gfm";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import Loader from "../../components/loader";
-import { useLLM, useLLMs } from "../../queries/llms";
+import { useChatModels, resolveModelId } from "../../queries/modelMetadata";
 import { usePromptsByIds } from "../../queries/prompts";
 import { WorkspaceContext } from "./WorkspaceContent";
 import { workspaceMarkdownComponents } from "./markdownComponents";
@@ -174,14 +174,14 @@ export default function PromptList({
 
 function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
     const { isOwner } = useContext(WorkspaceContext);
-    let { data: llm } = useLLM(prompt?.llm);
-    const { data: llms } = useLLMs();
+    const { data: chatModels, redirects } = useChatModels();
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
 
-    if (!prompt.llm) {
-        llm = llms?.find((llm) => llm.isDefault);
-    }
+    // Resolve stored model ID (follows redirects for renamed models)
+    const resolvedId = resolveModelId(prompt?.llm, chatModels, redirects);
+    const llm = chatModels?.find((m) => m.modelId === resolvedId);
+    const llmName = llm?.displayName;
 
     return (
         <div key={prompt._id} className="mb-2 relative">
@@ -193,7 +193,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             {llm && (
                                 <div>
                                     <span className="block sm:hidden items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-                                        {llm?.name}
+                                        {llmName}
                                     </span>
                                 </div>
                             )}
@@ -212,7 +212,7 @@ function PromptListItem({ prompt, onEdit, onRun, isRunning, inputValid }) {
                             )}
                             {llm && (
                                 <span className="hidden sm:inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-                                    {llm?.name}
+                                    {llmName}
                                 </span>
                             )}
                             {!isRunning && isOwner && (

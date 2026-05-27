@@ -1,0 +1,2 @@
+export const DEFAULT_PAGE_SIZE = 30;
+export const DEFAULT_CHAT_MESSAGES_LIMIT = 30;

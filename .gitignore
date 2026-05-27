@@ -32,3 +32,11 @@ dump.rdb
 *.code-workspace
 .cursorrules
 load-env.sh
+
+test-results/
+.playwright-cli/
+playwright/.auth/
+playwright/.cache/
+playwright/.mcp/
+playwright/.trace/
+playwright-report

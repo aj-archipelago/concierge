@@ -22,6 +22,7 @@ export default function AIModal({
 }) {
     const [show, setShow] = useState(false);
     const [text, setText] = useState("");
+    const [html, setHtml] = useState(""); // Store HTML content separately
     const [queryArgs, setQueryArgs] = useState({});
     const [result, setResult] = useState("");
     const diffEditorRef = useRef(null);
@@ -63,6 +64,11 @@ export default function AIModal({
                     setEditorOperation(operation || "replaceText");
                 }
 
+                // Store HTML if provided in the message
+                if (data.html) {
+                    setHtml(data.html);
+                }
+
                 if (args) {
                     setQueryArgs(args);
                 }
@@ -79,6 +85,7 @@ export default function AIModal({
     const close = () => {
         setShow(false);
         setText("");
+        setHtml("");
         setQueryArgs({});
         setResult("");
 
@@ -111,6 +118,7 @@ export default function AIModal({
                             regenerateText={regenerateText}
                             diffEditorRef={diffEditorRef}
                             text={text}
+                            html={html || queryArgs.html} // Pass HTML from state or args
                             args={queryArgs}
                             onSelect={(h) => {
                                 setResult(h);

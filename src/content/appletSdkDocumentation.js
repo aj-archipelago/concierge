@@ -196,7 +196,7 @@ const response = await ConciergeSDK.models.generate({
     model: defaultModel,
     systemPrompt: "Return only valid JSON.",
     messages: [
-        { role: "user", content: "Extract name and company from: Ada at Concierge" },
+        { role: "user", content: "Extract name and company from: Ada at ExampleCo" },
     ],
 });
 const data = JSON.parse(response.result);

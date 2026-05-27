@@ -1,497 +1,829 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { NEW_CHAT_ID } from "../../app/utils/chatClientIds";
+import {
+    normalizeChatForCache,
+    syncInFlightChatCache,
+} from "../../app/queries/chats";
+import {
+    appendAssistantThinkingSummary,
+    appendAssistantTextChunk,
+    appendAssistantThinkingChunk,
+    buildAssistantPayloadFromItems,
+    buildInlineAssistantPayload,
+    buildLegacyInlineAssistantPayloadItems,
+    createAssistantToolEventItem,
+    updateAssistantThinkingDuration,
+    upsertAssistantToolEvent,
+} from "../utils/assistantInlinePayload";
+
+const STREAM_KEY = (chatId) => ["stream", chatId];
+const FRAME_FALLBACK_MS = 16;
+
+const scheduleNextPaint = (callback) => {
+    let completed = false;
+    let rafId = null;
+    let timeoutId = null;
+
+    const finish = () => {
+        if (completed) return;
+        completed = true;
+        if (rafId != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(rafId);
+        }
+        if (timeoutId != null) {
+            clearTimeout(timeoutId);
+        }
+        callback();
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+        rafId = requestAnimationFrame(finish);
+    }
+    timeoutId = setTimeout(finish, FRAME_FALLBACK_MS);
+
+    return () => {
+        if (completed) return;
+        completed = true;
+        if (rafId != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(rafId);
+        }
+        if (timeoutId != null) {
+            clearTimeout(timeoutId);
+        }
+    };
+};
+
+const waitForNextPaint = () =>
+    new Promise((resolve) => {
+        scheduleNextPaint(resolve);
+    });
+
+const getLegacyInlineItems = (state = {}) =>
+    buildLegacyInlineAssistantPayloadItems({
+        ephemeralContent: state.ephemeralContent,
+        toolCalls: state.toolCalls,
+        thinkingDuration: state.thinkingDuration,
+    });
+
+const getStreamInlineItems = (state = {}) =>
+    Array.isArray(state.inlinePayloadItems) &&
+    state.inlinePayloadItems.length > 0
+        ? state.inlinePayloadItems
+        : getLegacyInlineItems(state);
+
+const getToolEventMap = (state = {}) =>
+    new Map((state.toolEventMap || []).map(([k, v]) => [k, v]));
+
+export const hasActiveStream = (queryClient, chatId) => {
+    const state = queryClient.getQueryData(STREAM_KEY(chatId));
+    return !!state?.reader && state?.isStreaming !== false;
+};
 
 export function useStreamingMessages({
     chat,
     updateChatHook,
-    currentEntityId,
+    onClientSideToolCall,
+    onChatPromoted,
+    onStreamComplete,
+    onStreamDetached,
+    onServerToolFinish,
 }) {
     const queryClient = useQueryClient();
-    const streamingMessageRef = useRef("");
-    const ephemeralContentRef = useRef(""); // Track ephemeral content separately
-    const hasReceivedPersistentRef = useRef(false); // Track if we've received non-ephemeral content
-    const messageQueueRef = useRef([]);
-    const processingRef = useRef(false);
-    const accumulatedInfoRef = useRef({});
-    const [subscriptionId, setSubscriptionId] = useState(null);
-    const [isStreaming, setIsStreaming] = useState(false);
-    const [streamingContent, setStreamingContent] = useState("");
-    const [ephemeralContent, setEphemeralContent] = useState(""); // Add state for ephemeral content
-    const [toolCalls, setToolCalls] = useState([]); // Track tool calls with their status
-    const [thinkingDuration, setThinkingDuration] = useState(0); // Add thinking duration state
-    const [isThinking, setIsThinking] = useState(false);
-    const startTimeRef = useRef(null); // Track when current thinking period started
-    const accumulatedThinkingTimeRef = useRef(0); // Track cumulative thinking time across all periods
-    const isThinkingRef = useRef(false); // Track thinking state with ref for synchronous access
-    const toolCallsMapRef = useRef(new Map()); // Map<callId, { icon, userMessage, status }>
-    const streamReaderRef = useRef(null); // Ref to the stream reader for cancellation
+    const chatId = chat?._id ? String(chat._id) : null;
+    const promotedStreamChatIdRef = useRef(null);
+    const processQueueRef = useRef(null);
 
-    // Record the start time when streaming begins and update thinking duration
-    useEffect(() => {
-        if (isStreaming && startTimeRef.current === null) {
-            startTimeRef.current = Date.now();
-            accumulatedThinkingTimeRef.current = 0; // Reset accumulated time when streaming starts
-            setThinkingDuration(0);
-            setIsThinking(true);
-            isThinkingRef.current = true; // Update ref synchronously
+    const refs = useRef({
+        queue: [],
+        processing: false,
+        queueScheduled: false,
+        processedTools: new Set(),
+    });
+
+    const getMirroredStreamChatIds = useCallback(
+        (baseChatId = chatId) => {
+            const ids = new Set();
+            if (baseChatId) {
+                ids.add(String(baseChatId));
+            }
+
+            if (promotedStreamChatIdRef.current) {
+                ids.add(String(promotedStreamChatIdRef.current));
+            }
+
+            return [...ids];
+        },
+        [chatId],
+    );
+
+    // Only subscribe to isStreaming changes — display values are read by useStreamingDisplay
+    const { data: isStreaming = false } = useQuery({
+        queryKey: STREAM_KEY(chatId),
+        queryFn: () => queryClient.getQueryData(STREAM_KEY(chatId)) || {},
+        select: (data) => !!data?.isStreaming,
+        enabled: !!chatId,
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    });
+
+    const setStream = useCallback(
+        (updates) => {
+            getMirroredStreamChatIds().forEach((targetChatId) => {
+                const current =
+                    queryClient.getQueryData(STREAM_KEY(targetChatId)) || {};
+                queryClient.setQueryData(STREAM_KEY(targetChatId), {
+                    ...current,
+                    ...updates,
+                });
+            });
+        },
+        [getMirroredStreamChatIds, queryClient],
+    );
+
+    const startPendingStream = useCallback(() => {
+        if (!chatId) return;
+        if (chatId === NEW_CHAT_ID) {
+            promotedStreamChatIdRef.current = null;
         }
-    }, [isStreaming]);
+        const current = queryClient.getQueryData(STREAM_KEY(chatId)) || {};
+        if (current.isStreaming) return;
+        queryClient.setQueryData(STREAM_KEY(chatId), {
+            ...current,
+            chatId,
+            isStreaming: true,
+            reader: current.reader || null,
+            streamingContent: current.streamingContent || "",
+            thinkingContent: current.thinkingContent || "",
+            inlinePayloadItems: current.inlinePayloadItems || [],
+            toolEventMap: current.toolEventMap || [],
+            activeTextIndex: current.activeTextIndex ?? null,
+            activeThinkingIndex: current.activeThinkingIndex ?? null,
+            currentResultIsEphemeral: current.currentResultIsEphemeral || false,
+            thinkingDuration: current.thinkingDuration || 0,
+            isThinking: true,
+            startTime: current.startTime || Date.now(),
+        });
+    }, [chatId, queryClient]);
 
-    // Update thinking duration while streaming (cumulative)
-    useEffect(() => {
-        if (isStreaming && startTimeRef.current && isThinking) {
-            const interval = setInterval(() => {
-                const currentPeriodTime = Math.floor(
-                    (Date.now() - startTimeRef.current) / 1000,
-                );
-                setThinkingDuration(
-                    accumulatedThinkingTimeRef.current + currentPeriodTime,
-                );
-            }, 1000);
-            return () => clearInterval(interval);
-        }
-    }, [isStreaming, isThinking]);
-
-    const clearStreamingState = useCallback(() => {
-        streamingMessageRef.current = "";
-        ephemeralContentRef.current = ""; // Clear ephemeral content
-        hasReceivedPersistentRef.current = false; // Reset persistent content flag
-        accumulatedInfoRef.current = {};
-        setStreamingContent("");
-        setEphemeralContent("");
-        setToolCalls([]);
-        setSubscriptionId(null);
-        setIsStreaming(false);
-        setThinkingDuration(0); // Reset thinking duration
-        setIsThinking(false);
-        isThinkingRef.current = false; // Update ref
-        messageQueueRef.current = [];
-        processingRef.current = false;
-        startTimeRef.current = null; // Reset start time
-        accumulatedThinkingTimeRef.current = 0; // Reset accumulated thinking time
-        toolCallsMapRef.current.clear(); // Clear tool calls map
-        streamReaderRef.current = null; // Clear stream reader ref
-    }, []);
+    const clearStream = useCallback(() => {
+        getMirroredStreamChatIds().forEach((targetChatId) => {
+            const state = queryClient.getQueryData(STREAM_KEY(targetChatId));
+            state?.reader?.cancel?.().catch(() => {});
+            queryClient.removeQueries({ queryKey: STREAM_KEY(targetChatId) });
+        });
+    }, [getMirroredStreamChatIds, queryClient]);
 
     const stopStreaming = useCallback(async () => {
-        if (chat?._id) {
-            // Cancel the stream reader immediately if it exists
-            if (streamReaderRef.current) {
-                streamReaderRef.current.cancel().catch(() => {
-                    // Ignore cancellation errors
-                });
-                streamReaderRef.current = null;
-            }
-            // Set stopRequested flag and clear loading state on server
-            // This sets the stop request flag, which will be checked against the subscription ID
-            // on the server to prevent persisting the message
+        clearStream();
+        if (chatId) {
             await updateChatHook.mutateAsync({
-                chatId: String(chat?._id),
+                chatId,
                 isChatLoading: false,
                 stopRequested: true,
             });
-            // Clear all streaming state immediately (includes setting subscriptionId to null)
-            clearStreamingState();
         }
-    }, [chat, updateChatHook, clearStreamingState]);
+    }, [chatId, updateChatHook, clearStream]);
 
-    // Track tool calls by callId
-    const updateToolCalls = useCallback((toolMessage) => {
-        if (!toolMessage || !toolMessage.callId) return;
+    const scheduleProcessQueue = useCallback(() => {
+        const r = refs.current;
+        if (r.queueScheduled) return;
+        r.queueScheduled = true;
 
-        const { type, callId, icon, userMessage, success, error } = toolMessage;
-
-        if (type === "start") {
-            // Add or update tool call as active
-            toolCallsMapRef.current.set(callId, {
-                icon: icon || "🛠️",
-                userMessage: userMessage || "Running tool...",
-                status: "thinking",
-            });
-        } else if (type === "finish") {
-            // Update tool call as completed
-            const existing = toolCallsMapRef.current.get(callId);
-            if (existing) {
-                toolCallsMapRef.current.set(callId, {
-                    ...existing,
-                    status: success ? "completed" : "failed",
-                    error: error || null,
-                });
-            }
-        }
-
-        // Convert map to array for state
-        const toolCallsArray = Array.from(toolCallsMapRef.current.values());
-        setToolCalls(toolCallsArray);
+        scheduleNextPaint(() => {
+            refs.current.queueScheduled = false;
+            void processQueueRef.current?.();
+        });
     }, []);
 
-    const updateStreamingContent = useCallback(
-        async (newContent, isEphemeral = false) => {
-            if (newContent.trim() === "") return;
+    const applyStreamToolMessage = useCallback(
+        (toolMessage, state = {}) => {
+            if (!toolMessage?.callId) {
+                return;
+            }
 
-            if (isEphemeral) {
-                // For ephemeral content, update the ephemeral content state
-                ephemeralContentRef.current = newContent;
-                setEphemeralContent(newContent);
+            const {
+                type,
+                callId,
+                icon,
+                userMessage,
+                success,
+                error,
+                presentation,
+            } = toolMessage;
+            const toolEventMap = getToolEventMap(state);
+            const existingMeta = toolEventMap.get(callId);
+            const existingItem = parseToolEventAtIndex(
+                getStreamInlineItems(state),
+                existingMeta?.index ?? null,
+            );
 
-                // If we're receiving ephemeral content while streaming, we should be thinking
-                // Use ref for reliable synchronous access to thinking state
-                const currentlyThinking = isThinkingRef.current || isThinking;
+            if (type === "start") {
+                const toolEvent = createAssistantToolEventItem({
+                    callId,
+                    icon: icon || "🛠️",
+                    userMessage: userMessage || "Running...",
+                    status: "thinking",
+                    presentation:
+                        presentation || existingItem?.presentation || "default",
+                });
+                const nextInline = upsertAssistantToolEvent(
+                    getStreamInlineItems(state),
+                    toolEvent,
+                    existingMeta?.index ?? null,
+                );
+                toolEventMap.set(callId, { index: nextInline.index });
+                setStream({
+                    toolEventMap: [...toolEventMap.entries()],
+                    inlinePayloadItems: nextInline.items,
+                    activeTextIndex: null,
+                    activeThinkingIndex: null,
+                });
+                return;
+            }
 
-                // Helper to accumulate elapsed time and reset start time
-                const accumulateThinkingTime = () => {
-                    if (startTimeRef.current !== null) {
-                        const elapsed = Math.floor(
-                            (Date.now() - startTimeRef.current) / 1000,
-                        );
-                        accumulatedThinkingTimeRef.current += elapsed;
-                        startTimeRef.current = null;
-                    }
+            if (type === "finish") {
+                const toolEvent = {
+                    ...(existingItem ||
+                        createAssistantToolEventItem({
+                            callId,
+                            icon: icon || "🛠️",
+                            userMessage: userMessage || "Running...",
+                            status: "completed",
+                        })),
+                    icon: icon || existingItem?.icon || "🛠️",
+                    userMessage:
+                        userMessage ||
+                        existingItem?.userMessage ||
+                        "Running...",
+                    status: success ? "completed" : "failed",
+                    error,
+                    presentation:
+                        presentation || existingItem?.presentation || "default",
                 };
+                const nextInline = upsertAssistantToolEvent(
+                    getStreamInlineItems(state),
+                    toolEvent,
+                    existingMeta?.index ?? null,
+                );
+                toolEventMap.set(callId, { index: nextInline.index });
+                setStream({
+                    toolEventMap: [...toolEventMap.entries()],
+                    inlinePayloadItems: nextInline.items,
+                });
 
-                // Helper to start a new thinking period
-                const startThinkingPeriod = () => {
-                    startTimeRef.current = Date.now();
-                    setIsThinking(true);
-                    isThinkingRef.current = true;
-                };
-
-                // If we're not currently thinking (e.g., we received persistent content before),
-                // restart the thinking counter to capture interstitial time between tool calls
-                if (!currentlyThinking && isStreaming) {
-                    accumulateThinkingTime();
-                    startThinkingPeriod();
-                } else if (currentlyThinking && startTimeRef.current === null) {
-                    // If we're thinking but don't have a start time, set it now
-                    startTimeRef.current = Date.now();
+                if (success) {
+                    onServerToolFinish?.();
                 }
-            } else {
-                // This is persistent content - save it and mark that we've received some
-                // If we were thinking, accumulate the elapsed time before stopping
-                const wasThinking = isThinkingRef.current || isThinking;
-                if (wasThinking && startTimeRef.current !== null) {
-                    const elapsed = Math.floor(
-                        (Date.now() - startTimeRef.current) / 1000,
-                    );
-                    accumulatedThinkingTimeRef.current += elapsed;
-                    startTimeRef.current = null;
-                }
-                setIsThinking(false);
-                isThinkingRef.current = false;
-                streamingMessageRef.current = newContent;
-                hasReceivedPersistentRef.current = true;
-                setStreamingContent(newContent);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- isStreaming and isThinking are intentionally omitted - refs (isThinkingRef) are used for synchronous access, and the callback should not recreate on every state change
-        [],
+        [onServerToolFinish, setStream],
     );
 
-    const processMessageQueue = useCallback(async () => {
-        if (processingRef.current || messageQueueRef.current.length === 0)
-            return;
+    const processQueue = useCallback(async () => {
+        const r = refs.current;
+        if (r.processing || !r.queue.length) return;
 
-        processingRef.current = true;
-        const message = messageQueueRef.current.shift();
+        r.processing = true;
+        const msg = r.queue.shift();
 
         try {
-            const { result, info } = message;
-            let isEphemeral = false;
+            const state = queryClient.getQueryData(STREAM_KEY(chatId)) || {};
 
-            if (info) {
-                try {
-                    const parsedInfo =
-                        typeof info === "string"
-                            ? JSON.parse(info)
-                            : typeof info === "object"
-                              ? { ...info }
-                              : {};
-
-                    // Check if the content is ephemeral
-                    isEphemeral = !!parsedInfo.ephemeral;
-
-                    // Handle structured tool messages
-                    if (parsedInfo.toolMessage) {
-                        updateToolCalls(parsedInfo.toolMessage);
-
-                        // If we receive a tool start message, we should be thinking
-                        if (
-                            parsedInfo.toolMessage.type === "start" &&
-                            isStreaming
-                        ) {
-                            if (!isThinkingRef.current && !isThinking) {
-                                // Start thinking period if not already thinking
-                                if (startTimeRef.current === null) {
-                                    startTimeRef.current = Date.now();
-                                    accumulatedThinkingTimeRef.current = 0;
-                                }
-                                setIsThinking(true);
-                                isThinkingRef.current = true;
-                            }
-                        }
-
-                        // Tool messages should trigger processing even without result content
-                        // The tool call update above will cause a re-render
+            if (msg.info) {
+                let info = msg.info;
+                if (typeof info === "string") {
+                    try {
+                        info = JSON.parse(info);
+                    } catch {
+                        info = {};
                     }
+                }
 
-                    // Store accumulated info
-                    accumulatedInfoRef.current = {
-                        ...accumulatedInfoRef.current,
-                        ...parsedInfo,
-                    };
+                if (typeof info.ephemeral === "boolean") {
+                    setStream({
+                        currentResultIsEphemeral: info.ephemeral,
+                    });
+                }
 
-                    // Always preserve citations array
-                    accumulatedInfoRef.current.citations = [
-                        ...(accumulatedInfoRef.current.citations || []),
-                        ...(parsedInfo.citations || []),
-                    ];
-                } catch (e) {
-                    console.error("Failed to parse info block:", e);
+                if (
+                    info.clientSideTool &&
+                    info.toolCallbackId &&
+                    !r.processedTools.has(info.toolCallbackId)
+                ) {
+                    r.processedTools.add(info.toolCallbackId);
+                    if (onClientSideToolCall) {
+                        Promise.resolve(onClientSideToolCall(info)).catch(
+                            () => {},
+                        );
+                    }
+                }
+
+                if (info.toolMessage) {
+                    applyStreamToolMessage(info.toolMessage, state);
                 }
             }
 
-            if (result) {
+            if (msg.result) {
                 let content;
                 try {
-                    const parsed = JSON.parse(result);
-                    if (typeof parsed === "string") {
-                        content = parsed;
-                    } else if (parsed?.choices?.[0]?.delta?.content) {
-                        content = parsed.choices[0].delta.content;
-                    } else if (parsed?.content) {
-                        content = parsed.content;
-                    } else if (parsed?.message) {
-                        content = parsed.message;
-                    }
+                    const p = JSON.parse(msg.result);
+                    content =
+                        typeof p === "string"
+                            ? p
+                            : p?.choices?.[0]?.delta?.content ||
+                              p?.content ||
+                              p?.message;
                 } catch {
-                    content = result;
+                    content = msg.result;
                 }
 
                 if (content) {
-                    // Update content directly - React will batch updates efficiently
-                    if (isEphemeral) {
-                        await updateStreamingContent(
-                            ephemeralContentRef.current + content,
-                            true,
+                    const s =
+                        queryClient.getQueryData(STREAM_KEY(chatId)) || {};
+                    const currentItems = getStreamInlineItems(s);
+                    if (s.currentResultIsEphemeral) {
+                        const thinkingContent =
+                            (s.thinkingContent || s.ephemeralContent || "") +
+                            content;
+                        const nextInline = appendAssistantThinkingChunk(
+                            currentItems,
+                            content,
+                            s.thinkingDuration || 0,
+                            s.activeThinkingIndex ?? null,
                         );
+                        setStream({
+                            thinkingContent,
+                            inlinePayloadItems: nextInline.items,
+                            activeThinkingIndex: nextInline.index,
+                            activeTextIndex: null,
+                        });
                     } else {
-                        await updateStreamingContent(
-                            streamingMessageRef.current + content,
-                            false,
+                        const newTime = s.startTime
+                            ? Math.floor((Date.now() - s.startTime) / 1000)
+                            : s.thinkingDuration || 0;
+                        const nextInline = appendAssistantTextChunk(
+                            currentItems,
+                            content,
+                            s.activeTextIndex ?? null,
                         );
+                        setStream({
+                            streamingContent:
+                                (s.streamingContent || "") + content,
+                            thinkingDuration: newTime,
+                            inlinePayloadItems: updateAssistantThinkingDuration(
+                                nextInline.items,
+                                s.activeThinkingIndex ?? null,
+                                newTime,
+                            ),
+                            activeTextIndex: nextInline.index,
+                            activeThinkingIndex: s.activeThinkingIndex ?? null,
+                        });
                     }
                 }
             }
-
-            // Progress 1 means completion - handled by SSE complete event
         } catch (e) {
-            console.error("Failed to process subscription data:", e);
-            toast.error("Failed to process response data");
-
-            if (chat?._id) {
-                await updateChatHook.mutateAsync({
-                    chatId: String(chat._id),
-                    isChatLoading: false,
-                });
-            }
-            clearStreamingState();
+            console.error("Process queue error:", e);
         }
 
-        processingRef.current = false;
-
-        // Schedule next message processing
-        if (messageQueueRef.current.length > 0) {
-            requestAnimationFrame(async () => await processMessageQueue());
+        r.processing = false;
+        if (r.queue.length) {
+            scheduleProcessQueue();
         }
     }, [
-        chat,
-        updateChatHook,
-        updateStreamingContent,
-        clearStreamingState,
-        updateToolCalls,
-        isStreaming,
-        isThinking,
+        applyStreamToolMessage,
+        chatId,
+        setStream,
+        onClientSideToolCall,
+        queryClient,
+        scheduleProcessQueue,
     ]);
+    processQueueRef.current = processQueue;
 
-    // Refs to hold latest values of dependencies for the SSE effect
-    // This allows the SSE effect to run only once per subscriptionId
-    const latestChatRef = useRef(chat);
-    const latestUpdateChatHookRef = useRef(updateChatHook);
-    const latestClearStreamingStateRef = useRef(clearStreamingState);
-    const latestProcessMessageQueueRef = useRef(processMessageQueue);
-    const latestQueryClientRef = useRef(queryClient);
-    const latestCurrentEntityIdRef = useRef(currentEntityId);
+    const flushPendingQueue = useCallback(async () => {
+        while (refs.current.processing || refs.current.queue.length) {
+            if (!refs.current.processing && refs.current.queue.length) {
+                scheduleProcessQueue();
+            }
+            await waitForNextPaint();
+        }
+    }, [scheduleProcessQueue]);
 
-    useEffect(() => {
-        latestChatRef.current = chat;
-        latestUpdateChatHookRef.current = updateChatHook;
-        latestClearStreamingStateRef.current = clearStreamingState;
-        latestProcessMessageQueueRef.current = processMessageQueue;
-        latestQueryClientRef.current = queryClient;
-        latestCurrentEntityIdRef.current = currentEntityId;
-    });
+    const setSubscriptionId = useCallback(
+        (response) => {
+            if (!(response instanceof Response) || !chatId) return;
 
-    // Handle SSE stream - subscriptionId must be a Response object (from fetch)
-    useEffect(() => {
-        if (!subscriptionId) return;
+            promotedStreamChatIdRef.current = null;
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let cancelled = false;
+            let resolvedChatId = chatId;
+            let endStreamPromise = null;
 
-        // Check if subscriptionId is a Response object (from fetch)
-        if (!(subscriptionId instanceof Response)) return;
+            const clearDetachedStreamState = () => {
+                const targetChatIds = new Set([String(chatId)]);
+                if (resolvedChatId) {
+                    targetChatIds.add(String(resolvedChatId));
+                }
 
-        let cancelled = false;
-        const reader = subscriptionId.body.getReader();
-        streamReaderRef.current = reader; // Store reader ref for cancellation
-        const decoder = new TextDecoder();
-        let buffer = "";
+                refs.current.queue = [];
+                refs.current.processing = false;
+                refs.current.queueScheduled = false;
 
-        const readStream = async () => {
-            try {
-                while (!cancelled) {
-                    const { done, value } = await reader.read();
+                targetChatIds.forEach((targetChatId) => {
+                    const state = queryClient.getQueryData(
+                        STREAM_KEY(targetChatId),
+                    );
+                    state?.reader?.cancel?.().catch(() => {});
+                    queryClient.removeQueries({
+                        queryKey: STREAM_KEY(targetChatId),
+                    });
+                });
+            };
 
-                    if (done) {
-                        // Stream ended - refetch to get persisted message, then clear streaming
-                        if (!cancelled && latestChatRef.current?._id) {
-                            const chatId = String(latestChatRef.current._id);
-                            await latestQueryClientRef.current.refetchQueries({
-                                queryKey: ["chat", chatId],
+            const pendingState =
+                queryClient.getQueryData(STREAM_KEY(chatId)) || {};
+            queryClient.setQueryData(STREAM_KEY(chatId), {
+                ...pendingState,
+                chatId,
+                isStreaming: true,
+                reader,
+                streamingContent: pendingState.streamingContent || "",
+                thinkingContent: pendingState.thinkingContent || "",
+                inlinePayloadItems: pendingState.inlinePayloadItems || [],
+                toolEventMap: pendingState.toolEventMap || [],
+                activeTextIndex: pendingState.activeTextIndex ?? null,
+                activeThinkingIndex: pendingState.activeThinkingIndex ?? null,
+                currentResultIsEphemeral:
+                    pendingState.currentResultIsEphemeral || false,
+                thinkingDuration: pendingState.thinkingDuration || 0,
+                isThinking: true,
+                startTime: pendingState.startTime || Date.now(),
+            });
+
+            const endStream = async () => {
+                if (endStreamPromise) {
+                    return endStreamPromise;
+                }
+
+                endStreamPromise = (async () => {
+                    await flushPendingQueue();
+
+                    // 1. Read accumulated stream data before cleanup.
+                    //    After promotion, stream updates only go to
+                    //    STREAM_KEY(resolvedChatId), so read from there first.
+                    const s =
+                        (resolvedChatId &&
+                            resolvedChatId !== chatId &&
+                            queryClient.getQueryData(
+                                STREAM_KEY(resolvedChatId),
+                            )) ||
+                        queryClient.getQueryData(STREAM_KEY(chatId));
+                    const content = s?.streamingContent || "";
+                    const thinkingContent =
+                        s?.thinkingContent || s?.ephemeralContent || "";
+                    const duration = s?.startTime
+                        ? Math.floor((Date.now() - s.startTime) / 1000)
+                        : s?.thinkingDuration || 0;
+                    const hasStoredInlineItems =
+                        Array.isArray(s?.inlinePayloadItems) &&
+                        s.inlinePayloadItems.length > 0;
+                    const finalizedInlineItems = hasStoredInlineItems
+                        ? appendAssistantThinkingSummary(
+                              updateAssistantThinkingDuration(
+                                  s.inlinePayloadItems,
+                                  s?.activeThinkingIndex ?? null,
+                                  duration,
+                              ),
+                              duration,
+                          )
+                        : [];
+
+                    // 2. Cancel reader; remove stream state after cache reconciliation
+                    s?.reader?.cancel?.().catch(() => {});
+
+                    // 3. Write AI message directly to cached chat (synchronous, uncancelable)
+                    const targetChatId = resolvedChatId;
+                    const payload = hasStoredInlineItems
+                        ? buildAssistantPayloadFromItems(finalizedInlineItems)
+                        : buildInlineAssistantPayload({
+                              content,
+                              thinkingContent,
+                              thinkingDuration: duration,
+                              toolEvents: s?.toolCalls || [],
+                          });
+                    const assistantMessage = payload
+                        ? {
+                              payload,
+                              sender: "assistant",
+                              sentTime: new Date().toISOString(),
+                              direction: "incoming",
+                              position: "single",
+                              entityId: chat?.selectedEntityId || null,
+                              isServerGenerated: true,
+                              _id: null,
+                              _clientId: `stream-end:${targetChatId}:${Date.now()}`,
+                              tool: null,
+                              taskId: null,
+                              task: null,
+                          }
+                        : null;
+                    onStreamComplete?.({
+                        chatId: targetChatId,
+                        payload,
+                        assistantMessage,
+                        content,
+                        thinkingContent,
+                        thinkingDuration: duration,
+                    });
+
+                    // 4. Background reconciliation — server version replaces the
+                    //    pending assistant row with the persisted message once the
+                    //    backend finishes writing it.
+                    //    Delayed to give the server time to persist the AI message
+                    //    before we refetch; an immediate invalidation races with DB writes.
+                    const chatQuery = queryClient
+                        .getQueryCache()
+                        .find({ queryKey: ["chat", targetChatId] });
+                    if (chatQuery?.options?.queryFn) {
+                        setTimeout(() => {
+                            queryClient.invalidateQueries({
+                                queryKey: ["chat", targetChatId],
                             });
-                            latestClearStreamingStateRef.current();
-                        } else if (!cancelled) {
-                            latestClearStreamingStateRef.current();
-                        }
-                        break;
+                        }, 3000);
                     }
 
-                    // Decode chunk and add to buffer
-                    buffer += decoder.decode(value, { stream: true });
+                    // 5. Clear stream state after the final assistant payload has been emitted.
+                    queryClient.removeQueries({ queryKey: STREAM_KEY(chatId) });
+                    if (resolvedChatId && resolvedChatId !== chatId) {
+                        queryClient.removeQueries({
+                            queryKey: STREAM_KEY(resolvedChatId),
+                        });
+                    }
+                })();
 
-                    // Process complete SSE messages (lines ending with \n\n)
-                    const lines = buffer.split("\n\n");
-                    buffer = lines.pop() || ""; // Keep incomplete line in buffer
+                return endStreamPromise;
+            };
 
-                    for (const line of lines) {
-                        if (cancelled) break;
-                        if (line.startsWith("data: ")) {
+            const promotePendingChat = (newId) => {
+                if (chatId === newId || chatId !== NEW_CHAT_ID) return;
+                resolvedChatId = newId;
+                promotedStreamChatIdRef.current = newId;
+                const cached = queryClient.getQueryData(["chat", chatId]);
+                if (cached) {
+                    queryClient.setQueryData(
+                        ["chat", newId],
+                        normalizeChatForCache(cached, {
+                            ...cached,
+                            _id: newId,
+                            isTemporary: false,
+                        }),
+                    );
+                    // Defer removal of old query so React can process the
+                    // promotion state updates first.  Removing it synchronously
+                    // can briefly null-out urlChat in Chat.js before
+                    // setPromotedChatId has been committed, causing a flash.
+                    setTimeout(() => {
+                        queryClient.removeQueries({
+                            queryKey: ["chat", chatId],
+                        });
+                    }, 0);
+                }
+                // Copy stream state so hasActiveStream(newId) returns true —
+                // prevents useGetChatById from polling the server mid-stream.
+                const streamState = queryClient.getQueryData(
+                    STREAM_KEY(chatId),
+                );
+                if (streamState) {
+                    queryClient.setQueryData(STREAM_KEY(newId), streamState);
+                }
+                if (onChatPromoted) {
+                    onChatPromoted(newId, chatId);
+                } else {
+                    queryClient.setQueryData(["activeChats"], (old = []) =>
+                        old.map((c) =>
+                            String(c._id) === chatId ? { ...c, _id: newId } : c,
+                        ),
+                    );
+                    queryClient.setQueryData(["userChatInfo"], (old) => ({
+                        ...old,
+                        activeChatId: newId,
+                        recentChatIds: [
+                            newId,
+                            ...(old?.recentChatIds || []).filter(
+                                (id) => id !== newId && id !== chatId,
+                            ),
+                        ],
+                    }));
+                    window.dispatchEvent(
+                        new CustomEvent("chatIdUpdate", {
+                            detail: { chatId: newId },
+                        }),
+                    );
+                }
+            };
+
+            (async () => {
+                try {
+                    while (!cancelled) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            cancelled = true;
+                            await endStream();
+                            break;
+                        }
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n\n");
+                        buffer = lines.pop() || "";
+
+                        for (const line of lines) {
+                            if (!line.startsWith("data: ")) continue;
                             try {
-                                const data = JSON.parse(line.slice(6));
-                                const { event, data: eventData } = data;
-
-                                if (event === "error") {
-                                    toast.error(
-                                        eventData?.error || "Stream error",
-                                    );
-                                    if (latestChatRef.current?._id) {
-                                        const chatId = String(
-                                            latestChatRef.current._id,
-                                        );
-                                        // Refetch before clearing to prevent flash
-                                        await latestQueryClientRef.current.refetchQueries(
+                                const { event, data: d } = JSON.parse(
+                                    line.slice(6),
+                                );
+                                if (event === "chatId" && d?.chatId)
+                                    promotePendingChat(String(d.chatId));
+                                else if (
+                                    event === "subscriptionId" &&
+                                    d?.subscriptionId
+                                ) {
+                                    const targetId = resolvedChatId;
+                                    const cached = queryClient.getQueryData([
+                                        "chat",
+                                        targetId,
+                                    ]);
+                                    if (cached) {
+                                        syncInFlightChatCache(
+                                            queryClient,
+                                            targetId,
                                             {
-                                                queryKey: ["chat", chatId],
-                                            },
-                                        );
-                                        await latestUpdateChatHookRef.current.mutateAsync(
-                                            {
-                                                chatId,
-                                                isChatLoading: false,
-                                            },
-                                        );
-                                    }
-                                    latestClearStreamingStateRef.current();
-                                    return;
-                                }
-
-                                if (event === "complete") {
-                                    // Server has persisted the message before sending "complete"
-                                    // Refetch to get the persisted message, then clear streaming
-                                    if (latestChatRef.current?._id) {
-                                        const chatId = String(
-                                            latestChatRef.current._id,
-                                        );
-                                        await latestQueryClientRef.current.refetchQueries(
-                                            {
-                                                queryKey: ["chat", chatId],
+                                                serverChat: cached,
+                                                activeSubscriptionId:
+                                                    d.subscriptionId,
                                             },
                                         );
                                     }
-                                    latestClearStreamingStateRef.current();
-                                    return;
-                                }
-
-                                // Process data, info, and progress events
-                                if (
+                                } else if (event === "error") {
+                                    cancelled = true;
+                                    toast.error(d?.error || "Error");
+                                    await endStream();
+                                    break;
+                                } else if (event === "complete") {
+                                    cancelled = true;
+                                    await endStream();
+                                    break;
+                                } else if (
                                     event === "data" ||
                                     event === "info" ||
                                     event === "progress"
                                 ) {
-                                    messageQueueRef.current.push({
-                                        progress: eventData?.progress,
+                                    refs.current.queue.push({
+                                        progress: d?.progress,
                                         result:
-                                            event === "data"
-                                                ? eventData?.result
-                                                : null,
-                                        info:
-                                            event === "info"
-                                                ? eventData?.info
-                                                : null,
+                                            event === "data" ? d?.result : null,
+                                        info: event === "info" ? d?.info : null,
                                     });
-                                    if (!processingRef.current) {
-                                        requestAnimationFrame(() =>
-                                            latestProcessMessageQueueRef.current(),
-                                        );
+                                    if (!refs.current.processing) {
+                                        scheduleProcessQueue();
                                     }
                                 }
                             } catch (e) {
-                                console.error("Error parsing SSE message:", e);
+                                console.error("Parse error:", e);
                             }
                         }
                     }
-                }
-            } catch (error) {
-                if (!cancelled) {
-                    console.error("Error reading SSE stream:", error);
-                    toast.error("Stream connection error");
-                    if (latestChatRef.current?._id) {
-                        const chatId = String(latestChatRef.current._id);
-                        // Refetch before clearing to prevent flash
-                        await latestQueryClientRef.current.refetchQueries({
-                            queryKey: ["chat", chatId],
-                        });
-                        await latestUpdateChatHookRef.current.mutateAsync({
-                            chatId,
-                            isChatLoading: false,
+                } catch (e) {
+                    if (!cancelled) {
+                        cancelled = true;
+                        const targetChatId = String(
+                            resolvedChatId || chatId || "",
+                        );
+                        const streamStillActive = Boolean(
+                            queryClient.getQueryData(
+                                STREAM_KEY(targetChatId || chatId),
+                            ),
+                        );
+                        if (!streamStillActive) {
+                            return;
+                        }
+                        console.warn("Stream detached from client:", e);
+                        clearDetachedStreamState();
+                        if (targetChatId) {
+                            queryClient.setQueryData(
+                                ["chatSending", targetChatId],
+                                null,
+                            );
+                        }
+                        onStreamDetached?.({
+                            chatId: targetChatId,
                         });
                     }
-                    latestClearStreamingStateRef.current();
                 }
+            })();
+        },
+        [
+            chatId,
+            chat?.selectedEntityId,
+            queryClient,
+            scheduleProcessQueue,
+            flushPendingQueue,
+            onChatPromoted,
+            onStreamComplete,
+            onStreamDetached,
+        ],
+    );
+
+    useEffect(() => {
+        if (!isStreaming) return;
+        const interval = setInterval(() => {
+            const s = queryClient.getQueryData(STREAM_KEY(chatId)) || {};
+            if (s.startTime) {
+                const nextDuration = Math.floor(
+                    (Date.now() - s.startTime) / 1000,
+                );
+                setStream({
+                    thinkingDuration: nextDuration,
+                    inlinePayloadItems: updateAssistantThinkingDuration(
+                        getStreamInlineItems(s),
+                        s.activeThinkingIndex ?? null,
+                        nextDuration,
+                    ),
+                });
             }
-        };
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [isStreaming, queryClient, chatId, setStream]);
 
-        readStream();
+    useEffect(() => {
+        if (chatId === NEW_CHAT_ID || !isStreaming) {
+            promotedStreamChatIdRef.current = null;
+        }
+    }, [chatId, isStreaming]);
 
-        // Cleanup on unmount
-        return () => {
-            cancelled = true;
-            streamReaderRef.current = null;
-            reader.cancel().catch(() => {
-                // Ignore cancellation errors
-            });
-        };
-    }, [subscriptionId, queryClient]);
+    useEffect(() => {
+        if (
+            isStreaming &&
+            hasActiveStream(queryClient, chatId) &&
+            chat?.isChatLoading === false
+        ) {
+            clearStream();
+        }
+    }, [isStreaming, chat?.isChatLoading, queryClient, chatId, clearStream]);
 
     return {
         isStreaming,
-        streamingContent,
-        ephemeralContent,
-        toolCalls,
+        streamingChatId: isStreaming ? chatId : null,
         stopStreaming,
-        setIsStreaming,
+        setIsStreaming: (v) => {
+            if (!v) {
+                clearStream();
+                return;
+            }
+            startPendingStream();
+        },
         setSubscriptionId,
-        streamingMessageRef,
-        clearStreamingState,
-        thinkingDuration,
-        isThinking,
+        clearStreamingState: clearStream,
     };
+}
+
+// Lightweight hook for components that only need streaming display values.
+// Subscribes to all streaming state changes (every SSE chunk).
+export function useStreamingDisplay(chatId) {
+    const queryClient = useQueryClient();
+    const { data: streamState = {} } = useQuery({
+        queryKey: STREAM_KEY(chatId),
+        queryFn: () => queryClient.getQueryData(STREAM_KEY(chatId)) || {},
+        enabled: !!chatId,
+        staleTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+    });
+    return {
+        isStreaming: !!streamState.isStreaming,
+        streamingContent: streamState.streamingContent || "",
+        inlinePayloadItems: getStreamInlineItems(streamState),
+        thinkingDuration: streamState.thinkingDuration || 0,
+        isThinking: streamState.isThinking || false,
+    };
+}
+
+function parseToolEventAtIndex(items, index) {
+    if (!Array.isArray(items)) return null;
+    if (!Number.isInteger(index) || index < 0 || index >= items.length) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(items[index]);
+        return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+        return null;
+    }
 }

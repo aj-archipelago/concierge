@@ -1,5 +1,40 @@
 import { getCurrentUser } from "../utils/auth.js";
+import {
+    fetchShortLivedUrl,
+    extractBlobPathFromUrl,
+    extractHashFromBlobUrl,
+    isAllowedBlobDomain,
+    sanitizeFilename,
+} from "../utils/llm-file-utils.js";
 import archiver from "archiver";
+import mime from "mime-types";
+
+/**
+ * Determine file extension from content-type header or URL.
+ * @param {string} contentType - Content-Type header value
+ * @param {string} url - File URL
+ * @returns {string} Extension with dot, e.g. ".pdf"
+ */
+function getExtensionFromResponse(contentType, url) {
+    // Try content-type first
+    if (contentType) {
+        const mimeBase = contentType.split(";")[0].trim();
+        const ext = mime.extension(mimeBase);
+        if (ext) return `.${ext}`;
+    }
+    // Fallback: extract from URL path
+    try {
+        const pathname = new URL(url).pathname;
+        const lastDot = pathname.lastIndexOf(".");
+        if (lastDot > 0) {
+            const ext = pathname.slice(lastDot).split("?")[0].toLowerCase();
+            if (ext.length <= 5) return ext;
+        }
+    } catch {
+        // ignore
+    }
+    return ".bin";
+}
 
 export async function POST(req) {
     const user = await getCurrentUser();
@@ -40,7 +75,25 @@ export async function POST(req) {
             );
         }
 
-        console.log(`Creating ZIP with ${fileData.length} files`);
+        // Validate all URLs are from allowed domains
+        for (const fileInfo of fileData) {
+            try {
+                const urlObj = new URL(fileInfo.url);
+                if (!isAllowedBlobDomain(urlObj.hostname)) {
+                    return Response.json(
+                        {
+                            error: `URL is not from an allowed domain: ${urlObj.hostname}`,
+                        },
+                        { status: 403 },
+                    );
+                }
+            } catch {
+                return Response.json(
+                    { error: "Invalid URL in request" },
+                    { status: 400 },
+                );
+            }
+        }
 
         // Apply reasonable limits
         const MAX_FILES = 100;
@@ -65,8 +118,25 @@ export async function POST(req) {
         const fetchPromises = fileData.map(async (fileInfo, index) => {
             const { url, filename: providedFilename } = fileInfo;
             try {
-                console.log(`Fetching file ${index + 1}: ${url}`);
-                const response = await fetch(url);
+                let response = await fetch(url);
+
+                // If SAS token expired, try to refresh via media-helper
+                if (response.status === 403) {
+                    const blobPath = extractBlobPathFromUrl(url);
+                    const hash = extractHashFromBlobUrl(url);
+                    // Use per-file contextId (workspace artifacts use workspaceId), fall back to user's contextId
+                    const contextId = fileInfo.contextId || user.contextId;
+                    if ((blobPath || hash) && contextId) {
+                        const refreshed = await fetchShortLivedUrl({
+                            blobPath,
+                            hash,
+                            contextId,
+                        });
+                        if (refreshed?.url) {
+                            response = await fetch(refreshed.url);
+                        }
+                    }
+                }
 
                 if (!response.ok) {
                     throw new Error(
@@ -76,76 +146,26 @@ export async function POST(req) {
 
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
+                const contentType = response.headers.get("content-type") || "";
 
-                console.log(
-                    `Successfully fetched ${url}, size: ${buffer.length} bytes`,
-                );
-
-                // Use provided filename if available, otherwise determine from content-type or URL
+                // Determine filename
                 let filename;
                 if (providedFilename) {
-                    // Use provided filename, but ensure it has an extension
                     filename = providedFilename;
-                    // If no extension, try to determine from content-type
+                    // Add extension if missing
                     if (!filename.includes(".")) {
-                        const contentType =
-                            response.headers.get("content-type") || "";
-                        let extension = "";
-                        if (contentType.includes("video/mp4"))
-                            extension = ".mp4";
-                        else if (contentType.includes("video/webm"))
-                            extension = ".webm";
-                        else if (contentType.includes("image/png"))
-                            extension = ".png";
-                        else if (contentType.includes("image/jpeg"))
-                            extension = ".jpg";
-                        else if (contentType.includes("image/gif"))
-                            extension = ".gif";
-                        else if (url.includes(".mp4")) extension = ".mp4";
-                        else if (url.includes(".webm")) extension = ".webm";
-                        else if (url.includes(".png")) extension = ".png";
-                        else if (url.includes(".jpg") || url.includes(".jpeg"))
-                            extension = ".jpg";
-                        else if (url.includes(".gif")) extension = ".gif";
-                        else extension = ".png"; // Default
-                        filename = filename + extension;
+                        filename += getExtensionFromResponse(contentType, url);
                     }
                 } else {
-                    // Determine file extension from content-type or URL
-                    let extension = "";
-                    const contentType =
-                        response.headers.get("content-type") || "";
-
-                    if (contentType.includes("video/mp4")) {
-                        extension = ".mp4";
-                    } else if (contentType.includes("video/webm")) {
-                        extension = ".webm";
-                    } else if (contentType.includes("image/png")) {
-                        extension = ".png";
-                    } else if (contentType.includes("image/jpeg")) {
-                        extension = ".jpg";
-                    } else if (contentType.includes("image/gif")) {
-                        extension = ".gif";
-                    } else {
-                        // Fallback to URL-based detection
-                        if (url.includes(".mp4")) extension = ".mp4";
-                        else if (url.includes(".webm")) extension = ".webm";
-                        else if (url.includes(".png")) extension = ".png";
-                        else if (url.includes(".jpg") || url.includes(".jpeg"))
-                            extension = ".jpg";
-                        else if (url.includes(".gif")) extension = ".gif";
-                        else extension = ".png"; // Default
-                    }
-
-                    filename = `media_${index + 1}_${Date.now()}${extension}`;
+                    const extension = getExtensionFromResponse(
+                        contentType,
+                        url,
+                    );
+                    // Use index for uniqueness instead of Date.now() (avoids collisions)
+                    filename = `media_${index + 1}${extension}`;
                 }
 
-                // Sanitize filename to prevent path traversal and invalid characters
-                filename = filename
-                    // eslint-disable-next-line no-control-regex
-                    .replace(/[<>:"|?*\x00-\x1f]/g, "_") // Replace invalid chars
-                    .replace(/\.\./g, "_") // Prevent path traversal
-                    .replace(/^\/+/, ""); // Remove leading slashes
+                filename = sanitizeFilename(filename);
 
                 return {
                     filename,
@@ -190,10 +210,6 @@ export async function POST(req) {
             );
         }
 
-        console.log(
-            `Adding ${successfulResults.length} files to ZIP archive (${Math.round(totalSize / (1024 * 1024))}MB total)`,
-        );
-
         // Add files to archive
         successfulResults.forEach((result) => {
             archive.append(result.buffer, { name: result.filename });
@@ -212,7 +228,6 @@ export async function POST(req) {
         });
 
         const zipBuffer = Buffer.concat(chunks);
-        console.log(`ZIP file created, size: ${zipBuffer.length} bytes`);
 
         // Return the ZIP file as a downloadable response
         return new Response(zipBuffer, {
@@ -230,3 +245,5 @@ export async function POST(req) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

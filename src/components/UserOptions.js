@@ -1,17 +1,21 @@
 import { Modal } from "@/components/ui/modal";
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { User, X, Settings } from "lucide-react";
+import { User, X, Settings, KeyRound } from "lucide-react";
 import { useUpdateAiOptions } from "../../app/queries/options";
-import { useUpdateCurrentUser } from "../../app/queries/users";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthContext } from "../App";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import axios from "../../app/utils/axios-client";
 import { MemoryEditorContent } from "./MemoryEditor";
+import SecretsEditor from "./SecretsEditor";
+import UserAvatar from "./UserAvatar";
 import {
-    AGENT_MODEL_OPTIONS,
-    DEFAULT_AGENT_MODEL,
-} from "../../app/utils/agent-model-mapping";
+    getReasoningEffortLevelsForModel,
+    normalizeReasoningEffortForModel,
+    reasoningEffortLevelLabelKey,
+} from "../utils/reasoningEffortI18n";
+import { useResolvedAgentModel } from "../hooks/useResolvedAgentModel";
 
 const UserOptions = ({ show, handleClose }) => {
     const { t } = useTranslation();
@@ -19,41 +23,74 @@ const UserOptions = ({ show, handleClose }) => {
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
     const profilePictureInputRef = useRef();
+    const queryClient = useQueryClient();
+
+    const { agentModels, resolvedAgentModel, persistResolvedAgentModel } =
+        useResolvedAgentModel(user);
 
     const [profilePicture, setProfilePicture] = useState(
         user?.profilePicture || null,
     );
-    const [aiName, setAiName] = useState(user.aiName || "Labeeb");
-    const [agentModel, setAgentModel] = useState(
-        user.agentModel || DEFAULT_AGENT_MODEL,
-    );
+    const [aiName, setAiName] = useState(user.aiName || "Concierge");
+    const [agentModel, setAgentModel] = useState(resolvedAgentModel);
     const [useCustomEntities, setUseCustomEntities] = useState(
         user.useCustomEntities || false,
     );
     const [aiMemorySelfModify, setAiMemorySelfModify] = useState(
         user.aiMemorySelfModify || false,
     );
+    const [reasoningEffort, setReasoningEffort] = useState(
+        user.reasoningEffort || "low",
+    );
     const [uploadingProfilePicture, setUploadingProfilePicture] =
         useState(false);
     const [error, setError] = useState("");
     const [showMemoryEditor, setShowMemoryEditor] = useState(false);
+    const [showSecretsEditor, setShowSecretsEditor] = useState(false);
+    const selectedAgentModel = agentModels?.find(
+        (model) => model.modelId === agentModel,
+    );
+    const reasoningEffortLevels =
+        getReasoningEffortLevelsForModel(selectedAgentModel);
+    const displayedReasoningEffort = normalizeReasoningEffortForModel(
+        selectedAgentModel,
+        reasoningEffort,
+    );
 
     const updateAiOptionsMutation = useUpdateAiOptions();
-    const updateCurrentUserMutation = useUpdateCurrentUser();
+    useEffect(() => {
+        if (reasoningEffort !== displayedReasoningEffort) {
+            setReasoningEffort(displayedReasoningEffort);
+        }
+    }, [reasoningEffort, displayedReasoningEffort]);
 
     useEffect(() => {
         if (user) {
             setProfilePicture(user.profilePicture || null);
-            setAiName(user.aiName || "Labeeb");
-            setAgentModel(user.agentModel || DEFAULT_AGENT_MODEL);
+            setAiName(user.aiName || "Concierge");
+            setAgentModel(resolvedAgentModel);
             setUseCustomEntities(user.useCustomEntities || false);
             setAiMemorySelfModify(user.aiMemorySelfModify || false);
+            setReasoningEffort(
+                normalizeReasoningEffortForModel(
+                    agentModels?.find(
+                        (model) => model.modelId === resolvedAgentModel,
+                    ),
+                    user.reasoningEffort,
+                ),
+            );
+            persistResolvedAgentModel(resolvedAgentModel);
         }
-    }, [user]);
+    }, [user, resolvedAgentModel, persistResolvedAgentModel, agentModels]);
+
+    const profilePictureBlobPath =
+        profilePicture && profilePicture === user?.profilePicture
+            ? user?.profilePictureBlobPath
+            : null;
 
     const handleProfilePictureSelect = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
+        const file = event.target.files?.[0];
+        if (!(file instanceof File)) return;
 
         if (!file.type.startsWith("image/")) {
             setError(t("Please select an image file"));
@@ -85,8 +122,8 @@ const UserOptions = ({ show, handleClose }) => {
 
             if (response.data?.url) {
                 setProfilePicture(response.data.url);
-                await updateCurrentUserMutation.mutateAsync({
-                    data: { profilePicture: response.data.url },
+                await queryClient.invalidateQueries({
+                    queryKey: ["currentUser"],
                 });
             } else {
                 throw new Error(t("Upload failed: No URL returned"));
@@ -119,8 +156,8 @@ const UserOptions = ({ show, handleClose }) => {
         (async () => {
             try {
                 await axios.delete("/api/users/me/profile-picture");
-                await updateCurrentUserMutation.mutateAsync({
-                    data: { profilePicture: "" },
+                await queryClient.invalidateQueries({
+                    queryKey: ["currentUser"],
                 });
             } catch (error) {
                 console.error("Error removing profile picture:", error);
@@ -140,6 +177,14 @@ const UserOptions = ({ show, handleClose }) => {
             console.error("UserId not found");
             return;
         }
+        const nextAgentModel = updates.agentModel ?? agentModel;
+        const nextSelectedAgentModel =
+            agentModels?.find((model) => model.modelId === nextAgentModel) ??
+            selectedAgentModel;
+        const nextReasoningEffort = normalizeReasoningEffortForModel(
+            nextSelectedAgentModel,
+            updates.reasoningEffort ?? reasoningEffort,
+        );
 
         try {
             await updateAiOptionsMutation.mutateAsync({
@@ -148,9 +193,10 @@ const UserOptions = ({ show, handleClose }) => {
                 aiMemorySelfModify:
                     updates.aiMemorySelfModify ?? aiMemorySelfModify,
                 aiName: updates.aiName ?? aiName,
-                agentModel: updates.agentModel ?? agentModel,
+                agentModel: nextAgentModel,
                 useCustomEntities:
                     updates.useCustomEntities ?? useCustomEntities,
+                reasoningEffort: nextReasoningEffort,
             });
             setError("");
         } catch (error) {
@@ -166,7 +212,13 @@ const UserOptions = ({ show, handleClose }) => {
     return (
         <Modal
             widthClassName={showMemoryEditor ? "max-w-6xl" : "max-w-2xl"}
-            title={showMemoryEditor ? t("Memory Editor") : t("Options")}
+            title={
+                showMemoryEditor
+                    ? t("Memory Editor")
+                    : showSecretsEditor
+                      ? t("Secrets")
+                      : t("Options")
+            }
             show={show}
             onHide={handleClose}
         >
@@ -175,6 +227,11 @@ const UserOptions = ({ show, handleClose }) => {
                     user={user}
                     aiName={aiName}
                     onClose={() => setShowMemoryEditor(false)}
+                />
+            ) : showSecretsEditor ? (
+                <SecretsEditor
+                    entityId={user?.personalEntityId}
+                    onClose={() => setShowSecretsEditor(false)}
                 />
             ) : (
                 <div className="flex flex-col gap-4">
@@ -221,10 +278,16 @@ const UserOptions = ({ show, handleClose }) => {
                                     </div>
                                     <div className="relative flex-shrink-0">
                                         {profilePicture ? (
-                                            <img
+                                            <UserAvatar
                                                 src={profilePicture}
-                                                alt={t("Profile picture")}
-                                                className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                                                blobPath={
+                                                    profilePictureBlobPath
+                                                }
+                                                contextId={user?.contextId}
+                                                name={t("Profile picture")}
+                                                className="w-12 h-12 rounded-full border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center"
+                                                initialsClassName="hidden"
+                                                iconClassName="w-6 h-6"
                                             />
                                         ) : (
                                             <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
@@ -251,10 +314,16 @@ const UserOptions = ({ show, handleClose }) => {
                                 <>
                                     <div className="relative flex-shrink-0">
                                         {profilePicture ? (
-                                            <img
+                                            <UserAvatar
                                                 src={profilePicture}
-                                                alt={t("Profile picture")}
-                                                className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                                                blobPath={
+                                                    profilePictureBlobPath
+                                                }
+                                                contextId={user?.contextId}
+                                                name={t("Profile picture")}
+                                                className="w-12 h-12 rounded-full border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center"
+                                                initialsClassName="hidden"
+                                                iconClassName="w-6 h-6"
                                             />
                                         ) : (
                                             <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
@@ -344,15 +413,30 @@ const UserOptions = ({ show, handleClose }) => {
                                     id="agentModel"
                                     value={agentModel}
                                     onChange={(e) => {
-                                        setAgentModel(e.target.value);
+                                        const nextAgentModel = e.target.value;
+                                        const nextModel = agentModels?.find(
+                                            (model) =>
+                                                model.modelId ===
+                                                nextAgentModel,
+                                        );
+                                        const nextReasoningEffort =
+                                            normalizeReasoningEffortForModel(
+                                                nextModel,
+                                                reasoningEffort,
+                                            );
+
+                                        setAgentModel(nextAgentModel);
+                                        setReasoningEffort(nextReasoningEffort);
                                         saveOptions({
-                                            agentModel: e.target.value,
+                                            agentModel: nextAgentModel,
+                                            reasoningEffort:
+                                                nextReasoningEffort,
                                         });
                                     }}
                                     className="lb-input w-full text-sm"
                                     dir={direction}
                                 >
-                                    {AGENT_MODEL_OPTIONS.map((option) => (
+                                    {agentModels.map((option) => (
                                         <option
                                             key={option.modelId}
                                             value={option.modelId}
@@ -388,6 +472,51 @@ const UserOptions = ({ show, handleClose }) => {
                             </label>
                         </div>
                     </section>
+
+                    {/* Reasoning Effort */}
+                    <hr className="border-gray-200 dark:border-gray-700" />
+                    <section className="space-y-3">
+                        <label
+                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 ${isRTL ? "text-right" : "text-left"}`}
+                        >
+                            {t("Reasoning Effort")}
+                        </label>
+                        <div className="flex rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
+                            {reasoningEffortLevels.map((level) => (
+                                <button
+                                    key={level}
+                                    type="button"
+                                    onClick={() => {
+                                        setReasoningEffort(level);
+                                        saveOptions({
+                                            reasoningEffort: level,
+                                        });
+                                    }}
+                                    className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors capitalize ${
+                                        displayedReasoningEffort === level
+                                            ? "bg-sky-500 text-white"
+                                            : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                    }`}
+                                >
+                                    {t(reasoningEffortLevelLabelKey(level))}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Secrets — only when user has a personal entity */}
+                    {user?.personalEntityId && (
+                        <section>
+                            <button
+                                type="button"
+                                onClick={() => setShowSecretsEditor(true)}
+                                className="lb-primary text-sm w-full sm:w-auto"
+                            >
+                                <KeyRound className="w-4 h-4 inline me-2" />
+                                {t("Secrets")}
+                            </button>
+                        </section>
+                    )}
 
                     {/* Separator */}
                     <hr className="border-gray-200 dark:border-gray-700" />

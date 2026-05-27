@@ -5,12 +5,6 @@ import {
     extractLegacyFilesFromMessages,
 } from "../useUnifiedFileData";
 
-jest.mock("@/src/App", () => ({
-    AuthContext: require("react").createContext({
-        user: { contextId: "user-1" },
-    }),
-}));
-
 // Mock i18n — transitive import chain reaches src/i18n.js which loads
 // locale JSON files that only exist after prebuild.
 jest.mock("../../../../i18n", () => ({}));
@@ -53,7 +47,7 @@ describe("extractLegacyFilesFromMessages", () => {
                         JSON.stringify({
                             type: "image_url",
                             image_url: {
-                                url: "https://storage.example.blob.core.windows.net/cortexfiles-user-1/chats/chat-123/abc123_report.pdf?sv=old&sig=expired",
+                                url: "https://customerstorage.blob.core.windows.net/cortexfiles-user-1/chats/chat-123/abc123_report.pdf?sv=old&sig=expired",
                             },
                         }),
                     ],
@@ -65,7 +59,7 @@ describe("extractLegacyFilesFromMessages", () => {
         expect(files).toHaveLength(1);
         expect(files[0]).toEqual(
             expect.objectContaining({
-                url: "https://storage.example.blob.core.windows.net/cortexfiles-user-1/chats/chat-123/abc123_report.pdf?sv=old&sig=expired",
+                url: "https://customerstorage.blob.core.windows.net/cortexfiles-user-1/chats/chat-123/abc123_report.pdf?sv=old&sig=expired",
                 blobPath: "chats/chat-123/abc123_report.pdf",
                 hash: "abc123",
                 filename: "abc123_report.pdf",

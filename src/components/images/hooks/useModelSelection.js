@@ -1,12 +1,7 @@
-import { useCallback, useEffect } from "react";
-import {
-    groupAndSortModels,
-    DEFAULT_MODEL_SETTINGS,
-} from "../config/models.js";
+import { useCallback, useEffect, useMemo } from "react";
+import { useMediaModels } from "../../../../app/queries/modelMetadata";
 
 export const useModelSelection = ({
-    selectedImagesObjects,
-    sortedImages,
     settings,
     selectedModel,
     setSelectedModel,
@@ -14,63 +9,97 @@ export const useModelSelection = ({
     setQuality,
     getModelSettings,
 }) => {
-    // Get available models based on current input conditions
+    const { data: mediaModels } = useMediaModels();
+
+    // Build a lookup map for O(1) model metadata access
+    const modelMap = useMemo(() => {
+        if (!mediaModels) return new Map();
+        return new Map(mediaModels.map((m) => [m.modelId, m]));
+    }, [mediaModels]);
+
+    // Keep all configured models visible; reference compatibility is surfaced
+    // by MediaPage warnings and enforced at request construction time.
     const getAvailableModels = useCallback(() => {
-        // If no images in gallery, return all models (no restrictions)
-        if (!sortedImages || sortedImages.length === 0) {
-            const allModels = Object.keys(settings.models || {});
-            return groupAndSortModels(allModels, settings);
-        }
-
-        const imageCount = selectedImagesObjects.filter(
-            (img) => img.type === "image",
-        ).length;
-
         const allModels = Object.keys(settings.models || {});
-        const availableModels = allModels.filter((modelName) => {
-            const defaultSettings = DEFAULT_MODEL_SETTINGS[modelName];
-            const range = defaultSettings?.inputImages;
 
-            if (!range) return true; // Unknown models default to available
-            return imageCount >= range[0] && imageCount <= range[1];
-        });
+        // Group models into media categories by type
+        const groupModels = (models) => {
+            const image = [];
+            const video = [];
+            const audio = [];
+            const tts = [];
+            for (const id of models) {
+                const type =
+                    settings.models?.[id]?.type ||
+                    modelMap.get(id)?.category ||
+                    "image";
+                if (type === "video") {
+                    video.push(id);
+                } else if (type === "tts") {
+                    tts.push(id);
+                } else if (type === "audio") {
+                    audio.push(id);
+                } else {
+                    image.push(id);
+                }
+            }
+            const sortByDisplayName = (a, b) =>
+                (modelMap.get(a)?.displayName || a).localeCompare(
+                    modelMap.get(b)?.displayName || b,
+                );
+            image.sort(sortByDisplayName);
+            video.sort(sortByDisplayName);
+            audio.sort(sortByDisplayName);
+            tts.sort(sortByDisplayName);
+            return { image, video, audio, tts };
+        };
 
-        return groupAndSortModels(availableModels, settings);
-    }, [selectedImagesObjects, sortedImages, settings]);
+        return groupModels(allModels);
+    }, [settings, modelMap]);
 
-    // Apply intelligent model selection based on input conditions
+    // Keep selection valid if model configuration changes.
     useEffect(() => {
+        // Don't pick anything until the API model list has loaded — without
+        // it we can't honor `isDefault`, and `Object.keys(settings.models)`
+        // sorted by raw modelId would (incorrectly) prefer whichever id is
+        // alphabetically first. MediaPage's own default-setter handles the
+        // initial selection once mediaModels is populated.
+        if (!mediaModels?.length) return;
+
         const availableModels = getAvailableModels();
         const allAvailableModels = [
             ...availableModels.image,
             ...availableModels.video,
+            ...availableModels.audio,
+            ...availableModels.tts,
         ];
 
-        // Check if current model is still available for current input conditions
+        // Check if current model still exists in the configured model list.
         const isCurrentModelAvailable =
             allAvailableModels.includes(selectedModel);
 
         if (!isCurrentModelAvailable) {
-            // Current model is no longer available, switch to appropriate model
-            const newModel = allAvailableModels[0];
+            // Prefer the API-flagged default before the alphabetical first.
+            const newModel =
+                mediaModels.find(
+                    (m) =>
+                        m.isDefault && allAvailableModels.includes(m.modelId),
+                )?.modelId || allAvailableModels[0];
 
             if (newModel) {
                 setSelectedModel(newModel);
                 // Update output type based on the new model
                 const newModelSettings = getModelSettings(settings, newModel);
                 if (newModelSettings.type === "image") {
-                    setOutputType("image");
                     setQuality(newModelSettings.quality || "draft");
-                } else {
-                    setOutputType("video");
                 }
+                setOutputType(newModelSettings.type || "image");
             }
         }
     }, [
-        selectedImagesObjects,
-        sortedImages,
         settings,
         selectedModel,
+        mediaModels,
         getAvailableModels,
         setSelectedModel,
         setOutputType,

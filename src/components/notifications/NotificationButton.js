@@ -1,3 +1,5 @@
+"use client";
+
 import {
     AlertDialog,
     AlertDialogAction,
@@ -85,6 +87,22 @@ export const getStatusColorClass = (status) => {
     }
 };
 
+function getNotificationDisplayTitle(notification, handlerDisplayNames, t) {
+    if (notification.type === "automation-run") {
+        const automationName =
+            notification.automation?.name ||
+            notification.metadata?.automationName ||
+            notification.automation?.slug ||
+            notification.metadata?.automationSlug;
+
+        if (automationName) {
+            return t("Automation: {{name}}", { name: automationName });
+        }
+    }
+
+    return t(handlerDisplayNames[notification.type] || notification.type);
+}
+
 const NotificationItem = ({
     notification,
     handlerDisplayNames,
@@ -138,9 +156,10 @@ const NotificationItem = ({
                             }
                         }}
                     >
-                        {t(
-                            handlerDisplayNames[notification.type] ||
-                                notification.type,
+                        {getNotificationDisplayTitle(
+                            notification,
+                            handlerDisplayNames,
+                            t,
                         )}
                     </span>
                     {notification.metadata && (
@@ -196,6 +215,19 @@ const NotificationItem = ({
                                         </span>
                                     )}
                                 </>
+                            )}
+                            {notification.type === "automation-run" && (
+                                <span>
+                                    {t("Trigger")}:{" "}
+                                    {t(
+                                        stringcase.sentencecase(
+                                            notification.automation?.trigger ||
+                                                notification.metadata
+                                                    ?.trigger ||
+                                                "manual",
+                                        ),
+                                    )}
+                                </span>
                             )}
                         </div>
                     )}
@@ -332,9 +364,9 @@ export default function NotificationButton() {
                 open={isNotificationOpen}
                 onOpenChange={setIsNotificationOpen}
             >
-                <PopoverTrigger className="relative">
+                <PopoverTrigger className="relative mt-1">
                     <Bell
-                        className="h-6 w-6 text-gray-500 hover:text-gray-700"
+                        className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                         stroke="#0284c7"
                         fill={isNotificationOpen ? "#0284c7" : "none"}
                     />
@@ -377,7 +409,8 @@ export default function NotificationButton() {
                                                 Object.entries(TASK_INFO).map(
                                                     ([type, info]) => [
                                                         type,
-                                                        info.displayName,
+                                                        info.displayNameKey ||
+                                                            info.displayName,
                                                     ],
                                                 ),
                                             )}

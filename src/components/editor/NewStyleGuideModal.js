@@ -1,14 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, X as XIcon } from "lucide-react";
 import {
-    Check,
-    X as XIcon,
-    ArrowLeft,
-    ArrowRight,
-    ChevronDown,
-    ChevronUp,
-} from "lucide-react";
-import { useLLMs } from "../../../app/queries/llms";
+    useChatModels,
+    resolveModelId,
+} from "../../../app/queries/modelMetadata";
+import { extractWidgets, restoreWidgets } from "../../utils/widgetUtils";
 import {
     Select,
     SelectContent,
@@ -23,14 +20,34 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "../../../@/components/ui/dialog";
+import {
+    getReasoningEffortLevelsForModel,
+    normalizeReasoningEffortForModel,
+    reasoningEffortLevelLabelKey,
+} from "../../utils/reasoningEffortI18n";
 
-const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
+const NewStyleGuideModal = ({ text, html, onCommit, onClose }) => {
     const { t } = useTranslation();
-    const { data: llms, isLoading: llmsLoading } = useLLMs();
+    const {
+        data: chatModels,
+        redirects,
+        isLoading: llmsLoading,
+    } = useChatModels();
     const [selectedLLM, setSelectedLLM] = useState("");
     const [correctedText, setCorrectedText] = useState("");
     const [isChecking, setIsChecking] = useState(false);
     const [error, setError] = useState("");
+
+    // Store original HTML (html prop contains the original HTML from editor)
+    // text prop contains plain text for style guide checking
+    const [originalHtml, setOriginalHtml] = useState(html || "");
+
+    // Update originalHtml when html prop changes (in case it's loaded asynchronously)
+    useEffect(() => {
+        if (html && typeof html === "string" && html.trim().length > 0) {
+            setOriginalHtml(html);
+        }
+    }, [html]);
 
     // Diff review states
     const [diffs, setDiffs] = useState([]);
@@ -38,15 +55,26 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
     const [diffStates, setDiffStates] = useState({}); // { diffIndex: 'pending'|'accepted'|'rejected' }
     const [showDiffReview, setShowDiffReview] = useState(false);
     const [finalText, setFinalText] = useState("");
-    const [showContextView, setShowContextView] = useState(true);
+    const [isApplyingHtml, setIsApplyingHtml] = useState(false);
 
     // System style guides
     const [systemStyleGuides, setSystemStyleGuides] = useState([]);
     const [selectedStyleGuide, setSelectedStyleGuide] = useState("");
 
-    // Agent mode and research mode
+    // Agent mode and reasoning effort
     const [agentMode, setAgentMode] = useState(false);
-    const [researchMode, setResearchMode] = useState(false);
+    const [reasoningEffort, setReasoningEffort] = useState(null);
+    const selectedModel = chatModels?.find(
+        (model) => model.modelId === selectedLLM,
+    );
+    const reasoningEffortLevels =
+        getReasoningEffortLevelsForModel(selectedModel);
+    const hasModelReasoningRestriction =
+        Array.isArray(selectedModel?.supportedReasoningEfforts) &&
+        selectedModel.supportedReasoningEfforts.length > 0;
+    const displayedReasoningEffort = hasModelReasoningRestriction
+        ? normalizeReasoningEffortForModel(selectedModel, reasoningEffort)
+        : reasoningEffort;
 
     // Keyboard shortcuts dialog
     const [showKeyboardShortcutsDialog, setShowKeyboardShortcutsDialog] =
@@ -55,24 +83,27 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
     // Refs for keyboard handling
     const diffReviewRef = useRef(null);
 
-    // Set default LLM when data is loaded (excluding legacy agent LLMs)
+    // Set default model when data is loaded
     React.useEffect(() => {
-        if (llms && llms.length > 0 && !selectedLLM) {
-            const filteredLLMs = llms.filter(
-                (llm) =>
-                    llm.identifier !== "labeebagent" &&
-                    llm.identifier !== "labeebresearchagent",
-            );
-            if (filteredLLMs.length > 0) {
-                const defaultLLM =
-                    filteredLLMs.find((llm) => llm.isDefault) ||
-                    filteredLLMs[0];
-                if (defaultLLM) {
-                    setSelectedLLM(defaultLLM._id);
-                }
-            }
+        if (chatModels && chatModels.length > 0 && !selectedLLM) {
+            setSelectedLLM(resolveModelId(null, chatModels, redirects));
         }
-    }, [llms, selectedLLM]);
+    }, [chatModels, redirects, selectedLLM]);
+
+    React.useEffect(() => {
+        if (
+            agentMode &&
+            hasModelReasoningRestriction &&
+            reasoningEffort !== displayedReasoningEffort
+        ) {
+            setReasoningEffort(displayedReasoningEffort);
+        }
+    }, [
+        agentMode,
+        hasModelReasoningRestriction,
+        reasoningEffort,
+        displayedReasoningEffort,
+    ]);
 
     // Fetch system style guides
     React.useEffect(() => {
@@ -103,7 +134,6 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
             if (styleGuide && styleGuide.file) {
                 files.push({
                     url: styleGuide.file.url,
-                    gcs: styleGuide.file.gcsUrl || styleGuide.file.gcs,
                     displayFilename:
                         styleGuide.file.displayFilename ||
                         styleGuide.file.originalName,
@@ -453,11 +483,6 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                     e.preventDefault();
                     setShowDiffReview(false);
                     break;
-                case "c":
-                case "C":
-                    e.preventDefault();
-                    setShowContextView((prev) => !prev);
-                    break;
                 default:
                     break;
             }
@@ -479,14 +504,6 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
 
     const handleRejectDiff = (index) => {
         setDiffStates((prev) => ({ ...prev, [index]: "rejected" }));
-    };
-
-    const handleResetDiff = (index) => {
-        setDiffStates((prev) => {
-            const newStates = { ...prev };
-            delete newStates[index];
-            return newStates;
-        });
     };
 
     const handleAcceptAll = () => {
@@ -531,7 +548,7 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                     llmId: selectedLLM,
                     files: files,
                     agentMode: agentMode,
-                    researchMode: researchMode,
+                    reasoningEffort: reasoningEffort,
                 }),
             });
 
@@ -562,15 +579,167 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
         }
     };
 
-    const handleUseCorrectedText = () => {
-        if (showDiffReview && finalText) {
-            onCommit(finalText);
-        } else if (correctedText) {
-            onCommit(correctedText);
-        }
-        // Close the modal after committing
-        if (onClose) {
-            onClose();
+    const handleUseCorrectedText = async () => {
+        // When applying corrections, we need to call the HTML pathway
+        // to apply the text changes to the original HTML
+        // Use html prop (original HTML) or fallback to originalHtml state
+        const htmlToUse = html || originalHtml;
+
+        console.log("handleUseCorrectedText called", {
+            htmlProp: html ? `${html.substring(0, 50)}...` : "undefined",
+            htmlPropLength: html?.length,
+            originalHtml: originalHtml
+                ? `${originalHtml.substring(0, 50)}...`
+                : "undefined",
+            originalHtmlLength: originalHtml?.length,
+            htmlToUse: htmlToUse
+                ? `${htmlToUse.substring(0, 50)}...`
+                : "undefined",
+            htmlToUseLength: htmlToUse?.length,
+            correctedText: correctedText
+                ? `${correctedText.substring(0, 50)}...`
+                : "undefined",
+            correctedTextLength: correctedText?.length,
+            showDiffReview,
+            finalText: finalText
+                ? `${finalText.substring(0, 50)}...`
+                : "undefined",
+            finalTextLength: finalText?.length,
+            selectedLLM,
+        });
+
+        setIsApplyingHtml(true);
+        setError("");
+
+        try {
+            // Validate that we have HTML content (html prop should contain original HTML from editor)
+            if (
+                !htmlToUse ||
+                typeof htmlToUse !== "string" ||
+                htmlToUse.trim().length === 0
+            ) {
+                const errorMsg = t(
+                    "Original HTML content is required to apply corrections. Please ensure the editor has content.",
+                );
+                console.error("Validation failed: HTML content missing", {
+                    htmlProp: html,
+                    originalHtml,
+                    htmlToUse,
+                    htmlPropType: typeof html,
+                    originalHtmlType: typeof originalHtml,
+                });
+                setError(errorMsg);
+                return;
+            }
+
+            // Determine which corrected text to use:
+            // - If in diff review mode, use finalText (which includes accepted/rejected changes)
+            // - Otherwise, use correctedText
+            const textToApply =
+                showDiffReview && finalText ? finalText : correctedText;
+
+            // Validate that we have corrected text to apply
+            if (
+                !textToApply ||
+                typeof textToApply !== "string" ||
+                textToApply.trim().length === 0
+            ) {
+                const errorMsg = t(
+                    "Corrected text is required to apply corrections.",
+                );
+                console.error("Validation failed: textToApply missing", {
+                    textToApply,
+                    correctedText,
+                    finalText,
+                    showDiffReview,
+                });
+                setError(errorMsg);
+                return;
+            }
+
+            // Extract widgets before sending to API
+            const { html: htmlWithoutWidgets, widgets } =
+                extractWidgets(htmlToUse);
+            console.log("Making API call to apply-corrections-to-html", {
+                htmlLength: htmlToUse.length,
+                htmlWithoutWidgetsLength: htmlWithoutWidgets.length,
+                widgetsCount: widgets.size,
+                correctedTextLength: textToApply.length,
+                hasLLM: !!selectedLLM,
+            });
+
+            // Call the HTML corrections endpoint with the original HTML and corrected text
+            // This call is MANDATORY - no fallback to plain text
+            const response = await fetch("/api/apply-corrections-to-html", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    html: htmlWithoutWidgets, // HTML with widgets replaced by placeholders
+                    llmId: selectedLLM,
+                    correctedText: textToApply, // Pass the corrected plain text
+                }),
+            });
+
+            console.log("API response status:", response.status, response.ok);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMsg =
+                    errorData.message ||
+                    `HTTP error! status: ${response.status}`;
+                console.error("API call failed:", {
+                    status: response.status,
+                    errorData,
+                });
+                setError(errorMsg);
+                return;
+            }
+
+            const result = await response.json();
+            console.log("API result:", {
+                hasCorrectedHtml: !!result.correctedHtml,
+            });
+
+            // Validate that we got corrected HTML back
+            if (!result.correctedHtml) {
+                const errorMsg = t("No corrected HTML returned from server.");
+                console.error("No correctedHtml in result:", result);
+                setError(errorMsg);
+                return;
+            }
+
+            // Restore widgets in the corrected HTML
+            const correctedHtmlWithWidgets = restoreWidgets(
+                result.correctedHtml,
+                widgets,
+            );
+            console.log(
+                "Success! Restored widgets, committing corrected HTML",
+                {
+                    originalLength: result.correctedHtml.length,
+                    restoredLength: correctedHtmlWithWidgets.length,
+                    widgetsRestored: widgets.size,
+                },
+            );
+
+            // Only commit and close if we successfully got corrected HTML
+            onCommit(correctedHtmlWithWidgets);
+            if (onClose) {
+                onClose();
+            }
+        } catch (error) {
+            console.error("Failed to apply HTML corrections:", error);
+            // Show error but keep dialog open - do NOT fall back to plain text
+            const errorMsg =
+                error.message ||
+                t("Failed to apply corrections to HTML. Please try again.");
+            setError(errorMsg);
+            // Do NOT close the modal or commit plain text - the HTML call is mandatory
+        } finally {
+            setIsApplyingHtml(false);
+            // Only close modal on success (handled in try block)
         }
     };
 
@@ -599,25 +768,17 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                                     />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {llms
-                                        ?.filter(
-                                            (llm) =>
-                                                llm.identifier !==
-                                                    "labeebagent" &&
-                                                llm.identifier !==
-                                                    "labeebresearchagent",
-                                        )
-                                        .map((llm) => (
-                                            <SelectItem
-                                                key={llm._id}
-                                                value={llm._id}
-                                            >
-                                                {llm.name}{" "}
-                                                {llm.isDefault
-                                                    ? `(${t("Default")})`
-                                                    : ""}
-                                            </SelectItem>
-                                        ))}
+                                    {chatModels?.map((model) => (
+                                        <SelectItem
+                                            key={model.modelId}
+                                            value={model.modelId}
+                                        >
+                                            {model.displayName}{" "}
+                                            {model.isDefault
+                                                ? `(${t("Default")})`
+                                                : ""}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         )}
@@ -663,7 +824,7 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                         </div>
                     )}
 
-                    {/* Agent Mode and Research Mode */}
+                    {/* Agent Mode and Reasoning Effort */}
                     <div className="mb-4 flex items-center gap-4">
                         <div className="flex items-center gap-2">
                             <input
@@ -674,7 +835,7 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                                     const checked = e.target.checked;
                                     setAgentMode(checked);
                                     if (!checked) {
-                                        setResearchMode(false);
+                                        setReasoningEffort(null);
                                     }
                                 }}
                                 disabled={isChecking}
@@ -687,28 +848,37 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                                 {t("Agent Mode")}
                             </label>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="researchMode"
-                                checked={researchMode}
-                                onChange={(e) =>
-                                    setResearchMode(e.target.checked)
-                                }
-                                disabled={isChecking || !agentMode}
-                                className="accent-sky-500"
-                            />
-                            <label
-                                htmlFor="researchMode"
-                                className={`text-sm cursor-pointer ${
-                                    !agentMode
-                                        ? "text-gray-400 dark:text-gray-600"
-                                        : "text-gray-700 dark:text-gray-300"
-                                }`}
-                            >
-                                {t("Research Mode")}
-                            </label>
-                        </div>
+                        {agentMode && (
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-700 dark:text-gray-300">
+                                    {t("Reasoning")}
+                                </label>
+                                <div className="flex rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
+                                    {reasoningEffortLevels.map((level) => (
+                                        <button
+                                            key={level}
+                                            type="button"
+                                            onClick={() =>
+                                                setReasoningEffort(level)
+                                            }
+                                            disabled={isChecking}
+                                            className={`px-2 py-1 text-xs font-medium transition-colors capitalize ${
+                                                displayedReasoningEffort ===
+                                                level
+                                                    ? "bg-sky-500 text-white"
+                                                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                        >
+                                            {t(
+                                                reasoningEffortLevelLabelKey(
+                                                    level,
+                                                ),
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Action Button */}
@@ -1236,6 +1406,14 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
             {/* Only show buttons when we have corrected text or are in diff review */}
             {(correctedText || (showDiffReview && diffs.length > 0)) && (
                 <div className="mt-6">
+                    {/* Error Display - show errors here so they're always visible */}
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md">
+                            <p className="text-red-700 dark:text-red-400 text-sm">
+                                {error}
+                            </p>
+                        </div>
+                    )}
                     {/* Show message if there are pending changes */}
                     {showDiffReview &&
                         diffs.length > 0 &&
@@ -1262,16 +1440,26 @@ const NewStyleGuideModal = ({ text, onCommit, onClose }) => {
                             {t("Keep Original")}
                         </button>
                         <button
-                            onClick={handleUseCorrectedText}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                console.log(
+                                    "Button clicked, calling handleUseCorrectedText",
+                                );
+                                handleUseCorrectedText();
+                            }}
                             disabled={
-                                !correctedText ||
+                                isApplyingHtml ||
+                                (!correctedText &&
+                                    !(showDiffReview && finalText)) ||
                                 (showDiffReview &&
                                     diffs.length > 0 &&
                                     hasPendingChanges)
                             }
                             className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md transition-colors duration-200 text-sm font-medium"
                         >
-                            {t("Use Corrected Text")}
+                            {isApplyingHtml
+                                ? t("Applying to HTML...")
+                                : t("Use Corrected Text")}
                         </button>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Music2 } from "lucide-react";
-import ChatImage from "./ChatImage";
+import { ImageWithFallback } from "../chat/MediaCard";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import SyncedAudioControl from "./SyncedAudioControl";
 import { getDownloadUrl } from "../../utils/fileDownloadUtils";
@@ -46,8 +46,8 @@ function ImageTile({
         image || {};
     const { code, message } = error || result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
-    const mediaId = cortexRequestId || image?.taskId;
     const stopCardClick = (event) => event.stopPropagation();
+    const mediaId = cortexRequestId || image.taskId;
 
     const handleMediaWrapperClick = (event) => {
         const target = event.target;
@@ -60,7 +60,7 @@ function ImageTile({
             return;
         }
 
-        if (image?.type === "audio" && mediaId) {
+        if (image.type === "audio" && mediaId) {
             const audio = event.currentTarget.querySelector("audio");
             if (audio) {
                 onAudioPlaybackChange?.(mediaId, {
@@ -146,7 +146,7 @@ function ImageTile({
 
             <div
                 className={`media-wrapper relative ${
-                    image?.type === "audio" ? "audio-media-wrapper" : ""
+                    image.type === "audio" ? "audio-media-wrapper" : ""
                 }`}
                 onClick={handleMediaWrapperClick}
             >
@@ -166,38 +166,28 @@ function ImageTile({
                     </div>
                 ) : !expired && hasValidUrl && !loadError ? (
                     image.type === "video" ? (
-                        <div className="relative w-full h-full">
-                            <video
-                                src={displayUrl}
-                                data-testid="image-tile-video-preview"
-                                className="w-full h-full object-cover object-center"
-                                preload="metadata"
-                                onError={() => {
-                                    if (retryCount < 2) {
-                                        setRetryCount((prev) => prev + 1);
-                                        // Reset loadError to allow retry
-                                        setLoadError(false);
-                                    } else {
-                                        setLoadError(true);
-                                    }
-                                }}
-                                onLoad={() => {
+                        <video
+                            src={displayUrl}
+                            data-testid="image-tile-video-preview"
+                            className="w-full h-full object-cover object-center"
+                            preload="metadata"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            onError={() => {
+                                if (retryCount < 2) {
+                                    setRetryCount((prev) => prev + 1);
                                     setLoadError(false);
-                                    setRetryCount(0);
-                                }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-all duration-200">
-                                <div className="w-12 h-12 bg-white bg-opacity-50 rounded-full flex items-center justify-center shadow-lg">
-                                    <svg
-                                        className="w-6 h-6 text-gray-800 ml-1"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path d="M8 5v14l11-7z" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
+                                } else {
+                                    setLoadError(true);
+                                }
+                            }}
+                            onLoadedData={() => {
+                                setLoadError(false);
+                                setRetryCount(0);
+                            }}
+                        />
                     ) : image.type === "audio" ? (
                         <div className="audio-tile-preview">
                             <div className="audio-artwork">
@@ -234,7 +224,7 @@ function ImageTile({
                             </div>
                         </div>
                     ) : (
-                        <ChatImage
+                        <ImageWithFallback
                             src={displayUrl}
                             alt={prompt}
                             onError={() => setLoadError(true)}
@@ -452,13 +442,7 @@ function ImageTile({
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="mb-4 text-center">
                     {t(
-                        `${
-                            image.type === "video"
-                                ? "Video"
-                                : image.type === "audio"
-                                  ? "Audio"
-                                  : "Image"
-                        } expired or not available.`,
+                        `${image.type === "video" ? "Video" : image.type === "audio" ? "Audio" : "Image"} expired or not available.`,
                     )}
                 </div>
                 <div>

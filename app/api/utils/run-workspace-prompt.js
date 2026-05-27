@@ -1,9 +1,10 @@
 import {
     getRunWorkspacePromptQuery,
     isUnsupportedReasoningEffortError,
+    RUN_WORKSPACE_PROMPT_PATHWAY,
 } from "../../../src/utils/runWorkspacePromptQuery.js";
 
-export const RUN_WORKSPACE_PROMPT_PATHWAY = "run_workspace_prompt";
+export { RUN_WORKSPACE_PROMPT_PATHWAY };
 
 export async function executeRunWorkspacePrompt({
     graphqlClient,

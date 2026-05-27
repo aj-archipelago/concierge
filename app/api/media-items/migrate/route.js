@@ -1,5 +1,12 @@
 import { getCurrentUser } from "../../utils/auth.js";
 import MediaItem from "../../models/media-item.mjs";
+import { sanitizeMediaSettings } from "../../../../src/utils/mediaGenerationSettings.js";
+
+const MAX_INPUT_IMAGE_REFERENCES = 14;
+
+function getInputImageFieldName(index) {
+    return index === 0 ? "inputImageUrl" : `inputImageUrl${index + 1}`;
+}
 
 export async function POST(req) {
     const user = await getCurrentUser();
@@ -77,18 +84,19 @@ export async function POST(req) {
                         item.completed ||
                         item.created ||
                         Math.floor(Date.now() / 1000),
-                    settings: item.settings || {},
+                    settings: sanitizeMediaSettings(item.settings || {}),
                 };
 
                 // Only add fields that are not null to avoid encryption issues
-                if (item.inputImageUrl) {
-                    mediaItemData.inputImageUrl = item.inputImageUrl;
-                }
-                if (item.inputImageUrl2) {
-                    mediaItemData.inputImageUrl2 = item.inputImageUrl2;
-                }
-                if (item.inputImageUrl3) {
-                    mediaItemData.inputImageUrl3 = item.inputImageUrl3;
+                for (
+                    let index = 0;
+                    index < MAX_INPUT_IMAGE_REFERENCES;
+                    index++
+                ) {
+                    const fieldName = getInputImageFieldName(index);
+                    if (item[fieldName]) {
+                        mediaItemData[fieldName] = item[fieldName];
+                    }
                 }
 
                 const mediaItem = new MediaItem(mediaItemData);
@@ -118,3 +126,5 @@ export async function POST(req) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

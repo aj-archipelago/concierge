@@ -1,6 +1,13 @@
 "use client";
 import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { getClient } from "./graphql";
 import "./i18n";
 
@@ -49,6 +56,7 @@ if (typeof document !== "undefined" && process.env.NODE_ENV !== "test") {
 }
 
 export const AuthContext = React.createContext({});
+export const CurrentUserContext = React.createContext(null);
 
 const STATE_DEBOUNCE_TIME = 1000;
 
@@ -59,7 +67,12 @@ const App = ({
     serverUrl,
     graphQLPublicEndpoint,
     neuralspaceEnabled,
+    xaiTranscribeEnabled,
+    xaiTranscribeDefaultEnabled,
+    transcribeDefaultModelOption,
+    transcribeAlternateModelOption,
     useBlueGraphQL,
+    initialActiveChats,
 }) => {
     const { data: currentUser } = useCurrentUser();
     const { data: serverUserState, refetch: refetchServerUserState } =
@@ -70,10 +83,10 @@ const App = ({
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
     const refetchCalledRef = useRef(false);
 
-    const refetchUserState = () => {
+    const refetchUserState = useCallback(() => {
         refetchCalledRef.current = true;
         refetchServerUserState();
-    };
+    }, [refetchServerUserState]);
 
     useEffect(() => {
         // set user state from server if it exists, but only if there's no client
@@ -100,11 +113,7 @@ const App = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedUserState]);
 
-    if (!currentUser) {
-        return null;
-    }
-
-    const debouncedUpdateUserState = (value) => {
+    const debouncedUpdateUserState = useCallback((value) => {
         if (typeof value === "function") {
             setUserState((prev) => {
                 return {
@@ -118,39 +127,75 @@ const App = ({
                 ...value,
             }));
         }
-    };
+    }, []);
+
+    const authContextValue = useMemo(
+        () => ({
+            user: currentUser,
+            userState,
+            refetchUserState,
+            debouncedUpdateUserState,
+        }),
+        [currentUser, userState, refetchUserState, debouncedUpdateUserState],
+    );
+
+    const serverContextValue = useMemo(
+        () => ({
+            graphQLPublicEndpoint,
+            serverUrl,
+            neuralspaceEnabled,
+            xaiTranscribeEnabled,
+            xaiTranscribeDefaultEnabled,
+            transcribeDefaultModelOption,
+            transcribeAlternateModelOption,
+        }),
+        [
+            graphQLPublicEndpoint,
+            serverUrl,
+            neuralspaceEnabled,
+            xaiTranscribeEnabled,
+            xaiTranscribeDefaultEnabled,
+            transcribeDefaultModelOption,
+            transcribeAlternateModelOption,
+        ],
+    );
+
+    if (!currentUser) {
+        return null;
+    }
 
     return (
         <ApolloNextAppProvider
             makeClient={() => getClient(serverUrl, useBlueGraphQL)}
         >
-            <ServerContext.Provider
-                value={{ graphQLPublicEndpoint, serverUrl, neuralspaceEnabled }}
-            >
+            <ServerContext.Provider value={serverContextValue}>
                 <StoreProvider>
                     <AutoTranscribeProvider>
                         <AuthProvider>
                             <React.StrictMode>
-                                <AuthContext.Provider
-                                    value={{
-                                        user: currentUser,
-                                        userState,
-                                        refetchUserState,
-                                        debouncedUpdateUserState,
-                                    }}
+                                <CurrentUserContext.Provider
+                                    value={currentUser}
                                 >
-                                    <ThemeProvider savedTheme={theme}>
-                                        <LanguageProvider
-                                            savedLanguage={language}
-                                        >
-                                            <Layout>
-                                                <Body>{children}</Body>
-                                            </Layout>
-                                            <AuthErrorDialog />
-                                            <AuthLoadingOverlay />
-                                        </LanguageProvider>
-                                    </ThemeProvider>
-                                </AuthContext.Provider>
+                                    <AuthContext.Provider
+                                        value={authContextValue}
+                                    >
+                                        <ThemeProvider savedTheme={theme}>
+                                            <LanguageProvider
+                                                savedLanguage={language}
+                                            >
+                                                <Layout
+                                                    initialActiveChats={
+                                                        initialActiveChats
+                                                    }
+                                                >
+                                                    <Body>{children}</Body>
+                                                </Layout>
+                                                <AuthErrorDialog />
+                                                <AuthLoadingOverlay />
+                                            </LanguageProvider>
+                                        </ThemeProvider>
+                                    </AuthContext.Provider>
+                                </CurrentUserContext.Provider>
                             </React.StrictMode>
                         </AuthProvider>
                     </AutoTranscribeProvider>

@@ -5,6 +5,7 @@ import actions from "./editor/AIEditorActions";
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment } from "react";
 import { X } from "lucide-react";
+import { extractWidgets, restoreWidgets } from "../utils/widgetUtils";
 
 export default function AIModal({
     show,
@@ -12,11 +13,13 @@ export default function AIModal({
     action,
     args,
     inputText,
+    inputHtml, // Optional: original HTML content (for styleguide action)
     onCommit,
 }) {
     const [text, setText] = useState(inputText);
     const [result, setResult] = useState("");
     const [inputType, setInputType] = useState("full");
+    const [isApplyingHtml, setIsApplyingHtml] = useState(false);
     const diffEditorRef = useRef(null);
     const { t } = useTranslation();
 
@@ -52,10 +55,25 @@ export default function AIModal({
                     regenerateLabel={regenerateLabel}
                     diffEditorRef={diffEditorRef}
                     text={text}
+                    html={
+                        action === "styleguide" ||
+                        action === "grammar" ||
+                        action === "legacy_styleguide"
+                            ? inputHtml
+                            : undefined
+                    } // Pass HTML for styleguide, grammar, and legacy_styleguide actions
                     args={args}
                     onSelect={onSelectCallback}
-                    onClose={action === "styleguide" ? close : undefined}
-                    onCommit={action === "styleguide" ? onCommit : undefined}
+                    onClose={
+                        action === "styleguide" || action === "grammar"
+                            ? close
+                            : undefined
+                    }
+                    onCommit={
+                        action === "styleguide" || action === "grammar"
+                            ? onCommit
+                            : undefined
+                    }
                 />
             ) : null,
         [
@@ -63,6 +81,7 @@ export default function AIModal({
             regenerateLabel,
             diffEditorRef,
             text,
+            inputHtml,
             args,
             onSelectCallback,
             action,
@@ -121,49 +140,169 @@ export default function AIModal({
                                     <div className="grow h-[calc(100vh-200px)] overflow-auto">
                                         {modalBody}
                                     </div>
-                                    {action !== "styleguide" && (
-                                        <div className="justify-end flex gap-2 mt-4">
-                                            <button
-                                                className="lb-secondary"
-                                                onClick={close}
-                                            >
-                                                {commitLabel
-                                                    ? t("Cancel")
-                                                    : t("Close")}
-                                            </button>
-                                            {commitLabel && (
+                                    {action !== "styleguide" &&
+                                        action !== "grammar" && (
+                                            <div className="justify-end flex gap-2 mt-4">
                                                 <button
-                                                    className="lb-primary"
-                                                    disabled={!result}
-                                                    onClick={() => {
-                                                        const value =
-                                                            diffEditorRef.current
-                                                                ? diffEditorRef.current
-                                                                      .getModifiedEditor()
-                                                                      .getValue()
-                                                                : result;
-
-                                                        if (
-                                                            inputType === "full"
-                                                        ) {
-                                                            onCommit(
-                                                                value,
-                                                                "full",
-                                                            );
-                                                        } else {
-                                                            onCommit(
-                                                                value,
-                                                                "selection",
-                                                            );
-                                                        }
-                                                        close();
-                                                    }}
+                                                    className="lb-secondary"
+                                                    onClick={close}
                                                 >
-                                                    {t(commitLabel)}
+                                                    {commitLabel
+                                                        ? t("Cancel")
+                                                        : t("Close")}
                                                 </button>
-                                            )}
-                                        </div>
-                                    )}
+                                                {commitLabel && (
+                                                    <button
+                                                        className="lb-primary"
+                                                        disabled={
+                                                            !result ||
+                                                            isApplyingHtml
+                                                        }
+                                                        onClick={async () => {
+                                                            const value =
+                                                                diffEditorRef.current
+                                                                    ? diffEditorRef.current
+                                                                          .getModifiedEditor()
+                                                                          .getValue()
+                                                                    : result;
+
+                                                            // For legacy_styleguide, apply HTML corrections if HTML is available
+                                                            if (
+                                                                action ===
+                                                                    "legacy_styleguide" &&
+                                                                inputHtml &&
+                                                                inputHtml.trim()
+                                                                    .length > 0
+                                                            ) {
+                                                                setIsApplyingHtml(
+                                                                    true,
+                                                                );
+                                                                try {
+                                                                    // Extract widgets before sending to API
+                                                                    const {
+                                                                        html: htmlWithoutWidgets,
+                                                                        widgets,
+                                                                    } =
+                                                                        extractWidgets(
+                                                                            inputHtml,
+                                                                        );
+
+                                                                    // Call the HTML corrections endpoint
+                                                                    const response =
+                                                                        await fetch(
+                                                                            "/api/apply-corrections-to-html",
+                                                                            {
+                                                                                method: "POST",
+                                                                                headers:
+                                                                                    {
+                                                                                        "Content-Type":
+                                                                                            "application/json",
+                                                                                    },
+                                                                                body: JSON.stringify(
+                                                                                    {
+                                                                                        html: htmlWithoutWidgets,
+                                                                                        correctedText:
+                                                                                            value,
+                                                                                    },
+                                                                                ),
+                                                                            },
+                                                                        );
+
+                                                                    if (
+                                                                        !response.ok
+                                                                    ) {
+                                                                        const errorData =
+                                                                            await response
+                                                                                .json()
+                                                                                .catch(
+                                                                                    () => ({}),
+                                                                                );
+                                                                        throw new Error(
+                                                                            errorData.message ||
+                                                                                `HTTP error! status: ${response.status}`,
+                                                                        );
+                                                                    }
+
+                                                                    const result =
+                                                                        await response.json();
+
+                                                                    if (
+                                                                        !result.correctedHtml
+                                                                    ) {
+                                                                        throw new Error(
+                                                                            "No corrected HTML returned from server.",
+                                                                        );
+                                                                    }
+
+                                                                    // Restore widgets in the corrected HTML
+                                                                    const correctedHtmlWithWidgets =
+                                                                        restoreWidgets(
+                                                                            result.correctedHtml,
+                                                                            widgets,
+                                                                        );
+
+                                                                    // Commit the corrected HTML
+                                                                    if (
+                                                                        inputType ===
+                                                                        "full"
+                                                                    ) {
+                                                                        onCommit(
+                                                                            correctedHtmlWithWidgets,
+                                                                            "full",
+                                                                        );
+                                                                    } else {
+                                                                        onCommit(
+                                                                            correctedHtmlWithWidgets,
+                                                                            "selection",
+                                                                        );
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error(
+                                                                        "Failed to apply corrections to HTML:",
+                                                                        error,
+                                                                    );
+                                                                    alert(
+                                                                        error.message ||
+                                                                            t(
+                                                                                "Failed to apply corrections to HTML. Please try again.",
+                                                                            ),
+                                                                    );
+                                                                    setIsApplyingHtml(
+                                                                        false,
+                                                                    );
+                                                                    return;
+                                                                } finally {
+                                                                    setIsApplyingHtml(
+                                                                        false,
+                                                                    );
+                                                                }
+                                                            } else {
+                                                                // Normal commit without HTML conversion
+                                                                if (
+                                                                    inputType ===
+                                                                    "full"
+                                                                ) {
+                                                                    onCommit(
+                                                                        value,
+                                                                        "full",
+                                                                    );
+                                                                } else {
+                                                                    onCommit(
+                                                                        value,
+                                                                        "selection",
+                                                                    );
+                                                                }
+                                                            }
+                                                            close();
+                                                        }}
+                                                    >
+                                                        {isApplyingHtml
+                                                            ? t("Applying...")
+                                                            : t(commitLabel)}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                 </Dialog.Panel>
                             </Transition.Child>
                         </div>

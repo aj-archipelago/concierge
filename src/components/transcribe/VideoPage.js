@@ -45,7 +45,7 @@ import { useTranslation } from "react-i18next";
 import { Edit, Youtube } from "lucide-react";
 import ReactTimeAgo from "react-time-ago";
 import classNames from "../../../app/utils/class-names";
-import { AuthContext } from "../../App";
+import { AuthContext, ServerContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import {
     getYoutubeEmbedUrl,
@@ -65,20 +65,12 @@ import { QUERIES } from "../../graphql";
 import { useProgress } from "../../contexts/ProgressContext";
 import Loader from "../../../app/components/loader";
 import { isAudioUrl } from "../../utils/mediaUtils";
-
-// Add getTranscribeQuery function
-const getTranscribeQuery = (modelOption) => {
-    switch (modelOption) {
-        case "Whisper":
-            return QUERIES.TRANSCRIBE;
-        case "NeuralSpace":
-            return QUERIES.TRANSCRIBE_NEURALSPACE;
-        case "Gemini":
-            return QUERIES.TRANSCRIBE_GEMINI;
-        default:
-            return QUERIES.TRANSCRIBE;
-    }
-};
+import {
+    getAlternateTranscribeModelOption,
+    getDefaultTranscribeModelOption,
+    getTranscribeQuery,
+    getTranscribeResult,
+} from "./transcribeQueries";
 
 const isValidUrl = (url) => {
     try {
@@ -1005,7 +997,14 @@ function VideoPage() {
     const [isEditing, setIsEditing] = useState(false);
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const { userState, debouncedUpdateUserState } = useContext(AuthContext);
+    const { user, userState, debouncedUpdateUserState } =
+        useContext(AuthContext);
+    const {
+        xaiTranscribeEnabled,
+        xaiTranscribeDefaultEnabled,
+        transcribeDefaultModelOption,
+        transcribeAlternateModelOption,
+    } = useContext(ServerContext);
     const { attemptedAutoTranscribe, markAttempted, setIsAutoTranscribing } =
         useAutoTranscribe();
     const prevUserStateRef = useRef();
@@ -1355,26 +1354,28 @@ function VideoPage() {
 
         try {
             setIsAutoTranscribing(true);
-            const isYouTubeVideo = isYoutubeUrl(videoUrl);
-            const modelOption = isYouTubeVideo ? "Gemini" : "Whisper";
-            const _query = getTranscribeQuery(modelOption);
+            const modelOption = getDefaultTranscribeModelOption(
+                videoUrl,
+                xaiTranscribeEnabled,
+                xaiTranscribeDefaultEnabled,
+                transcribeDefaultModelOption,
+            );
+            const query = getTranscribeQuery(modelOption);
 
             const { data } = await apolloClient.query({
-                query: _query,
+                query,
                 variables: {
                     file: videoUrl,
                     language: "", // Auto-detect
                     wordTimestamped: false,
                     responseFormat: "vtt", // Default to VTT format
                     async: true,
+                    contextId: user?.contextId,
                 },
                 fetchPolicy: "network-only",
             });
 
-            const dataResult =
-                data?.transcribe?.result ||
-                data?.transcribe_neuralspace?.result ||
-                data?.transcribe_gemini?.result;
+            const dataResult = getTranscribeResult(data);
 
             if (dataResult) {
                 addProgressToast(
@@ -1397,6 +1398,8 @@ function VideoPage() {
                         setIsAutoTranscribing(false);
                     },
                 );
+            } else {
+                setIsAutoTranscribing(false);
             }
         } catch (error) {
             console.error("Auto-transcription error:", error);
@@ -1410,6 +1413,10 @@ function VideoPage() {
         t,
         addProgressToast,
         setIsAutoTranscribing,
+        user?.contextId,
+        xaiTranscribeEnabled,
+        xaiTranscribeDefaultEnabled,
+        transcribeDefaultModelOption,
     ]);
 
     // Effect to trigger initial processing (YT subtitles or transcription)
@@ -1430,11 +1437,17 @@ function VideoPage() {
 
     // Modify the retranscription function to create a new track instead of updating existing
     const handleRetranscribe = useCallback(async () => {
-        if (!videoInformation?.videoUrl || isRetranscribing) return;
+        const videoUrl =
+            videoInformation?.transcriptionUrl || videoInformation?.videoUrl;
+        if (!videoUrl || isRetranscribing) return;
 
         try {
             setIsRetranscribing(true);
-            const queryToUse = QUERIES.TRANSCRIBE_GEMINI;
+            const modelOption = getAlternateTranscribeModelOption(
+                videoUrl,
+                transcribeAlternateModelOption,
+            );
+            const queryToUse = getTranscribeQuery(modelOption);
 
             // Get current transcript format
             const currentTranscript = transcripts[activeTranscript];
@@ -1449,7 +1462,7 @@ function VideoPage() {
             const { data } = await apolloClient.query({
                 query: queryToUse,
                 variables: {
-                    file: videoInformation.videoUrl,
+                    file: videoUrl,
                     language: "", // Auto-detect
                     wordTimestamped: isWordTimestamped,
                     responseFormat: isFormatted
@@ -1458,12 +1471,12 @@ function VideoPage() {
                           ? "text"
                           : currentTranscript.format,
                     async: true,
+                    contextId: user?.contextId,
                 },
                 fetchPolicy: "network-only",
             });
 
-            const requestId =
-                data?.transcribe?.result || data?.transcribe_gemini?.result;
+            const requestId = getTranscribeResult(data);
 
             if (requestId) {
                 addProgressToast(
@@ -1506,6 +1519,8 @@ function VideoPage() {
                     },
                     () => setIsRetranscribing(false),
                 );
+            } else {
+                setIsRetranscribing(false);
             }
         } catch (error) {
             console.error("Re-transcription error:", error);
@@ -1519,6 +1534,8 @@ function VideoPage() {
         apolloClient,
         t,
         addProgressToast,
+        user?.contextId,
+        transcribeAlternateModelOption,
     ]);
 
     if (!videoInformation && !transcripts?.length) {

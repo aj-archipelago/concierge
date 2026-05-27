@@ -1,16 +1,18 @@
 "use client";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { deleteFileFromCloud } from "./chatFileUtils";
+import { deleteAppletUserFileFromWorkspace } from "./fileCollectionDeleteUtils";
 import { useFileCollection } from "./useFileCollection";
 import { useFileUploadHandler } from "./useFileUploadHandler";
 import { useHashToIdLookup } from "../../hooks/useHashToIdLookup";
+import { useWorkspaceFiles } from "../../../queries/workspaces";
 import FileManager, {
     createFileId,
     getFilename,
 } from "@/src/components/common/FileManager";
-import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
+import FileUploadDialog from "../../components/FileUploadDialog";
 import { CheckSquare, Square, Trash2, Upload, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
 import {
@@ -31,9 +33,13 @@ import {
  * Selected files = attached, unselected = not attached.
  *
  * @param {Object} props
- * @param {string} props.contextId - The context ID for the file collection (e.g., "workspaceId:userId")
+ * @param {string} props.contextId - The context ID for file operations
  * @param {string} props.contextKey - The context key for the file collection
  * @param {string} props.workspaceId - The workspace ID (used for upload endpoint)
+ * @param {string} props.folderWorkspaceId - Workspace ID for user-scoped applet folder routing
+ * @param {string} props.fileScope - Folder scope to list in CFH ('all' | 'global' | 'chat' | 'applet')
+ * @param {Array<Object>} props.fallbackStorageTargets - Additional storage targets to merge into the picker list
+ * @param {string} props.source - Data source mode ('user-folder' | 'workspace-api')
  * @param {Array} props.selectedFiles - Currently selected/attached files
  * @param {Function} props.onFilesSelected - Callback when selection changes
  */
@@ -41,6 +47,11 @@ export default function UserFileCollectionPicker({
     contextId,
     contextKey,
     workspaceId = null,
+    folderWorkspaceId = null,
+    fileScope = "all",
+    storageTarget = null,
+    fallbackStorageTargets = [],
+    source = "user-folder",
     selectedFiles = [],
     onFilesSelected,
 }) {
@@ -50,13 +61,65 @@ export default function UserFileCollectionPicker({
     const [deletingFiles, setDeletingFiles] = useState(new Set());
     const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
-    // Load file collection from Cortex using shared hook
-    // For picker mode, show all files regardless of inCollection
-    const { files, setFiles, loading, reloadFiles } = useFileCollection({
-        contextId,
-        contextKey,
-        requireInCollection: false,
+    const useWorkspaceApi = source === "workspace-api" && !!workspaceId;
+
+    // User-folder listing mode (CFH listFolder)
+    const {
+        files: folderFiles,
+        setFiles: setFolderFiles,
+        loading: folderLoading,
+        reloadFiles: reloadFolderFiles,
+    } = useFileCollection({
+        contextId: useWorkspaceApi ? null : contextId,
+        storageTarget: useWorkspaceApi ? null : storageTarget,
+        fallbackStorageTargets: useWorkspaceApi ? [] : fallbackStorageTargets,
+        fileScope,
+        workspaceId: useWorkspaceApi ? null : folderWorkspaceId,
     });
+
+    // Workspace-artifact mode (Mongo/API-backed workspace files)
+    const {
+        data: workspaceFilesData,
+        isLoading: workspaceFilesLoading,
+        refetch: refetchWorkspaceFiles,
+    } = useWorkspaceFiles(useWorkspaceApi ? workspaceId : null);
+
+    const mapWorkspaceFiles = useCallback((rawFiles) => {
+        if (!Array.isArray(rawFiles)) return [];
+        return rawFiles.map((f) => ({
+            _id: f._id,
+            url: f.converted?.url || f.url,
+            hash: f.converted?.hash || f.hash,
+            blobPath: f.converted?.blobPath || f.blobPath || null,
+            filename: f.filename,
+            displayFilename: f.displayFilename || f.originalName || f.filename,
+            originalName: f.originalName || f.filename,
+            size: f.size,
+            mimeType: f.mimeType,
+            lastAccessed: f.updatedAt || f.createdAt || f.lastAccessed,
+        }));
+    }, []);
+
+    const [workspaceApiFiles, setWorkspaceApiFiles] = useState([]);
+
+    useEffect(() => {
+        if (!useWorkspaceApi) return;
+        setWorkspaceApiFiles(
+            mapWorkspaceFiles(workspaceFilesData?.files || []),
+        );
+    }, [useWorkspaceApi, workspaceFilesData, mapWorkspaceFiles]);
+
+    const files = useWorkspaceApi ? workspaceApiFiles : folderFiles;
+    const setFiles = useWorkspaceApi ? setWorkspaceApiFiles : setFolderFiles;
+    const loading = useWorkspaceApi ? workspaceFilesLoading : folderLoading;
+
+    const reloadFiles = useCallback(async () => {
+        if (useWorkspaceApi) {
+            await refetchWorkspaceFiles();
+            return;
+        }
+        await reloadFolderFiles();
+    }, [useWorkspaceApi, refetchWorkspaceFiles, reloadFolderFiles]);
 
     // Build hash -> MongoDB _id lookup for workspace files
     const hashToId = useHashToIdLookup(workspaceId);
@@ -118,11 +181,21 @@ export default function UserFileCollectionPicker({
         if (!deleteConfirmation) return;
 
         const { file } = deleteConfirmation;
+        const effectiveStorageTarget = file?._storageTarget || storageTarget;
+        const isAppletUserFile = effectiveStorageTarget?.kind === "applet-user";
+        const appletFilename =
+            file?.filename || file?.originalName || file?.displayFilename;
         const fileHash = file?.hash;
         // Try to get MongoDB _id from file object or hash lookup
         const mongoFileId = file?._id || (fileHash && hashToId.get(fileHash));
 
-        if (!fileHash && !mongoFileId) return;
+        if (
+            !fileHash &&
+            !mongoFileId &&
+            !(isAppletUserFile && folderWorkspaceId && appletFilename)
+        ) {
+            return;
+        }
 
         const fileId = getFileId(file); // For tracking deletion state
 
@@ -146,6 +219,15 @@ export default function UserFileCollectionPicker({
                         errorData.error || "Failed to delete workspace file",
                     );
                 }
+            } else if (
+                isAppletUserFile &&
+                folderWorkspaceId &&
+                appletFilename
+            ) {
+                await deleteAppletUserFileFromWorkspace({
+                    workspaceId: folderWorkspaceId,
+                    filename: appletFilename,
+                });
             } else if (fileHash) {
                 // We have a fileHash but either:
                 // - No workspaceId (not a workspace file)
@@ -159,7 +241,12 @@ export default function UserFileCollectionPicker({
                     );
                 }
                 // Fall back to cloud-only delete
-                await deleteFileFromCloud(fileHash, contextId);
+                await deleteFileFromCloud({
+                    hash: fileHash,
+                    blobPath: file?.blobPath,
+                    contextId,
+                    storageTarget: effectiveStorageTarget,
+                });
             } else {
                 // We have mongoFileId but no fileHash and no workspaceId
                 // Can't delete without either workspace API or hash
@@ -202,7 +289,9 @@ export default function UserFileCollectionPicker({
     }, [
         deleteConfirmation,
         contextId,
+        storageTarget,
         workspaceId,
+        folderWorkspaceId,
         hashToId,
         queryClient,
         selectedFiles,
@@ -222,7 +311,6 @@ export default function UserFileCollectionPicker({
         contextId,
         contextKey,
         workspaceId,
-        files,
         setFiles,
         reloadFiles,
         chatId: null, // Workspace files are global, not chat-scoped
@@ -322,7 +410,6 @@ export default function UserFileCollectionPicker({
                 onSelectionChange={handleSelectionChange}
                 rowActions={rowActions}
                 headerContent={headerContent}
-                showPermanentColumn={false}
                 showDateColumn={false}
                 enableFilenameEdit={false}
                 enableHoverPreview={true}
@@ -344,8 +431,9 @@ export default function UserFileCollectionPicker({
                 uploadEndpoint={
                     workspaceId ? `/api/workspaces/${workspaceId}/files` : null
                 }
-                workspaceId={workspaceId}
+                workspaceId={workspaceId || folderWorkspaceId}
                 contextId={contextId}
+                storageTarget={storageTarget}
                 title={t("Upload Files")}
                 description={t("Upload files to add them to your collection.")}
             />

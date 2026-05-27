@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, handleError } from "../../utils/auth";
-import { createNewChat, deleteChatIdFromRecentList } from "../_lib";
+import {
+    createNewChat,
+    deleteChatIdFromRecentList,
+    sanitizeToolForPersistence,
+} from "../_lib";
 import Chat from "../../models/chat.mjs";
 import User from "../../models/user";
 import { Types } from "mongoose";
@@ -47,7 +51,7 @@ const sanitizeMessage = (message) => {
         sentTime,
         tool:
             typeof message.tool === "string" || message.tool === null
-                ? message.tool
+                ? sanitizeToolForPersistence(message.tool)
                 : null,
         entityId:
             typeof message.entityId === "string" || message.entityId === null

@@ -105,6 +105,18 @@ const chatSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        lastMessagePreview: {
+            type: String,
+            default: "",
+        },
+        lastMessageSender: {
+            type: String,
+            default: "",
+        },
+        lastMessageAt: {
+            type: String,
+            default: "",
+        },
         stopRequestedSubscriptionIds: {
             type: [
                 {
@@ -118,13 +130,21 @@ const chatSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
+        messageStorageBytes: {
+            type: Number,
+            default: 0,
+        },
+        messagesCompacted: {
+            type: Boolean,
+            default: false,
+        },
+        messagesCompactedAt: {
+            type: Date,
+            default: null,
+        },
         selectedEntityId: {
             type: String,
             default: "",
-        },
-        researchMode: {
-            type: Boolean,
-            default: false,
         },
     },
     {
@@ -136,6 +156,7 @@ const chatSchema = new mongoose.Schema(
 chatSchema.index({ updatedAt: -1 });
 chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
+chatSchema.index({ userId: 1, createdAt: -1 });
 
 // Create the Chat model from the schema
 const Chat = mongoose.models?.Chat || mongoose.model("Chat", chatSchema);

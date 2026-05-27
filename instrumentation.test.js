@@ -4,7 +4,7 @@ import LLM from "./app/api/models/llm";
 import Prompt from "./app/api/models/prompt";
 import App, { APP_TYPES, APP_STATUS } from "./app/api/models/app";
 import User from "./app/api/models/user.mjs";
-import { seed } from "./instrumentation";
+import { migrateLLMsToModelIds, seedNativeApps } from "./instrumentation";
 import config from "./config/index";
 
 let mongoServer;
@@ -21,7 +21,14 @@ beforeAll(async () => {
     console.warn = jest.fn();
     console.error = jest.fn();
 
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await MongoMemoryServer.create({
+        instance: {
+            // Bind the in-memory MongoDB instance explicitly to localhost to ensure
+            // consistent behavior across environments (e.g., Docker/CI) and avoid
+            // exposing it on external interfaces.
+            ip: "127.0.0.1",
+        },
+    });
     const mongoUri = mongoServer.getUri();
     await mongoose.connect(mongoUri);
 });
@@ -43,149 +50,166 @@ beforeEach(async () => {
     await User.deleteMany({});
 });
 
-describe("LLM Initialization", () => {
-    test("should migrate LLMs without identifiers", async () => {
-        // Create an LLM without identifier
-        const llmWithoutIdentifier = await LLM.create({
-            name: "Test LLM",
+describe("LLM to Model ID Migration", () => {
+    test("should migrate prompt with LLM ObjectId to cortex model name", async () => {
+        const llm = await LLM.create({
+            name: "GPT-4o",
             cortexModelName: "oai-gpt4o",
             cortexPathwayName: "run_workspace_prompt",
-            isDefault: false,
-            identifier: null,
+            identifier: "gpt4o",
+            isDefault: true,
         });
 
-        await seed();
-
-        const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
-        expect(updatedLLM.identifier).toBe("gpt4o");
-    });
-
-    test("should upsert LLMs from config", async () => {
-        await seed();
-
-        const llms = await LLM.find({});
-        expect(llms.length).toBe(config.data.llms.length);
-
-        // Verify default LLM exists
-        const defaultLLM = await LLM.findOne({ isDefault: true });
-        expect(defaultLLM).toBeTruthy();
-        expect(defaultLLM.identifier).toBe("gpt4o");
-    });
-
-    test("should handle LLMs missing from config", async () => {
-        // Create an LLM that doesn't exist in config
-        const obsoleteLLM = await LLM.create({
-            name: "Obsolete LLM",
-            cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_workspace_prompt",
-            identifier: "obsolete",
-            isDefault: false,
-        });
-
-        // Create a prompt using the obsolete LLM
         const prompt = await Prompt.create({
             title: "Test Prompt",
             text: "Test prompt text",
-            llm: obsoleteLLM._id,
+            llm: llm._id,
         });
 
-        await seed();
+        await migrateLLMsToModelIds();
 
-        // Verify obsolete LLM was deleted
-        const deletedLLM = await LLM.findById(obsoleteLLM._id);
-        expect(deletedLLM).toBeNull();
-
-        // Verify prompt was updated to use default LLM
         const updatedPrompt = await Prompt.findById(prompt._id);
-        const defaultLLM = await LLM.findOne({ isDefault: true });
-        expect(updatedPrompt.llm.toString()).toBe(defaultLLM._id.toString());
+        expect(updatedPrompt.llm).toBe("oai-gpt4o");
     });
 
-    test("should handle multiple prompts referencing missing LLMs", async () => {
-        // Create an obsolete LLM
-        const obsoleteLLM = await LLM.create({
-            name: "Obsolete LLM",
-            cortexModelName: "obsolete-model",
-            cortexPathwayName: "run_workspace_prompt",
-            identifier: "obsolete",
+    test("should migrate conciergeagent to agentMode", async () => {
+        const llm = await LLM.create({
+            name: "Concierge Agent",
+            cortexModelName: "concierge-agent",
+            cortexPathwayName: "run_workspace_agent",
+            identifier: "conciergeagent",
             isDefault: false,
         });
 
-        // Create multiple prompts using the obsolete LLM
-        const prompts = await Promise.all([
-            Prompt.create({
-                title: "Prompt 1",
-                text: "Test prompt 1",
-                llm: obsoleteLLM._id,
-            }),
-            Prompt.create({
-                title: "Prompt 2",
-                text: "Test prompt 2",
-                llm: obsoleteLLM._id,
-            }),
+        const prompt = await Prompt.create({
+            title: "Agent Prompt",
+            text: "Test agent prompt",
+            llm: llm._id,
+        });
+
+        await migrateLLMsToModelIds();
+
+        const updatedPrompt = await Prompt.findById(prompt._id);
+        expect(updatedPrompt.llm).toBe(config.cortex.defaultChatModel);
+        expect(updatedPrompt.agentMode).toBe(true);
+        expect(updatedPrompt.reasoningEffort).toBeNull();
+    });
+
+    test("should migrate conciergeresearchagent to agentMode with high reasoning", async () => {
+        const llm = await LLM.create({
+            name: "Research Agent",
+            cortexModelName: "concierge-research-agent",
+            cortexPathwayName: "run_workspace_agent",
+            identifier: "conciergeresearchagent",
+            isDefault: false,
+        });
+
+        const prompt = await Prompt.create({
+            title: "Research Prompt",
+            text: "Test research prompt",
+            llm: llm._id,
+        });
+
+        await migrateLLMsToModelIds();
+
+        const updatedPrompt = await Prompt.findById(prompt._id);
+        expect(updatedPrompt.llm).toBe(config.cortex.defaultChatModel);
+        expect(updatedPrompt.agentMode).toBe(true);
+        expect(updatedPrompt.reasoningEffort).toBe("high");
+    });
+
+    test("should use default model for orphaned LLM references", async () => {
+        // Create a prompt pointing to an ObjectId that doesn't exist in LLM collection
+        const fakeId = new mongoose.Types.ObjectId();
+        const prompt = await Prompt.create({
+            title: "Orphan Prompt",
+            text: "Test orphan prompt",
+            llm: fakeId,
+        });
+
+        await migrateLLMsToModelIds();
+
+        const updatedPrompt = await Prompt.findById(prompt._id);
+        expect(updatedPrompt.llm).toBe(config.cortex.defaultChatModel);
+    });
+
+    test("should not modify prompts with string model IDs (already migrated)", async () => {
+        const prompt = await Prompt.create({
+            title: "Already Migrated",
+            text: "Test prompt",
+            llm: "oai-gpt4o",
+        });
+
+        await migrateLLMsToModelIds();
+
+        const updatedPrompt = await Prompt.findById(prompt._id);
+        expect(updatedPrompt.llm).toBe("oai-gpt4o");
+    });
+
+    test("should clean up LLM collection after migration", async () => {
+        await LLM.create({
+            name: "GPT-4o",
+            cortexModelName: "oai-gpt4o",
+            cortexPathwayName: "run_workspace_prompt",
+            identifier: "gpt4o",
+            isDefault: true,
+        });
+
+        expect(await LLM.countDocuments()).toBe(1);
+
+        await migrateLLMsToModelIds();
+
+        expect(await LLM.countDocuments()).toBe(0);
+    });
+
+    test("should handle multiple prompts referencing different LLMs", async () => {
+        const llm1 = await LLM.create({
+            name: "GPT-4o",
+            cortexModelName: "oai-gpt4o",
+            cortexPathwayName: "run_workspace_prompt",
+            identifier: "gpt4o",
+            isDefault: true,
+        });
+
+        const llm2 = await LLM.create({
+            name: "Claude",
+            cortexModelName: "claude-sonnet",
+            cortexPathwayName: "run_workspace_prompt",
+            identifier: "claude",
+            isDefault: false,
+        });
+
+        const [prompt1, prompt2] = await Promise.all([
+            Prompt.create({ title: "Prompt 1", text: "Text 1", llm: llm1._id }),
+            Prompt.create({ title: "Prompt 2", text: "Text 2", llm: llm2._id }),
         ]);
 
-        await seed();
+        await migrateLLMsToModelIds();
 
-        // Verify all prompts were updated to use default LLM
-        const defaultLLM = await LLM.findOne({ isDefault: true });
-        const updatedPrompts = await Prompt.find({
-            _id: { $in: prompts.map((p) => p._id) },
-        });
-
-        updatedPrompts.forEach((prompt) => {
-            expect(prompt.llm.toString()).toBe(defaultLLM._id.toString());
-        });
+        const updated1 = await Prompt.findById(prompt1._id);
+        const updated2 = await Prompt.findById(prompt2._id);
+        expect(updated1.llm).toBe("oai-gpt4o");
+        expect(updated2.llm).toBe("claude-sonnet");
     });
 
-    test("should not modify prompts if no LLMs are missing from config", async () => {
-        // First seed to create valid LLMs
-        await seed();
-
-        const defaultLLM = await LLM.findOne({ isDefault: true });
-
-        // Create a prompt with valid LLM
+    test("should be a no-op on subsequent runs", async () => {
         const prompt = await Prompt.create({
-            title: "Test Prompt",
-            text: "Test prompt text",
-            llm: defaultLLM._id,
+            title: "Already Done",
+            text: "Test",
+            llm: "oai-gpt4o",
         });
 
-        // Run seed again
-        await seed();
+        await migrateLLMsToModelIds();
+        await migrateLLMsToModelIds();
 
-        // Verify prompt's LLM hasn't changed
         const updatedPrompt = await Prompt.findById(prompt._id);
-        expect(updatedPrompt.llm.toString()).toBe(defaultLLM._id.toString());
-    });
-
-    test("should correctly match config LLM with database LLM using cortexModelName", async () => {
-        // Ensure we have multiple LLMs in config to test against
-        expect(config.data.llms.length).toBeGreaterThan(1);
-
-        // Find a non-first LLM from config to test against
-        const targetConfigLLM = config.data.llms[1]; // Use second LLM in config
-
-        // Create an LLM without identifier but with matching cortexModelName
-        const llmWithoutIdentifier = await LLM.create({
-            name: "Test LLM",
-            cortexModelName: targetConfigLLM.cortexModelName,
-            cortexPathwayName: targetConfigLLM.cortexPathwayName,
-            isDefault: false,
-            identifier: null,
-        });
-
-        await seed();
-
-        // Verify the LLM was updated with correct identifier from config
-        const updatedLLM = await LLM.findById(llmWithoutIdentifier._id);
-        expect(updatedLLM.identifier).toBe(targetConfigLLM.identifier);
+        expect(updatedPrompt.llm).toBe("oai-gpt4o");
     });
 });
 
 describe("Native Apps Seeding", () => {
     test("should seed native apps with icons", async () => {
-        await seed();
+        await seedNativeApps();
 
         const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
 
@@ -249,7 +273,7 @@ describe("Native Apps Seeding", () => {
     });
 
     test("should create system user for native apps", async () => {
-        await seed();
+        await seedNativeApps();
 
         const systemUser = await User.findOne({ role: "admin" });
         expect(systemUser).toBeTruthy();
@@ -259,8 +283,8 @@ describe("Native Apps Seeding", () => {
     });
 
     test("should not duplicate native apps on multiple seed runs", async () => {
-        await seed();
-        await seed();
+        await seedNativeApps();
+        await seedNativeApps();
 
         const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
         expect(nativeApps.length).toBe(6);

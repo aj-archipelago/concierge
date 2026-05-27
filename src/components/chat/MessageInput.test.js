@@ -15,6 +15,16 @@ import fileUploadReducer from "../../stores/fileUploadSlice";
 import { ApolloClient, InMemoryCache, ApolloProvider } from "@apollo/client";
 import userEvent from "@testing-library/user-event";
 
+const mockRouterPush = jest.fn();
+jest.mock("next/navigation", () => ({
+    __esModule: true,
+    useRouter: () => ({
+        push: mockRouterPush,
+        prefetch: jest.fn(),
+        replace: jest.fn(),
+    }),
+}));
+
 // Mock i18n.js first to avoid initialization issues
 jest.mock("../../i18n", () => ({
     __esModule: true,
@@ -117,7 +127,7 @@ jest.mock("next/dynamic", () => () => {
 const mockUseGetActiveChatId = jest.fn(() => "test-chat-id");
 jest.mock("../../../app/queries/chats", () => ({
     useGetActiveChat: () => ({
-        data: { _id: "test-chat-id", codeRequestId: null },
+        data: { _id: "test-chat-id" },
     }),
     useGetActiveChatId: () => mockUseGetActiveChatId(),
 }));
@@ -152,7 +162,6 @@ jest.mock("lucide-react", () => ({
 
 // Mock the graphql queries
 jest.mock("../../graphql", () => ({
-    CODE_HUMAN_INPUT: "CODE_HUMAN_INPUT",
     QUERIES: {
         SYS_ENTITY_AGENT: "SYS_ENTITY_AGENT",
     },
@@ -162,7 +171,13 @@ jest.mock("../../graphql", () => ({
 jest.mock("../../utils/mediaUtils", () => ({
     getFilename: jest.fn(),
     isSupportedFileUrl: jest.fn(),
-    ACCEPTED_FILE_TYPES: ["image/png", "image/jpeg", "image/gif"],
+    isImageUrl: jest.fn((value) =>
+        /\.(png|jpe?g|gif|webp)$/i.test(value || ""),
+    ),
+    generateFilenameFromMimeType: jest.fn(
+        (file) =>
+            file?.name || `pasted-file.${file?.type?.split("/")[1] || "bin"}`,
+    ),
 }));
 
 // Mock the components that use ESM modules
@@ -208,6 +223,10 @@ const createMockClipboardData = ({ plain = "", html = "", items = [] }) => ({
 });
 
 describe("MessageInput", () => {
+    beforeEach(() => {
+        mockRouterPush.mockClear();
+    });
+
     const mockOnSend = jest.fn().mockImplementation(() => {
         // Mock implementation that doesn't trigger state updates
         return Promise.resolve();
@@ -318,6 +337,7 @@ describe("MessageInput", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockDebouncedUpdateUserState.mockClear();
+        window.localStorage.clear();
     });
 
     afterAll(async () => {
@@ -327,36 +347,34 @@ describe("MessageInput", () => {
     });
 
     describe("Chat input state persistence", () => {
-        it("should update user state when input changes", () => {
+        it("should store draft in localStorage when input changes", () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
 
             fireEvent.change(input, { target: { value: "Test message" } });
 
-            expect(mockDebouncedUpdateUserState).toHaveBeenCalledWith(
-                expect.any(Function),
-            );
-            const updateFn = mockDebouncedUpdateUserState.mock.calls[0][0];
-            expect(updateFn({ chatInputs: {} })).toEqual({
-                chatInputs: {
-                    "test-chat-id": "Test message",
-                },
+            expect(
+                JSON.parse(window.localStorage.getItem("chat_input_drafts_v1")),
+            ).toEqual({
+                "test-chat-id": "Test message",
             });
         });
 
-        it("should initialize input value from user state", () => {
+        it("should initialize input value from localStorage", () => {
             const savedInput = "Saved message";
+            window.localStorage.setItem(
+                "chat_input_drafts_v1",
+                JSON.stringify({
+                    "test-chat-id": savedInput,
+                }),
+            );
             render(
                 <ApolloProvider client={client}>
                     <Provider store={store}>
                         <AuthContext.Provider
                             value={{
                                 user: mockUser,
-                                userState: {
-                                    chatInputs: {
-                                        "test-chat-id": savedInput,
-                                    },
-                                },
+                                userState: {},
                                 debouncedUpdateUserState:
                                     mockDebouncedUpdateUserState,
                             }}
@@ -727,7 +745,7 @@ describe("MessageInput", () => {
             global.fetch = originalFetch;
         });
 
-        it("should ignore files of a non-accepted type", async () => {
+        it("should queue pasted files regardless of client-side MIME type", async () => {
             renderMessageInput();
             const input = screen.getByPlaceholderText("Send a message");
             const spy = jest.spyOn(Event.prototype, "preventDefault");
@@ -751,10 +769,13 @@ describe("MessageInput", () => {
             });
 
             expect(
-                screen.queryByTestId("fileuploader-mock"),
-            ).not.toBeInTheDocument();
+                await screen.findByTestId("fileuploader-mock"),
+            ).toBeInTheDocument();
+            expect(await screen.findByTestId("file-0")).toHaveTextContent(
+                "archive.zip",
+            );
             expect(input.value).toBe("");
-            expect(spy).not.toHaveBeenCalled(); // Default behavior (likely nothing) is allowed
+            expect(spy).toHaveBeenCalled();
             spy.mockRestore();
         });
     });
@@ -1073,8 +1094,9 @@ describe("MessageInput", () => {
                     ];
                 }
                 if (
+                    initialValue &&
                     typeof initialValue === "object" &&
-                    initialValue.hasOwnProperty("show")
+                    Object.prototype.hasOwnProperty.call(initialValue, "show")
                 ) {
                     // lengthLimitAlert
                     const [value, setValue] = originalUseState(initialValue);

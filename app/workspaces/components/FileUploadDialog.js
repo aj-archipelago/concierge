@@ -11,8 +11,12 @@ import {
 } from "@/components/ui/dialog";
 import { AuthContext, ServerContext } from "../../../src/App";
 import config from "../../../config";
-import { ACCEPTED_FILE_TYPES } from "../../../src/utils/mediaUtils";
 import { uploadFileToMediaHelper } from "../../../src/utils/fileUploadUtils";
+import {
+    createChatStorageTarget,
+    createUserGlobalStorageTarget,
+    createWorkspacePrivateStorageTarget,
+} from "../../../src/utils/storageTargets";
 
 // Shared FileUploadDialog component
 export default function FileUploadDialog({
@@ -21,7 +25,9 @@ export default function FileUploadDialog({
     onFileUpload,
     uploadEndpoint,
     workspaceId = null,
+    chatId = null,
     contextId: contextIdProp = null,
+    storageTarget = null,
     title = "Upload Files",
     description = "Upload files to include in your workspace. Supported formats include images, documents, and media files.",
 }) {
@@ -32,158 +38,128 @@ export default function FileUploadDialog({
 
     // Determine contextId based on file type:
     // - If contextId prop is provided, use it directly (caller knows best)
-    // - Workspace/applet artifacts (when uploadEndpoint provided): workspaceId (shared across all users)
-    // - User-submitted files in workspace context (workspaceId but no uploadEndpoint):
-    //   compound contextId (workspaceId:userContextId) for user-specific workspace files
-    // - User-submitted files elsewhere (no workspaceId): user.contextId (user-specific, temporary)
+    // - Otherwise use user.contextId for all user-scoped operations
+    // Workspace artifact uploads are routed via uploadEndpoint, not contextId.
     let contextId;
     if (contextIdProp) {
-        // Explicit contextId provided by caller
         contextId = contextIdProp;
-    } else if (uploadEndpoint && workspaceId) {
-        // Workspace artifacts are shared
-        contextId = workspaceId;
-    } else if (workspaceId && user?.contextId) {
-        // User files in workspace context use compound contextId
-        contextId = `${workspaceId}:${user.contextId}`;
     } else {
-        // User files in chat/other contexts
         contextId = user?.contextId || null;
     }
     const [fileUploading, setFileUploading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [currentFileIndex, setCurrentFileIndex] = useState(0);
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [currentFileName, setCurrentFileName] = useState("");
+
+    const uploadOneViaEndpoint = (file) =>
+        new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", uploadEndpoint, true);
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    setUploadProgress(
+                        Math.round((event.loaded * 100) / event.total),
+                    );
+                }
+            };
+
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    try {
+                        resolve(JSON.parse(xhr.responseText));
+                    } catch (e) {
+                        reject(
+                            new Error(
+                                t("File upload failed: Invalid response"),
+                            ),
+                        );
+                    }
+                } else {
+                    let message = `${t("File upload failed, response:")} ${xhr.statusText}`;
+                    try {
+                        const errorData = JSON.parse(xhr.responseText);
+                        if (errorData.error) message = errorData.error;
+                    } catch {
+                        // keep default message
+                    }
+                    reject(new Error(message));
+                }
+            };
+
+            xhr.onerror = () => reject(new Error(t("File upload failed")));
+            xhr.send(formData);
+        });
+
+    const uploadOneViaMediaHelper = async (file) => {
+        const directUploadTarget =
+            storageTarget ||
+            (workspaceId && contextId
+                ? createWorkspacePrivateStorageTarget(contextId, workspaceId)
+                : chatId && contextId
+                  ? createChatStorageTarget(contextId, chatId)
+                  : contextId
+                    ? createUserGlobalStorageTarget(contextId)
+                    : null);
+        const data = await uploadFileToMediaHelper(file, {
+            storageTarget: directUploadTarget,
+            contextId,
+            checkHash: false,
+            onProgress: setUploadProgress,
+            serverUrl: config.endpoints.mediaHelper(serverUrl),
+        });
+        return {
+            url: data.url,
+            displayFilename: data.displayFilename,
+            converted: data.converted,
+            hash: data.hash,
+        };
+    };
 
     const handleFileUpload = async (event) => {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) return;
+
         setFileUploading(true);
         setFileUploadError(null);
         setUploadProgress(0);
+        setTotalFiles(files.length);
 
-        const file = event.target.files[0];
-        if (!file) {
-            setFileUploading(false);
-            return;
-        }
+        const errors = [];
 
-        // Check if file type is supported
-        const isSupported = ACCEPTED_FILE_TYPES.some((type) => {
-            // Check MIME type
-            if (file.type === type) return true;
-            // Check file extension
-            const fileExtension =
-                "." + file.name.split(".").pop().toLowerCase();
-            return type.includes(fileExtension) || type.endsWith(fileExtension);
-        });
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setCurrentFileIndex(i + 1);
+            setCurrentFileName(file.name);
+            setUploadProgress(0);
 
-        if (!isSupported) {
-            setFileUploading(false);
-            setFileUploadError({
-                message: t(
-                    "Unsupported file type. Please upload a supported file.",
-                ),
-            });
-            return;
-        }
-
-        try {
-            // For workspace files, use XMLHttpRequest for progress tracking
-            if (uploadEndpoint) {
-                const formData = new FormData();
-                formData.append("file", file);
-
-                // Use XMLHttpRequest for proper progress tracking
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", uploadEndpoint, true);
-
-                // Monitor upload progress
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percentage = Math.round(
-                            (event.loaded * 100) / event.total,
-                        );
-                        setUploadProgress(percentage);
-                    }
-                };
-
-                // Handle upload response
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-                            onFileUpload(data);
-                            setFileUploading(false);
-                            onClose();
-                        } catch (e) {
-                            console.error("Error parsing response:", e);
-                            setFileUploadError({
-                                message: t(
-                                    "File upload failed: Invalid response",
-                                ),
-                            });
-                            setFileUploading(false);
-                        }
-                    } else {
-                        console.error(xhr.statusText);
-                        try {
-                            const errorData = JSON.parse(xhr.responseText);
-                            setFileUploadError({
-                                message:
-                                    errorData.error ||
-                                    `${t("File upload failed, response:")} ${xhr.statusText}`,
-                            });
-                        } catch {
-                            setFileUploadError({
-                                message: `${t("File upload failed, response:")} ${xhr.statusText}`,
-                            });
-                        }
-                        setFileUploading(false);
-                    }
-                };
-
-                // Handle upload errors
-                xhr.onerror = (error) => {
-                    console.error(error);
-                    setFileUploadError({ message: t("File upload failed") });
-                    setFileUploading(false);
-                };
-
-                // Send the file
-                xhr.send(formData);
-            } else {
-                // Upload file directly to media helper using shared utility
-                try {
-                    const data = await uploadFileToMediaHelper(file, {
-                        contextId,
-                        checkHash: true,
-                        onProgress: setUploadProgress,
-                        serverUrl: config.endpoints.mediaHelper(serverUrl),
-                    });
-
-                    onFileUpload({
-                        url: data.url,
-                        gcs: data.gcs,
-                        displayFilename: data.displayFilename,
-                        converted: data.converted,
-                        hash: data.hash,
-                    });
-                    setFileUploading(false);
-                    onClose();
-                } catch (error) {
-                    console.error("File upload error:", error);
-                    setFileUploadError({
-                        message:
-                            error.message ||
-                            t("File upload failed. Please try again."),
-                    });
-                    setFileUploading(false);
-                }
+            try {
+                const data = uploadEndpoint
+                    ? await uploadOneViaEndpoint(file)
+                    : await uploadOneViaMediaHelper(file);
+                onFileUpload(data);
+            } catch (error) {
+                console.error("File upload error:", error);
+                errors.push(
+                    `${file.name}: ${error.message || t("File upload failed. Please try again.")}`,
+                );
             }
-        } catch (error) {
-            console.error("File upload error:", error);
-            setFileUploadError({
-                message: t("File upload failed. Please try again."),
-            });
-            setFileUploading(false);
+        }
+
+        setFileUploading(false);
+        setCurrentFileIndex(0);
+        setTotalFiles(0);
+        setCurrentFileName("");
+
+        if (errors.length > 0) {
+            setFileUploadError({ message: errors.join("\n") });
+        } else {
+            onClose();
         }
     };
 
@@ -203,8 +179,9 @@ export default function FileUploadDialog({
                             >
                                 <Loader2Icon className="w-4 h-4 animate-spin" />
                                 <span>
-                                    {t("Uploading file...")}{" "}
-                                    {Math.round(uploadProgress)}%
+                                    {totalFiles > 1
+                                        ? `${t("Uploading file")} ${currentFileIndex} ${t("of")} ${totalFiles}: ${currentFileName} (${Math.round(uploadProgress)}%)`
+                                        : `${t("Uploading file...")} ${Math.round(uploadProgress)}%`}
                                 </span>
                             </div>
                             {/* Progress bar */}
@@ -239,11 +216,11 @@ export default function FileUploadDialog({
                                         e.currentTarget.classList.remove(
                                             "border-primary-500",
                                         );
-                                        const file = e.dataTransfer.files[0];
-                                        const event = {
-                                            target: { files: [file] },
-                                        };
-                                        handleFileUpload(event);
+                                        handleFileUpload({
+                                            target: {
+                                                files: e.dataTransfer.files,
+                                            },
+                                        });
                                     }}
                                 >
                                     <div
@@ -255,14 +232,12 @@ export default function FileUploadDialog({
                                             <input
                                                 type="file"
                                                 className="hidden"
-                                                accept={ACCEPTED_FILE_TYPES.join(
-                                                    ",",
-                                                )}
+                                                multiple
                                                 onChange={handleFileUpload}
                                                 disabled={fileUploading}
                                             />
                                             <UploadIcon className="w-4 h-4" />
-                                            {t("Choose a file")}
+                                            {t("Choose files")}
                                         </label>
                                         <p className="text-sm text-gray-500 mb-2">
                                             {t("or drag and drop here")}
@@ -280,7 +255,7 @@ export default function FileUploadDialog({
                                 </div>
                                 {fileUploadError && (
                                     <p
-                                        className={`text-red-600 dark:text-red-400 text-sm mt-2 ${isRtl ? "text-right" : "text-center"}`}
+                                        className={`text-red-600 dark:text-red-400 text-sm mt-2 whitespace-pre-line ${isRtl ? "text-right" : "text-center"}`}
                                     >
                                         {fileUploadError.message}
                                     </p>

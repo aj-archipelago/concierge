@@ -1,7 +1,13 @@
 import { EditIcon, Trash2, XIcon } from "lucide-react";
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useUpdateChat } from "../../app/queries/chats";
+import {
+    useUpdateChat,
+    DEFAULT_CHAT_MESSAGES_LIMIT,
+} from "../../app/queries/chats";
+import { isClientOnlyChatId } from "../../app/utils/chatClientIds";
+import { useQueryClient } from "@tanstack/react-query";
+import axios from "../../app/utils/axios-client";
 import classNames from "../../app/utils/class-names";
 import {
     AlertDialog,
@@ -26,6 +32,52 @@ const ChatNavigationItem = ({
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const { t } = useTranslation();
     const updateChat = useUpdateChat();
+    const queryClient = useQueryClient();
+    const hoverTimeoutRef = useRef(null);
+    const prefetchedChatsRef = useRef(new Set());
+
+    // Prefetch chat data on hover for instant switching
+    const handleMouseEnter = () => {
+        const chatId = subItem?.key;
+        if (!chatId || isClientOnlyChatId(chatId)) return;
+
+        // Already prefetched
+        if (prefetchedChatsRef.current.has(chatId)) return;
+
+        // Prefetch after 100ms hover (debounce)
+        hoverTimeoutRef.current = setTimeout(async () => {
+            if (prefetchedChatsRef.current.has(chatId)) return;
+
+            try {
+                prefetchedChatsRef.current.add(chatId);
+
+                // Check if already cached
+                const cached = queryClient.getQueryData(["chat", chatId]);
+                if (cached && !cached.isChatLoading) return;
+
+                // Prefetch the data
+                await queryClient.prefetchQuery({
+                    queryKey: ["chat", chatId],
+                    queryFn: async () => {
+                        const response = await axios.get(
+                            `/api/chats/${String(chatId)}?limit=${DEFAULT_CHAT_MESSAGES_LIMIT}`,
+                        );
+                        return response.data;
+                    },
+                    staleTime: 1000 * 60 * 5, // 5 minutes
+                });
+            } catch (e) {
+                // Silent fail - don't block navigation
+                prefetchedChatsRef.current.delete(chatId);
+            }
+        }, 100);
+    };
+
+    const handleMouseLeave = () => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+    };
 
     const handleSaveEdit = (item) => {
         updateChat.mutateAsync({
@@ -39,12 +91,16 @@ const ChatNavigationItem = ({
     return (
         <>
             <li
+                data-testid="sidebar-chat-item"
+                data-chat-id={subItem?.key}
                 className={classNames(
                     "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
                     pathname === subItem?.href
                         ? "bg-gray-100 dark:bg-gray-700"
                         : "",
                 )}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
                 onClick={() => {
                     if (subItem.href && editingId !== subItem.key) {
                         setEditingId(null);
@@ -107,6 +163,7 @@ const ChatNavigationItem = ({
                             <>
                                 <div className="basis-3 hidden sm:block">
                                     <EditIcon
+                                        data-testid="sidebar-chat-edit"
                                         className={classNames(
                                             "h-3 w-3 text-gray-400 hover:text-gray-600 cursor-pointer",
                                             !isCollapsed
@@ -129,6 +186,7 @@ const ChatNavigationItem = ({
                     {editingId !== subItem.key && (
                         <div className="basis-3 text-end hidden sm:block">
                             <Trash2
+                                data-testid="sidebar-chat-delete"
                                 className={classNames(
                                     "h-3 w-3 text-gray-400 cursor-pointer hover:text-red-600",
                                     !isCollapsed
@@ -179,4 +237,12 @@ const ChatNavigationItem = ({
     );
 };
 
-export default ChatNavigationItem;
+export default React.memo(
+    ChatNavigationItem,
+    (prev, next) =>
+        prev.subItem?.key === next.subItem?.key &&
+        prev.subItem?.name === next.subItem?.name &&
+        prev.subItem?.href === next.subItem?.href &&
+        prev.pathname === next.pathname &&
+        prev.isCollapsed === next.isCollapsed,
+);

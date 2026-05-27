@@ -120,44 +120,44 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const CODE_HUMAN_INPUT = gql`
-    query ($text: String, $codeRequestId: String) {
-        code_human_input(text: $text, codeRequestId: $codeRequestId) {
-            result
-        }
-    }
-`;
-
 const SYS_ENTITY_AGENT = gql`
     query StartAgent(
         $chatHistory: [MultiMessage]!
-        $agentContext: [AgentContextInput]
+        $fileAccessPlan: [FileAccessTargetInput]
+        $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
         $title: String
-        $codeRequestId: String
         $stream: Boolean
         $entityId: String
         $chatId: String
-        $researchMode: Boolean
+        $reasoningEffort: String
         $model: String
         $userInfo: String
+        $clientSideTools: String
+        $mcpConfig: String
+        $mcpAvailableServers: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            agentContext: $agentContext
+            fileAccessPlan: $fileAccessPlan
+            contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
-            codeRequestId: $codeRequestId
             stream: $stream
             entityId: $entityId
             chatId: $chatId
-            researchMode: $researchMode
+            reasoningEffort: $reasoningEffort
             model: $model
             userInfo: $userInfo
+            clientSideTools: $clientSideTools
+            mcpConfig: $mcpConfig
+            mcpAvailableServers: $mcpAvailableServers
         ) {
             result
             contextId
@@ -424,6 +424,70 @@ const TRANSCRIBE_GEMINI = gql`
     }
 `;
 
+const TRANSCRIBE_XAI_GEMINI = gql`
+    query TranscribeXaiGemini(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_xai_gemini(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_XAI = gql`
+    query TranscribeXai(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_xai(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSLATE_SUBTITLE = gql`
     query TranslateSubtitle(
         $text: String
@@ -624,6 +688,55 @@ const IMAGE_GEMINI_25 = gql`
             input_image_2: $input_image_2
             input_image_3: $input_image_3
             optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_GEMINI_31 = gql`
+    query ImageGemini31(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_31(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
         ) {
             result
             resultData
@@ -985,14 +1098,6 @@ const MEDIA_PROMPT_TAGS = gql`
     }
 `;
 
-const SYS_MODEL_METADATA = gql`
-    query SysModelMetadata($category: String) {
-        sys_model_metadata(category: $category) {
-            result
-        }
-    }
-`;
-
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -1037,11 +1142,13 @@ const getWorkspacePromptQuery = (pathwayName) => {
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
+            $fileAccessPlan: [FileAccessTargetInput]
         ) {
             ${pathwayName}(
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
+                fileAccessPlan: $fileAccessPlan
             ) {
                 result
                 tool
@@ -1050,22 +1157,26 @@ const getWorkspacePromptQuery = (pathwayName) => {
     `;
 };
 
-// Agent-specific query with agentContext and researchMode
+// Agent-specific query with fileAccessPlan and reasoningEffort
 const getWorkspaceAgentQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
-            $agentContext: [AgentContextInput]
-            $researchMode: Boolean
+            $fileAccessPlan: [FileAccessTargetInput]
+            $contextId: String
+            $contextKey: String
+            $reasoningEffort: String
         ) {
             ${pathwayName}(
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
-                agentContext: $agentContext
-                researchMode: $researchMode
+                fileAccessPlan: $fileAccessPlan
+                contextId: $contextId
+                contextKey: $contextKey
+                reasoningEffort: $reasoningEffort
             ) {
                 result
                 tool
@@ -1073,6 +1184,14 @@ const getWorkspaceAgentQuery = (pathwayName) => {
         }
     `;
 };
+
+const SYS_MODEL_METADATA = gql`
+    query SysModelMetadata($category: String) {
+        sys_model_metadata(category: $category) {
+            result
+        }
+    }
+`;
 
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
@@ -1081,14 +1200,12 @@ const QUERIES = {
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_31,
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
-    MEDIA_GENERATE,
-    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
-    SYS_MODEL_METADATA,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     EXPAND_STORY,
@@ -1115,6 +1232,8 @@ const QUERIES = {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_XAI_GEMINI,
+    TRANSCRIBE_XAI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -1149,13 +1268,14 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_31,
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
-    MEDIA_GENERATE,
-    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
+    MEDIA_GENERATE,
+    MEDIA_PROMPT_TAGS,
     SYS_MODEL_METADATA,
     GRAMMAR,
     SPELLING,
@@ -1181,6 +1301,7 @@ export {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_XAI_GEMINI,
+    TRANSCRIBE_XAI,
     FORMAT_PARAGRAPH_TURBO,
-    CODE_HUMAN_INPUT,
 };

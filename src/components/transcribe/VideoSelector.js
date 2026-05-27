@@ -55,7 +55,7 @@ const VideoSelector = ({ url, onSelect, onClose }) => {
             </button>
             <div className="mb-1">
                 <label htmlFor="url-input" className="font-semibold">
-                    {t("Search the AJ library by video URL or title")}
+                    {t("Search the media library by video URL or title")}
                 </label>
             </div>
             <div className="flex gap-2">

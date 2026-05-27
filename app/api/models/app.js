@@ -44,9 +44,12 @@ export const appSchema = new mongoose.Schema(
         workspaceId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Workspace",
-            required: function () {
-                return this.type === "applet";
-            },
+            required: false,
+        },
+        appletId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Applet",
+            required: false,
         },
         icon: {
             type: String,
@@ -67,6 +70,7 @@ if (mongoose.models) {
     appSchema.index({ author: 1 });
     appSchema.index({ type: 1 });
     appSchema.index({ workspaceId: 1 });
+    appSchema.index({ appletId: 1 });
     appSchema.index({ status: 1 });
     appSchema.index({ name: 1 });
 }

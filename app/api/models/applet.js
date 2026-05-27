@@ -16,7 +16,27 @@ export const appletSchema = new mongoose.Schema(
             {
                 content: {
                     type: String,
-                    required: true,
+                    required: false,
+                },
+                contentUrl: {
+                    type: String,
+                    required: false,
+                },
+                contentBlobPath: {
+                    type: String,
+                    required: false,
+                },
+                contentHash: {
+                    type: String,
+                    required: false,
+                },
+                contentSize: {
+                    type: Number,
+                    required: false,
+                },
+                contentContextId: {
+                    type: String,
+                    required: false,
                 },
                 timestamp: {
                     type: Date,
@@ -28,6 +48,34 @@ export const appletSchema = new mongoose.Schema(
             type: Number,
             required: false,
             default: null, // No version published by default
+        },
+        publishedContentUrl: {
+            type: String,
+            required: false,
+        },
+        publishedContentBlobPath: {
+            type: String,
+            required: false,
+        },
+        publishedContentHash: {
+            type: String,
+            required: false,
+        },
+        publishedContentSize: {
+            type: Number,
+            required: false,
+        },
+        publishedContentContextId: {
+            type: String,
+            required: false,
+        },
+        publishedContentVersionIndex: {
+            type: Number,
+            required: false,
+        },
+        publishedContentTimestamp: {
+            type: Date,
+            required: false,
         },
         messages: [
             {
@@ -61,6 +109,27 @@ export const appletSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        version: {
+            type: Number,
+            required: false,
+            default: 1,
+        },
+        filePath: {
+            type: String,
+            required: false,
+        },
+        sdkSuspendedAt: {
+            type: Date,
+            required: false,
+        },
+        sdkSuspendedUntil: {
+            type: Date,
+            required: false,
+        },
+        sdkSuspendedReason: {
+            type: String,
+            required: false,
+        },
     },
     {
         timestamps: true,
@@ -69,6 +138,7 @@ export const appletSchema = new mongoose.Schema(
 
 // add index on owner
 appletSchema.index({ owner: 1 });
+appletSchema.index({ owner: 1, version: 1, updatedAt: -1 });
 
 // Create the Workspace model from the schema
 const Applet = mongoose.models.Applet || mongoose.model("Applet", appletSchema);

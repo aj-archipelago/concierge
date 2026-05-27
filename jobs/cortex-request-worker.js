@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { getRedisConnection } from "../app/api/utils/redis.mjs";
-import { ensureDbConnection } from "./worker.js";
+import { ensureDbConnection } from "./db-connection.js";
 import { executeTask } from "../app/api/utils/task-executor.mjs";
 
 let worker;

@@ -26,7 +26,7 @@ describe("datetimeUtils", () => {
 
             // Should have a valid timezone (current system timezone)
             expect(parsed.datetime.timezone).toBeTruthy();
-            expect(parsed.datetime.timezone).toMatch(/^[A-Za-z_\/]+$/);
+            expect(parsed.datetime.timezone).toMatch(/^[A-Za-z_/]+$/);
 
             // Should not have originalTimezone when no fallback occurs
             expect(parsed.datetime.originalTimezone).toBeUndefined();

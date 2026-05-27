@@ -1437,7 +1437,7 @@ describe("prepareFileContentForLLM", () => {
         const mockFiles = [
             {
                 _id: "file123",
-                blobPath: "global/concierge-gemini.png",
+                blobPath: "global/example-gemini.png",
                 hash: "file-hash",
                 url: "https://example.com/original.jpg",
             },
@@ -1456,7 +1456,7 @@ describe("prepareFileContentForLLM", () => {
         });
 
         const fileObj = JSON.parse(result[0]);
-        expect(fileObj.blobPath).toBe("global/concierge-gemini.png");
+        expect(fileObj.blobPath).toBe("global/example-gemini.png");
         expect(fileObj.hash).toBe("file-hash");
         expect(global.fetch.mock.calls[0][0]).toContain("blobPath=");
         expect(global.fetch.mock.calls[0][0]).not.toContain("hash=file-hash");
@@ -1566,7 +1566,7 @@ describe("prepareFileContentForLLM", () => {
             {
                 hash: "hash1",
                 mimeType: "text/csv",
-                url: "https://storage.example.blob.core.windows.net/container/concierge-users.csv?sv=2025-05-05&sig=abc123",
+                url: "https://customerstorage.blob.core.windows.net/container/concierge-production.users.csv?sv=2025-05-05&sig=abc123",
             },
         ];
 
@@ -1581,7 +1581,7 @@ describe("prepareFileContentForLLM", () => {
         const fileObj = JSON.parse(result[0]);
         expect(fileObj.mimeType).toBe("text/csv");
         expect(fileObj.image_url).toEqual({
-            url: "https://storage.example.blob.core.windows.net/container/concierge-users.csv?sv=2025-05-05&sig=abc123",
+            url: "https://customerstorage.blob.core.windows.net/container/concierge-production.users.csv?sv=2025-05-05&sig=abc123",
         });
     });
 });
@@ -1589,7 +1589,7 @@ describe("prepareFileContentForLLM", () => {
 describe("extractBlobPathFromUrl", () => {
     it("should extract blob path from Azure blob URL", () => {
         const url =
-            "https://storage.example.blob.core.windows.net/container/global/abc123_myfile.pdf";
+            "https://customerstorage.blob.core.windows.net/container/global/abc123_myfile.pdf";
         expect(extractBlobPathFromUrl(url)).toBe("global/abc123_myfile.pdf");
     });
 

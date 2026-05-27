@@ -29,7 +29,11 @@ export const fileSchema = new mongoose.Schema(
         },
         hash: {
             type: String,
-            required: true,
+            required: false,
+        },
+        blobPath: {
+            type: String,
+            required: false,
         },
         uploadedAt: {
             type: Date,
@@ -55,6 +59,7 @@ export const fileSchema = new mongoose.Schema(
 // Create index on owner for efficient lookups
 fileSchema.index({ owner: 1 });
 fileSchema.index({ uploadedAt: -1 });
+fileSchema.index({ blobPath: 1 });
 
 // Create the File model from the schema
 const File = mongoose.models?.File || mongoose.model("File", fileSchema);

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import {
     FileText,
     Expand,
@@ -19,7 +19,7 @@ import { getTextSuggestionsComponent } from "./TextSuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import HeadlineModal from "./headline/HeadlineModal";
 import NewStyleGuideModal from "./NewStyleGuideModal";
-import { getGrammarEndpoint } from "../../utils/languageDetection";
+import GrammarModal from "./GrammarModal";
 
 const ListRenderer = ({ value }) => {
     value.sort();
@@ -38,45 +38,41 @@ const ListRenderer = ({ value }) => {
 
 const customActions = config.write?.actions || {};
 
-// Pre-create grammar components to avoid recreating them on every render
-const grammarComponents = {
-    GRAMMAR: getTextSuggestionsComponent({
-        query: "GRAMMAR",
-        outputType: "diff",
-    }),
-    GRAMMAR_AR: getTextSuggestionsComponent({
-        query: "GRAMMAR_AR",
-        outputType: "diff",
-    }),
-};
+// Grammar components are now handled by GrammarModal component
 
 const actions = {
     grammar: {
         Icon: CheckCircle,
         title: "Spelling and grammar",
         dialogClassName: "modal-wide",
-        SuggestionsComponent: ({
-            text,
-            args = {},
-            onSelect,
-            diffEditorRef,
-        }) => {
-            const grammarQuery = getGrammarEndpoint(text);
-            // Memoize component selection to preserve state across renders
-            const GrammarComponent = useMemo(
-                () => grammarComponents[grammarQuery],
-                [grammarQuery],
+        type: "always-available",
+        SuggestionsComponent: ({ text, html, onSelect, onClose, onCommit }) => {
+            const handleCommit = useCallback(
+                (correctedText) => {
+                    // Call onCommit to update the editor with the corrected text
+                    if (onCommit) {
+                        onCommit(correctedText, "full");
+                    } else {
+                        // Fallback to onSelect if onCommit is not available
+                        onSelect(correctedText);
+                    }
+                    // Close the modal after committing
+                    if (onClose) {
+                        onClose();
+                    }
+                },
+                [onSelect, onClose, onCommit],
             );
             return (
-                <GrammarComponent
+                <GrammarModal
                     text={text}
-                    args={args}
-                    onSelect={onSelect}
-                    diffEditorRef={diffEditorRef}
+                    html={html}
+                    onCommit={handleCommit}
+                    onClose={onClose}
                 />
             );
         },
-        commitLabel: "Use Corrected Version",
+        commitLabel: "Close",
     },
     headline: {
         Icon: FileText,
@@ -90,7 +86,7 @@ const actions = {
         title: "Apply style guide",
         dialogClassName: "modal-wide",
         type: "always-available",
-        SuggestionsComponent: ({ text, onSelect, onClose, onCommit }) => {
+        SuggestionsComponent: ({ text, html, onSelect, onClose, onCommit }) => {
             const handleCommit = useCallback(
                 (correctedText) => {
                     // Call onCommit to update the editor with the corrected text
@@ -110,6 +106,7 @@ const actions = {
             return (
                 <NewStyleGuideModal
                     text={text}
+                    html={html}
                     onCommit={handleCommit}
                     onClose={onClose}
                 />

@@ -2,6 +2,12 @@ import { getCurrentUser } from "../utils/auth.js";
 import MediaItem from "../models/media-item.mjs";
 import { parseSearchQuery } from "../utils/search-parser.js";
 
+const MAX_INPUT_IMAGE_REFERENCES = 14;
+
+function getInputImageFieldName(index) {
+    return index === 0 ? "inputImageUrl" : `inputImageUrl${index + 1}`;
+}
+
 export async function GET(req) {
     const user = await getCurrentUser();
     const { searchParams } = new URL(req.url);
@@ -128,11 +134,10 @@ export async function POST(req) {
 
     try {
         // Get inherited tags from input images if this is a derivative work
-        const inputImageUrls = [
-            body.inputImageUrl,
-            body.inputImageUrl2,
-            body.inputImageUrl3,
-        ].filter(Boolean);
+        const inputImageUrls = Array.from(
+            { length: MAX_INPUT_IMAGE_REFERENCES },
+            (_, index) => body[getInputImageFieldName(index)],
+        ).filter(Boolean);
 
         const inheritedTags = await getInheritedTags(
             user._id,
@@ -151,6 +156,16 @@ export async function POST(req) {
 
         return Response.json(mediaItem);
     } catch (error) {
+        if (error?.code === 11000 && body?.taskId) {
+            const existing = await MediaItem.findOne({
+                user: user._id,
+                taskId: body.taskId,
+            });
+            if (existing) {
+                return Response.json(existing);
+            }
+        }
+
         console.error("Error creating media item:", error);
         return Response.json(
             { error: "Failed to create media item" },
@@ -158,3 +173,5 @@ export async function POST(req) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

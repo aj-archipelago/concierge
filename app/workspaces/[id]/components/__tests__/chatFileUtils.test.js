@@ -5,6 +5,7 @@
 import {
     deleteFileFromCloud,
     checkFileUrlExists,
+    resolveFileReference,
     createFilePlaceholder,
     purgeFile,
     purgeFiles,
@@ -38,7 +39,7 @@ describe("chatFileUtils", () => {
             await deleteFileFromCloud("hash123");
 
             expect(global.fetch).toHaveBeenCalledWith(
-                "http://localhost:3000/api/files/delete?hash=hash123",
+                "http://localhost:3000/api/files/delete?hash=hash123&fileScope=global",
                 { method: "DELETE" },
             );
         });
@@ -101,6 +102,61 @@ describe("chatFileUtils", () => {
         it("should return false for invalid URL", async () => {
             const result = await checkFileUrlExists(null);
             expect(result).toBe(false);
+        });
+    });
+
+    describe("resolveFileReference", () => {
+        it("should return canonical file metadata when available", async () => {
+            global.fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    exists: true,
+                    source: "canonical",
+                    file: {
+                        url: "https://example.com/fresh.pdf",
+                        blobPath: "chats/chat-1/hash_file.pdf",
+                        hash: "hash123",
+                    },
+                }),
+            });
+
+            const result = await resolveFileReference({
+                url: "https://example.com/stale.pdf",
+                hash: "hash123",
+                chatId: "chat-1",
+                fileScope: "chat",
+            });
+
+            expect(result).toEqual({
+                exists: true,
+                source: "canonical",
+                file: {
+                    url: "https://example.com/fresh.pdf",
+                    blobPath: "chats/chat-1/hash_file.pdf",
+                    hash: "hash123",
+                },
+            });
+            expect(global.fetch).toHaveBeenCalledWith("/api/files/check-url", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    url: "https://example.com/stale.pdf",
+                    hash: "hash123",
+                    chatId: "chat-1",
+                    fileScope: "chat",
+                }),
+            });
+        });
+
+        it("should return exists false when no usable identifier is provided", async () => {
+            const result = await resolveFileReference({});
+
+            expect(result).toEqual({
+                exists: false,
+                file: null,
+                source: null,
+            });
+            expect(global.fetch).not.toHaveBeenCalled();
         });
     });
 
@@ -235,7 +291,7 @@ describe("chatFileUtils", () => {
             expect(result.error).toBe("Invalid file object");
         });
 
-        it("should match files by hash, url, gcs, or image_url", async () => {
+        it("should match files by hash, url, or image_url", async () => {
             global.fetch.mockResolvedValueOnce({ ok: true });
 
             const messages = [

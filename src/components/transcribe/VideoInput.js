@@ -18,6 +18,7 @@ import {
     MEDIA_MIME_TYPES,
 } from "../../utils/mediaUtils";
 import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
+import { createUserGlobalStorageTarget } from "../../utils/storageTargets";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import VideoSelector from "./VideoSelector";
 
@@ -230,7 +231,7 @@ function VideoInput({
         // Upload file using shared utility
         try {
             const data = await uploadFileToMediaHelper(file, {
-                contextId,
+                storageTarget: createUserGlobalStorageTarget(contextId),
                 checkHash: true,
                 onProgress: setUploadProgress,
                 serverUrl: config.endpoints.mediaHelper(serverUrl),

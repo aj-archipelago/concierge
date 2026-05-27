@@ -5,7 +5,7 @@ export const translateSlice = createSlice({
     initialState: {
         inputText: "",
         translationLanguage: "en",
-        translationStrategy: "quick", // quick or context
+        translationStrategy: "gpt55",
         translatedText: "",
     },
     reducers: {

@@ -41,7 +41,7 @@ import {
     useWorkspace,
 } from "../../../queries/workspaces";
 import Loader from "../../../components/loader";
-import { useLLMs } from "../../../queries/llms";
+import { useChatModels } from "../../../queries/modelMetadata";
 import { usePromptsByIds } from "../../../queries/prompts";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
@@ -58,7 +58,7 @@ export default function WorkspaceActions({ idOrSlug, user }) {
                     <div className="hidden sm:block">
                         <button
                             className="lb-outline-secondary"
-                            onClick={() => router.push("/workspaces")}
+                            onClick={() => router.push("/applets")}
                         >
                             {direction === "rtl" ? (
                                 <ArrowRight />
@@ -313,7 +313,7 @@ function Actions({ user, workspace }) {
 
         try {
             await deleteWorkspace.mutateAsync({ id: workspace._id });
-            router.push("/workspaces");
+            router.push("/applets");
         } catch (error) {
             if (error?.response?.data?.hasPublishedApplet) {
                 const appName = error.response.data.appName;
@@ -562,18 +562,24 @@ function UnpublishedWorkspace({ workspace }) {
 
     const pathwayName = stringcase.snakecase(workspace.name);
 
+    const { data: chatModels, isLoading: modelsLoading } = useChatModels();
+
+    // prompt.llm is now a cortex model ID string (e.g. "oai-gpt52")
+    const llmIds = prompts?.map((p) => p.llm)?.filter(Boolean) || [];
+    const uniqueLLMIds = [...new Set(llmIds)];
+    const selectedModelId = uniqueLLMIds[0] || chatModels?.[0]?.modelId;
+    const llm = chatModels?.find((m) => m.modelId === selectedModelId);
+
     const handlePublish = async () => {
         await publishWorkspace.mutate({
             id: workspace._id,
             publish: !workspace.published,
             pathwayName,
-            model: llm?.cortexModelName,
+            model: selectedModelId,
         });
     };
 
-    const { data: llms, isLoading: llmLoading } = useLLMs();
-
-    if (llmLoading || promptsLoading) {
+    if (modelsLoading || promptsLoading) {
         return <Loader />;
     }
 
@@ -588,14 +594,11 @@ function UnpublishedWorkspace({ workspace }) {
         );
     }
 
-    // ensure that all prompts use the same llm. if not, render a message
-    const llmIds = prompts.map((p) => p.llm)?.filter(Boolean);
-    const uniqueLLMIds = [...new Set(llmIds)];
-
     if (uniqueLLMIds.length > 1) {
-        const names = llms
-            .filter((l) => uniqueLLMIds.includes(l._id))
-            .map((l) => l.name);
+        const names = uniqueLLMIds.map(
+            (id) =>
+                chatModels?.find((m) => m.modelId === id)?.displayName || id,
+        );
 
         return (
             <div className="text-amber-600">
@@ -606,8 +609,6 @@ function UnpublishedWorkspace({ workspace }) {
             </div>
         );
     }
-
-    const llm = llms.find((l) => l._id === (uniqueLLMIds?.[0] || llms[0]?._id));
 
     return (
         <div className="pb-24">
@@ -622,7 +623,9 @@ function UnpublishedWorkspace({ workspace }) {
                     <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">
                         {t("Model")}
                     </div>
-                    <div className="font-medium">{llm.name}</div>
+                    <div className="font-medium">
+                        {llm?.displayName || selectedModelId}
+                    </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md p-3 shadow-sm">
                     <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">

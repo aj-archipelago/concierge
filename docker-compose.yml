@@ -1,0 +1,39 @@
+# Dev: uses host Mongo, Redis, and Cortex via host.docker.internal.
+# host.docker.internal is automatic on Docker Desktop (Mac/Windows).
+# On Linux it relies on the extra_hosts mapping below and requires Docker 20.10+ for host-gateway.
+# .env.local must exist on the host; it is read at runtime (not copied into the image).
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: concierge-app
+        ports:
+            - "3000:3000"
+        env_file:
+            - .env.local
+        environment:
+            - MONGO_URI=mongodb://host.docker.internal:27017/concierge
+            - CORTEX_GRAPHQL_API_URL=http://host.docker.internal:4000/graphql
+            - REDIS_CONNECTION_STRING=redis://host.docker.internal:6379
+            - NODE_ENV=development
+            - MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+    worker:
+        build:
+            context: .
+            dockerfile: Dockerfile.worker
+        image: concierge-worker
+        env_file:
+            - .env.local
+        environment:
+            - MONGO_URI=mongodb://host.docker.internal:27017/concierge
+            - CORTEX_GRAPHQL_API_URL=http://host.docker.internal:4000/graphql
+            - REDIS_CONNECTION_STRING=redis://host.docker.internal:6379
+            - NODE_ENV=development
+            - MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
+        extra_hosts:
+            - "host.docker.internal:host-gateway"

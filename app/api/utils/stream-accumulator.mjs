@@ -3,13 +3,28 @@
  * Extracted from useStreamingMessages hook for server-side use
  */
 
+import {
+    appendAssistantThinkingSummary,
+    appendAssistantTextChunk,
+    appendAssistantThinkingChunk,
+    buildAssistantPayloadFromItems,
+    buildInlineAssistantPayload,
+    createAssistantToolEventItem,
+    updateAssistantThinkingDuration,
+    upsertAssistantToolEvent,
+} from "../../../src/utils/assistantInlinePayload";
+
 export class StreamAccumulator {
     constructor() {
         this.streamingMessage = "";
         this.ephemeralContent = "";
+        this.inlinePayloadItems = [];
+        this.activeTextIndex = null;
+        this.activeThinkingIndex = null;
         this.hasReceivedPersistent = false;
         this.accumulatedInfo = {};
         this.toolCallsMap = new Map();
+        this.toolCallIndexMap = new Map();
         this.thinkingStartTime = null;
         this.accumulatedThinkingTime = 0;
         this.isThinking = false;
@@ -32,16 +47,6 @@ export class StreamAccumulator {
             // Handle structured tool messages
             if (parsedInfo.toolMessage) {
                 this.updateToolCalls(parsedInfo.toolMessage);
-
-                // If we receive a tool start message, we should be thinking
-                if (parsedInfo.toolMessage.type === "start") {
-                    if (!this.isThinking) {
-                        if (this.thinkingStartTime === null) {
-                            this.thinkingStartTime = Date.now();
-                        }
-                        this.isThinking = true;
-                    }
-                }
             }
 
             // Store accumulated info
@@ -84,30 +89,33 @@ export class StreamAccumulator {
 
                 if (isEphemeral) {
                     this.ephemeralContent += content;
-                    // If we're receiving ephemeral content, we should be thinking
-                    if (!this.isThinking) {
-                        if (this.thinkingStartTime !== null) {
-                            const elapsed = Math.floor(
-                                (Date.now() - this.thinkingStartTime) / 1000,
-                            );
-                            this.accumulatedThinkingTime += elapsed;
-                            this.thinkingStartTime = null;
-                        }
+                    if (this.thinkingStartTime === null) {
                         this.thinkingStartTime = Date.now();
                     }
-                    this.isThinking = true;
+                    const nextInline = appendAssistantThinkingChunk(
+                        this.inlinePayloadItems,
+                        content,
+                        this.getThinkingDuration(),
+                        this.activeThinkingIndex,
+                    );
+                    this.inlinePayloadItems = nextInline.items;
+                    this.activeThinkingIndex = nextInline.index;
+                    this.activeTextIndex = null;
                 } else {
-                    // This is persistent content
-                    if (this.isThinking && this.thinkingStartTime !== null) {
-                        const elapsed = Math.floor(
-                            (Date.now() - this.thinkingStartTime) / 1000,
-                        );
-                        this.accumulatedThinkingTime += elapsed;
-                        this.thinkingStartTime = null;
-                    }
-                    this.isThinking = false;
                     this.streamingMessage += content;
                     this.hasReceivedPersistent = true;
+                    const nextInline = appendAssistantTextChunk(
+                        this.inlinePayloadItems,
+                        content,
+                        this.activeTextIndex,
+                    );
+                    this.inlinePayloadItems = updateAssistantThinkingDuration(
+                        nextInline.items,
+                        this.activeThinkingIndex,
+                        this.getThinkingDuration(),
+                    );
+                    this.activeTextIndex = nextInline.index;
+                    this.activeThinkingIndex = null;
                 }
                 return true;
             }
@@ -116,9 +124,33 @@ export class StreamAccumulator {
             const isEphemeral = !!this.accumulatedInfo.ephemeral;
             if (isEphemeral) {
                 this.ephemeralContent += result;
+                if (this.thinkingStartTime === null) {
+                    this.thinkingStartTime = Date.now();
+                }
+                const nextInline = appendAssistantThinkingChunk(
+                    this.inlinePayloadItems,
+                    result,
+                    this.getThinkingDuration(),
+                    this.activeThinkingIndex,
+                );
+                this.inlinePayloadItems = nextInline.items;
+                this.activeThinkingIndex = nextInline.index;
+                this.activeTextIndex = null;
             } else {
                 this.streamingMessage += result;
                 this.hasReceivedPersistent = true;
+                const nextInline = appendAssistantTextChunk(
+                    this.inlinePayloadItems,
+                    result,
+                    this.activeTextIndex,
+                );
+                this.inlinePayloadItems = updateAssistantThinkingDuration(
+                    nextInline.items,
+                    this.activeThinkingIndex,
+                    this.getThinkingDuration(),
+                );
+                this.activeTextIndex = nextInline.index;
+                this.activeThinkingIndex = null;
             }
             return true;
         }
@@ -132,23 +164,66 @@ export class StreamAccumulator {
     updateToolCalls(toolMessage) {
         if (!toolMessage || !toolMessage.callId) return;
 
-        const { type, callId, icon, userMessage, success, error } = toolMessage;
+        const {
+            type,
+            callId,
+            icon,
+            userMessage,
+            success,
+            error,
+            presentation,
+        } = toolMessage;
+        const existingItem = this.toolCallsMap.get(callId);
+        const existingIndex = this.toolCallIndexMap.get(callId) ?? null;
 
         if (type === "start") {
-            this.toolCallsMap.set(callId, {
+            const toolEvent = createAssistantToolEventItem({
+                callId,
                 icon: icon || "🛠️",
                 userMessage: userMessage || "Running tool...",
                 status: "thinking",
+                presentation:
+                    presentation || existingItem?.presentation || "default",
             });
-        } else if (type === "finish") {
-            const existing = this.toolCallsMap.get(callId);
-            if (existing) {
-                this.toolCallsMap.set(callId, {
-                    ...existing,
-                    status: success ? "completed" : "failed",
-                    error: error || null,
-                });
+            const nextInline = upsertAssistantToolEvent(
+                this.inlinePayloadItems,
+                toolEvent,
+                existingIndex,
+            );
+            this.inlinePayloadItems = nextInline.items;
+            this.toolCallIndexMap.set(callId, nextInline.index);
+            this.toolCallsMap.set(callId, toolEvent);
+            if (existingIndex === null) {
+                this.activeTextIndex = null;
+                this.activeThinkingIndex = null;
             }
+        } else if (type === "finish") {
+            const toolEvent = {
+                ...(existingItem ||
+                    createAssistantToolEventItem({
+                        callId,
+                        icon: icon || "🛠️",
+                        userMessage: userMessage || "Running tool...",
+                        status: success ? "completed" : "failed",
+                    })),
+                icon: icon || existingItem?.icon || "🛠️",
+                userMessage:
+                    userMessage ||
+                    existingItem?.userMessage ||
+                    "Running tool...",
+                status: success ? "completed" : "failed",
+                error: error || null,
+                presentation:
+                    presentation || existingItem?.presentation || "default",
+            };
+            const nextInline = upsertAssistantToolEvent(
+                this.inlinePayloadItems,
+                toolEvent,
+                existingIndex,
+            );
+            this.inlinePayloadItems = nextInline.items;
+            this.toolCallIndexMap.set(callId, nextInline.index);
+            this.toolCallsMap.set(callId, toolEvent);
         }
     }
 
@@ -157,11 +232,10 @@ export class StreamAccumulator {
      */
     getThinkingDuration() {
         let finalDuration = this.accumulatedThinkingTime;
-        if (this.isThinking && this.thinkingStartTime !== null) {
-            const elapsed = Math.floor(
+        if (this.thinkingStartTime !== null) {
+            finalDuration = Math.floor(
                 (Date.now() - this.thinkingStartTime) / 1000,
             );
-            finalDuration = this.accumulatedThinkingTime + elapsed;
         }
         return finalDuration;
     }
@@ -178,11 +252,9 @@ export class StreamAccumulator {
 
         if (!hasContent) return null;
 
-        // If we have no persistent content but do have ephemeral content, use the ephemeral content
-        let finalContent = this.streamingMessage;
-        if (!this.hasReceivedPersistent && this.ephemeralContent) {
-            finalContent = this.ephemeralContent;
-        }
+        const finalContent = this.hasReceivedPersistent
+            ? this.streamingMessage
+            : "";
 
         const toolString = JSON.stringify({
             ...this.accumulatedInfo,
@@ -191,28 +263,39 @@ export class StreamAccumulator {
 
         const finalEphemeralContent = this.ephemeralContent;
         const finalToolCalls = Array.from(this.toolCallsMap.values());
-        const hasToolCalls = finalToolCalls.length > 0;
-        const hasEphemeralContent = finalEphemeralContent || hasToolCalls;
+        const finalDuration = this.getThinkingDuration();
+        const finalizedItems = appendAssistantThinkingSummary(
+            updateAssistantThinkingDuration(
+                this.inlinePayloadItems,
+                this.activeThinkingIndex,
+                finalDuration,
+            ),
+            finalDuration,
+        );
+        const payload =
+            buildAssistantPayloadFromItems(finalizedItems) ||
+            buildInlineAssistantPayload({
+                content: finalContent,
+                thinkingContent: finalEphemeralContent,
+                thinkingDuration: finalDuration,
+                toolEvents: finalToolCalls,
+            });
 
         return {
-            payload: finalContent,
+            payload,
             tool: toolString,
             sentTime: new Date().toISOString(),
             direction: "incoming",
             position: "single",
-            sender: "labeeb",
+            sender: "assistant",
             entityId: currentEntityId,
+            isServerGenerated: true,
             isStreaming: false,
-            ephemeralContent: hasEphemeralContent
-                ? finalEphemeralContent || ""
-                : undefined,
-            thinkingDuration: this.getThinkingDuration(),
-            toolCalls: hasToolCalls ? finalToolCalls : null,
         };
     }
 
     /**
-     * Get accumulated info (for codeRequestId, etc.)
+     * Get accumulated info
      */
     getAccumulatedInfo() {
         return { ...this.accumulatedInfo };
@@ -224,9 +307,13 @@ export class StreamAccumulator {
     reset() {
         this.streamingMessage = "";
         this.ephemeralContent = "";
+        this.inlinePayloadItems = [];
+        this.activeTextIndex = null;
+        this.activeThinkingIndex = null;
         this.hasReceivedPersistent = false;
         this.accumulatedInfo = {};
         this.toolCallsMap.clear();
+        this.toolCallIndexMap.clear();
         this.thinkingStartTime = null;
         this.accumulatedThinkingTime = 0;
         this.isThinking = false;

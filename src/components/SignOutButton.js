@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { isAzureAppService } from "../utils/auth";
 
 export const SignOutButton = ({ className = "" }) => {
+    const { t } = useTranslation();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSignOut = async () => {
@@ -42,10 +44,10 @@ export const SignOutButton = ({ className = "" }) => {
             disabled={isLoading}
             variant="outline"
             size="sm"
-            className={className}
+            className={`${className} rtl:flex-row-reverse rtl:justify-between`}
         >
-            <LogOut className="h-4 w-4 mr-2" />
-            {isLoading ? "Signing out..." : "Sign out"}
+            <LogOut className="h-4 w-4 me-2" />
+            {isLoading ? t("Signing out...") : t("Sign out")}
         </Button>
     );
 };

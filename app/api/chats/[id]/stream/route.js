@@ -3,15 +3,161 @@ import Chat from "../../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../../utils/auth";
 import { getClient, QUERIES, SUBSCRIPTIONS } from "../../../../../src/graphql";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
-import { buildAgentContext } from "../../../utils/llm-file-utils";
-import { buildMcpAgentConfigForUser } from "../../../utils/mcp-agent-config";
 import {
-    removeArtifactsFromMessages,
+    buildFileAccessPlan,
+    buildRunContext,
+} from "../../../../../src/utils/fileAccessPlanUtils";
+import config from "../../../../../config";
+import {
+    sanitizeMessagesForPersistence,
+    prepareMessagesForPersistence,
     cleanupStaleStopRequestedIds,
     isSubscriptionStopped,
     removeStoppedSubscription,
     getEntrySubscriptionId,
+    buildLastMessagePreview,
 } from "../../_lib";
+import { buildModelPayloadFromStoredPayload } from "../../../../../src/utils/assistantInlinePayload";
+import { NEW_CHAT_ID } from "../../../../utils/chatClientIds";
+import { buildMcpAgentConfigForUser } from "../../../utils/mcp-agent-config";
+
+export const dynamic = "force-dynamic";
+
+const activeStreamRegistry = new Map();
+
+function parseEntitiesResult(rawResult) {
+    if (Array.isArray(rawResult)) {
+        return rawResult;
+    }
+
+    if (typeof rawResult !== "string" || rawResult.trim().length === 0) {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(rawResult);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn("[SSE Stream] Failed to parse entities result:", error);
+        return [];
+    }
+}
+
+async function resolveChatEntitySelection({
+    graphqlClient,
+    currentUser,
+    requestedEntityId,
+    persistedEntityId,
+}) {
+    const requested = requestedEntityId || "";
+    const persisted = persistedEntityId || "";
+    const personalEntityId = currentUser?.personalEntityId || "";
+    const candidateEntityId = requested || persisted || personalEntityId || "";
+
+    if (!candidateEntityId) {
+        return {
+            entityId: "",
+            persistedEntityId: "",
+            repaired: false,
+        };
+    }
+
+    let entities = [];
+    if (currentUser?.contextId) {
+        try {
+            const entitiesResult = await graphqlClient.query({
+                query: QUERIES.SYS_GET_ENTITIES,
+                variables: {
+                    userId: currentUser.contextId,
+                    fresh: "true",
+                },
+                fetchPolicy: "network-only",
+            });
+            entities = parseEntitiesResult(
+                entitiesResult?.data?.sys_get_entities?.result,
+            );
+        } catch (error) {
+            console.warn(
+                "[SSE Stream] Failed to fetch entities for stream request:",
+                error,
+            );
+        }
+    }
+
+    const validEntityIds = new Set(
+        entities.map((entity) => entity?.id).filter(Boolean),
+    );
+    if (validEntityIds.size === 0) {
+        return {
+            entityId: candidateEntityId,
+            persistedEntityId: candidateEntityId,
+            repaired: false,
+        };
+    }
+
+    const defaultEntityId =
+        (personalEntityId && validEntityIds.has(personalEntityId)
+            ? personalEntityId
+            : null) ||
+        entities.find((entity) => entity?.isDefault)?.id ||
+        personalEntityId ||
+        "";
+
+    if (candidateEntityId && validEntityIds.has(candidateEntityId)) {
+        return {
+            entityId: candidateEntityId,
+            persistedEntityId: candidateEntityId,
+            repaired: false,
+        };
+    }
+
+    const repairedEntityId = defaultEntityId || candidateEntityId;
+    if (candidateEntityId && repairedEntityId !== candidateEntityId) {
+        console.warn(
+            `[SSE Stream] Repairing stale entityId ${candidateEntityId} to ${repairedEntityId || "(empty)"}`,
+        );
+    }
+
+    return {
+        entityId: repairedEntityId,
+        persistedEntityId: repairedEntityId,
+        repaired: repairedEntityId !== candidateEntityId,
+    };
+}
+
+function sanitizeConversationForModel(conversation = []) {
+    if (!Array.isArray(conversation)) {
+        return [];
+    }
+
+    return conversation
+        .map((entry) => {
+            if (!entry || typeof entry !== "object") {
+                return null;
+            }
+
+            if (entry.role !== "assistant") {
+                return entry;
+            }
+
+            const content = buildModelPayloadFromStoredPayload(entry.content);
+            if (content == null) {
+                return null;
+            }
+            if (typeof content === "string" && content.trim().length === 0) {
+                return null;
+            }
+            if (Array.isArray(content) && content.length === 0) {
+                return null;
+            }
+
+            return {
+                ...entry,
+                content,
+            };
+        })
+        .filter(Boolean);
+}
 
 /**
  * Helper function to clear isChatLoading state
@@ -49,14 +195,100 @@ export async function POST(req, { params }) {
         );
     }
 
+    let chatId = id;
     let loadingWasSet = false;
+    let currentUser = null;
+    let createdChatId = null;
 
     try {
-        const currentUser = await getCurrentUser(false);
-        const body = await req.json();
+        currentUser = await getCurrentUser(false);
+        let body;
+        try {
+            body = await req.json();
+        } catch (error) {
+            const interruptedBody =
+                req.signal?.aborted || error instanceof SyntaxError;
+            if (interruptedBody) {
+                console.warn(
+                    "[SSE Stream] Ignoring interrupted request body for chat stream",
+                    { chatId: id },
+                );
+                return NextResponse.json(
+                    { error: "Request body was interrupted" },
+                    { status: 400 },
+                );
+            }
+            throw error;
+        }
+        const {
+            conversation,
+            aiName,
+            aiMemorySelfModify,
+            title,
+            entityId,
+            model,
+            userInfo,
+            clientSideTools,
+        } = body;
+        const sanitizedConversation =
+            sanitizeConversationForModel(conversation);
 
-        // Get chat and verify ownership
-        const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
+        let chat = null;
+
+        // Handle the /chat/new bootstrap path by creating the persisted chat
+        if (id === NEW_CHAT_ID) {
+            let initialUserMessage = null;
+            if (Array.isArray(conversation)) {
+                for (let i = conversation.length - 1; i >= 0; i -= 1) {
+                    const entry = conversation[i];
+                    if (
+                        entry?.role === "user" &&
+                        entry?.content !== undefined &&
+                        entry?.content !== null
+                    ) {
+                        initialUserMessage = entry.content;
+                        break;
+                    }
+                }
+            }
+            const now = new Date().toISOString();
+            const initialMessage = initialUserMessage
+                ? {
+                      payload: initialUserMessage,
+                      sender: "user",
+                      sentTime: now,
+                      direction: "outgoing",
+                      position: "single",
+                  }
+                : null;
+            const preview = initialMessage
+                ? buildLastMessagePreview([initialMessage])
+                : {};
+            const prepared = prepareMessagesForPersistence(
+                initialMessage ? [initialMessage] : [],
+            );
+            // Create a new chat for this user
+            const newChat = new Chat({
+                userId: currentUser._id,
+                messages: prepared.messages,
+                title: "",
+                isUnused: !initialMessage,
+                messageStorageBytes: prepared.messageStorageBytes,
+                messagesCompacted: prepared.messagesCompacted,
+                messagesCompactedAt: prepared.messagesCompacted
+                    ? new Date()
+                    : null,
+                ...preview,
+            });
+            await newChat.save();
+            chatId = String(newChat._id);
+            createdChatId = chatId;
+            chat = newChat;
+        } else {
+            // Get existing chat and verify ownership
+            chat = await Chat.findOne({ _id: id, userId: currentUser._id });
+        }
+
         if (!chat) {
             return NextResponse.json(
                 { error: "Chat not found" },
@@ -64,21 +296,8 @@ export async function POST(req, { params }) {
             );
         }
 
-        // Extract request data
-        const {
-            conversation,
-            agentContext: requestAgentContext,
-            aiName,
-            aiMemorySelfModify,
-            title,
-            entityId,
-            researchMode,
-            model,
-            userInfo,
-        } = body;
-
         // Require conversation for new streams
-        if (!conversation?.length) {
+        if (!sanitizedConversation.length) {
             return NextResponse.json(
                 {
                     error: chat.isChatLoading
@@ -89,9 +308,6 @@ export async function POST(req, { params }) {
             );
         }
 
-        // Determine entityId
-        const finalEntityId = entityId || chat.selectedEntityId || "";
-
         // Initialize accumulator and GraphQL client
         const accumulator = new StreamAccumulator();
         // Start thinking time tracking immediately when stream starts
@@ -101,34 +317,70 @@ export async function POST(req, { params }) {
         accumulator.isThinking = true;
         const graphqlClient = getClient();
 
-        // Build agentContext for user chat (single user context as default)
-        // Use provided agentContext or build from user's context
-        const agentContext =
-            requestAgentContext ||
-            buildAgentContext({
-                userContextId: currentUser?.contextId || null,
-                userContextKey: currentUser?.contextKey || null,
+        const resolvedEntitySelection = await resolveChatEntitySelection({
+            graphqlClient,
+            currentUser,
+            requestedEntityId: entityId,
+            persistedEntityId: chat.selectedEntityId,
+        });
+        const finalEntityId = resolvedEntitySelection.entityId || "";
+
+        if (
+            (chat.selectedEntityId || "") !==
+            (resolvedEntitySelection.persistedEntityId || "")
+        ) {
+            await Chat.findOneAndUpdate(
+                { _id: chatId, userId: currentUser._id },
+                {
+                    selectedEntityId:
+                        resolvedEntitySelection.persistedEntityId || "",
+                },
+            ).catch((error) => {
+                console.error(
+                    `[SSE Stream] Error repairing selectedEntityId for chat ${chatId}:`,
+                    error,
+                );
             });
+            chat.selectedEntityId =
+                resolvedEntitySelection.persistedEntityId || "";
+        }
+
+        const fileAccessPlan = buildFileAccessPlan({
+            userContextId: currentUser?.contextId || null,
+            userContextKey: currentUser?.contextKey || null,
+            chatId,
+            includeUserGlobal: true,
+        });
+        const runContext = buildRunContext({
+            userContextId: currentUser?.contextId || null,
+            userContextKey: currentUser?.contextKey || null,
+        });
+
         const { mcpConfig, mcpAvailableServers } =
             await buildMcpAgentConfigForUser(currentUser, {
-                logPrefix: `[SSE Stream:${id}]`,
+                logPrefix: "[MCP:stream]",
             });
 
         // Make sys_entity_agent query to get subscriptionId
         const queryResult = await graphqlClient.query({
             query: QUERIES.SYS_ENTITY_AGENT,
             variables: {
-                chatHistory: conversation,
-                agentContext,
+                chatHistory: sanitizedConversation,
+                fileAccessPlan,
+                contextId: runContext.contextId,
+                contextKey: runContext.contextKey,
                 aiName,
                 aiMemorySelfModify,
                 title: title || chat.title,
-                chatId: id,
+                chatId: chatId,
                 stream: true,
                 entityId: finalEntityId,
-                researchMode: researchMode || chat.researchMode || false,
-                model: model || currentUser.agentModel || "oai-gpt51",
+                model:
+                    model ||
+                    currentUser.agentModel ||
+                    config.cortex.defaultChatModel,
                 userInfo,
+                clientSideTools: clientSideTools || null,
                 mcpConfig,
                 mcpAvailableServers,
             },
@@ -139,7 +391,7 @@ export async function POST(req, { params }) {
         if (!subscriptionId) {
             // Clear loading state if it was set (shouldn't be set yet, but be safe)
             if (loadingWasSet) {
-                await clearChatLoading(id);
+                await clearChatLoading(chatId);
             }
             return NextResponse.json(
                 { error: "Failed to get subscription ID" },
@@ -149,13 +401,13 @@ export async function POST(req, { params }) {
 
         // Set isChatLoading: true and store activeSubscriptionId when stream starts
         // Clean up stale stop requested IDs to prevent accumulation
-        const currentChat = await Chat.findOne({ _id: id });
+        const currentChat = await Chat.findOne({ _id: chatId });
         const cleanedStopIds = cleanupStaleStopRequestedIds(
             currentChat?.stopRequestedSubscriptionIds || [],
         );
 
         await Chat.findOneAndUpdate(
-            { _id: id },
+            { _id: chatId },
             {
                 isChatLoading: true,
                 activeSubscriptionId: subscriptionId,
@@ -164,7 +416,7 @@ export async function POST(req, { params }) {
         ).catch((error) => {
             // Log but don't fail - stream can continue even if this fails
             console.error(
-                `[SSE Stream] Error setting isChatLoading for chat ${id}:`,
+                `[SSE Stream] Error setting isChatLoading for chat ${chatId}:`,
                 error,
             );
         });
@@ -230,10 +482,19 @@ export async function POST(req, { params }) {
                             );
                         }
                         graphqlSubscription = null;
+                        activeStreamRegistry.delete(subscriptionId);
                     }
                 };
 
                 try {
+                    // Send chatId to client (important when new chat was created)
+                    if (chatId && id !== chatId) {
+                        sendEvent("chatId", { chatId });
+                    }
+
+                    // Send subscriptionId so client can inject messages / cancel
+                    sendEvent("subscriptionId", { subscriptionId });
+
                     // Subscribe to REQUEST_PROGRESS
                     graphqlSubscription = graphqlClient
                         .subscribe({
@@ -352,6 +613,13 @@ export async function POST(req, { params }) {
                                 }
                             },
                         });
+                    if (graphqlSubscription) {
+                        activeStreamRegistry.set(subscriptionId, {
+                            graphqlSubscription,
+                            graphqlClient,
+                            createdAt: Date.now(),
+                        });
+                    }
                 } catch (error) {
                     console.error("Error setting up subscription:", error);
                     unsubscribe();
@@ -375,28 +643,10 @@ export async function POST(req, { params }) {
                 }
             },
             cancel() {
-                // Client disconnected - unsubscribe and mark as disconnected
+                // Client disconnected - keep subscription running so the
+                // server can persist the final assistant message.
+                // Completion handlers will unsubscribe and clear loading.
                 clientConnected = false;
-                if (graphqlSubscription) {
-                    try {
-                        if (
-                            typeof graphqlSubscription.unsubscribe ===
-                            "function"
-                        ) {
-                            graphqlSubscription.unsubscribe();
-                        } else if (
-                            typeof graphqlSubscription.close === "function"
-                        ) {
-                            graphqlSubscription.close();
-                        }
-                    } catch (error) {
-                        console.error(
-                            "[SSE Stream] Error unsubscribing on cancel:",
-                            error,
-                        );
-                    }
-                    graphqlSubscription = null;
-                }
             },
         });
 
@@ -410,9 +660,20 @@ export async function POST(req, { params }) {
         });
     } catch (error) {
         console.error("Error in stream endpoint:", error);
+        if (createdChatId && !loadingWasSet && currentUser?._id) {
+            await Chat.deleteOne({
+                _id: createdChatId,
+                userId: currentUser._id,
+            }).catch((cleanupError) => {
+                console.error(
+                    `[SSE Stream] Error deleting failed bootstrap chat ${createdChatId}:`,
+                    cleanupError,
+                );
+            });
+        }
         // Clear loading state if it was set before the error occurred
         if (loadingWasSet) {
-            await clearChatLoading(id).catch(() => {
+            await clearChatLoading(chatId).catch(() => {
                 // Ignore errors when clearing - we're already in error state
             });
         }
@@ -495,10 +756,12 @@ async function persistMessage(
             );
         }
 
-        const messages = [...(currentChat.messages || [])];
+        const messages = sanitizeMessagesForPersistence([
+            ...(currentChat.messages || []),
+        ]);
         const lastStreamingIndex = messages.findLastIndex((m) => m.isStreaming);
         const messageToSave =
-            removeArtifactsFromMessages([finalMessage])[0] || finalMessage;
+            sanitizeMessagesForPersistence([finalMessage])[0] || finalMessage;
 
         if (lastStreamingIndex !== -1) {
             messages[lastStreamingIndex] = messageToSave;
@@ -506,17 +769,24 @@ async function persistMessage(
             messages.push(messageToSave);
         }
 
-        const hasCodeRequest = !!accumulator.getAccumulatedInfo().codeRequestId;
+        const prepared = prepareMessagesForPersistence(messages);
 
-        // Clear activeSubscriptionId when stream completes (unless there's a code request)
+        // Clear activeSubscriptionId when stream completes
         const updateData = {
-            messages,
-            isChatLoading: hasCodeRequest,
+            messages: prepared.messages,
+            isChatLoading: false,
             isUnused: false,
+            activeSubscriptionId: null,
+            messageStorageBytes: prepared.messageStorageBytes,
         };
-        if (!hasCodeRequest) {
-            updateData.activeSubscriptionId = null;
+        if (prepared.messagesCompacted) {
+            updateData.messagesCompacted = true;
+            updateData.messagesCompactedAt = new Date();
         }
+        const preview = buildLastMessagePreview([messageToSave]);
+        updateData.lastMessagePreview = preview.lastMessagePreview;
+        updateData.lastMessageSender = preview.lastMessageSender;
+        updateData.lastMessageAt = preview.lastMessageAt;
 
         return await Chat.findOneAndUpdate({ _id: chat._id }, updateData, {
             new: true,

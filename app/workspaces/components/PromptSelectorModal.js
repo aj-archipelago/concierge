@@ -33,7 +33,7 @@ function SelectorDialog({ setIsOpen }) {
     const [text, setText] = useState("");
     const [llm, setLLM] = useState("");
     const [agentMode, setAgentMode] = useState(false);
-    const [researchMode, setResearchMode] = useState(false);
+    const [reasoningEffort, setReasoningEffort] = useState(null);
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [showFilePicker, setShowFilePicker] = useState(false);
     const { t } = useTranslation();
@@ -77,8 +77,8 @@ function SelectorDialog({ setIsOpen }) {
                     setLLM={setLLM}
                     agentMode={agentMode}
                     setAgentMode={setAgentMode}
-                    researchMode={researchMode}
-                    setResearchMode={setResearchMode}
+                    reasoningEffort={reasoningEffort}
+                    setReasoningEffort={setReasoningEffort}
                 />
 
                 <div className="mb-6">
@@ -133,7 +133,7 @@ function SelectorDialog({ setIsOpen }) {
                                 text,
                                 llm,
                                 agentMode,
-                                researchMode,
+                                reasoningEffort,
                                 files: fileIds,
                             },
                         });
@@ -166,6 +166,7 @@ function SelectorDialog({ setIsOpen }) {
                             contextId={workspace._id}
                             contextKey={workspace.contextKey}
                             workspaceId={workspace._id}
+                            source="workspace-api"
                             selectedFiles={selectedFiles}
                             onFilesSelected={setSelectedFiles}
                         />

@@ -5,6 +5,10 @@ const FAILURE_THRESHOLD = 0.2; // 20% failure rate threshold
 const MONITORING_WINDOW = 10 * 60 * 1000; // 10 minutes in milliseconds
 const ALERT_COOLDOWN = 30 * 60 * 1000; // 30 minutes cooldown between alerts
 
+function isFinishedWithinWindow(job, windowStart) {
+    return typeof job?.finishedOn === "number" && job.finishedOn >= windowStart;
+}
+
 class QueueMonitor {
     constructor() {
         this.queues = new Map();
@@ -18,7 +22,7 @@ class QueueMonitor {
 
     initializeQueues() {
         // Initialize monitoring for all queues
-        const queueNames = ["task", "digest-build"];
+        const queueNames = ["task", "digest-build", "automation-scheduler"];
         queueNames.forEach((name) => {
             this.queues.set(
                 name,
@@ -43,11 +47,11 @@ class QueueMonitor {
         ]);
 
         // Filter jobs within the time window
-        const recentCompleted = completed.filter(
-            (job) => job.finishedOn >= windowStart,
+        const recentCompleted = completed.filter((job) =>
+            isFinishedWithinWindow(job, windowStart),
         );
-        const recentFailed = failed.filter(
-            (job) => job.finishedOn >= windowStart,
+        const recentFailed = failed.filter((job) =>
+            isFinishedWithinWindow(job, windowStart),
         );
 
         const totalJobs = recentCompleted.length + recentFailed.length;
@@ -164,11 +168,11 @@ class QueueMonitor {
                 queue.getJobs(["failed"], 0, -1, true),
                 queue.getJobs(["waiting"], 0, -1, true),
             ]);
-            const recentCompleted = completed.filter(
-                (job) => job.finishedOn >= windowStart,
+            const recentCompleted = completed.filter((job) =>
+                isFinishedWithinWindow(job, windowStart),
             );
-            const recentFailed = failed.filter(
-                (job) => job.finishedOn >= windowStart,
+            const recentFailed = failed.filter((job) =>
+                isFinishedWithinWindow(job, windowStart),
             );
 
             const totalJobs = recentCompleted.length + recentFailed.length;
@@ -220,12 +224,16 @@ class QueueMonitor {
 
     async startMonitoring(interval = 10000) {
         setInterval(async () => {
-            const gotLock = await this.acquireLock();
-            if (gotLock) {
-                await this.checkQueues();
-                // The lock will expire automatically after lockTTL
-            } else {
-                // console.log("Another instance is running the monitor.");
+            try {
+                const gotLock = await this.acquireLock();
+                if (gotLock) {
+                    await this.checkQueues();
+                    // The lock will expire automatically after lockTTL
+                } else {
+                    // console.log("Another instance is running the monitor.");
+                }
+            } catch (error) {
+                console.error("Queue monitor check failed:", error);
             }
         }, interval);
     }

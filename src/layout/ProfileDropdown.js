@@ -5,6 +5,7 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import { useTranslation } from "react-i18next";
 import React from "react";
 import { SignOutButton } from "../components/SignOutButton";
+import UserAvatar from "../components/UserAvatar";
 
 export default function ProfileDropdown({
     user,
@@ -19,17 +20,16 @@ export default function ProfileDropdown({
         <Menu as="div" className="relative inline-block text-start">
             <div>
                 <Menu.Button className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500 overflow-hidden">
-                    {user?.profilePicture || user?.picture ? (
-                        <img
-                            src={user.profilePicture || user.picture}
-                            alt={name || "User"}
-                            className="w-full h-full object-cover"
-                        />
-                    ) : (
-                        <span className="text-sm font-medium leading-none text-white">
-                            {initials}
-                        </span>
-                    )}
+                    <UserAvatar
+                        src={user?.profilePicture}
+                        blobPath={user?.profilePictureBlobPath}
+                        contextId={user?.contextId}
+                        name={name || "User"}
+                        initials={initials}
+                        className="h-full w-full bg-gray-500 text-white"
+                        initialsClassName="text-sm font-medium leading-none"
+                        iconClassName="h-4 w-4"
+                    />
                 </Menu.Button>
             </div>
 
@@ -45,17 +45,20 @@ export default function ProfileDropdown({
                 <Menu.Items
                     className={classNames(
                         direction === "ltr" ? "right-0" : "left-0",
-                        "absolute z-10 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-gray-800 dark:border-gray-600 border shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none",
+                        "absolute z-10 mt-2 w-56 max-w-[calc(100vw-1rem)] origin-top-right overflow-hidden rounded-md border bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-gray-600 dark:bg-gray-800",
                     )}
                 >
                     <div className="py-1">
                         <Menu.Item>
                             {({ active }) => (
-                                <div className="px-4 py-2 text-gray-700 dark:text-gray-300 text-sm">
-                                    <div className="text-xs text-gray-400 dark:text-gray-500">
+                                <div className="min-w-0 max-w-full overflow-hidden px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <div className="truncate text-xs text-gray-400 dark:text-gray-500">
                                         {t("Signed in as")}
                                     </div>
-                                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                                    <div
+                                        className="max-w-full truncate font-medium text-gray-900 dark:text-gray-100"
+                                        title={name}
+                                    >
                                         {name}
                                     </div>
                                 </div>
@@ -82,7 +85,7 @@ export default function ProfileDropdown({
                                             handleShowOptions();
                                         }}
                                     >
-                                        {t("Options")}
+                                        {t("Settings")}
                                     </a>
                                 </div>
                             )}

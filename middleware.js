@@ -1,4 +1,10 @@
 import authConfig from "./config/index";
+import {
+    getEntraPrincipalLogContext,
+    isTenantAuthorized,
+    parseAuthorizedTenantIds,
+    resolveEntraTenantId,
+} from "./app/api/utils/entraPrincipal";
 
 if (!authConfig) {
     throw new Error("Config not found");
@@ -10,42 +16,57 @@ export const config = {
     matcher: "/((?!graphql).*)",
 };
 
+const logUnauthorizedEntraRequest = (
+    request,
+    reason,
+    resolvedEmail = null,
+    authContext = {},
+) => {
+    console.warn("Unauthorized Entra request blocked by middleware", {
+        reason,
+        ...getEntraPrincipalLogContext(request.headers, resolvedEmail),
+        ...authContext,
+    });
+};
+
+const hasLocalAuthCookie = (request) => {
+    if (process.env.NODE_ENV === "production") {
+        return false;
+    }
+
+    const cookieHeader = request.headers.get("cookie");
+    return Boolean(cookieHeader?.includes("local_auth_token"));
+};
+
 const isAuthorized = (request) => {
     if (auth?.provider === "entra") {
-        const emailName = request.headers
-            .get("X-MS-CLIENT-PRINCIPAL-NAME")
-            ?.toLowerCase();
-
-        // If we have Azure headers, validate domain
-        if (emailName) {
-            const allowedEmailDomains = process.env.ENTRA_AUTHORIZED_DOMAINS
-                ? process.env.ENTRA_AUTHORIZED_DOMAINS.split(",").map(
-                      (emailDomain) => emailDomain.toLowerCase(),
-                  )
-                : [];
-
-            if (!allowedEmailDomains.length) {
-                return false;
-            }
-
-            const emailDomain = emailName.split("@")[1];
-            if (!allowedEmailDomains.includes(emailDomain)) {
-                return false;
-            }
-
+        if (hasLocalAuthCookie(request)) {
             return true;
         }
 
-        // For local development, check for local auth cookie
-        if (process.env.NODE_ENV !== "production") {
-            const cookieHeader = request.headers.get("cookie");
-            if (cookieHeader && cookieHeader.includes("local_auth_token")) {
-                // Allow local auth in development
-                return true;
-            }
+        const allowedTenantIds = parseAuthorizedTenantIds(
+            process.env.ENTRA_AUTHORIZED_TENANT_IDS,
+        );
+        if (!allowedTenantIds.length) {
+            logUnauthorizedEntraRequest(request, "missing_authorized_tenants");
+            return false;
         }
 
-        return false;
+        const tenantId = resolveEntraTenantId(request.headers);
+
+        if (!isTenantAuthorized(tenantId, allowedTenantIds)) {
+            logUnauthorizedEntraRequest(
+                request,
+                "tenant_not_authorized",
+                null,
+                {
+                    allowedTenantIds,
+                },
+            );
+            return false;
+        }
+
+        return true;
     }
 
     return true;

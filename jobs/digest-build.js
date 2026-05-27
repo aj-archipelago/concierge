@@ -25,6 +25,17 @@ async function buildDigestForUser(user, logger) {
 
     logger.log("[Digest] Building digest for user", owner);
     const promises = digest.blocks.map(async (block, i) => {
+        // Automation-linked blocks render the latest automation run on read;
+        // they are not built here.
+        if (block.automationId) {
+            logger.log(
+                "[Digest] Skipping automation-linked block",
+                owner,
+                block._id,
+            );
+            return block;
+        }
+
         const lastUpdated = block.updatedAt;
 
         logger.log(
@@ -123,6 +134,17 @@ async function buildDigestBlock(blockId, userId, logger, taskId = null) {
     if (!digest || !block || !user) {
         logger.log("[Digest] Block or user not found", userId, blockId);
         return;
+    }
+
+    // Automation-linked blocks are read-through to the linked automation's
+    // latest run — there is nothing for the digest worker to build.
+    if (block.automationId) {
+        logger.log(
+            "[Digest] Skipping build for automation-linked block",
+            userId,
+            blockId,
+        );
+        return { block, success: true, skipped: true };
     }
 
     try {

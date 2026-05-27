@@ -18,9 +18,10 @@ jest.mock("../../../utils/fileDownloadUtils", () => ({
     getDownloadUrl: jest.fn((url) => `/api/image-proxy?url=${url}`),
 }));
 
-jest.mock("../ChatImage", () => ({
-    __esModule: true,
-    default: ({ src, alt }) => <img src={src} alt={alt} />,
+jest.mock("../../chat/MediaCard", () => ({
+    ImageWithFallback: ({ src, alt, onError }) => (
+        <img src={src} alt={alt} onError={onError} />
+    ),
 }));
 
 jest.mock("../SyncedAudioControl", () => ({

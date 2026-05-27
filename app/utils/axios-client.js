@@ -87,7 +87,6 @@ if (typeof window !== "undefined") {
                 return config;
             }
 
-            // Check if we're currently on the login page
             if (
                 typeof window !== "undefined" &&
                 window.location.pathname === "/auth/login"

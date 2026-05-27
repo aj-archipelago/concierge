@@ -33,20 +33,16 @@ export default function PublishedAppletView({
 
         if (!applet) return;
 
-        const { publishedVersionIndex, htmlVersions } = applet;
+        const { publishedHtml: apiPublishedHtml } = applet;
 
-        if (
-            typeof publishedVersionIndex !== "number" ||
-            !htmlVersions ||
-            !htmlVersions[publishedVersionIndex]
-        ) {
+        if (!apiPublishedHtml) {
             setError("This applet is not published.");
             setPublishedHtml(null);
             return;
         }
 
         setError(null);
-        setPublishedHtml(htmlVersions[publishedVersionIndex].content);
+        setPublishedHtml(apiPublishedHtml);
     }, [applet, isLoading, appletError]);
 
     // Check if app is installed

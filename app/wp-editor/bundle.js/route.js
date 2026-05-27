@@ -19,7 +19,7 @@ export async function GET(request) {
         // Generate the bundle that WordPress will load
         const bundle = `
 /**
- * Labeeb WordPress Editor Bundle
+ * Concierge WordPress Editor Bundle
  * Generated dynamically from Next.js /wp-editor page
  */
 
@@ -45,17 +45,17 @@ export async function GET(request) {
     const log = DEBUG ? console.log.bind(console) : function() {};
     const logError = console.error.bind(console);
     
-    log('Labeeb Bundle Starting - Base URL:', BASE_URL);
+    log('Concierge Bundle Starting - Base URL:', BASE_URL);
     
-    // Create container for Labeeb modals
+    // Create container for Concierge modals
     const container = document.createElement('div');
-    container.id = 'labeeb-wp-editor-root';
+    container.id = 'concierge-wp-editor-root';
     container.style.cssText = \`position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: \${CONFIG.Z_INDEX};\`;
     document.body.appendChild(container);
     
     // Create loading overlay for auth flow
     const loadingOverlay = document.createElement('div');
-    loadingOverlay.id = 'labeeb-auth-loading';
+    loadingOverlay.id = 'concierge-auth-loading';
     loadingOverlay.style.cssText = \`
         position: fixed;
         top: 0;
@@ -92,17 +92,17 @@ export async function GET(request) {
     \`;
     
     const loadingText = document.createElement('div');
-    loadingText.id = 'labeeb-auth-loading-text';
+    loadingText.id = 'concierge-auth-loading-text';
     loadingText.style.cssText = \`
         font-size: 16px;
         color: #333;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         line-height: 1.5;
     \`;
-    loadingText.textContent = 'Connecting to Labeeb AI...';
+    loadingText.textContent = 'Connecting to Concierge AI...';
     
     const loadingSubtext = document.createElement('div');
-    loadingSubtext.id = 'labeeb-auth-loading-subtext';
+    loadingSubtext.id = 'concierge-auth-loading-subtext';
     loadingSubtext.style.cssText = \`
         font-size: 13px;
         color: #666;
@@ -151,9 +151,9 @@ export async function GET(request) {
     \`;
     document.head.appendChild(style);
     
-    // Create iframe to load Labeeb /wp-editor page (lazy loaded on first user action)
+    // Create iframe to load Concierge /wp-editor page (lazy loaded on first user action)
     const iframe = document.createElement('iframe');
-    iframe.id = 'labeeb-wp-editor-frame';
+    iframe.id = 'concierge-wp-editor-frame';
     iframe.style.cssText = \`position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: none; pointer-events: auto; z-index: \${CONFIG.Z_INDEX};\`;
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-modals');
     container.appendChild(iframe);
@@ -169,7 +169,7 @@ export async function GET(request) {
     
     // Utility functions
     const showLoadingOverlay = (message, subtext) => {
-        loadingText.textContent = message || 'Connecting to Labeeb AI...';
+        loadingText.textContent = message || 'Connecting to Concierge AI...';
         loadingSubtext.textContent = subtext || 'Please wait...';
         loadingOverlay.style.display = 'flex';
         log('Loading overlay shown:', message);
@@ -223,7 +223,7 @@ export async function GET(request) {
     const loadIframe = () => {
         if (iframeLoaded) return;
         log('Loading iframe on user action');
-        showLoadingOverlay('Loading Labeeb AI...', 'Connecting to the editor');
+        showLoadingOverlay('Loading Concierge AI...', 'Connecting to the editor');
         iframeLoaded = true;
         iframe.src = BASE_URL + '/wp-editor';
     };
@@ -247,7 +247,7 @@ export async function GET(request) {
         
         // Show loading overlay
         showLoadingOverlay(
-            'Authenticating with Labeeb AI...',
+            'Authenticating with Concierge AI...',
             'Please complete the login in the popup window'
         );
         
@@ -257,14 +257,14 @@ export async function GET(request) {
         
         authPopupWindow = window.open(
             authUrl,
-            'labeeb-auth',
+            'concierge-auth',
             \`width=\${CONFIG.POPUP_WIDTH},height=\${CONFIG.POPUP_HEIGHT},left=\${left},top=\${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes\`
         );
         
         if (!authPopupWindow) {
             logError('Failed to open popup - may be blocked');
             hideLoadingOverlay();
-            alert('Please allow popups for this site to authenticate with Labeeb AI.');
+            alert('Please allow popups for this site to authenticate with Concierge AI.');
             return;
         }
         
@@ -335,7 +335,7 @@ export async function GET(request) {
     
     // Message type categorization
     const MESSAGE_TYPES = {
-        INTERNAL: ['__MODAL_OPENED__', '__MODAL_CLOSED__', '__LABEEB_INIT__', '__AUTH_SUCCESS__', '__LABEEB_PING__', '__LABEEB_PONG__'],
+        INTERNAL: ['__MODAL_OPENED__', '__MODAL_CLOSED__', '__CONCIERGE_INIT__', '__AUTH_SUCCESS__', '__CONCIERGE_PING__', '__CONCIERGE_PONG__'],
         OPERATION: ['replaceText', 'replaceSelection', 'select_topics']
     };
     
@@ -386,7 +386,7 @@ export async function GET(request) {
         }
         
         // Handle pong response
-        if (data.type === '__LABEEB_PONG__') {
+        if (data.type === '__CONCIERGE_PONG__') {
             log('Pong received');
             return;
         }
@@ -459,7 +459,7 @@ export async function GET(request) {
             
             try {
                 pongHandler = (event) => {
-                    if (event.data.type === '__LABEEB_PONG__' && event.source === iframe.contentWindow) {
+                    if (event.data.type === '__CONCIERGE_PONG__' && event.source === iframe.contentWindow) {
                         log('Pong received - app is responding');
                         pongReceived = true;
                         updateLoadingStatus('Connection established!', 'Initializing editor...');
@@ -487,7 +487,7 @@ export async function GET(request) {
                     }
                     
                     try {
-                        iframe.contentWindow.postMessage({ type: '__LABEEB_PING__' }, '*');
+                        iframe.contentWindow.postMessage({ type: '__CONCIERGE_PING__' }, '*');
                     } catch (e) {
                         logError('Error sending ping:', e);
                         clearInterval(pingInterval);
@@ -544,7 +544,7 @@ export async function GET(request) {
         try {
             log('Sending init message to iframe');
             iframe.contentWindow.postMessage({
-                type: '__LABEEB_INIT__',
+                type: '__CONCIERGE_INIT__',
                 config: window.AIModules || {},
                 apiUrl: window.arc_ai_editor_api_url ? window.arc_ai_editor_api_url[0] : ''
             }, '*');
@@ -563,7 +563,7 @@ export async function GET(request) {
         }
     }
     
-    log('Labeeb WordPress Editor bundle loaded');
+    log('Concierge WordPress Editor bundle loaded');
 })();
 `;
 
@@ -585,8 +585,8 @@ export async function GET(request) {
         // Don't expose error details in production
         const errorMessage =
             process.env.NODE_ENV === "production"
-                ? "Failed to load Labeeb WordPress Editor"
-                : `Failed to load Labeeb WordPress Editor: ${error.message}`;
+                ? "Failed to load Concierge WordPress Editor"
+                : `Failed to load Concierge WordPress Editor: ${error.message}`;
 
         return new NextResponse(`console.error('${errorMessage}');`, {
             status: 500,

@@ -1,6 +1,6 @@
 # Concierge
 
-Concierge is an open-source web application that provides AI applications to enterprise customers for a company's internal use. Concierge encapsulates functions like document translation, copy editing, summarization, headline generation, tagging, entity extraction, etc. into easy-to-use task-specific interfaces rather than just making the functionality available through a chat-style prompting interface. Concierge is a one-stop shop for LLM-based AI functionality at our network. Concierge is built on top of [Cortex](https://github.com/aj-archipelago/cortex) - our open-source graphQL middle tier for AI.
+Concierge is an open-source web application that provides AI applications to enterprise customers for internal use. Concierge encapsulates functions like document translation, copy editing, summarization, headline generation, tagging, and entity extraction into easy-to-use task-specific interfaces rather than just making the functionality available through a chat-style prompting interface. Concierge is built on top of [Cortex](https://github.com/aj-archipelago/cortex), an open-source GraphQL middle tier for AI.
 
 ## Environment setup
 
@@ -14,6 +14,13 @@ The following environment variables are required to configure Concierge to conne
 The following environment variable is optional and used for blue/green deployment scenarios:
 
 - `CORTEX_GRAPHQL_API_BLUE_URL`: When you want to test your application against a pre-production ("blue") environment while using the same build that will run in production, set this to the Cortex "blue" URL. This variable must be set both at build-time and at runtime in the blue environment only. This is particularly useful for testing new features or changes in a pre-production environment before deploying to production.
+
+The following environment variables control xAI transcription availability:
+
+- `ENABLE_XAI_TRANSCRIBE`: set to `true` to show and accept the xAI transcription models in Concierge.
+- `ENABLE_XAI_TRANSCRIBE_DEFAULT`: set to `true` with `ENABLE_XAI_TRANSCRIBE=true` to make regular non-YouTube media default to `xAI + Gemini`.
+- `TRANSCRIBE_DEFAULT_MODEL_OPTION`: optional primary model for regular non-YouTube media. Supported values: `Whisper`, `Gemini`, `NeuralSpace`, `xAI`, `xAI + Gemini`.
+- `TRANSCRIBE_ALTERNATE_MODEL_OPTION`: optional model used by "Transcribe again using an alternate model" for regular non-YouTube media. Supported values match `TRANSCRIBE_DEFAULT_MODEL_OPTION`.
 
 The following environment variable is needed to deliver user feedback to Slack:
 

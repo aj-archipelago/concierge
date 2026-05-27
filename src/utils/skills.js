@@ -144,7 +144,7 @@ Always output a complete, well-structured HTML document:
 
 Applets MUST support both light and dark themes. The platform provides:
 
-- \`window.LABEEB_THEME\` — current theme string: \`"light"\` or \`"dark"\`
+- \`window.CONCIERGE_THEME\` — current theme string: \`"light"\` or \`"dark"\`
 - \`html[data-theme="dark"]\` attribute on the root element
 - \`--prefers-color-scheme\` CSS custom property
 - \`color-scheme\` CSS property is automatically set
@@ -187,7 +187,7 @@ html[data-theme="dark"] .icon-invert { filter: invert(1) brightness(1.5); }
 **JavaScript approach:**
 \`\`\`javascript
 // Check current theme
-const isDark = window.LABEEB_THEME === 'dark';
+const isDark = window.CONCIERGE_THEME === 'dark';
 
 // Listen for theme changes
 window.addEventListener('message', (event) => {
@@ -208,8 +208,8 @@ const APPLETS_SKILL_LOCALE = `## Language and Direction (Arabic / English)
 
 Applets MUST support both English and Arabic, matching the host Concierge app language. The platform provides:
 
-- \`window.LABEEB_LANGUAGE\` — \`"en"\` or \`"ar"\`
-- \`window.LABEEB_DIRECTION\` — \`"ltr"\` or \`"rtl"\`
+- \`window.CONCIERGE_LANGUAGE\` — \`"en"\` or \`"ar"\`
+- \`window.CONCIERGE_DIRECTION\` — \`"ltr"\` or \`"rtl"\`
 - \`html[lang="ar"][dir="rtl"]\` on the sandbox root element
 - \`ConciergeSDK.locale.get()\`, \`.getLanguage()\`, \`.getDirection()\`, \`.isRtl()\`
 - Locale change events via \`locale-change\` postMessage or \`concierge-locale-change\` custom event

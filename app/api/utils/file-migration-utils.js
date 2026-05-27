@@ -1,5 +1,6 @@
 import File from "../models/file.js";
 import config from "../../../config";
+import { createWorkspaceSharedStorageTarget } from "../../../src/utils/storageTargets.js";
 import { validateAndRefreshFile } from "./file-refresh-utils";
 
 /**
@@ -48,7 +49,7 @@ export async function migrateFilesToContext({
                 // and migrate it if it doesn't
                 const result = await validateAndRefreshFile(
                     file,
-                    targetContextId,
+                    createWorkspaceSharedStorageTarget(targetContextId),
                     mediaHelperUrl,
                 );
 

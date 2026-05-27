@@ -278,7 +278,7 @@ export default function PublishConfirmDialog({
                                                             e.target.value,
                                                         )
                                                     }
-                                                    className="pl-10"
+                                                    className="ps-10"
                                                 />
                                             </div>
                                             <div className="grid grid-cols-8 gap-2 max-h-40 overflow-y-auto border rounded-lg p-2">

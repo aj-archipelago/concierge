@@ -88,6 +88,22 @@
     direction: ltr;
 }
 
+/*
+ * Portaled Radix UIs (dropdown, select, popover) sit under <body> and do not
+ * always inherit a logical text direction. When html[dir=rtl], align them RTL
+ * so menu text and list rows start from the right.
+ */
+@layer components {
+    html[dir="rtl"] [data-radix-menu-content],
+    html[dir="rtl"] [data-radix-select-viewport] {
+        direction: rtl;
+    }
+
+    html[dir="rtl"] [data-radix-popper-content-wrapper] {
+        direction: rtl;
+    }
+}
+
 /* Mobile overflow utilities */
 @layer utilities {
     .mobile-overflow-safe {

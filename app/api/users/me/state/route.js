@@ -36,7 +36,23 @@ export async function GET() {
 }
 
 export async function PUT(req) {
-    const body = await req.json();
+    let body;
+    try {
+        body = await req.json();
+    } catch (error) {
+        const interruptedBody =
+            req.signal?.aborted || error instanceof SyntaxError;
+        if (interruptedBody) {
+            console.warn(
+                "[UserState] Ignoring interrupted request body during save",
+            );
+            return Response.json(
+                { error: "Request body was interrupted" },
+                { status: 400 },
+            );
+        }
+        throw error;
+    }
     const user = await getCurrentUser();
 
     let retries = 0;
