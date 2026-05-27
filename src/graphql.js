@@ -1193,6 +1193,14 @@ const DELETE_PATHWAY = gql`
     }
 `;
 
+const SYS_MODEL_METADATA = gql`
+    query SysModelMetadata($category: String) {
+        sys_model_metadata(category: $category) {
+            result
+        }
+    }
+`;
+
 const MUTATIONS = {
     CANCEL_REQUEST,
     PUT_PATHWAY,
@@ -1201,6 +1209,7 @@ const MUTATIONS = {
 
 export {
     getClient,
+    SYS_MODEL_METADATA,
     AZURE_VIDEO_TRANSLATE,
     CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,

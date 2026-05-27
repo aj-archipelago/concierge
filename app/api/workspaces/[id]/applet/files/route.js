@@ -4,36 +4,67 @@ import File from "../../../../models/file.js";
 import { getWorkspace } from "../../db.js";
 import { getCurrentUser } from "../../../../utils/auth.js";
 import { handleStreamingFileUpload } from "../../../../utils/upload-utils.js";
+import { deleteMediaFile } from "../../../../utils/media-service-utils.js";
+import { createAppletUserStorageTarget } from "../../../../../../src/utils/storageTargets.js";
+
+async function deleteCloudFile(file, userContextId, appletId) {
+    if ((!file?.blobPath && !file?.hash) || !userContextId || !appletId) {
+        return;
+    }
+    await deleteMediaFile({
+        blobPath: file.blobPath,
+        hash: file.hash,
+        storageTarget: createAppletUserStorageTarget(userContextId, appletId),
+    });
+}
 
 // POST: upload a file for an applet with streaming support
 export async function POST(request, { params }) {
     const { id } = params;
+    const workspace = await getWorkspace(id);
+    const user = await getCurrentUser();
 
     const result = await handleStreamingFileUpload(request, {
-        getWorkspace: async () => await getWorkspace(id),
+        getWorkspace: async () => workspace,
 
         // No authorization check needed for applet files
         checkAuthorization: null,
 
+        storageTarget: workspace?.applet
+            ? createAppletUserStorageTarget(
+                  user?.contextId || null,
+                  workspace.applet?.toString() || null,
+              )
+            : null,
+
         associateFile: async (newFile, workspace, user) => {
-            // Check if a file with the same hash already exists for this user/applet
-            if (newFile.hash) {
+            const appletId = workspace?.applet?.toString() || null;
+            // Check if a file with the same blobPath or hash already exists for this user/applet
+            const matchQuery = [];
+            if (newFile.blobPath)
+                matchQuery.push({ blobPath: newFile.blobPath });
+            if (newFile.hash) matchQuery.push({ hash: newFile.hash });
+            if (matchQuery.length > 0) {
                 const existingAppletFile = await AppletFile.findOne({
-                    appletId: workspace.applet,
+                    appletId,
                     userId: user._id,
                 }).populate({
                     path: "files",
-                    match: { hash: newFile.hash },
+                    match:
+                        matchQuery.length === 1
+                            ? matchQuery[0]
+                            : { $or: matchQuery },
                 });
 
                 if (existingAppletFile && existingAppletFile.files.length > 0) {
                     // File with this hash already exists, return existing file and files without adding
                     const existingFile = existingAppletFile.files[0];
                     const allFiles = await AppletFile.findOne({
-                        appletId: workspace.applet,
+                        appletId,
                         userId: user._id,
                     }).populate("files");
 
+                    await deleteCloudFile(newFile, user.contextId, appletId);
                     // Delete the duplicate File document we just created
                     await File.findByIdAndDelete(newFile._id);
 
@@ -48,7 +79,7 @@ export async function POST(request, { params }) {
             // Find or create applet file record for this user and applet
             const appletFile = await AppletFile.findOneAndUpdate(
                 {
-                    appletId: workspace.applet,
+                    appletId,
                     userId: user._id,
                 },
                 {
@@ -67,8 +98,6 @@ export async function POST(request, { params }) {
         },
 
         errorPrefix: "applet file upload",
-        permanent: false, // User files are temporary (not workspace artifacts)
-        useCompoundContextId: true, // Use compound contextId for user-specific file scoping in applets
     });
 
     if (result.error) {
@@ -165,6 +194,11 @@ export async function DELETE(request, { params }) {
             );
         }
 
+        await deleteCloudFile(
+            fileToDelete,
+            user.contextId,
+            workspace?.applet?.toString() || null,
+        );
         // Remove the file document
         await File.findByIdAndDelete(fileToDelete._id);
 

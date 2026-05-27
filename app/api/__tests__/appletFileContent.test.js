@@ -59,6 +59,25 @@ jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
+jest.mock("../utils/file-resolution-utils", () => ({
+    resolveAndHealFile: jest.fn(),
+}));
+
+jest.mock("../../../src/utils/storageTargets", () => ({
+    createAppletUserStorageTarget: jest.fn((userContextId, appletId) => ({
+        kind: "applet-user",
+        userContextId,
+        appletId,
+    })),
+    createWorkspacePrivateStorageTarget: jest.fn(
+        (userContextId, workspaceId) => ({
+            kind: "workspace-private",
+            userContextId,
+            workspaceId,
+        }),
+    ),
+}));
+
 jest.mock("../models/applet-file", () => {
     const mockFindOne = jest.fn().mockReturnValue({
         populate: jest.fn(),
@@ -71,6 +90,13 @@ jest.mock("../models/applet-file", () => {
         findOne: mockFindOne, // Also export directly for require() compatibility
     };
 });
+
+jest.mock("../models/file", () => ({
+    __esModule: true,
+    default: {
+        findByIdAndUpdate: jest.fn(),
+    },
+}));
 
 jest.mock("../workspaces/[id]/db", () => ({
     getWorkspace: jest.fn(),
@@ -102,6 +128,7 @@ describe("Applet File Content Endpoint", () => {
 
         mockUser = {
             _id: "user123",
+            contextId: "ctx123",
             toString: () => "user123",
         };
 
@@ -128,6 +155,15 @@ describe("Applet File Content Endpoint", () => {
         // Setup mocks
         const { getCurrentUser } = require("../utils/auth");
         getCurrentUser.mockResolvedValue(mockUser);
+
+        const {
+            resolveAndHealFile,
+        } = require("../utils/file-resolution-utils");
+        resolveAndHealFile.mockResolvedValue({
+            file: mockFile,
+            accessUrl: mockFile.url,
+            status: "resolved",
+        });
 
         const { getWorkspace } = require("../workspaces/[id]/db");
         getWorkspace.mockResolvedValue(mockWorkspace);
@@ -171,7 +207,7 @@ describe("Applet File Content Endpoint", () => {
                 params,
             });
 
-            // Verify fetch was called with the Azure URL
+            // Verify fetch was called with the resolved storage URL
             expect(global.fetch).toHaveBeenCalledWith(mockFile.url, {
                 redirect: "follow",
             });
@@ -203,6 +239,48 @@ describe("Applet File Content Endpoint", () => {
             expect(headers["Access-Control-Allow-Methods"]).toBe("GET");
             expect(headers["Content-Disposition"]).toContain("test-file.jpg");
             expect(headers["Cache-Control"]).toBe("public, max-age=3600");
+        });
+
+        test("should pass the legacy workspace-private fallback target", async () => {
+            const {
+                createAppletUserStorageTarget,
+                createWorkspacePrivateStorageTarget,
+            } = require("../../../src/utils/storageTargets");
+            const {
+                resolveAndHealFile,
+            } = require("../utils/file-resolution-utils");
+
+            await appletFileContentGet(
+                { url: "https://example.com" },
+                { params: { id: "workspace123", fileId: "file123" } },
+            );
+
+            expect(createAppletUserStorageTarget).toHaveBeenCalledWith(
+                "ctx123",
+                "applet123",
+            );
+            expect(createWorkspacePrivateStorageTarget).toHaveBeenCalledWith(
+                "ctx123",
+                "workspace123",
+            );
+            expect(resolveAndHealFile).toHaveBeenCalledWith(
+                mockFile,
+                expect.objectContaining({
+                    storageTarget: expect.objectContaining({
+                        kind: "applet-user",
+                        userContextId: "ctx123",
+                        appletId: "applet123",
+                    }),
+                    fallbackStorageTargets: [
+                        expect.objectContaining({
+                            kind: "workspace-private",
+                            userContextId: "ctx123",
+                            workspaceId: "workspace123",
+                        }),
+                    ],
+                    allowUrlRefresh: true,
+                }),
+            );
         });
 
         test("should use mimeType from file when Azure doesn't provide content-type", async () => {
@@ -410,6 +488,33 @@ describe("Applet File Content Endpoint", () => {
 
             expect(response.status).toBe(404);
             expect(response.error).toBe("Failed to fetch file from storage");
+        });
+
+        test("should return 404 when resolver cannot recover the file", async () => {
+            const {
+                resolveAndHealFile,
+            } = require("../utils/file-resolution-utils");
+            resolveAndHealFile.mockResolvedValueOnce({
+                file: mockFile,
+                accessUrl: null,
+                status: "unresolved",
+            });
+
+            const mockRequest = {
+                url: "https://example.com",
+            };
+            const params = {
+                id: "workspace123",
+                fileId: "file123",
+            };
+
+            const response = await appletFileContentGet(mockRequest, {
+                params,
+            });
+
+            expect(response.status).toBe(404);
+            expect(response.error).toBe("Failed to resolve file from storage");
+            expect(global.fetch).not.toHaveBeenCalled();
         });
 
         test("should handle Azure fetch server error", async () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getClient, QUERIES } from "../../../../../../src/graphql";
 import Workspace from "../../../../models/workspace";
 import { getWorkspace } from "../../db.js";
+import { ensureAppletSdkScript } from "../../../../../workspaces/[id]/components/utils.js";
 
 export async function POST(request, { params }) {
     try {
@@ -95,7 +96,7 @@ export async function POST(request, { params }) {
 
             if (htmlContent) {
                 message = {
-                    html: htmlContent,
+                    html: ensureAppletSdkScript(htmlContent),
                     changes: "HTML code generated from APPLET tag",
                 };
             } else {
@@ -118,7 +119,7 @@ export async function POST(request, { params }) {
                 const htmlContent = lastMatch[1].trim();
                 if (htmlContent) {
                     message = {
-                        html: htmlContent,
+                        html: ensureAppletSdkScript(htmlContent),
                         changes: "HTML code generated from code block",
                     };
                 } else {
@@ -136,10 +137,24 @@ export async function POST(request, { params }) {
             message,
         });
     } catch (error) {
-        console.error(
-            "Error in chat endpoint:",
-            error.networkError?.result?.errors || error,
-        );
+        const gqlErrors =
+            error.networkError?.result?.errors || error.graphQLErrors;
+        if (gqlErrors) {
+            console.error("Error in chat endpoint:", gqlErrors);
+            const validationError = gqlErrors.find(
+                (e) => e.extensions?.code === "GRAPHQL_VALIDATION_FAILED",
+            );
+            if (validationError) {
+                return NextResponse.json(
+                    {
+                        error: "Applet editing is not supported by the current backend. Please check your Cortex server configuration.",
+                    },
+                    { status: 501 },
+                );
+            }
+        } else {
+            console.error("Error in chat endpoint:", error);
+        }
         return NextResponse.json(
             { error: "Failed to process chat message" },
             { status: 500 },

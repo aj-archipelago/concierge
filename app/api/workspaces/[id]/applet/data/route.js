@@ -3,13 +3,19 @@ import AppletData from "../../../../models/applet-data.js";
 import { getWorkspace } from "../../db.js";
 import { getCurrentUser } from "@/app/api/utils/auth.js";
 import { validateMongoDBKey } from "@/app/api/utils/fileValidation.js";
+import { parseJsonRequest } from "@/app/api/utils/parseJsonRequest.js";
 
 // PUT: store data for an applet
 export async function PUT(request, { params }) {
     const { id } = params;
-    const body = await request.json();
 
     try {
+        const parsedBody = await parseJsonRequest(request);
+        if (!parsedBody.ok) {
+            return parsedBody.errorResponse;
+        }
+        const body = parsedBody.body;
+
         const workspace = await getWorkspace(id);
         if (!workspace) {
             return NextResponse.json(
@@ -43,14 +49,20 @@ export async function PUT(request, { params }) {
 
         // Find or create applet data for this user and applet
         // Use the sanitized key to prevent injection attacks
+        const query = {
+            appletId: workspace.applet,
+            userId: user._id,
+        };
+        const existing = await AppletData.findOne(query);
+        const nextData = {
+            ...(existing?.data || {}),
+            [keyValidation.sanitizedKey]: body.value,
+        };
         const appletData = await AppletData.findOneAndUpdate(
-            {
-                appletId: workspace.applet,
-                userId: user._id,
-            },
+            query,
             {
                 $set: {
-                    [`data.${keyValidation.sanitizedKey}`]: body.value,
+                    data: nextData,
                 },
             },
             {

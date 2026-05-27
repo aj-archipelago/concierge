@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import AppletFile from "../../../../../../models/applet-file.js";
+import File from "../../../../../../models/file.js";
 import { getWorkspace } from "../../../../db.js";
 import { getCurrentUser } from "../../../../../../utils/auth.js";
+import {
+    createAppletUserStorageTarget,
+    createWorkspacePrivateStorageTarget,
+} from "../../../../../../../../src/utils/storageTargets.js";
+import { resolveAndHealFile } from "../../../../../../utils/file-resolution-utils.js";
 
 // GET: stream file content for an applet (proxies Azure storage to avoid CORS)
 export async function GET(request, { params }) {
@@ -49,8 +55,36 @@ export async function GET(request, { params }) {
             );
         }
 
-        // 2. Fetch from Azure storage (server-side, no CORS issues)
-        const azureResponse = await fetch(file.url, {
+        const storageTarget = createAppletUserStorageTarget(
+            user.contextId,
+            workspace?.applet?.toString() || null,
+        );
+        const resolved = await resolveAndHealFile(file, {
+            storageTarget,
+            fallbackStorageTargets:
+                user?.contextId && workspaceId
+                    ? [
+                          createWorkspacePrivateStorageTarget(
+                              user.contextId,
+                              workspaceId,
+                          ),
+                      ]
+                    : [],
+            allowUrlRefresh: true,
+            persistResolvedFile: async (updateFields) => {
+                await File.findByIdAndUpdate(file._id, updateFields);
+            },
+        });
+
+        if (!resolved.accessUrl) {
+            return NextResponse.json(
+                { error: "Failed to resolve file from storage" },
+                { status: 404 },
+            );
+        }
+
+        // 2. Fetch from storage using the current canonical URL
+        const azureResponse = await fetch(resolved.accessUrl, {
             redirect: "follow",
         });
 
