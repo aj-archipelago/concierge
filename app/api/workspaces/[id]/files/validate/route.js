@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import Workspace from "../../../../models/workspace";
 import File from "../../../../models/file";
 import { getCurrentUser } from "../../../../utils/auth";
+import { ensureAppletSharedFileStore } from "../../../../utils/applet-shared-file-utils";
 import config from "../../../../../../config";
 import { validateAndRefreshFile } from "../../../../utils/file-refresh-utils";
+import {
+    createAppletSharedStorageTarget,
+    createWorkspaceSharedStorageTarget,
+} from "../../../../../../src/utils/storageTargets";
 
 /**
  * Validate and refresh files attached to workspace prompts
@@ -38,6 +43,12 @@ export async function POST(request, { params }) {
             );
         }
 
+        if (workspace.applet) {
+            await ensureAppletSharedFileStore(workspace, {
+                populateFiles: false,
+            });
+        }
+
         // Collect all unique files from all prompts
         const fileIds = new Set();
         workspace.prompts.forEach((prompt) => {
@@ -54,12 +65,19 @@ export async function POST(request, { params }) {
 
         const files = await File.find({ _id: { $in: Array.from(fileIds) } });
         const mediaHelperUrl = config.endpoints.mediaHelperDirect();
-        // Use workspaceId as contextId for workspace artifacts
-        const contextId = workspaceId.toString();
+        const storageTarget = workspace.applet
+            ? createAppletSharedStorageTarget(workspace.applet.toString())
+            : createWorkspaceSharedStorageTarget(workspaceId.toString());
+        const fallbackStorageTargets =
+            workspace.applet && workspaceId
+                ? [createWorkspaceSharedStorageTarget(workspaceId.toString())]
+                : [];
 
         const results = await Promise.allSettled(
             files.map((file) =>
-                validateAndRefreshFile(file, contextId, mediaHelperUrl),
+                validateAndRefreshFile(file, storageTarget, mediaHelperUrl, {
+                    fallbackStorageTargets,
+                }),
             ),
         );
 

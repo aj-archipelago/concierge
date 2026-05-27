@@ -26,6 +26,7 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
                   "^@lib/(.*)$": "<rootDir>/app/lib/$1",
@@ -79,6 +80,7 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
                   "^@lib/(.*)$": "<rootDir>/app/lib/$1",
@@ -127,6 +129,7 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
                   "^@lib/(.*)$": "<rootDir>/app/lib/$1",
