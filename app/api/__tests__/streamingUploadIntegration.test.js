@@ -56,6 +56,21 @@ jest.mock("../models/applet-file", () => ({
     }),
 }));
 
+jest.mock("../models/applet-shared-file", () => ({
+    findOne: jest.fn(),
+    findOneAndUpdate: jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue({
+            files: [],
+        }),
+    }),
+}));
+
+jest.mock("../utils/applet-shared-file-utils", () => ({
+    ensureAppletSharedFileStore: jest.fn().mockResolvedValue({
+        files: [],
+    }),
+}));
+
 jest.mock("../workspaces/[id]/db", () => ({
     getWorkspace: jest.fn(),
 }));
@@ -173,6 +188,23 @@ describe("Streaming Upload Integration Tests", () => {
             populate: jest.fn().mockResolvedValue({
                 files: [],
             }),
+        });
+
+        const AppletSharedFile = require("../models/applet-shared-file");
+        AppletSharedFile.findOne.mockResolvedValue({
+            files: [],
+        });
+        AppletSharedFile.findOneAndUpdate.mockReturnValue({
+            populate: jest.fn().mockResolvedValue({
+                files: [{ _id: "file1", filename: "uploaded-file.jpg" }],
+            }),
+        });
+
+        const {
+            ensureAppletSharedFileStore,
+        } = require("../utils/applet-shared-file-utils");
+        ensureAppletSharedFileStore.mockResolvedValue({
+            files: [],
         });
 
         // Reset file validation mocks to default state

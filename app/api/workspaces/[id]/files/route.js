@@ -1,18 +1,107 @@
 import { NextResponse } from "next/server";
 import Workspace from "../../../models/workspace.js";
+import AppletSharedFile from "../../../models/applet-shared-file.js";
 import File from "../../../models/file.js";
 import { getCurrentUser } from "../../../utils/auth.js";
+import { ensureAppletSharedFileStore } from "../../../utils/applet-shared-file-utils.js";
 import { handleStreamingFileUpload } from "../../../utils/upload-utils.js";
+import { deleteMediaFile } from "../../../utils/media-service-utils.js";
+import {
+    createAppletSharedStorageTarget,
+    createWorkspaceSharedStorageTarget,
+} from "../../../../../src/utils/storageTargets.js";
 
-// POST: upload a file for a workspace with streaming support
+function getWorkspaceSharedStorageTarget(workspace) {
+    if (!workspace?._id) {
+        return null;
+    }
+    const appletId = workspace?.applet?.toString() || null;
+    if (appletId) {
+        return createAppletSharedStorageTarget(appletId);
+    }
+    return createWorkspaceSharedStorageTarget(
+        workspace?._id?.toString() || null,
+    );
+}
+
+async function getSharedFileDocument(workspace, match = null) {
+    if (workspace?.applet) {
+        return ensureAppletSharedFileStore(workspace, { match });
+    }
+
+    const query = Workspace.findById(workspace?._id);
+    if (match) {
+        query.populate({ path: "files", match });
+    } else {
+        query.populate("files");
+    }
+    return query;
+}
+
+async function addSharedFileReference(workspace, fileId) {
+    if (workspace?.applet) {
+        await Workspace.findByIdAndUpdate(workspace._id, {
+            $addToSet: {
+                files: fileId,
+            },
+        });
+
+        return AppletSharedFile.findOneAndUpdate(
+            { appletId: workspace.applet },
+            {
+                $addToSet: {
+                    files: fileId,
+                },
+            },
+            {
+                new: true,
+                upsert: true,
+                runValidators: true,
+            },
+        ).populate("files");
+    }
+
+    return Workspace.findByIdAndUpdate(
+        workspace._id,
+        {
+            $push: {
+                files: fileId,
+            },
+        },
+        {
+            new: true,
+            runValidators: true,
+        },
+    ).populate("files");
+}
+
+async function deleteDuplicateCloudFile(file, workspace) {
+    if ((!file?.blobPath && !file?.hash) || !workspace?._id) {
+        return;
+    }
+    await deleteMediaFile({
+        blobPath: file.blobPath,
+        hash: file.hash,
+        storageTarget: getWorkspaceSharedStorageTarget(workspace),
+    });
+}
+
+function getFilesFromSharedDocument(sharedDocument) {
+    if (!sharedDocument) {
+        return [];
+    }
+    return Array.isArray(sharedDocument.files) ? sharedDocument.files : [];
+}
+
+// POST: upload a shared file for a workspace/applet with streaming support
 export async function POST(request, { params }) {
     const { id } = params;
+    const workspace = await Workspace.findById(id);
 
     const result = await handleStreamingFileUpload(request, {
-        getWorkspace: async () => await Workspace.findById(id),
+        getWorkspace: async () => workspace,
 
         checkAuthorization: async (workspace, user) => {
-            // Check if user is owner or has permission
             if (!workspace.owner?.equals(user._id)) {
                 return {
                     error: NextResponse.json(
@@ -26,60 +115,56 @@ export async function POST(request, { params }) {
             return { success: true };
         },
 
-        associateFile: async (newFile, workspace, user) => {
-            // Check if a file with the same hash already exists in this workspace
+        storageTarget: getWorkspaceSharedStorageTarget(workspace),
+
+        associateFile: async (newFile, workspace) => {
+            const matchQuery = [];
+            if (newFile.blobPath) {
+                matchQuery.push({ blobPath: newFile.blobPath });
+            }
             if (newFile.hash) {
-                const existingWorkspace = await Workspace.findById(id).populate(
-                    {
-                        path: "files",
-                        match: { hash: newFile.hash },
-                    },
+                matchQuery.push({ hash: newFile.hash });
+            }
+
+            if (matchQuery.length > 0) {
+                const existingSharedFiles = await getSharedFileDocument(
+                    workspace,
+                    matchQuery.length === 1
+                        ? matchQuery[0]
+                        : { $or: matchQuery },
                 );
 
-                if (
-                    existingWorkspace &&
-                    existingWorkspace.files &&
-                    existingWorkspace.files.length > 0
-                ) {
-                    // File with this hash already exists, return existing file without adding
-                    const existingFile = existingWorkspace.files[0];
-                    const allFiles =
-                        await Workspace.findById(id).populate("files");
+                const existingFiles =
+                    getFilesFromSharedDocument(existingSharedFiles);
 
-                    // Delete the duplicate File document we just created
+                if (existingFiles.length > 0) {
+                    const existingFile = existingFiles[0];
+                    const allFilesDoc = await getSharedFileDocument(workspace);
+
+                    await deleteDuplicateCloudFile(newFile, workspace);
                     await File.findByIdAndDelete(newFile._id);
 
                     return {
                         success: true,
-                        file: existingFile, // Return the existing file, not the duplicate
-                        files: allFiles ? allFiles.files : [],
+                        file: existingFile,
+                        files: getFilesFromSharedDocument(allFilesDoc),
                     };
                 }
             }
 
-            // Add file reference to workspace
-            const updatedWorkspace = await Workspace.findByIdAndUpdate(
-                id,
-                {
-                    $push: {
-                        files: newFile._id,
-                    },
-                },
-                {
-                    new: true,
-                    runValidators: true,
-                },
-            ).populate("files");
+            const updatedSharedFiles = await addSharedFileReference(
+                workspace,
+                newFile._id,
+            );
 
             return {
                 success: true,
                 file: newFile,
-                files: updatedWorkspace.files,
+                files: getFilesFromSharedDocument(updatedSharedFiles),
             };
         },
 
         errorPrefix: "workspace file upload",
-        permanent: true,
     });
 
     if (result.error) {
@@ -92,12 +177,12 @@ export async function POST(request, { params }) {
     });
 }
 
-// GET: retrieve files for a workspace
+// GET: retrieve shared files for a workspace/applet
 export async function GET(request, { params }) {
     const { id } = params;
 
     try {
-        const workspace = await Workspace.findById(id).populate("files");
+        const workspace = await Workspace.findById(id);
         if (!workspace) {
             return NextResponse.json(
                 { error: "Workspace not found" },
@@ -105,10 +190,7 @@ export async function GET(request, { params }) {
             );
         }
 
-        // Get current user
         const user = await getCurrentUser();
-
-        // Check if user has access to this workspace
         if (!workspace.owner?.equals(user._id)) {
             return NextResponse.json(
                 { error: "Not authorized to view files for this workspace" },
@@ -116,8 +198,10 @@ export async function GET(request, { params }) {
             );
         }
 
+        const sharedFiles = await getSharedFileDocument(workspace);
+
         return NextResponse.json({
-            files: workspace.files || [],
+            files: getFilesFromSharedDocument(sharedFiles),
         });
     } catch (error) {
         console.error("Error retrieving workspace files:", error);

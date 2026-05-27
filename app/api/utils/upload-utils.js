@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import config from "../../../config/index.js";
 import File from "../models/file.js";
 import { getCurrentUser } from "./auth.js";
 import {
@@ -7,12 +6,13 @@ import {
     FILE_VALIDATION_CONFIG,
     scanForMalware,
 } from "./fileValidation.js";
-import { determineFileContextId } from "./llm-file-utils.js";
+import { extractBlobPathFromUrl } from "./llm-file-utils.js";
 import {
+    checkMediaFile,
     hashBuffer,
     uploadBufferToMediaService,
-    setFileRetention,
 } from "./media-service-utils.js";
+import { resolveStorageTarget } from "../../../src/utils/storageTargets.js";
 
 import Busboy from "busboy";
 import { Readable } from "stream";
@@ -35,8 +35,7 @@ export { hashBuffer } from "./media-service-utils.js";
  * @param {Function} options.checkAuthorization - Function to check user authorization
  * @param {Function} options.associateFile - Function to associate file with workspace/applet
  * @param {string} options.errorPrefix - Prefix for error messages
- * @param {boolean} options.permanent - If true, file will be marked as permanent
- * @param {boolean} options.useCompoundContextId - If true, use compound contextId (workspaceId:userContextId) for file scoping
+ * @param {Object} options.storageTarget - Explicit storage target for routing
  * @returns {Object} Upload result with file data or error response
  */
 export async function handleStreamingFileUpload(request, options) {
@@ -45,8 +44,7 @@ export async function handleStreamingFileUpload(request, options) {
         checkAuthorization,
         associateFile,
         errorPrefix = "streaming file upload",
-        permanent = false,
-        useCompoundContextId = false,
+        storageTarget: storageTargetOverride = null,
     } = options;
 
     try {
@@ -80,101 +78,67 @@ export async function handleStreamingFileUpload(request, options) {
 
         const { fileBuffer, metadata } = result.data;
 
-        // Determine contextId based on file type:
-        // - Workspace/applet artifacts (permanent=true, useCompoundContextId=false): workspaceId (shared)
-        // - User files in workspace/applet (useCompoundContextId=true): compound contextId (workspaceId:userContextId)
-        // - User files elsewhere (permanent=false, useCompoundContextId=false): userContextId
-        // Note: workspace is guaranteed to exist here due to early return above
+        // Determine file routing: which container and folder the file goes to
         const workspaceIdStr = workspace._id?.toString() || null;
         const userContextIdStr = user?.contextId || null;
 
-        // When useCompoundContextId is true, this is a user file in workspace context (private per user)
-        // When permanent is true and not compound, this is a workspace artifact (shared)
-        const contextId = determineFileContextId({
-            isArtifact: permanent && !useCompoundContextId,
-            workspaceId: workspaceIdStr,
-            userContextId: userContextIdStr,
-            useCompoundContextId: useCompoundContextId && !!workspaceIdStr,
-        });
+        const storageTarget =
+            storageTargetOverride ||
+            resolveStorageTarget({
+                workspaceId: workspaceIdStr,
+                userId: userContextIdStr,
+            });
 
         // Check if file already exists using hash
         if (metadata.hash) {
             try {
-                const mediaHelperUrl = config.endpoints.mediaHelperDirect();
-                const checkUrl = new URL(mediaHelperUrl);
-                checkUrl.searchParams.set("hash", metadata.hash);
-                checkUrl.searchParams.set("checkHash", "true");
-                if (contextId) {
-                    checkUrl.searchParams.set("contextId", contextId);
-                }
+                const checkData = await checkMediaFile({
+                    hash: metadata.hash,
+                    storageTarget,
+                });
+                if (checkData?.url) {
+                    // Create a new File document with existing file data
+                    const fileUrl = checkData.converted
+                        ? checkData.converted.url
+                        : checkData.url;
+                    const newFile = new File({
+                        filename: checkData.filename || metadata.filename,
+                        originalName: metadata.filename,
+                        mimeType: metadata.mimeType,
+                        size: metadata.size,
+                        url: fileUrl,
+                        gcsUrl: checkData.converted
+                            ? checkData.converted.gcs
+                            : checkData.gcs,
+                        hash: metadata.hash,
+                        blobPath:
+                            checkData.blobPath ||
+                            extractBlobPathFromUrl(fileUrl),
+                        owner: user._id,
+                    });
 
-                const checkResponse = await fetch(checkUrl);
+                    await newFile.save();
 
-                if (checkResponse.ok) {
-                    const checkData = await checkResponse
-                        .json()
-                        .catch(() => null);
-                    if (checkData && checkData.url) {
-                        // If permanent flag is set, ensure existing file is also permanent
-                        if (permanent && metadata.hash) {
-                            try {
-                                await setFileRetention(
-                                    metadata.hash,
-                                    "permanent",
-                                    contextId,
-                                );
-                            } catch (retentionError) {
-                                // Log retention update failures so they are visible for debugging
-                                // This is best-effort, so we continue even if it fails
-                                console.error(
-                                    "Failed to update file retention to 'permanent' for hash",
-                                    metadata.hash,
-                                    "and contextId",
-                                    contextId,
-                                    retentionError,
-                                );
-                            }
-                        }
-
-                        // Create a new File document with existing file data
-                        const newFile = new File({
-                            filename: checkData.filename || metadata.filename,
-                            originalName: metadata.filename,
-                            mimeType: metadata.mimeType,
-                            size: metadata.size,
-                            url: checkData.converted
-                                ? checkData.converted.url
-                                : checkData.url,
-                            gcsUrl: checkData.converted
-                                ? checkData.converted.gcs
-                                : checkData.gcs,
-                            hash: metadata.hash,
-                            owner: user._id,
-                        });
-
-                        await newFile.save();
-
-                        // Associate file with workspace/applet
-                        const associationResult = await associateFile(
-                            newFile,
-                            workspace,
-                            user,
-                        );
-                        if (associationResult.error) {
-                            return { error: associationResult.error };
-                        }
-
-                        // Use the file from associationResult if provided (for duplicates), otherwise use newFile
-                        const fileToReturn = associationResult.file || newFile;
-
-                        const responseData = {
-                            success: true,
-                            file: fileToReturn,
-                            files: associationResult.files,
-                        };
-
-                        return { success: true, data: responseData };
+                    // Associate file with workspace/applet
+                    const associationResult = await associateFile(
+                        newFile,
+                        workspace,
+                        user,
+                    );
+                    if (associationResult.error) {
+                        return { error: associationResult.error };
                     }
+
+                    // Use the file from associationResult if provided (for duplicates), otherwise use newFile
+                    const fileToReturn = associationResult.file || newFile;
+
+                    const responseData = {
+                        success: true,
+                        file: fileToReturn,
+                        files: associationResult.files,
+                    };
+
+                    return { success: true, data: responseData };
                 }
             } catch (error) {
                 console.error("Error checking file hash:", error);
@@ -183,13 +147,10 @@ export async function handleStreamingFileUpload(request, options) {
         }
 
         // Upload file to media service using buffer
-        // Note: permanent flag is handled inside uploadBufferToMediaService via setRetention
-        // Use workspace ID as contextId for workspace/applet files, user contextId for user files
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             metadata,
-            permanent,
-            contextId,
+            { storageTarget },
         );
         if (uploadResult.error) {
             return { error: uploadResult.error };
@@ -214,6 +175,7 @@ export async function handleStreamingFileUpload(request, options) {
             url: url,
             gcsUrl: gcsUrl,
             hash: uploadResult.data.hash || metadata.hash, // Use hash from upload response or computed hash from file
+            blobPath: uploadResult.data.blobPath || extractBlobPathFromUrl(url),
             owner: user._id,
         });
 
@@ -485,7 +447,4 @@ export async function parseStreamingMultipart(request, user) {
 }
 
 // Re-export uploadBufferToMediaService for backward compatibility
-export {
-    uploadBufferToMediaService,
-    setFileRetention,
-} from "./media-service-utils.js";
+export { uploadBufferToMediaService } from "./media-service-utils.js";

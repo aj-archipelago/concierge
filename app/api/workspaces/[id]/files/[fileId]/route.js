@@ -1,174 +1,43 @@
 import { NextResponse } from "next/server";
 import Workspace from "../../../../models/workspace.js";
+import AppletSharedFile from "../../../../models/applet-shared-file.js";
 import File from "../../../../models/file.js";
 import Prompt from "../../../../models/prompt.js";
 import { getCurrentUser } from "../../../../utils/auth.js";
-import config from "../../../../../../config/index.js";
+import { ensureAppletSharedFileStore } from "../../../../utils/applet-shared-file-utils.js";
+import { deleteMediaFile } from "../../../../utils/media-service-utils.js";
+import {
+    createAppletSharedStorageTarget,
+    createWorkspaceSharedStorageTarget,
+} from "../../../../../../src/utils/storageTargets.js";
 
-// DELETE: delete a specific file from a workspace by file ID
-export async function DELETE(request, { params }) {
-    const { id: workspaceId, fileId } = params;
-    const { searchParams } = new URL(request.url);
-    const force = searchParams.get("force") === "true";
+function getSharedStorageTarget(workspace) {
+    const appletId = workspace?.applet?.toString() || null;
+    if (appletId) {
+        return createAppletSharedStorageTarget(appletId);
+    }
+    return createWorkspaceSharedStorageTarget(
+        workspace?._id?.toString() || null,
+    );
+}
 
-    try {
-        // Get current user
-        const user = await getCurrentUser();
-        if (!user) {
-            return NextResponse.json(
-                { error: "Authentication required" },
-                { status: 401 },
-            );
-        }
+async function getSharedFilesDoc(workspace) {
+    if (workspace?.applet) {
+        return ensureAppletSharedFileStore(workspace);
+    }
+    return Workspace.findById(workspace._id).populate("files");
+}
 
-        // Find the workspace and populate files
-        const workspace =
-            await Workspace.findById(workspaceId).populate("files");
-        if (!workspace) {
-            return NextResponse.json(
-                { error: "Workspace not found" },
-                { status: 404 },
-            );
-        }
+async function removeSharedFileReference(workspaceId, workspace, fileId) {
+    if (workspace?.applet) {
+        await Workspace.findByIdAndUpdate(workspaceId, {
+            $pull: {
+                files: fileId,
+            },
+        });
 
-        // Check if user is owner
-        if (!workspace.owner?.equals(user._id)) {
-            return NextResponse.json(
-                { error: "Not authorized to delete files from this workspace" },
-                { status: 403 },
-            );
-        }
-
-        // Find the file to delete by ID
-        const fileToDelete = await File.findById(fileId);
-
-        // Verify the file belongs to this workspace
-        const fileInWorkspace = workspace.files.some(
-            (file) => file._id.toString() === fileId,
-        );
-
-        if (!fileToDelete) {
-            // File not found in database - still need to clean up workspace references
-            if (fileInWorkspace) {
-                // Remove the file reference from the workspace
-                const updatedWorkspace = await Workspace.findByIdAndUpdate(
-                    workspaceId,
-                    {
-                        $pull: {
-                            files: fileId,
-                        },
-                    },
-                    {
-                        new: true,
-                        runValidators: true,
-                    },
-                ).populate("files");
-
-                return NextResponse.json({
-                    success: true,
-                    message:
-                        "File already deleted, removed reference from workspace",
-                    files: updatedWorkspace.files || [],
-                });
-            } else {
-                // File not in database and not in workspace
-                return NextResponse.json({
-                    success: true,
-                    message: "File already deleted or does not exist",
-                    files: workspace.files || [],
-                });
-            }
-        }
-
-        if (!fileInWorkspace) {
-            // File exists in database but not in this workspace
-            return NextResponse.json({
-                success: true,
-                message: "File not found in this workspace",
-                files: workspace.files || [],
-            });
-        }
-
-        // Check if the file is attached to any prompts in the workspace
-        const promptsUsingFile = await Prompt.find({
-            _id: { $in: workspace.prompts },
-            files: fileId,
-        }).select("title _id");
-
-        if (promptsUsingFile.length > 0) {
-            if (force) {
-                // Force deletion: detach file from all prompts first
-                await Prompt.updateMany(
-                    { _id: { $in: promptsUsingFile.map((p) => p._id) } },
-                    { $pull: { files: fileId } },
-                );
-            } else {
-                // Normal deletion: return error if attached
-                return NextResponse.json(
-                    {
-                        error: "File is currently attached to one or more prompts",
-                        promptsUsingFile: promptsUsingFile.map((p) => ({
-                            id: p._id,
-                            title: p.title,
-                        })),
-                        code: "FILE_ATTACHED_TO_PROMPTS",
-                    },
-                    { status: 409 }, // Conflict status code
-                );
-            }
-        }
-
-        // Delete the file using the file handler
-        try {
-            if (fileToDelete.hash) {
-                const mediaHelperUrl = config.endpoints.mediaHelperDirect();
-                if (!mediaHelperUrl) {
-                    console.error(
-                        "CORTEX_MEDIA_API_URL is not set or mediaHelperUrl is undefined.",
-                    );
-                    return NextResponse.json(
-                        {
-                            error: "Media helper URL is not configured. Please set CORTEX_MEDIA_API_URL.",
-                        },
-                        { status: 500 },
-                    );
-                }
-
-                const deleteUrl = new URL(mediaHelperUrl);
-                deleteUrl.searchParams.set("hash", fileToDelete.hash);
-                // Workspace/applet artifacts use workspaceId (shared across all users)
-                deleteUrl.searchParams.set("contextId", workspaceId);
-
-                const deleteResponse = await fetch(deleteUrl.toString(), {
-                    method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                });
-
-                if (!deleteResponse.ok) {
-                    const errorBody = await deleteResponse.text();
-                    console.warn(
-                        `Failed to delete file: ${deleteResponse.statusText}. Response: ${errorBody}`,
-                    );
-                    // Continue with database deletion even if file deletion fails
-                } else {
-                    console.log(
-                        `Successfully deleted file ${fileToDelete.hash}`,
-                    );
-                }
-            }
-        } catch (error) {
-            console.error("Error deleting file:", error);
-            // Continue with database deletion even if file deletion fails
-        }
-
-        // Remove the file document
-        await File.findByIdAndDelete(fileId);
-
-        // Remove the file reference from the workspace
-        const updatedWorkspace = await Workspace.findByIdAndUpdate(
-            workspaceId,
+        return AppletSharedFile.findOneAndUpdate(
+            { appletId: workspace.applet },
             {
                 $pull: {
                     files: fileId,
@@ -179,10 +48,138 @@ export async function DELETE(request, { params }) {
                 runValidators: true,
             },
         ).populate("files");
+    }
+
+    return Workspace.findByIdAndUpdate(
+        workspaceId,
+        {
+            $pull: {
+                files: fileId,
+            },
+        },
+        {
+            new: true,
+            runValidators: true,
+        },
+    ).populate("files");
+}
+
+// DELETE: delete a specific shared file from a workspace/applet by file ID
+export async function DELETE(request, { params }) {
+    const { id: workspaceId, fileId } = params;
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get("force") === "true";
+
+    try {
+        const user = await getCurrentUser();
+        if (!user) {
+            return NextResponse.json(
+                { error: "Authentication required" },
+                { status: 401 },
+            );
+        }
+
+        const workspace = await Workspace.findById(workspaceId);
+        if (!workspace) {
+            return NextResponse.json(
+                { error: "Workspace not found" },
+                { status: 404 },
+            );
+        }
+
+        if (!workspace.owner?.equals(user._id)) {
+            return NextResponse.json(
+                { error: "Not authorized to delete files from this workspace" },
+                { status: 403 },
+            );
+        }
+
+        const sharedFilesDoc = await getSharedFilesDoc(workspace);
+        const sharedFiles = Array.isArray(sharedFilesDoc?.files)
+            ? sharedFilesDoc.files
+            : [];
+
+        const fileInWorkspace = sharedFiles.some(
+            (file) => file._id.toString() === fileId,
+        );
+        const fileToDelete = await File.findById(fileId);
+
+        if (!fileToDelete) {
+            if (fileInWorkspace) {
+                const updatedSharedFiles = await removeSharedFileReference(
+                    workspaceId,
+                    workspace,
+                    fileId,
+                );
+
+                return NextResponse.json({
+                    success: true,
+                    message:
+                        "File already deleted, removed reference from workspace",
+                    files: updatedSharedFiles?.files || [],
+                });
+            }
+
+            return NextResponse.json({
+                success: true,
+                message: "File already deleted or does not exist",
+                files: sharedFiles,
+            });
+        }
+
+        if (!fileInWorkspace) {
+            return NextResponse.json({
+                success: true,
+                message: "File not found in this workspace",
+                files: sharedFiles,
+            });
+        }
+
+        const promptsUsingFile = await Prompt.find({
+            _id: { $in: workspace.prompts },
+            files: fileId,
+        }).select("title _id");
+
+        if (promptsUsingFile.length > 0) {
+            if (force) {
+                await Prompt.updateMany(
+                    { _id: { $in: promptsUsingFile.map((p) => p._id) } },
+                    { $pull: { files: fileId } },
+                );
+            } else {
+                return NextResponse.json(
+                    {
+                        error: "File is currently attached to one or more prompts",
+                        promptsUsingFile: promptsUsingFile.map((p) => ({
+                            id: p._id,
+                            title: p.title,
+                        })),
+                        code: "FILE_ATTACHED_TO_PROMPTS",
+                    },
+                    { status: 409 },
+                );
+            }
+        }
+
+        if (fileToDelete.hash || fileToDelete.blobPath) {
+            await deleteMediaFile({
+                blobPath: fileToDelete.blobPath,
+                hash: fileToDelete.hash,
+                storageTarget: getSharedStorageTarget(workspace),
+            });
+        }
+
+        await File.findByIdAndDelete(fileId);
+
+        const updatedSharedFiles = await removeSharedFileReference(
+            workspaceId,
+            workspace,
+            fileId,
+        );
 
         return NextResponse.json({
             success: true,
-            files: updatedWorkspace.files || [],
+            files: updatedSharedFiles?.files || [],
         });
     } catch (error) {
         console.error("Error deleting workspace file:", error);

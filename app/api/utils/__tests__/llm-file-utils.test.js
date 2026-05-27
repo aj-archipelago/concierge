@@ -3,13 +3,20 @@
  */
 
 import {
-    buildAgentContext,
+    buildFileAccessPlan,
+    buildRunContext,
     buildWorkspacePromptVariables,
-    createCompoundContextId,
     determineFileContextId,
+    determineFileRouting,
+    extractBlobPathFromUrl,
     fetchShortLivedUrl,
     prepareFileContentForLLM,
 } from "../llm-file-utils";
+import {
+    createUserGlobalStorageTarget,
+    createWorkspacePrivateStorageTarget,
+    createWorkspaceSharedStorageTarget,
+} from "../../../../src/utils/storageTargets.js";
 
 // Mock config
 jest.mock("../../../../config", () => ({
@@ -82,6 +89,8 @@ describe("buildWorkspacePromptVariables", () => {
                         ],
                     },
                 ],
+                contextId: "",
+                contextKey: "",
             });
         });
 
@@ -116,6 +125,8 @@ describe("buildWorkspacePromptVariables", () => {
                         ],
                     },
                 ],
+                contextId: "",
+                contextKey: "",
             });
         });
 
@@ -145,6 +156,8 @@ describe("buildWorkspacePromptVariables", () => {
                         ],
                     },
                 ],
+                contextId: "",
+                contextKey: "",
             });
         });
 
@@ -221,6 +234,8 @@ describe("buildWorkspacePromptVariables", () => {
                         ],
                     },
                 ],
+                contextId: "",
+                contextKey: "",
             });
         });
     });
@@ -236,7 +251,7 @@ describe("buildWorkspacePromptVariables", () => {
                 systemPrompt: "Context",
                 prompt: "Analyze these images",
                 text: "What do you see?",
-                files: mockFiles,
+                userFiles: mockFiles,
             });
 
             const userMessage = result.chatHistory.find(
@@ -260,12 +275,79 @@ describe("buildWorkspacePromptVariables", () => {
             expect(userMessage.content[3]).toContain("image_url");
         });
 
+        it("routes workspace shared files and request files through explicit targets", async () => {
+            const originalFetch = global.fetch;
+            global.fetch = jest
+                .fn()
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        url: "https://example.com/shared.jpg",
+                        shortLivedUrl: "https://example.com/shared-short",
+                    }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        url: "https://example.com/private.jpg",
+                        shortLivedUrl: "https://example.com/private-short",
+                    }),
+                });
+
+            try {
+                const result = await buildWorkspacePromptVariables({
+                    prompt: "Analyze these files",
+                    sharedFiles: [
+                        {
+                            _id: "shared-file-1",
+                            hash: "shared-hash",
+                            url: "https://example.com/shared.jpg",
+                        },
+                    ],
+                    userFiles: [
+                        {
+                            hash: "user-hash",
+                            url: "https://example.com/private.jpg",
+                        },
+                    ],
+                    workspaceId: "workspace123",
+                    userContextId: "user456",
+                });
+
+                const userMessage = result.chatHistory.find(
+                    (message) => message.role === "user",
+                );
+                const sharedEntry = JSON.parse(userMessage.content[1]);
+                const userEntry = JSON.parse(userMessage.content[2]);
+
+                expect(sharedEntry).toEqual(
+                    expect.objectContaining({
+                        url: "https://example.com/shared-short",
+                        contextId: "workspace123",
+                        fileScope: "workspace-shared-legacy",
+                        workspaceId: "workspace123",
+                    }),
+                );
+                expect(userEntry).toEqual(
+                    expect.objectContaining({
+                        url: "https://example.com/private-short",
+                        contextId: "user456",
+                        fileScope: "workspace-user-legacy",
+                        userId: "user456",
+                        workspaceId: "workspace123",
+                    }),
+                );
+            } finally {
+                global.fetch = originalFetch;
+            }
+        });
+
         it("should include files even when no text content", async () => {
             const mockFiles = [{ hash: "hash1", url: "url1" }];
 
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
-                files: mockFiles,
+                userFiles: mockFiles,
             });
 
             const userMessage = result.chatHistory.find(
@@ -323,7 +405,7 @@ describe("buildWorkspacePromptVariables", () => {
                 systemPrompt: "Should be ignored",
                 prompt: "Should be ignored",
                 text: "Should be ignored",
-                files: mockFiles,
+                userFiles: mockFiles,
                 chatHistory: providedChatHistory,
             });
 
@@ -357,7 +439,7 @@ describe("buildWorkspacePromptVariables", () => {
             const mockFiles = [{ hash: "hash1", url: "url1" }];
 
             const result = await buildWorkspacePromptVariables({
-                files: mockFiles,
+                userFiles: mockFiles,
                 chatHistory: providedChatHistory,
             });
 
@@ -420,7 +502,7 @@ describe("buildWorkspacePromptVariables", () => {
             const mockFiles = [{ hash: "hash1", url: "url1" }];
 
             const result = await buildWorkspacePromptVariables({
-                files: mockFiles,
+                userFiles: mockFiles,
                 chatHistory: providedChatHistory,
             });
 
@@ -435,8 +517,8 @@ describe("buildWorkspacePromptVariables", () => {
         });
     });
 
-    describe("agentContext", () => {
-        it("should return agentContext with workspace and compound contexts when both are provided", async () => {
+    describe("fileAccessPlan and runContext", () => {
+        it("should return fileAccessPlan with workspace write target and user files read target when workspaceId is provided", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
@@ -445,45 +527,26 @@ describe("buildWorkspacePromptVariables", () => {
                 workspaceContextKey: "workspace-key",
                 userContextId: "user456",
                 userContextKey: "user-key",
-                useCompoundContextId: true,
             });
 
-            expect(result.agentContext).toHaveLength(2);
-            // First context is workspace (default)
-            expect(result.agentContext[0]).toEqual({
-                contextId: "workspace123",
-                contextKey: "workspace-key",
-                default: true,
-            });
-            // Second context is compound (user files in workspace)
-            expect(result.agentContext[1]).toEqual({
-                contextId: "workspace123:user456",
-                contextKey: "user-key",
-                default: false,
-            });
+            expect(result.fileAccessPlan).toEqual([
+                {
+                    kind: "app-shared",
+                    workspaceId: "workspace123",
+                    contextKey: "workspace-key",
+                    write: true,
+                },
+                {
+                    kind: "user-files",
+                    userContextId: "user456",
+                    contextKey: "user-key",
+                },
+            ]);
+            expect(result.contextId).toBe("workspace123");
+            expect(result.contextKey).toBe("workspace-key");
         });
 
-        it("should return only workspace context when useCompoundContextId is false", async () => {
-            const result = await buildWorkspacePromptVariables({
-                systemPrompt: "Context",
-                prompt: "Prompt",
-                text: "Text",
-                workspaceId: "workspace123",
-                workspaceContextKey: "workspace-key",
-                userContextId: "user456",
-                userContextKey: "user-key",
-                useCompoundContextId: false,
-            });
-
-            expect(result.agentContext).toHaveLength(1);
-            expect(result.agentContext[0]).toEqual({
-                contextId: "workspace123",
-                contextKey: "workspace-key",
-                default: true,
-            });
-        });
-
-        it("should return user context only when no workspaceId", async () => {
+        it("should return user-global write target only when no narrower context exists", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
@@ -491,28 +554,58 @@ describe("buildWorkspacePromptVariables", () => {
                 workspaceId: null,
                 userContextId: "user456",
                 userContextKey: "user-key",
-                useCompoundContextId: true,
             });
 
-            expect(result.agentContext).toHaveLength(1);
-            expect(result.agentContext[0]).toEqual({
-                contextId: "user456",
-                contextKey: "user-key",
-                default: true,
-            });
+            expect(result.fileAccessPlan).toEqual([
+                {
+                    kind: "user-global",
+                    userContextId: "user456",
+                    contextKey: "user-key",
+                    write: true,
+                },
+            ]);
+            expect(result.contextId).toBe("user456");
+            expect(result.contextKey).toBe("user-key");
         });
 
-        it("should not return agentContext when no contextIds provided", async () => {
+        it("should prefer current chat writes and include all user files for reads when chatId is provided", async () => {
+            const result = await buildWorkspacePromptVariables({
+                systemPrompt: "Context",
+                prompt: "Prompt",
+                text: "Text",
+                chatId: "chat789",
+                userContextId: "user456",
+                userContextKey: "user-key",
+            });
+
+            expect(result.fileAccessPlan).toEqual([
+                {
+                    kind: "chat",
+                    userContextId: "user456",
+                    chatId: "chat789",
+                    contextKey: "user-key",
+                    write: true,
+                },
+                {
+                    kind: "user-files",
+                    userContextId: "user456",
+                    contextKey: "user-key",
+                },
+            ]);
+        });
+
+        it("should not return fileAccessPlan when no contextIds provided", async () => {
             const result = await buildWorkspacePromptVariables({
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
                 workspaceId: null,
                 userContextId: null,
-                useCompoundContextId: true,
             });
 
-            expect(result.agentContext).toBeUndefined();
+            expect(result.fileAccessPlan).toBeUndefined();
+            expect(result.contextId).toBe("");
+            expect(result.contextKey).toBe("");
         });
 
         it("should handle missing contextKeys gracefully", async () => {
@@ -524,27 +617,21 @@ describe("buildWorkspacePromptVariables", () => {
                 workspaceContextKey: null,
                 userContextId: "user456",
                 userContextKey: null,
-                useCompoundContextId: true,
             });
 
-            expect(result.agentContext).toHaveLength(2);
-            expect(result.agentContext[0].contextKey).toBe("");
-            expect(result.agentContext[1].contextKey).toBe("");
-        });
-
-        it("should default useCompoundContextId to true", async () => {
-            const result = await buildWorkspacePromptVariables({
-                systemPrompt: "Context",
-                prompt: "Prompt",
-                text: "Text",
-                workspaceId: "workspace123",
-                workspaceContextKey: "workspace-key",
-                userContextId: "user456",
-                userContextKey: "user-key",
-            });
-
-            // Should include both workspace and compound contexts
-            expect(result.agentContext).toHaveLength(2);
+            expect(result.fileAccessPlan).toEqual([
+                {
+                    kind: "app-shared",
+                    workspaceId: "workspace123",
+                    write: true,
+                },
+                {
+                    kind: "user-files",
+                    userContextId: "user456",
+                },
+            ]);
+            expect(result.contextId).toBe("workspace123");
+            expect(result.contextKey).toBe("");
         });
     });
 
@@ -590,7 +677,7 @@ describe("buildWorkspacePromptVariables", () => {
                 systemPrompt: null,
                 prompt: undefined,
                 text: null,
-                files: null,
+                userFiles: null,
                 chatHistory: undefined,
             });
 
@@ -612,7 +699,7 @@ describe("buildWorkspacePromptVariables", () => {
                 systemPrompt: "Context",
                 prompt: "Prompt",
                 text: "Text",
-                files: [],
+                userFiles: [],
             });
 
             const userMessage = result.chatHistory.find(
@@ -623,79 +710,89 @@ describe("buildWorkspacePromptVariables", () => {
     });
 });
 
-describe("createCompoundContextId", () => {
-    it("should create compound contextId from workspaceId and userContextId", () => {
-        const result = createCompoundContextId("workspace123", "user456");
-        expect(result).toBe("workspace123:user456");
-    });
-
-    it("should handle various ID formats", () => {
-        expect(createCompoundContextId("abc-123", "xyz-789")).toBe(
-            "abc-123:xyz-789",
-        );
-        expect(createCompoundContextId("workspaceId", "contextId")).toBe(
-            "workspaceId:contextId",
-        );
-    });
-});
-
-describe("buildAgentContext", () => {
-    it("should build workspace context with compound context when all params provided", () => {
-        const result = buildAgentContext({
+describe("buildFileAccessPlan", () => {
+    it("should build workspace write target and user files read target when workspaceId is provided", () => {
+        const result = buildFileAccessPlan({
             workspaceId: "workspace123",
             workspaceContextKey: "workspace-key",
             userContextId: "user456",
             userContextKey: "user-key",
-            includeCompoundContext: true,
         });
 
-        expect(result).toHaveLength(2);
-        expect(result[0]).toEqual({
-            contextId: "workspace123",
-            contextKey: "workspace-key",
-            default: true,
-        });
-        expect(result[1]).toEqual({
-            contextId: "workspace123:user456",
-            contextKey: "user-key",
-            default: false,
-        });
+        expect(result).toEqual([
+            {
+                kind: "app-shared",
+                workspaceId: "workspace123",
+                contextKey: "workspace-key",
+                write: true,
+            },
+            {
+                kind: "user-files",
+                userContextId: "user456",
+                contextKey: "user-key",
+            },
+        ]);
     });
 
-    it("should build only workspace context when includeCompoundContext is false", () => {
-        const result = buildAgentContext({
+    it("should build workspace target only when no userContextId", () => {
+        const result = buildFileAccessPlan({
             workspaceId: "workspace123",
             workspaceContextKey: "workspace-key",
-            userContextId: "user456",
-            userContextKey: "user-key",
-            includeCompoundContext: false,
+            userContextId: null,
         });
 
-        expect(result).toHaveLength(1);
-        expect(result[0]).toEqual({
-            contextId: "workspace123",
-            contextKey: "workspace-key",
-            default: true,
-        });
+        expect(result).toEqual([
+            {
+                kind: "app-shared",
+                workspaceId: "workspace123",
+                contextKey: "workspace-key",
+                write: true,
+            },
+        ]);
     });
 
-    it("should build user context only when no workspaceId", () => {
-        const result = buildAgentContext({
+    it("should build user target only when no workspaceId", () => {
+        const result = buildFileAccessPlan({
             workspaceId: null,
             userContextId: "user456",
             userContextKey: "user-key",
         });
 
-        expect(result).toHaveLength(1);
-        expect(result[0]).toEqual({
-            contextId: "user456",
-            contextKey: "user-key",
-            default: true,
+        expect(result).toEqual([
+            {
+                kind: "user-global",
+                userContextId: "user456",
+                contextKey: "user-key",
+                write: true,
+            },
+        ]);
+    });
+
+    it("should build chat write target and user files read target when chatId is provided", () => {
+        const result = buildFileAccessPlan({
+            chatId: "chat789",
+            userContextId: "user456",
+            userContextKey: "user-key",
         });
+
+        expect(result).toEqual([
+            {
+                kind: "chat",
+                userContextId: "user456",
+                chatId: "chat789",
+                contextKey: "user-key",
+                write: true,
+            },
+            {
+                kind: "user-files",
+                userContextId: "user456",
+                contextKey: "user-key",
+            },
+        ]);
     });
 
     it("should return empty array when no contextIds provided", () => {
-        const result = buildAgentContext({
+        const result = buildFileAccessPlan({
             workspaceId: null,
             userContextId: null,
         });
@@ -703,30 +800,105 @@ describe("buildAgentContext", () => {
         expect(result).toEqual([]);
     });
 
-    it("should handle missing contextKeys with empty strings", () => {
-        const result = buildAgentContext({
+    it("should not build applet targets when applet userContextId is missing", () => {
+        const result = buildFileAccessPlan({
+            appletId: "applet-123",
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: null,
+        });
+
+        expect(result).toEqual([]);
+    });
+
+    it("should omit contextKeys when they are missing", () => {
+        const result = buildFileAccessPlan({
             workspaceId: "workspace123",
             workspaceContextKey: null,
             userContextId: "user456",
             userContextKey: null,
-            includeCompoundContext: true,
         });
 
-        expect(result).toHaveLength(2);
-        expect(result[0].contextKey).toBe("");
-        expect(result[1].contextKey).toBe("");
+        expect(result).toEqual([
+            {
+                kind: "app-shared",
+                workspaceId: "workspace123",
+                write: true,
+            },
+            {
+                kind: "user-files",
+                userContextId: "user456",
+            },
+        ]);
+    });
+});
+
+describe("buildRunContext", () => {
+    it("should build workspace run context when workspaceId is provided", () => {
+        const result = buildRunContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: "workspace-key",
+            userContextId: "user456",
+            userContextKey: "user-key",
+        });
+
+        expect(result).toEqual({
+            contextId: "workspace123",
+            contextKey: "workspace-key",
+        });
     });
 
-    it("should not include compound context when userContextId is missing", () => {
-        const result = buildAgentContext({
+    it("should build user run context when no workspaceId", () => {
+        const result = buildRunContext({
+            workspaceId: null,
+            userContextId: "user456",
+            userContextKey: "user-key",
+        });
+
+        expect(result).toEqual({
+            contextId: "user456",
+            contextKey: "user-key",
+        });
+    });
+
+    it("should return empty run context when no contextIds provided", () => {
+        const result = buildRunContext({
+            workspaceId: null,
+            userContextId: null,
+        });
+
+        expect(result).toEqual({
+            contextId: "",
+            contextKey: "",
+        });
+    });
+
+    it("should return empty run context when applet userContextId is missing", () => {
+        const result = buildRunContext({
+            appletId: "applet-123",
             workspaceId: "workspace123",
             workspaceContextKey: "workspace-key",
             userContextId: null,
-            includeCompoundContext: true,
         });
 
-        expect(result).toHaveLength(1);
-        expect(result[0].contextId).toBe("workspace123");
+        expect(result).toEqual({
+            contextId: "",
+            contextKey: "",
+        });
+    });
+
+    it("should handle missing contextKeys with empty strings", () => {
+        const result = buildRunContext({
+            workspaceId: "workspace123",
+            workspaceContextKey: null,
+            userContextId: "user456",
+            userContextKey: null,
+        });
+
+        expect(result).toEqual({
+            contextId: "workspace123",
+            contextKey: "",
+        });
     });
 });
 
@@ -747,46 +919,6 @@ describe("determineFileContextId", () => {
             userContextId: "user123",
         });
         expect(result).toBe("user123");
-    });
-
-    it("should return compound contextId for non-artifacts when useCompoundContextId is true", () => {
-        const result = determineFileContextId({
-            isArtifact: false,
-            workspaceId: "workspace123",
-            userContextId: "user123",
-            useCompoundContextId: true,
-        });
-        expect(result).toBe("workspace123:user123");
-    });
-
-    it("should return userContextId for non-artifacts when useCompoundContextId is true but workspaceId is missing", () => {
-        const result = determineFileContextId({
-            isArtifact: false,
-            workspaceId: null,
-            userContextId: "user123",
-            useCompoundContextId: true,
-        });
-        expect(result).toBe("user123");
-    });
-
-    it("should return null for non-artifacts when useCompoundContextId is true but userContextId is missing", () => {
-        const result = determineFileContextId({
-            isArtifact: false,
-            workspaceId: "workspace123",
-            userContextId: null,
-            useCompoundContextId: true,
-        });
-        expect(result).toBeNull();
-    });
-
-    it("should return workspaceId for artifacts even when useCompoundContextId is true", () => {
-        const result = determineFileContextId({
-            isArtifact: true,
-            workspaceId: "workspace123",
-            userContextId: "user123",
-            useCompoundContextId: true,
-        });
-        expect(result).toBe("workspace123");
     });
 
     it("should return userContextId for artifacts when workspaceId is not provided", () => {
@@ -834,6 +966,86 @@ describe("determineFileContextId", () => {
     });
 });
 
+describe("determineFileRouting", () => {
+    it("should return workspace-shared-legacy routing for artifacts with workspaceId", () => {
+        const result = determineFileRouting({
+            isArtifact: true,
+            workspaceId: "workspace123",
+            userId: "user123",
+        });
+        expect(result).toEqual({
+            workspaceId: "workspace123",
+            fileScope: "workspace-shared-legacy",
+        });
+    });
+
+    it("should return chat routing when chatId is provided", () => {
+        const result = determineFileRouting({
+            isArtifact: false,
+            workspaceId: null,
+            userId: "user123",
+            chatId: "chat456",
+        });
+        expect(result).toEqual({
+            userId: "user123",
+            chatId: "chat456",
+            workspaceId: null,
+            fileScope: "chat",
+        });
+    });
+
+    it("should return applet routing when workspaceId is provided without chatId", () => {
+        const result = determineFileRouting({
+            isArtifact: false,
+            workspaceId: "workspace123",
+            userId: "user123",
+        });
+        expect(result).toEqual({
+            userId: "user123",
+            chatId: null,
+            workspaceId: "workspace123",
+            fileScope: "workspace-user-legacy",
+        });
+    });
+
+    it("should return global routing when no chatId or workspaceId", () => {
+        const result = determineFileRouting({
+            isArtifact: false,
+            userId: "user123",
+        });
+        expect(result).toEqual({
+            userId: "user123",
+            chatId: null,
+            workspaceId: null,
+            fileScope: "global",
+        });
+    });
+
+    it("should fall back to user routing when artifact has no workspaceId", () => {
+        const result = determineFileRouting({
+            isArtifact: true,
+            workspaceId: null,
+            userId: "user123",
+        });
+        expect(result).toEqual({
+            userId: "user123",
+            chatId: null,
+            workspaceId: null,
+            fileScope: "global",
+        });
+    });
+
+    it("should handle empty options", () => {
+        const result = determineFileRouting({});
+        expect(result).toEqual({
+            userId: undefined,
+            chatId: null,
+            workspaceId: null,
+            fileScope: "global",
+        });
+    });
+});
+
 describe("fetchShortLivedUrl", () => {
     const originalFetch = global.fetch;
     const config = require("../../../../config");
@@ -851,7 +1063,7 @@ describe("fetchShortLivedUrl", () => {
         global.fetch = originalFetch;
     });
 
-    it("should return shortLivedUrl from media-helper response", async () => {
+    it("should return shortLivedUrl and gcs from media-helper response", async () => {
         const mockShortLivedUrl =
             "https://example.com/short-lived-url?expires=300";
         global.fetch.mockResolvedValue({
@@ -859,13 +1071,20 @@ describe("fetchShortLivedUrl", () => {
             json: async () => ({
                 url: "https://example.com/original-url",
                 shortLivedUrl: mockShortLivedUrl,
+                gcs: "gs://bucket/file.jpg",
                 hash: "testhash",
             }),
         });
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
-        expect(result).toBe(mockShortLivedUrl);
+        expect(result).toEqual({
+            url: mockShortLivedUrl,
+            gcs: "gs://bucket/file.jpg",
+        });
         expect(global.fetch).toHaveBeenCalledWith(
             expect.stringContaining("checkHash=true"),
         );
@@ -880,6 +1099,83 @@ describe("fetchShortLivedUrl", () => {
         );
     });
 
+    it("should prefer blobPath over hash when both provided", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/url",
+                shortLivedUrl: "https://example.com/short",
+            }),
+        });
+
+        await fetchShortLivedUrl({
+            blobPath: "global/abc_file.pdf",
+            hash: "testhash",
+            contextId: "context123",
+        });
+
+        const fetchUrl = global.fetch.mock.calls[0][0];
+        expect(fetchUrl).toContain("blobPath=");
+        expect(fetchUrl).not.toContain("hash=testhash");
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should fall back to hash when blobPath lookup misses", async () => {
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 404,
+                text: async () => "Blob path not found",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    url: "https://example.com/url",
+                    shortLivedUrl: "https://example.com/short",
+                    gcs: "gs://bucket/fallback.pdf",
+                }),
+            });
+
+        const result = await fetchShortLivedUrl({
+            blobPath: "global/abc_file.pdf",
+            hash: "testhash",
+            contextId: "context123",
+        });
+
+        expect(result).toEqual({
+            url: "https://example.com/short",
+            gcs: "gs://bucket/fallback.pdf",
+        });
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(global.fetch.mock.calls[0][0]).toContain("blobPath=");
+        expect(global.fetch.mock.calls[0][0]).not.toContain("hash=testhash");
+        expect(global.fetch.mock.calls[1][0]).toContain("hash=testhash");
+        expect(global.fetch.mock.calls[1][0]).toContain("checkHash=true");
+    });
+
+    it("should work with blobPath only (no hash)", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/url",
+                shortLivedUrl: "https://example.com/short",
+            }),
+        });
+
+        const result = await fetchShortLivedUrl({
+            blobPath: "global/abc_file.pdf",
+            contextId: "context123",
+        });
+
+        expect(result).toEqual({
+            url: "https://example.com/short",
+            gcs: null,
+        });
+        const fetchUrl = global.fetch.mock.calls[0][0];
+        expect(fetchUrl).toContain("blobPath=");
+        expect(fetchUrl).not.toContain("checkHash=");
+    });
+
     it("should fallback to url if shortLivedUrl is not in response", async () => {
         const mockUrl = "https://example.com/original-url";
         global.fetch.mockResolvedValue({
@@ -890,15 +1186,21 @@ describe("fetchShortLivedUrl", () => {
             }),
         });
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
-        expect(result).toBe(mockUrl);
+        expect(result).toEqual({ url: mockUrl, gcs: null });
     });
 
     it("should return null when media-helper URL is not configured", async () => {
         config.endpoints.mediaHelperDirect.mockReturnValue(null);
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
         expect(result).toBeNull();
         expect(global.fetch).not.toHaveBeenCalled();
@@ -907,7 +1209,10 @@ describe("fetchShortLivedUrl", () => {
     it("should return null when fetch fails", async () => {
         global.fetch.mockRejectedValue(new Error("Network error"));
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
         expect(result).toBeNull();
     });
@@ -919,7 +1224,10 @@ describe("fetchShortLivedUrl", () => {
             text: async () => "Not found",
         });
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
         expect(result).toBeNull();
     });
@@ -932,7 +1240,10 @@ describe("fetchShortLivedUrl", () => {
             },
         });
 
-        const result = await fetchShortLivedUrl("testhash", "context123");
+        const result = await fetchShortLivedUrl({
+            hash: "testhash",
+            contextId: "context123",
+        });
 
         expect(result).toBeNull();
     });
@@ -945,7 +1256,7 @@ describe("fetchShortLivedUrl", () => {
             }),
         });
 
-        await fetchShortLivedUrl("testhash", null);
+        await fetchShortLivedUrl({ hash: "testhash" });
 
         expect(global.fetch).toHaveBeenCalledWith(
             expect.not.stringContaining("contextId"),
@@ -975,13 +1286,12 @@ describe("prepareFileContentForLLM", () => {
         expect(result).toEqual([]);
     });
 
-    it("should format files with workspaceId for artifacts", async () => {
+    it("should format files with a workspace-shared storage target", async () => {
         const mockFiles = [
             {
                 _id: "file123",
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
@@ -990,15 +1300,13 @@ describe("prepareFileContentForLLM", () => {
             json: async () => ({
                 url: "https://example.com/file1.jpg",
                 shortLivedUrl: "https://example.com/short-lived-1",
+                gcs: "gs://bucket/file1.jpg",
             }),
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1009,12 +1317,11 @@ describe("prepareFileContentForLLM", () => {
         expect(fileObj.contextId).toBe("workspace123");
     });
 
-    it("should format files with userContextId for non-artifacts", async () => {
+    it("should format files with a user-global storage target", async () => {
         const mockFiles = [
             {
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
@@ -1026,12 +1333,9 @@ describe("prepareFileContentForLLM", () => {
             }),
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            null,
-            "user123",
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createUserGlobalStorageTarget("user123"),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1044,16 +1348,13 @@ describe("prepareFileContentForLLM", () => {
                 _id: "file123",
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            false,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+            fetchShortLivedUrls: false,
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1066,16 +1367,12 @@ describe("prepareFileContentForLLM", () => {
             {
                 _id: "file123",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1089,16 +1386,12 @@ describe("prepareFileContentForLLM", () => {
                 _id: "file123",
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            null,
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget(null),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1106,50 +1399,72 @@ describe("prepareFileContentForLLM", () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("should use converted file URL and hash when available", async () => {
+    it("should use file URL and hash for short-lived URL fetch", async () => {
         const mockFiles = [
             {
                 _id: "file123",
-                hash: "original-hash",
+                hash: "file-hash",
                 url: "https://example.com/original.jpg",
-                converted: {
-                    hash: "converted-hash",
-                    url: "https://example.com/converted.jpg",
-                    gcs: "gs://bucket/converted.jpg",
-                },
             },
         ];
 
         global.fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
-                url: "https://example.com/converted.jpg",
-                shortLivedUrl: "https://example.com/short-lived-converted",
+                url: "https://example.com/original.jpg",
+                shortLivedUrl: "https://example.com/short-lived-original",
+                gcs: "gs://bucket/original.jpg",
             }),
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
-        expect(fileObj.url).toBe("https://example.com/short-lived-converted");
-        expect(fileObj.gcs).toBe("gs://bucket/converted.jpg");
-        expect(fileObj.hash).toBe("converted-hash");
-        // Should use converted hash for fetching short-lived URL
+        expect(fileObj.url).toBe("https://example.com/short-lived-original");
+        expect(fileObj.gcs).toBe("gs://bucket/original.jpg");
+        expect(fileObj.hash).toBe("file-hash");
+        // Should use hash for fetching short-lived URL
         expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining("hash=converted-hash"),
+            expect.stringContaining("hash=file-hash"),
+            expect.objectContaining({ cache: "no-store" }),
         );
     });
 
-    it("should handle multiple files", async () => {
+    it("should preserve blobPath and hash in Cortex file content", async () => {
         const mockFiles = [
             {
-                _id: "file1",
+                _id: "file123",
+                blobPath: "global/concierge-gemini.png",
+                hash: "file-hash",
+                url: "https://example.com/original.jpg",
+            },
+        ];
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                url: "https://example.com/original.jpg",
+                shortLivedUrl: "https://example.com/short-lived-original",
+            }),
+        });
+
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
+
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.blobPath).toBe("global/concierge-gemini.png");
+        expect(fileObj.hash).toBe("file-hash");
+        expect(global.fetch.mock.calls[0][0]).toContain("blobPath=");
+        expect(global.fetch.mock.calls[0][0]).not.toContain("hash=file-hash");
+    });
+
+    it("should handle multiple files with one explicit storage target", async () => {
+        const mockFiles = [
+            {
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
             },
@@ -1159,139 +1474,16 @@ describe("prepareFileContentForLLM", () => {
             },
         ];
 
-        global.fetch
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    url: "https://example.com/file1.jpg",
-                    shortLivedUrl: "https://example.com/short-lived-1",
-                }),
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    url: "https://example.com/file2.jpg",
-                    shortLivedUrl: "https://example.com/short-lived-2",
-                }),
-            });
-
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            "user123",
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createUserGlobalStorageTarget("user123"),
+            fetchShortLivedUrls: false,
+        });
 
         expect(result).toHaveLength(2);
         const file1Obj = JSON.parse(result[0]);
         const file2Obj = JSON.parse(result[1]);
-        expect(file1Obj.contextId).toBe("workspace123");
+        expect(file1Obj.contextId).toBe("user123");
         expect(file2Obj.contextId).toBe("user123");
-    });
-
-    it("should use compound contextId for non-artifact files when useCompoundContextId is true", async () => {
-        const mockFiles = [
-            {
-                // No _id, so it's a user file (non-artifact)
-                hash: "hash1",
-                url: "https://example.com/file1.jpg",
-            },
-        ];
-
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                url: "https://example.com/file1.jpg",
-                shortLivedUrl: "https://example.com/short-lived-1",
-            }),
-        });
-
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            "user123",
-            true,
-            true, // useCompoundContextId
-        );
-
-        expect(result).toHaveLength(1);
-        const fileObj = JSON.parse(result[0]);
-        expect(fileObj.contextId).toBe("workspace123:user123");
-    });
-
-    it("should use workspaceId for artifact files even when useCompoundContextId is true", async () => {
-        const mockFiles = [
-            {
-                _id: "file123", // Has _id, so it's an artifact
-                hash: "hash1",
-                url: "https://example.com/file1.jpg",
-            },
-        ];
-
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                url: "https://example.com/file1.jpg",
-                shortLivedUrl: "https://example.com/short-lived-1",
-            }),
-        });
-
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            "user123",
-            true,
-            true, // useCompoundContextId - but should not apply to artifacts
-        );
-
-        expect(result).toHaveLength(1);
-        const fileObj = JSON.parse(result[0]);
-        expect(fileObj.contextId).toBe("workspace123"); // Artifact uses workspaceId
-    });
-
-    it("should handle mixed artifact and user files with useCompoundContextId", async () => {
-        const mockFiles = [
-            {
-                _id: "file1", // Artifact
-                hash: "hash1",
-                url: "https://example.com/artifact.jpg",
-            },
-            {
-                // User file (no _id)
-                hash: "hash2",
-                url: "https://example.com/userfile.jpg",
-            },
-        ];
-
-        global.fetch
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    url: "https://example.com/artifact.jpg",
-                    shortLivedUrl: "https://example.com/short-lived-1",
-                }),
-            })
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    url: "https://example.com/userfile.jpg",
-                    shortLivedUrl: "https://example.com/short-lived-2",
-                }),
-            });
-
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            "user123",
-            true,
-            true, // useCompoundContextId
-        );
-
-        expect(result).toHaveLength(2);
-        const file1Obj = JSON.parse(result[0]);
-        const file2Obj = JSON.parse(result[1]);
-        expect(file1Obj.contextId).toBe("workspace123"); // Artifact uses workspaceId
-        expect(file2Obj.contextId).toBe("workspace123:user123"); // User file uses compound
     });
 
     it("should fallback to original URL when short-lived URL fetch fails", async () => {
@@ -1300,7 +1492,6 @@ describe("prepareFileContentForLLM", () => {
                 _id: "file123",
                 hash: "hash1",
                 url: "https://example.com/file1.jpg",
-                gcsUrl: "gs://bucket/file1.jpg",
             },
         ];
 
@@ -1309,12 +1500,9 @@ describe("prepareFileContentForLLM", () => {
             status: 404,
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         expect(result).toHaveLength(1);
         const fileObj = JSON.parse(result[0]);
@@ -1338,12 +1526,9 @@ describe("prepareFileContentForLLM", () => {
             }),
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         const fileObj = JSON.parse(result[0]);
         expect(fileObj.image_url).toEqual({
@@ -1351,7 +1536,7 @@ describe("prepareFileContentForLLM", () => {
         });
     });
 
-    it("should handle files without gcsUrl", async () => {
+    it("should omit gcs when CFH response has no gcs", async () => {
         const mockFiles = [
             {
                 _id: "file123",
@@ -1368,14 +1553,99 @@ describe("prepareFileContentForLLM", () => {
             }),
         });
 
-        const result = await prepareFileContentForLLM(
-            mockFiles,
-            "workspace123",
-            null,
-            true,
-        );
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspaceSharedStorageTarget("workspace123"),
+        });
 
         const fileObj = JSON.parse(result[0]);
-        expect(fileObj.gcs).toBe("https://example.com/file1.jpg");
+        expect(fileObj.gcs).toBeUndefined();
+    });
+
+    it("should preserve mimeType for signed blob URLs", async () => {
+        const mockFiles = [
+            {
+                hash: "hash1",
+                mimeType: "text/csv",
+                url: "https://storage.example.blob.core.windows.net/container/concierge-users.csv?sv=2025-05-05&sig=abc123",
+            },
+        ];
+
+        const result = await prepareFileContentForLLM(mockFiles, {
+            storageTarget: createWorkspacePrivateStorageTarget(
+                "user123",
+                "workspace123",
+            ),
+            fetchShortLivedUrls: false,
+        });
+
+        const fileObj = JSON.parse(result[0]);
+        expect(fileObj.mimeType).toBe("text/csv");
+        expect(fileObj.image_url).toEqual({
+            url: "https://storage.example.blob.core.windows.net/container/concierge-users.csv?sv=2025-05-05&sig=abc123",
+        });
+    });
+});
+
+describe("extractBlobPathFromUrl", () => {
+    it("should extract blob path from Azure blob URL", () => {
+        const url =
+            "https://storage.example.blob.core.windows.net/container/global/abc123_myfile.pdf";
+        expect(extractBlobPathFromUrl(url)).toBe("global/abc123_myfile.pdf");
+    });
+
+    it("should extract blob path from Azure URL with nested folders", () => {
+        const url =
+            "https://account.blob.core.windows.net/container/chats/chatId/abc123_myfile.pdf";
+        expect(extractBlobPathFromUrl(url)).toBe(
+            "chats/chatId/abc123_myfile.pdf",
+        );
+    });
+
+    it("should extract blob path from Azurite URL (127.0.0.1)", () => {
+        const url =
+            "http://127.0.0.1:10000/devstoreaccount1/container/global/abc123_myfile.pdf";
+        expect(extractBlobPathFromUrl(url)).toBe("global/abc123_myfile.pdf");
+    });
+
+    it("should extract blob path from Azurite URL (localhost)", () => {
+        const url =
+            "http://localhost:10000/devstoreaccount1/container/chats/chatId/file.txt";
+        expect(extractBlobPathFromUrl(url)).toBe("chats/chatId/file.txt");
+    });
+
+    it("should decode URI-encoded segments", () => {
+        const url =
+            "https://account.blob.core.windows.net/container/global/abc123_my%20file.pdf";
+        expect(extractBlobPathFromUrl(url)).toBe("global/abc123_my file.pdf");
+    });
+
+    it("should return null for URL with only container (no blob path)", () => {
+        const url = "https://account.blob.core.windows.net/container";
+        expect(extractBlobPathFromUrl(url)).toBeNull();
+    });
+
+    it("should return null for Azurite URL with only account and container", () => {
+        const url = "http://127.0.0.1:10000/devstoreaccount1/container";
+        expect(extractBlobPathFromUrl(url)).toBeNull();
+    });
+
+    it("should return null for invalid URL", () => {
+        expect(extractBlobPathFromUrl("not-a-url")).toBeNull();
+    });
+
+    it("should return null for empty string", () => {
+        expect(extractBlobPathFromUrl("")).toBeNull();
+    });
+
+    it("should handle SAS token in URL (query params are ignored)", () => {
+        const url =
+            "https://account.blob.core.windows.net/container/global/file.pdf?sv=2022-11-02&sig=abc";
+        expect(extractBlobPathFromUrl(url)).toBe("global/file.pdf");
+    });
+
+    it("should handle single-segment blob path", () => {
+        const url =
+            "https://account.blob.core.windows.net/container/abc123_file.pdf";
+        expect(extractBlobPathFromUrl(url)).toBe("abc123_file.pdf");
     });
 });

@@ -2,29 +2,122 @@
  * Utility functions for downloading files, including bulk ZIP downloads
  */
 
+/** Characters that are invalid in filenames (cross-platform). */
+// eslint-disable-next-line no-control-regex
+export const INVALID_FILENAME_CHARS = /[<>:"|?*\x00-\x1f]/;
+
 /**
  * Get file URL from a file object
  * Supports multiple file formats: media items, user files, etc.
  */
 export function getFileUrl(file) {
     if (typeof file === "string") return file;
-    return file?.azureUrl || file?.url || file?.gcs || null;
+    return file?.azureUrl || file?.url || null;
+}
+
+/**
+ * Strip blob hash prefix from a filename.
+ * Blob names are stored as "{hexHash}_{filename}" where hash is a hex string (xxHash64).
+ * Also extracts just the basename from any path.
+ */
+function stripBlobHash(filename) {
+    if (!filename) return filename;
+    // Extract just the filename from any path
+    const basename = filename.split("/").pop();
+    const idx = basename.indexOf("_");
+    if (idx > 0) {
+        const prefix = basename.substring(0, idx);
+        // Only strip if the prefix looks like a hex hash
+        if (/^[0-9a-f]+$/i.test(prefix)) {
+            return basename.substring(idx + 1);
+        }
+    }
+    return basename;
+}
+
+/**
+ * Wrap a blob storage URL through the image proxy for downloads.
+ * This ensures SAS token refresh on expiry and makes the URL same-origin
+ * so the anchor download attribute works.
+ */
+/**
+ * Check if a hostname belongs to a known blob storage domain.
+ */
+function isBlobStorageHost(hostname) {
+    return (
+        hostname.endsWith(".blob.core.windows.net") ||
+        hostname === "storage.googleapis.com" ||
+        hostname.endsWith(".storage.googleapis.com") ||
+        hostname === "storage.cloud.google.com" ||
+        hostname.endsWith(".storage.cloud.google.com") ||
+        hostname === "127.0.0.1" ||
+        hostname === "localhost"
+    );
+}
+
+/**
+ * Module-level cache: blob pathname → first proxy URL seen.
+ * Ensures the same blob always maps to the same proxy URL so the browser
+ * can cache the response long-term (proxy sets Cache-Control: immutable).
+ * SAS tokens rotate on each listing, but we lock in the first one seen
+ * per blob path so the browser URL stays stable across re-renders.
+ */
+const proxyUrlCache = new Map();
+
+/**
+ * Wrap a blob storage URL through the image proxy for downloads.
+ * This ensures SAS token refresh on expiry and makes the URL same-origin
+ * so the anchor download attribute works.
+ *
+ * Uses a per-pathname cache so that even when the SAS token changes between
+ * file listings, the proxy URL stays stable and the browser can serve from
+ * its HTTP cache (the proxy returns Cache-Control: immutable for 30 days).
+ */
+export function getDownloadUrl(url) {
+    if (!url) return url;
+    // Already proxied
+    if (url.includes("/api/image-proxy")) return url;
+    // Only proxy blob storage URLs
+    try {
+        const urlObj = new URL(url, window.location.origin);
+        if (isBlobStorageHost(urlObj.hostname)) {
+            // Use the pathname (without query params) as a stable cache key.
+            // This means the same blob path always returns the same proxy URL,
+            // even when the SAS token (query params) rotates between listings.
+            const cacheKey = urlObj.origin + urlObj.pathname;
+            const cached = proxyUrlCache.get(cacheKey);
+            if (cached) return cached;
+
+            const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
+            proxyUrlCache.set(cacheKey, proxyUrl);
+            return proxyUrl;
+        }
+    } catch {
+        // not a valid URL, return as-is
+    }
+    return url;
 }
 
 /**
  * Get filename from a file object
  * Supports multiple file formats: media items, user files, etc.
+ * Returns the clean filename: URL-decoded and with blob hash prefix stripped.
  */
 export function getFilename(file) {
     if (typeof file === "string") return file;
-    return (
+    const raw =
         file?.displayFilename ||
         file?.originalName ||
         file?.filename ||
         file?.name ||
         file?.path ||
-        null
-    );
+        null;
+    if (!raw) return null;
+    try {
+        return stripBlobHash(decodeURIComponent(raw));
+    } catch {
+        return stripBlobHash(raw);
+    }
 }
 
 /**
@@ -40,8 +133,6 @@ export async function downloadFilesAsZip(files, options = {}) {
     const { onError, onProgress, filenamePrefix = "files_download" } = options;
 
     try {
-        console.log("Creating ZIP with", files.length, "files");
-
         // Extract URLs and filenames from files
         const fileData = files
             .map((file) => {
@@ -54,8 +145,6 @@ export async function downloadFilesAsZip(files, options = {}) {
         if (fileData.length === 0) {
             throw new Error("No valid URLs found");
         }
-
-        console.log("Requesting server-side ZIP creation...");
 
         // Notify that download is starting
         if (onProgress) {
@@ -85,10 +174,6 @@ export async function downloadFilesAsZip(files, options = {}) {
                 throw new Error("Server did not return a ZIP file");
             }
 
-            console.log(
-                "ZIP file received from server, initiating download...",
-            );
-
             // Create blob from response and trigger download
             const zipBlob = await response.blob();
             const link = document.createElement("a");
@@ -113,7 +198,6 @@ export async function downloadFilesAsZip(files, options = {}) {
 
             // Clean up the object URL
             URL.revokeObjectURL(link.href);
-            console.log("ZIP download initiated successfully");
         } finally {
             // Notify that download is complete
             if (onProgress) {
@@ -130,13 +214,12 @@ export async function downloadFilesAsZip(files, options = {}) {
             onError(error);
         } else {
             // Fallback to individual downloads if ZIP fails
-            console.log("Falling back to individual downloads...");
             files.forEach((file) => {
                 const url = getFileUrl(file);
                 if (url) {
                     const link = document.createElement("a");
-                    link.href = url;
-                    link.download = "";
+                    link.href = getDownloadUrl(url);
+                    link.download = getFilename(file) || "";
                     link.style.display = "none";
                     document.body.appendChild(link);
                     link.click();
@@ -144,7 +227,6 @@ export async function downloadFilesAsZip(files, options = {}) {
                 }
             });
         }
-        throw error;
     }
 }
 
