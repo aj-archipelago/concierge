@@ -18,6 +18,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function UserManagementClient({
     initialUsers,
@@ -105,12 +106,12 @@ export default function UserManagementClient({
             {/* Search Form */}
             <div className="mb-6">
                 <form onSubmit={handleSearch} className="flex gap-2">
-                    <input
+                    <Input
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search by name or username..."
-                        className="flex-grow h-10 rounded-md border bg-white px-3 py-2 text-sm ring-offset-white focus:outline-none focus:ring-1 focus:ring-gray-950"
+                        className="flex-grow"
                     />
                     <Button type="submit" disabled={isSearching}>
                         {isSearching ? "Searching..." : "Search"}
@@ -120,19 +121,19 @@ export default function UserManagementClient({
 
             {/* Users Table */}
             <div className="overflow-x-auto mb-6">
-                <table className="min-w-full bg-white border border-gray-300">
+                <table className="min-w-full bg-background border border-border rounded-md">
                     <thead>
-                        <tr className="bg-gray-100 dark:bg-gray-800">
-                            <th className="px-6 py-3 border-b text-left">
+                        <tr className="bg-muted">
+                            <th className="px-6 py-3 border-b border-border text-left text-muted-foreground text-sm font-medium">
                                 Name
                             </th>
-                            <th className="px-6 py-3 border-b text-left">
+                            <th className="px-6 py-3 border-b border-border text-left text-muted-foreground text-sm font-medium">
                                 Username
                             </th>
-                            <th className="px-6 py-3 border-b text-left">
+                            <th className="px-6 py-3 border-b border-border text-left text-muted-foreground text-sm font-medium">
                                 Role
                             </th>
-                            <th className="px-6 py-3 border-b text-left">
+                            <th className="px-6 py-3 border-b border-border text-left text-muted-foreground text-sm font-medium">
                                 Actions
                             </th>
                         </tr>
@@ -142,18 +143,18 @@ export default function UserManagementClient({
                             users.map((user) => (
                                 <tr
                                     key={user._id}
-                                    className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                                    className="hover:bg-muted/50"
                                 >
-                                    <td className="px-6 py-4 border-b">
+                                    <td className="px-6 py-4 border-b border-border">
                                         {user.name}
                                     </td>
-                                    <td className="px-6 py-4 border-b">
+                                    <td className="px-6 py-4 border-b border-border">
                                         {user.username}
                                     </td>
-                                    <td className="px-6 py-4 border-b">
+                                    <td className="px-6 py-4 border-b border-border">
                                         {user.role}
                                     </td>
-                                    <td className="px-6 py-4 border-b">
+                                    <td className="px-6 py-4 border-b border-border">
                                         <Select
                                             value={user.role}
                                             onValueChange={(value) =>
@@ -185,7 +186,7 @@ export default function UserManagementClient({
                             <tr>
                                 <td
                                     colSpan="4"
-                                    className="px-6 py-4 text-center"
+                                    className="px-6 py-4 text-center text-muted-foreground"
                                 >
                                     No users found
                                 </td>

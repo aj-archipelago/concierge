@@ -123,75 +123,6 @@ export function determineFileContextId({
 }
 
 /**
- * @deprecated Kept for legacy Concierge routes that still pass Cortex agentContext.
- */
-export function createCompoundContextId(workspaceId, userContextId) {
-    return `${workspaceId}:${userContextId}`;
-}
-
-/**
- * @deprecated New prompt execution uses fileAccessPlan/runContext. Kept for legacy routes.
- */
-export function buildAgentContext({
-    workspaceId = null,
-    workspaceContextKey = null,
-    userContextId = null,
-    userContextKey = null,
-    includeCompoundContext = false,
-}) {
-    const contexts = [];
-
-    if (workspaceId) {
-        contexts.push({
-            contextId: workspaceId,
-            contextKey: workspaceContextKey || "",
-            default: true,
-        });
-
-        if (includeCompoundContext && userContextId) {
-            contexts.push({
-                contextId: createCompoundContextId(workspaceId, userContextId),
-                contextKey: userContextKey || "",
-                default: false,
-            });
-        }
-    } else if (userContextId) {
-        contexts.push({
-            contextId: userContextId,
-            contextKey: userContextKey || "",
-            default: true,
-        });
-    }
-
-    return contexts;
-}
-
-/**
- * Get LLM by ID with fallback to default LLM.
- */
-export async function getLLMWithFallback(LLM, llmId) {
-    let llm;
-
-    if (llmId) {
-        llm = await LLM.findOne({ _id: llmId });
-    }
-
-    if (!llm) {
-        llm = await LLM.findOne({ isDefault: true });
-    }
-
-    return llm;
-}
-
-export async function getAnyAgenticLLM(LLM) {
-    const llm = await LLM.findOne({ isAgentic: true });
-    if (!llm) {
-        return getLLMWithFallback(LLM, null);
-    }
-    return llm;
-}
-
-/**
  * Extract the blob path (path within the container) from an Azure blob URL.
  * Handles both Azure Blob Storage and Azurite (local dev) URL formats.
  *
@@ -333,27 +264,7 @@ export async function fetchShortLivedUrl({ blobPath, hash, contextId } = {}) {
  * @param {boolean} options.fetchShortLivedUrls - Whether to fetch short-lived URLs
  * @returns {Promise<Array>} Array of stringified file content objects
  */
-export async function prepareFileContentForLLM(
-    files,
-    options = {},
-    ...legacyArgs
-) {
-    if (
-        options === null ||
-        typeof options !== "object" ||
-        Array.isArray(options)
-    ) {
-        const workspaceId = options;
-        const userContextId = legacyArgs[0] || null;
-        const fetchShortLivedUrls = legacyArgs[1] !== false;
-        options = {
-            storageTarget: workspaceId
-                ? createWorkspaceSharedStorageTarget(workspaceId)
-                : createUserGlobalStorageTarget(userContextId),
-            fetchShortLivedUrls,
-        };
-    }
-
+export async function prepareFileContentForLLM(files, options = {}) {
     const {
         storageTarget = null,
         fallbackStorageTargets = [],

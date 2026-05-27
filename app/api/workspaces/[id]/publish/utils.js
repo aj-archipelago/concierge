@@ -1,9 +1,30 @@
 import Pathway from "../../../models/pathway";
 import Prompt from "../../../models/prompt";
 import User from "../../../models/user.mjs";
-import LLM from "../../../models/llm";
 import { deletePathway, putPathway } from "../../../pathways/[id]/db";
-import { getLLMWithFallback } from "../../../utils/llm-file-utils";
+
+// Build prompt data array from populated Prompt documents
+function buildPromptData(prompts) {
+    return prompts.map((p) => {
+        const agentMode = p.agentMode || false;
+        const cortexPathwayName = agentMode
+            ? "run_workspace_agent"
+            : "run_workspace_prompt";
+
+        const promptData = {
+            name: p.title,
+            prompt: p.text,
+            files: p.files ? p.files.map((f) => f.hash) : [],
+            cortexPathwayName,
+        };
+
+        if (cortexPathwayName === "run_workspace_agent") {
+            promptData.reasoningEffort = p.reasoningEffort || null;
+        }
+
+        return promptData;
+    });
+}
 
 // publish workspace to cortex
 export async function publishWorkspace(workspace, user, pathwayName, model) {
@@ -12,32 +33,7 @@ export async function publishWorkspace(workspace, user, pathwayName, model) {
         "files",
     );
 
-    // Create prompts with cortexPathwayName from their associated LLMs
-    // Agent mode uses run_workspace_agent; researchMode is only relevant for agents
-    const promptsWithPathway = await Promise.all(
-        prompts.map(async (p) => {
-            const llm = await getLLMWithFallback(LLM, p.llm);
-            const agentMode = p.agentMode || false;
-
-            const cortexPathwayName = agentMode
-                ? "run_workspace_agent"
-                : llm.cortexPathwayName;
-
-            const promptData = {
-                name: p.title,
-                prompt: p.text,
-                files: p.files ? p.files.map((f) => f.hash) : [],
-                cortexPathwayName,
-            };
-
-            // Only include researchMode for agent pathways
-            if (cortexPathwayName === "run_workspace_agent") {
-                promptData.researchMode = p.researchMode || false;
-            }
-
-            return promptData;
-        }),
-    );
+    const promptsWithPathway = buildPromptData(prompts);
 
     // Create a pathway object from the workspace
     const pathwayData = {
@@ -89,32 +85,7 @@ export async function republishWorkspace(workspace) {
         _id: { $in: workspace.prompts },
     }).populate("files");
 
-    // Create prompts with cortexPathwayName from their associated LLMs
-    // Agent mode uses run_workspace_agent; researchMode is only relevant for agents
-    const promptsWithPathway = await Promise.all(
-        prompts.map(async (p) => {
-            const llm = await getLLMWithFallback(LLM, p.llm);
-            const agentMode = p.agentMode || false;
-
-            const cortexPathwayName = agentMode
-                ? "run_workspace_agent"
-                : llm.cortexPathwayName;
-
-            const promptData = {
-                name: p.title,
-                prompt: p.text,
-                files: p.files ? p.files.map((f) => f.hash) : [],
-                cortexPathwayName,
-            };
-
-            // Only include researchMode for agent pathways
-            if (cortexPathwayName === "run_workspace_agent") {
-                promptData.researchMode = p.researchMode || false;
-            }
-
-            return promptData;
-        }),
-    );
+    const promptsWithPathway = buildPromptData(prompts);
 
     const pathwayData = {
         name: pathway.name,

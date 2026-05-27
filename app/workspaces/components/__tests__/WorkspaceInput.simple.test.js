@@ -40,11 +40,23 @@ jest.mock("../../../queries/prompts", () => ({
     }),
 }));
 
-jest.mock("../../../queries/llms", () => ({
-    useLLMs: () => ({
-        data: [{ _id: "llm1", name: "Test LLM", isDefault: true }],
+jest.mock("../../../queries/modelMetadata", () => ({
+    useChatModels: () => ({
+        data: [
+            { modelId: "oai-gpt51", displayName: "GPT 5.1", isDefault: true },
+        ],
+        redirects: {},
         isLoading: false,
     }),
+    useAgentModels: () => ({
+        data: [
+            { modelId: "oai-gpt51", displayName: "GPT 5.1", isDefault: true },
+        ],
+        isLoading: false,
+    }),
+    resolveModelId: (id) => id || "oai-gpt51",
+    getDisplayNameFromModelId: (id) => id,
+    getProviderFromModelId: () => "openai",
 }));
 
 // Mock the WorkspaceContext to avoid complex imports

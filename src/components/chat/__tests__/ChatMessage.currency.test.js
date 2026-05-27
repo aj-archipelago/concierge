@@ -3,6 +3,10 @@ import { render } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { convertMessageToMarkdown } from "../ChatMessage";
 
+// Mock i18n — transitive import chain reaches src/i18n.js which loads
+// locale JSON files that only exist after prebuild.
+jest.mock("../../../i18n", () => ({}));
+
 // Mock react-markdown with realistic end-to-end behavior
 // This simulates actual markdown processing including bold/italic interpretation
 // which catches bugs like __CURRENCY_0__ being interpreted as bold
@@ -116,11 +120,35 @@ jest.mock("unist-util-visit", () => ({
     },
 }));
 
-// Mock i18next
-jest.mock("i18next", () => ({
-    t: jest.fn((key) => key),
-    language: "en",
+// Mock i18next dependencies before i18n.js is imported
+jest.mock("i18next-browser-languagedetector", () => ({
+    __esModule: true,
+    default: () => {},
 }));
+
+jest.mock("react-i18next", () => ({
+    __esModule: true,
+    initReactI18next: {},
+}));
+
+// Mock i18next
+jest.mock("i18next", () => {
+    const mockI18n = {
+        t: jest.fn((key) => key),
+        language: "en",
+        use: jest.fn(function (plugin) {
+            return this; // Allow chaining
+        }),
+        init: jest.fn(function (options) {
+            return this; // Allow chaining
+        }),
+        changeLanguage: jest.fn(),
+    };
+    return {
+        __esModule: true,
+        default: mockI18n,
+    };
+});
 
 // Mock the components that ChatMessage depends on
 jest.mock("../../code/CodeBlock", () => ({

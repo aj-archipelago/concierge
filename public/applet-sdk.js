@@ -517,25 +517,27 @@
              */
             get: function () {
                 return {
-                    language: _normalizeSdkLanguage(window.LABEEB_LANGUAGE),
-                    direction: _normalizeSdkDirection(window.LABEEB_DIRECTION),
+                    language: _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE),
+                    direction: _normalizeSdkDirection(
+                        window.CONCIERGE_DIRECTION,
+                    ),
                 };
             },
 
             /** @returns {string} */
             getLanguage: function () {
-                return _normalizeSdkLanguage(window.LABEEB_LANGUAGE);
+                return _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE);
             },
 
             /** @returns {"ltr"|"rtl"} */
             getDirection: function () {
-                return _normalizeSdkDirection(window.LABEEB_DIRECTION);
+                return _normalizeSdkDirection(window.CONCIERGE_DIRECTION);
             },
 
             /** @returns {boolean} */
             isRtl: function () {
                 return (
-                    _normalizeSdkDirection(window.LABEEB_DIRECTION) === "rtl"
+                    _normalizeSdkDirection(window.CONCIERGE_DIRECTION) === "rtl"
                 );
             },
         },

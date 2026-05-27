@@ -2,16 +2,10 @@
 
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    X,
-    Maximize2,
-    Minimize2,
-    Square,
-    Microscope,
-    Trash2,
-} from "lucide-react";
+import { X, Maximize2, Minimize2, Square, Trash2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { ThemeContext } from "../../contexts/ThemeProvider";
 import { setChatBoxPosition } from "../../stores/chatSlice"; // Ensure you have this action in your slice
 import ChatContent from "./ChatContent";
 import config from "../../../config";
@@ -19,6 +13,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { AuthContext } from "../../App.js";
 import { useGetActiveChat, useUpdateChat } from "../../../app/queries/chats"; // Add this import at the top
 import { useEntities } from "../../hooks/useEntities";
+import ActiveToolsList from "./ActiveToolsList";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -48,32 +43,21 @@ function ChatBox() {
     const MAX_WIDTH = 600; // Double the default 300px
     const { t } = useTranslation();
     const { language, direction } = useContext(LanguageContext);
+    const { theme } = useContext(ThemeContext) || {};
     const router = useRouter();
     const pathname = usePathname(); // Get the current pathname
     const activeChat = useGetActiveChat()?.data;
+    const chatContentInstanceKey = activeChat?._id
+        ? `chatbox:${String(activeChat._id)}`
+        : "chatbox:default";
 
-    const { entities, defaultEntityId } = useEntities(aiName);
+    const { entities, defaultEntityId } = useEntities(aiName, {
+        userId: user?.contextId,
+        personalEntityId: user?.personalEntityId,
+    });
     const selectedEntityId = activeChat?.selectedEntityId || defaultEntityId;
     const updateChatHook = useUpdateChat();
-    const [isResearchMode, setIsResearchMode] = useState(false);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-    useEffect(() => {
-        if (activeChat?.researchMode !== undefined) {
-            setIsResearchMode(activeChat.researchMode);
-        }
-    }, [activeChat?.researchMode]);
-
-    const toggleResearchMode = () => {
-        const newMode = !isResearchMode;
-        setIsResearchMode(newMode);
-        if (activeChat?._id) {
-            updateChatHook.mutate({
-                chatId: activeChat._id,
-                researchMode: newMode,
-            });
-        }
-    };
 
     const handleClearChat = () => {
         if (activeChat?._id) {
@@ -158,17 +142,15 @@ function ChatBox() {
 
     useEffect(() => {
         if (pathname === "/chat" || pathname.startsWith("/chat/")) {
-            // Store the previous position before changing to 'full'
             if (statePosition !== "closed") {
                 updateChatBox({ position: "closed" });
             }
-        } else {
-            // Restore to the last open position if it's different from current
-            if (statePosition !== lastOpenPosition) {
-                updateChatBox({ position: lastOpenPosition });
+        } else if (pathname?.startsWith("/write")) {
+            if (statePosition !== "closed") {
+                updateChatBox({ position: "closed" });
             }
         }
-    }, [lastOpenPosition, pathname, statePosition, updateChatBox]);
+    }, [pathname, statePosition, updateChatBox]);
 
     const Actions = () => {
         switch (statePosition) {
@@ -185,7 +167,7 @@ function ChatBox() {
                         >
                             <img
                                 className="m-0"
-                                src={config?.global?.getLogo(language)}
+                                src={config?.global?.getLogo(language, theme)}
                                 alt={config?.global?.siteTitle}
                             />
                             <br></br>
@@ -224,14 +206,14 @@ function ChatBox() {
                                     chatId ? `/chat/${chatId}` : "/chat",
                                 );
                             }}
-                            className="cursor-pointer"
+                            className="cursor-pointer w-3.5 h-3.5"
                         />
                         <X
                             onClick={(e) => {
                                 e.stopPropagation();
                                 updateChatBox({ position: "closed" });
                             }}
-                            className="cursor-pointer"
+                            className="cursor-pointer w-3.5 h-3.5"
                         />
                     </>
                 );
@@ -273,6 +255,8 @@ function ChatBox() {
                     <Actions />
                 </div>
                 <ChatContent
+                    key={chatContentInstanceKey}
+                    chat={activeChat}
                     entities={entities}
                     selectedEntityId={selectedEntityId}
                     entityIconSize="lg"
@@ -312,23 +296,12 @@ function ChatBox() {
                         onClick={titleBarClick}
                     >
                         <div className="flex items-center gap-2">
-                            <Microscope
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleResearchMode();
-                                }}
-                                className={`cursor-pointer ${
-                                    isResearchMode
-                                        ? "text-sky-600 dark:text-sky-400"
-                                        : ""
-                                }`}
-                                title={t("Toggle Research Mode")}
-                            />
                             <div className="">
                                 {`${t("Chat with")} ${t(aiName || config?.chat?.botName)}`}
                             </div>
                         </div>
                         <div className="flex gap-1 items-center">
+                            <ActiveToolsList displayState={statePosition} />
                             <Trash2
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -338,8 +311,8 @@ function ChatBox() {
                                 }}
                                 className={
                                     activeChat?.messages?.length
-                                        ? "cursor-pointer"
-                                        : "cursor-not-allowed opacity-50"
+                                        ? "cursor-pointer w-3.5 h-3.5"
+                                        : "cursor-not-allowed opacity-50 w-3.5 h-3.5"
                                 }
                                 title={t("Clear chat")}
                             />
@@ -349,6 +322,8 @@ function ChatBox() {
                     {statePosition !== "closed" && (
                         <div className="grow p-3 overflow-auto">
                             <ChatContent
+                                key={chatContentInstanceKey}
+                                chat={activeChat}
                                 displayState={statePosition}
                                 container={"chatbox"}
                                 entities={entities}

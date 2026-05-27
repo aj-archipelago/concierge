@@ -61,7 +61,7 @@ async function refreshAtlassianMcpToken(serverConfig) {
 
 async function refreshAtlassian3loToken(serverConfig) {
     const clientId = process.env.NEXT_PUBLIC_ATLASSIAN_CLIENT_ID;
-    const clientSecret = process.env.ATLASSIAN_CLIENT_CREDENTIAL;
+    const clientSecret = process.env.JIRA_CLIENT_SECRET;
     if (!clientId || !clientSecret) {
         throw new Error("Atlassian OAuth is not configured");
     }

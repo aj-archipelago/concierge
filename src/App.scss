@@ -35,12 +35,16 @@ $font-family-serif:
 $chat-primary: #e5f0f0;
 $chat-secondary: #002425;
 
+[dir="rtl"],
+:lang(ar) {
+    font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
 @import "components/chat/Chat";
 @import "components/write/Write";
 @import "components/Tos";
 @import "components/AIModal";
 @import "components/CopyButton";
-@import "components/editor/ImportSuggestions";
 @import "components/editor/Diff";
 @import "components/write/Timeline";
 @import "components/write/Sidebar";

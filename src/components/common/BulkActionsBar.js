@@ -1,7 +1,16 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
-import { CheckSquare, X, Download, Trash2, Tag, Loader2 } from "lucide-react";
+import {
+    CheckSquare,
+    X,
+    Download,
+    Trash2,
+    Tag,
+    Loader2,
+    Paperclip,
+    FolderInput,
+} from "lucide-react";
 
 /**
  * Reusable bulk actions bar component for media pages and chat history
@@ -12,6 +21,7 @@ import { CheckSquare, X, Download, Trash2, Tag, Loader2 } from "lucide-react";
  * @param {Function} props.onClearSelection - Callback to clear selection
  * @param {Object} props.actions - Actions to show in the bar
  * @param {number|null} props.bottomActionsLeft - Left position for the bar
+ * @param {"viewport"|"container"} props.positionMode - Position relative to viewport or nearest positioned container
  * @param {boolean} props.isLoadingAll - Whether all items are being loaded
  */
 export default function BulkActionsBar({
@@ -21,6 +31,7 @@ export default function BulkActionsBar({
     onClearSelection,
     actions = {},
     bottomActionsLeft = null,
+    positionMode = "viewport",
     isLoadingAll = false,
 }) {
     const { t } = useTranslation();
@@ -33,19 +44,19 @@ export default function BulkActionsBar({
         <div
             className="pointer-events-none"
             role="region"
-            aria-label="Bulk actions"
+            aria-label={t("Bulk actions")}
             style={{
-                position: "fixed",
+                position: positionMode === "container" ? "absolute" : "fixed",
                 bottom: "3rem",
                 left:
-                    bottomActionsLeft !== null
+                    positionMode === "viewport" && bottomActionsLeft !== null
                         ? `${bottomActionsLeft}px`
                         : "50%",
                 transform: "translateX(-50%)",
                 zIndex: 40,
             }}
         >
-            <div className="pointer-events-auto bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl px-3 py-2 flex items-center gap-2">
+            <div className="pointer-events-auto flex max-w-[calc(100vw-1rem)] items-center gap-2 overflow-x-auto rounded-lg border border-gray-400 bg-white px-3 py-2 text-gray-900 shadow-[0_18px_45px_rgba(15,23,42,0.28)] ring-1 ring-gray-950/10 dark:border-gray-500 dark:bg-gray-900 dark:text-gray-100 dark:shadow-[0_18px_45px_rgba(0,0,0,0.6)] dark:ring-white/15">
                 <span className="text-sm whitespace-nowrap">
                     {t("Selected")} {selectedCount}
                 </span>
@@ -75,6 +86,23 @@ export default function BulkActionsBar({
                     </button>
                 )}
 
+                {/* Attach Action */}
+                {actions.attach && (
+                    <button
+                        onClick={actions.attach.onClick}
+                        disabled={
+                            selectedCount === 0 || actions.attach.disabled
+                        }
+                        className="lb-primary flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={actions.attach.ariaLabel}
+                    >
+                        <Paperclip className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                            {actions.attach.label}
+                        </span>
+                    </button>
+                )}
+
                 {/* Download/Export Action */}
                 {actions.download && (
                     <button
@@ -93,8 +121,29 @@ export default function BulkActionsBar({
                         <span className="hidden sm:inline">
                             {actions.download.disabled
                                 ? actions.download.loadingLabel ||
-                                  "Creating ZIP..."
+                                  t("Creating ZIP...")
                                 : actions.download.label}
+                        </span>
+                    </button>
+                )}
+
+                {/* Move Action */}
+                {actions.move && (
+                    <button
+                        onClick={actions.move.onClick}
+                        disabled={selectedCount === 0 || actions.move.disabled}
+                        className="lb-outline flex items-center gap-2 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={actions.move.ariaLabel}
+                    >
+                        {actions.move.disabled ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <FolderInput className="h-4 w-4" />
+                        )}
+                        <span className="hidden sm:inline">
+                            {actions.move.disabled
+                                ? actions.move.loadingLabel || t("Moving...")
+                                : actions.move.label}
                         </span>
                     </button>
                 )}

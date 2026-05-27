@@ -1,20 +1,26 @@
-import LLM from "../../../models/llm";
 import Prompt from "../../../models/prompt";
 import Workspace from "../../../models/workspace";
 import { getCurrentUser } from "../../../utils/auth";
 import { republishWorkspace } from "../publish/utils";
+import config from "../../../../../config";
 
 export async function POST(req, { params }) {
     const { id } = params;
     const user = await getCurrentUser();
 
     const promptParams = await req.json();
-    const defaultLLM = await LLM.findOne({ isDefault: true });
+    console.info("[workspace prompts create] file counts", {
+        workspaceId: id,
+        title: promptParams?.title || null,
+        files: Array.isArray(promptParams?.files)
+            ? promptParams.files.length
+            : 0,
+    });
 
     const prompt = await Prompt.create({
         ...promptParams,
         owner: user._id,
-        llm: promptParams.llm || defaultLLM._id,
+        llm: promptParams.llm || config.cortex.defaultChatModel,
     });
 
     const workspace = await Workspace.findById(id);

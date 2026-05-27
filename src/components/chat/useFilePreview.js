@@ -1,28 +1,107 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useContext } from "react";
 import mime from "mime-types";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import MonacoEditor from "@monaco-editor/react";
 import {
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
     AUDIO_EXTENSIONS,
-    DOC_EXTENSIONS,
     getExtension,
 } from "../../utils/mediaUtils";
+import { getTextProxyUrl } from "../../utils/proxyUrl";
+import { getDownloadUrl } from "../../utils/fileDownloadUtils";
+import { ThemeContext } from "../../contexts/ThemeProvider";
+import { ImageWithFallback } from "./MediaCard";
 
-/**
- * Check if a mime type represents a text-based file that can be previewed as plain text.
- * Uses mime-types library to avoid maintaining hardcoded lists.
- * @param {string} mimeType - The mime type to check
- * @returns {boolean} True if the file is text-based and previewable
- */
+const MONACO_LANGUAGE_BY_EXTENSION = {
+    js: "javascript",
+    jsx: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    py: "python",
+    rb: "ruby",
+    java: "java",
+    kt: "kotlin",
+    go: "go",
+    rs: "rust",
+    c: "c",
+    cpp: "cpp",
+    h: "c",
+    hpp: "cpp",
+    cs: "csharp",
+    swift: "swift",
+    php: "php",
+    sh: "shell",
+    bash: "shell",
+    zsh: "shell",
+    ps1: "powershell",
+    sql: "sql",
+    r: "r",
+    lua: "lua",
+    pl: "perl",
+    scala: "scala",
+    css: "css",
+    scss: "scss",
+    less: "less",
+    json: "json",
+    yaml: "yaml",
+    yml: "yaml",
+    toml: "ini",
+    xml: "xml",
+    html: "html",
+    htm: "html",
+    svg: "xml",
+    dockerfile: "dockerfile",
+    makefile: "makefile",
+    graphql: "graphql",
+    gql: "graphql",
+    proto: "protobuf",
+    tf: "hcl",
+    dart: "dart",
+    ex: "elixir",
+    exs: "elixir",
+    erl: "erlang",
+    hs: "haskell",
+    clj: "clojure",
+    vue: "html",
+    svelte: "html",
+};
+
+const PREVIEW_LABELS = {
+    image: "Preview",
+    video: "Preview",
+    audio: "Preview",
+    pdf: "Document Preview",
+    markdown: "Markdown Preview",
+    csv: "Table",
+    code: "Preview",
+    text: "Preview",
+    spreadsheet: "Spreadsheet",
+    docx: "Document Preview",
+    unsupported: "Preview",
+};
+
+/** Max text preview size (1MB) to prevent memory issues with large files */
+const MAX_TEXT_PREVIEW_BYTES = 1024 * 1024;
+
+function getExtensionWithoutDot(value) {
+    return value ? value.replace(/^\./, "").toLowerCase() : "";
+}
+
+function getMonacoLanguage(extension) {
+    return (
+        MONACO_LANGUAGE_BY_EXTENSION[getExtensionWithoutDot(extension)] || null
+    );
+}
+
 function isTextBasedMimeType(mimeType) {
     if (!mimeType) return false;
 
-    // text/* types are always text-based
     if (mimeType.startsWith("text/")) return true;
 
-    // Common application/* types that are actually text-based
     const textBasedAppTypes = [
         "application/json",
         "application/xml",
@@ -36,87 +115,85 @@ function isTextBasedMimeType(mimeType) {
     return textBasedAppTypes.includes(mimeType);
 }
 
-/**
- * Get mime type from extension, with fallback
- * @param {string} extension - File extension (with or without dot)
- * @returns {string|null} Mime type or null
- */
-function getMimeType(extension) {
-    if (!extension) return null;
-    const ext = extension.startsWith(".") ? extension.slice(1) : extension;
-    return mime.lookup(ext) || null;
+function isMarkdownType(extension, mimeType) {
+    const ext = getExtensionWithoutDot(extension);
+    return mimeType === "text/markdown" || ext === "md" || ext === "mdx";
 }
 
-/**
- * Check if a URL is from a domain that requires proxying (blob storage)
- */
-function needsProxy(url) {
-    if (!url) return false;
-    try {
-        const urlObj = new URL(url);
-        const proxyDomains = [
-            "ajcortexfilestorage.blob.core.windows.net",
-            "storage.googleapis.com",
-            "storage.cloud.google.com",
-        ];
-        return proxyDomains.some((domain) => urlObj.hostname.includes(domain));
-    } catch {
-        return false;
+function isCsvType(extension, mimeType) {
+    return (
+        getExtensionWithoutDot(extension) === "csv" || mimeType === "text/csv"
+    );
+}
+
+function isSpreadsheetType(extension, mimeType) {
+    const ext = getExtensionWithoutDot(extension);
+    return (
+        ext === "xlsx" ||
+        ext === "xls" ||
+        mimeType ===
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        mimeType === "application/vnd.ms-excel"
+    );
+}
+
+function isDocxType(extension, mimeType) {
+    return (
+        getExtensionWithoutDot(extension) === "docx" ||
+        mimeType ===
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+}
+
+function getPreviewKind(extension, mimeType) {
+    if (!extension && !mimeType) return "unsupported";
+
+    if (
+        (mimeType && mimeType.startsWith("image/")) ||
+        (extension ? IMAGE_EXTENSIONS.includes(extension) : false)
+    ) {
+        return "image";
     }
+
+    if (
+        (mimeType && mimeType.startsWith("video/")) ||
+        (extension ? VIDEO_EXTENSIONS.includes(extension) : false)
+    ) {
+        return "video";
+    }
+
+    if (
+        (mimeType && mimeType.startsWith("audio/")) ||
+        (extension ? AUDIO_EXTENSIONS.includes(extension) : false)
+    ) {
+        return "audio";
+    }
+
+    if (
+        mimeType === "application/pdf" ||
+        getExtensionWithoutDot(extension) === "pdf"
+    ) {
+        return "pdf";
+    }
+
+    if (isMarkdownType(extension, mimeType)) return "markdown";
+    if (isCsvType(extension, mimeType)) return "csv";
+    if (getMonacoLanguage(extension)) return "code";
+    if (isSpreadsheetType(extension, mimeType)) return "spreadsheet";
+    if (isDocxType(extension, mimeType)) return "docx";
+    if (isTextBasedMimeType(mimeType)) return "text";
+
+    return "unsupported";
 }
 
-/**
- * Component for rendering text file content by fetching it
- * Handles CORS-friendly text display for CSV, MD, JSON, etc.
- * Uses a proxy endpoint for blob storage URLs to bypass CORS restrictions.
- *
- * @param {boolean} compact - If true, uses smaller text for thumbnail/hover previews
- */
-export function TextFilePreview({
-    src,
-    filename,
-    className = "",
-    onLoad,
-    t,
+function PreviewState({
+    loading,
+    error,
     compact = false,
+    className = "",
+    t = null,
 }) {
-    const [content, setContent] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const translationFn = t || ((key) => key);
-
-    useEffect(() => {
-        if (!src) {
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
-        // Use proxy for blob storage URLs to bypass CORS
-        const fetchUrl = needsProxy(src)
-            ? `/api/text-proxy?url=${encodeURIComponent(src)}`
-            : src;
-
-        fetch(fetchUrl)
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error(`Failed to load file: ${response.status}`);
-                }
-                return response.text();
-            })
-            .then((text) => {
-                setContent(text);
-                setLoading(false);
-                onLoad?.();
-            })
-            .catch((err) => {
-                console.error("Error loading text file:", err);
-                setError(err.message);
-                setLoading(false);
-            });
-    }, [src, onLoad]);
 
     if (loading) {
         return (
@@ -151,26 +228,421 @@ export function TextFilePreview({
         );
     }
 
-    // Compact mode: tiny text for thumbnail/hover previews to show more content
-    // Full mode: readable text for dialog/full previews
-    const textClasses = compact
-        ? "p-1 text-[9px] leading-tight text-gray-800 dark:text-gray-200 whitespace-pre font-mono overflow-hidden"
-        : "p-4 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono";
+    return null;
+}
+
+function CsvTablePreview({ rows, compact = false }) {
+    if (!rows || rows.length === 0) return null;
+
+    const visibleRows = compact ? rows.slice(0, 6) : rows;
 
     return (
-        <div className={`${className} bg-white dark:bg-gray-900 overflow-auto`}>
-            <pre className={textClasses}>{content}</pre>
+        <div className="h-full overflow-auto">
+            <table className="min-w-full border-collapse text-sm">
+                <tbody>
+                    {visibleRows.map((row, rowIdx) => (
+                        <tr
+                            key={rowIdx}
+                            className={
+                                rowIdx === 0
+                                    ? "bg-gray-100 dark:bg-gray-800 font-medium sticky top-0"
+                                    : rowIdx % 2 === 0
+                                      ? "bg-white dark:bg-gray-900"
+                                      : "bg-gray-50 dark:bg-gray-900/50"
+                            }
+                        >
+                            {row.map((cell, colIdx) => {
+                                const CellTag = rowIdx === 0 ? "th" : "td";
+                                return (
+                                    <CellTag
+                                        key={colIdx}
+                                        className={`border border-gray-200 dark:border-gray-700 text-left text-gray-800 dark:text-gray-200 ${compact ? "px-2 py-1 text-xs max-w-[8rem]" : "px-3 py-1.5 whitespace-nowrap max-w-xs"} truncate`}
+                                        title={cell}
+                                    >
+                                        {cell}
+                                    </CellTag>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
 
-/**
- * Hook to determine file type and preview capabilities
- * @param {string} src - File URL (the actual file to preview - may be a converted format)
- * @param {string} filename - Display file name (original filename for display, e.g., "foo.xlsx")
- * @param {string} mimeType - Optional MIME type
- * @returns {object} File type information with explicit previewability flag
- */
+function parseCsv(content) {
+    if (!content) return [];
+
+    return content
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line) => {
+            const result = [];
+            let current = "";
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch === "," && !inQuotes) {
+                    result.push(current);
+                    current = "";
+                } else {
+                    current += ch;
+                }
+            }
+
+            result.push(current);
+            return result;
+        });
+}
+
+export function TextFilePreview({
+    src,
+    filename,
+    className = "",
+    onLoad,
+    t,
+    compact = false,
+    mode = "text",
+    inlineContent = null,
+    isActive = true,
+}) {
+    const { theme } = useContext(ThemeContext);
+    const monacoTheme = theme === "dark" ? "vs-dark" : "vs";
+    const [content, setContent] = useState(inlineContent ?? null);
+    const [loading, setLoading] = useState(Boolean(src) && !inlineContent);
+    const [error, setError] = useState(null);
+    const translationFn = t || ((key) => key);
+
+    useEffect(() => {
+        if (inlineContent == null) return;
+        setContent(inlineContent);
+        setLoading(false);
+        setError(null);
+        onLoad?.();
+    }, [inlineContent, onLoad]);
+
+    useEffect(() => {
+        if (inlineContent != null || !src) {
+            if (!src && inlineContent == null) {
+                setLoading(false);
+            }
+            return;
+        }
+
+        if (!isActive) return;
+
+        let cancelled = false;
+
+        setLoading(true);
+        setError(null);
+
+        fetch(getTextProxyUrl(src))
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(`Failed to load file: ${response.status}`);
+                }
+
+                const contentLength = response.headers.get("content-length");
+                if (
+                    contentLength &&
+                    parseInt(contentLength, 10) > MAX_TEXT_PREVIEW_BYTES
+                ) {
+                    throw new Error("File too large to preview");
+                }
+
+                return response.text();
+            })
+            .then((text) => {
+                if (cancelled) return;
+
+                const truncated =
+                    text.length > MAX_TEXT_PREVIEW_BYTES
+                        ? `${text.slice(0, MAX_TEXT_PREVIEW_BYTES)}\n\n... (truncated)`
+                        : text;
+
+                setContent(truncated);
+                setLoading(false);
+                onLoad?.();
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.error("Error loading text file:", err);
+                setError(err.message);
+                setLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [src, inlineContent, isActive, onLoad]);
+
+    const state = PreviewState({
+        loading,
+        error,
+        compact,
+        className,
+        t: translationFn,
+    });
+    if (state) return state;
+    if (content == null) return null;
+
+    if (compact) {
+        return (
+            <div
+                className={`${className} bg-white dark:bg-gray-900 overflow-auto`}
+            >
+                <pre className="p-1 text-[9px] leading-tight text-gray-800 dark:text-gray-200 whitespace-pre font-mono overflow-hidden">
+                    {content}
+                </pre>
+            </div>
+        );
+    }
+
+    if (mode === "markdown") {
+        return (
+            <div
+                className={`${className} h-full overflow-auto p-6 bg-white dark:bg-gray-900`}
+            >
+                <div className="max-w-3xl mx-auto prose prose-sm dark:prose-invert prose-headings:font-semibold prose-a:text-sky-600 dark:prose-a:text-sky-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-gray-100 dark:prose-pre:bg-gray-800">
+                    <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+                </div>
+            </div>
+        );
+    }
+
+    if (mode === "csv") {
+        return (
+            <div className={`${className} h-full bg-white dark:bg-gray-900`}>
+                <CsvTablePreview rows={parseCsv(content)} />
+            </div>
+        );
+    }
+
+    return (
+        <div className={`${className} h-full bg-white dark:bg-gray-900`}>
+            <MonacoEditor
+                height="100%"
+                width="100%"
+                language={
+                    mode === "code"
+                        ? getMonacoLanguage(getExtension(filename))
+                        : "plaintext"
+                }
+                theme={monacoTheme}
+                options={{
+                    fontSize: 13,
+                    readOnly: true,
+                    wordWrap: "on",
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    renderLineHighlight: "none",
+                    lineNumbers: "on",
+                    folding: true,
+                }}
+                value={content}
+            />
+        </div>
+    );
+}
+
+function SpreadsheetPreview({
+    src,
+    className = "",
+    onLoad,
+    t,
+    compact = false,
+    isActive = true,
+}) {
+    const translationFn = t || ((key) => key);
+    const [sheets, setSheets] = useState(null);
+    const [activeSheet, setActiveSheet] = useState(0);
+    const [loading, setLoading] = useState(Boolean(src));
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!src || !isActive) {
+            if (!src) {
+                setLoading(false);
+            }
+            return;
+        }
+
+        let cancelled = false;
+
+        setLoading(true);
+        setError(null);
+
+        (async () => {
+            try {
+                const xlsxModule = await import("xlsx");
+                const XLSX = xlsxModule.default || xlsxModule;
+                const response = await fetch(getDownloadUrl(src));
+                if (!response.ok) {
+                    throw new Error(`Failed to load file: ${response.status}`);
+                }
+
+                const workbook = XLSX.read(await response.arrayBuffer(), {
+                    type: "array",
+                });
+
+                const parsed = workbook.SheetNames.map((name) => ({
+                    name,
+                    data: XLSX.utils.sheet_to_json(workbook.Sheets[name], {
+                        header: 1,
+                        defval: "",
+                    }),
+                }));
+
+                if (cancelled) return;
+
+                setSheets(parsed);
+                setLoading(false);
+                onLoad?.();
+            } catch (err) {
+                if (cancelled) return;
+                console.error("Error loading spreadsheet:", err);
+                setError(err.message || "Failed to load spreadsheet");
+                setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [src, isActive, onLoad]);
+
+    const state = PreviewState({
+        loading,
+        error,
+        compact,
+        className,
+        t: translationFn,
+    });
+    if (state) return state;
+    if (!sheets || sheets.length === 0) return null;
+
+    const currentSheet = sheets[Math.min(activeSheet, sheets.length - 1)];
+    const rows = compact
+        ? (currentSheet?.data || []).slice(0, 6)
+        : currentSheet?.data || [];
+
+    return (
+        <div
+            className={`${className} flex flex-col h-full bg-white dark:bg-gray-900 overflow-hidden`}
+        >
+            {!compact && sheets.length > 1 && (
+                <div className="flex-shrink-0 flex gap-0 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-x-auto">
+                    {sheets.map((sheet, index) => (
+                        <button
+                            key={sheet.name}
+                            type="button"
+                            onClick={() => setActiveSheet(index)}
+                            className={`px-4 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+                                index === activeSheet
+                                    ? "border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300 bg-white dark:bg-gray-900"
+                                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                            }`}
+                        >
+                            {sheet.name}
+                        </button>
+                    ))}
+                </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-auto">
+                <CsvTablePreview rows={rows} compact={compact} />
+            </div>
+        </div>
+    );
+}
+
+function DocxPreview({
+    src,
+    className = "",
+    onLoad,
+    t,
+    compact = false,
+    isActive = true,
+}) {
+    const translationFn = t || ((key) => key);
+    const [html, setHtml] = useState(null);
+    const [loading, setLoading] = useState(Boolean(src));
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        if (!src || !isActive) {
+            if (!src) {
+                setLoading(false);
+            }
+            return;
+        }
+
+        let cancelled = false;
+
+        setLoading(true);
+        setError(null);
+
+        (async () => {
+            try {
+                const mammothModule = await import("mammoth");
+                const mammoth = mammothModule.default || mammothModule;
+                const response = await fetch(getDownloadUrl(src));
+                if (!response.ok) {
+                    throw new Error(`Failed to load file: ${response.status}`);
+                }
+
+                const result = await mammoth.convertToHtml({
+                    arrayBuffer: await response.arrayBuffer(),
+                });
+
+                if (cancelled) return;
+
+                setHtml(result.value);
+                setLoading(false);
+                onLoad?.();
+            } catch (err) {
+                if (cancelled) return;
+                console.error("Error loading document:", err);
+                setError(err.message || "Failed to load document");
+                setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [src, isActive, onLoad]);
+
+    const state = PreviewState({
+        loading,
+        error,
+        compact,
+        className,
+        t: translationFn,
+    });
+    if (state) return state;
+    if (!html) return null;
+
+    return (
+        <div
+            className={`${className} h-full overflow-auto ${compact ? "p-3" : "p-6"} bg-white dark:bg-gray-900`}
+        >
+            <div
+                className={`mx-auto prose dark:prose-invert prose-headings:font-semibold prose-a:text-sky-600 dark:prose-a:text-sky-400 prose-img:rounded-lg ${compact ? "prose-xs max-w-none" : "prose-sm max-w-3xl"}`}
+                dangerouslySetInnerHTML={{ __html: html }}
+            />
+        </div>
+    );
+}
+
 export function useFilePreview(src, filename, mimeType = null) {
     return useMemo(() => {
         if (!src && !filename) {
@@ -182,51 +654,39 @@ export function useFilePreview(src, filename, mimeType = null) {
                 isPdf: false,
                 isPreviewable: false,
                 extension: null,
+                mimeType: null,
+                previewKind: "unsupported",
+                previewLabel: PREVIEW_LABELS.unsupported,
             };
         }
 
-        // IMPORTANT: For converted files (e.g., docx→md, xlsx→csv), the src URL
-        // contains the actual converted file extension, while filename may still
-        // show the original name (e.g., "foo.xlsx"). We need to use src for type
-        // detection so previews work correctly with the converted format.
-        const extension = src
-            ? getExtension(src)
-            : filename
-              ? getExtension(filename)
-              : null;
+        const sourceExtension = src ? getExtension(src) : "";
+        const filenameExtension = filename ? getExtension(filename) : "";
+        const extension = sourceExtension || filenameExtension || null;
 
-        // Derive mime type from extension if not provided
-        const derivedMimeType = mimeType || getMimeType(extension);
+        const derivedMimeType = extension
+            ? mime.lookup(getExtensionWithoutDot(extension)) || null
+            : null;
 
-        // Determine file categories
-        const isImage =
-            (derivedMimeType && derivedMimeType.startsWith("image/")) ||
-            (extension ? IMAGE_EXTENSIONS.includes(extension) : false);
-        const isVideo =
-            (derivedMimeType && derivedMimeType.startsWith("video/")) ||
-            (extension ? VIDEO_EXTENSIONS.includes(extension) : false);
-        const isAudio =
-            (derivedMimeType && derivedMimeType.startsWith("audio/")) ||
-            (extension ? AUDIO_EXTENSIONS.includes(extension) : false);
-        const isDoc =
-            (derivedMimeType &&
-                (derivedMimeType.startsWith("text/") ||
-                    derivedMimeType === "application/pdf" ||
-                    derivedMimeType.startsWith("application/vnd.") ||
-                    derivedMimeType.startsWith("application/msword") ||
-                    derivedMimeType.startsWith("application/vnd.ms-"))) ||
-            (extension ? DOC_EXTENSIONS.includes(extension) : false);
+        const normalizedMimeType = sourceExtension
+            ? derivedMimeType
+            : mimeType || derivedMimeType;
 
-        // PDF is a special case of doc that browsers render well
-        const isPdf =
-            derivedMimeType === "application/pdf" || extension === ".pdf";
-
-        // Text-based files that can be previewed as plain text
-        // Uses mime-types library to determine if file is text-based
-        const isPreviewableText =
-            !isPdf && isTextBasedMimeType(derivedMimeType);
-
-        const isPreviewable = isImage || isVideo || isPdf || isPreviewableText;
+        const previewKind = getPreviewKind(extension, normalizedMimeType);
+        const isImage = previewKind === "image";
+        const isVideo = previewKind === "video";
+        const isAudio = previewKind === "audio";
+        const isPdf = previewKind === "pdf";
+        const isDoc = [
+            "pdf",
+            "markdown",
+            "csv",
+            "code",
+            "text",
+            "spreadsheet",
+            "docx",
+        ].includes(previewKind);
+        const isPreviewable = previewKind !== "unsupported";
 
         return {
             isImage,
@@ -236,22 +696,13 @@ export function useFilePreview(src, filename, mimeType = null) {
             isPdf,
             isPreviewable,
             extension,
+            mimeType: normalizedMimeType,
+            previewKind,
+            previewLabel: PREVIEW_LABELS[previewKind] || PREVIEW_LABELS.text,
         };
     }, [src, filename, mimeType]);
 }
 
-/**
- * Renders a preview for a file based on its type
- * @param {object} params
- * @param {string} params.src - File URL
- * @param {string} params.filename - File name
- * @param {object} params.fileType - Result from useFilePreview
- * @param {string} params.className - Additional CSS classes
- * @param {function} params.onLoad - Load callback
- * @param {boolean} params.autoPlay - For videos, whether to autoplay (default: false)
- * @param {boolean} params.compact - For text files, use smaller text for thumbnails/hover (default: false)
- * @returns {React.ReactElement|null} Preview element
- */
 export function renderFilePreview({
     src,
     filename,
@@ -261,17 +712,19 @@ export function renderFilePreview({
     autoPlay = false,
     t = null,
     compact = false,
+    inlineContent = null,
+    isActive = true,
+    showVideoControls = true,
 }) {
-    const { isImage, isVideo, isAudio, isDoc, isPdf } = fileType;
-    // Note: t should be passed from the component that calls useTranslation()
-    // This function cannot use hooks directly
+    const { isImage, isVideo, isAudio, isPdf, previewKind } = fileType;
     const translationFn = t || ((key) => key);
+    const previewSrc = src ? getDownloadUrl(src) : src;
 
-    if (!src) return null;
+    if (!src && inlineContent == null) return null;
 
-    if (isImage) {
+    if (isImage && src) {
         return (
-            <img
+            <ImageWithFallback
                 src={src}
                 alt={filename || translationFn("Image")}
                 className={className}
@@ -280,22 +733,23 @@ export function renderFilePreview({
         );
     }
 
-    if (isVideo) {
+    if (isVideo && src) {
         return (
             <video
-                src={src}
+                src={previewSrc}
                 className={className}
-                controls
+                controls={showVideoControls}
                 preload="metadata"
                 autoPlay={autoPlay}
-                muted={autoPlay}
                 loop={autoPlay}
+                muted={autoPlay}
+                playsInline={autoPlay}
                 onLoadedData={onLoad}
             />
         );
     }
 
-    if (isAudio) {
+    if (isAudio && src) {
         return (
             <div
                 className={`flex flex-col items-center justify-center gap-2 p-4 bg-gray-100 dark:bg-gray-800 ${className}`}
@@ -305,8 +759,9 @@ export function renderFilePreview({
                     {filename}
                 </div>
                 <audio
-                    src={src}
+                    src={previewSrc}
                     controls
+                    autoPlay={autoPlay}
                     className="w-full"
                     onLoadedData={onLoad}
                 />
@@ -314,7 +769,7 @@ export function renderFilePreview({
         );
     }
 
-    if (isPdf) {
+    if (isPdf && src) {
         return (
             <div className={`${className} bg-white dark:bg-gray-900`}>
                 <iframe
@@ -328,12 +783,12 @@ export function renderFilePreview({
         );
     }
 
-    if (isDoc && fileType.isPreviewable) {
-        // Text-based files are previewable (md, json, csv, etc.)
-        // Binary docs like .docx, .xlsx are excluded unless converted
-
-        // Use TextFilePreview component to fetch and display content
-        // This handles CORS issues that iframes have with cross-origin text files
+    if (
+        previewKind === "markdown" ||
+        previewKind === "csv" ||
+        previewKind === "code" ||
+        previewKind === "text"
+    ) {
         return (
             <TextFilePreview
                 src={src}
@@ -342,6 +797,35 @@ export function renderFilePreview({
                 onLoad={onLoad}
                 t={translationFn}
                 compact={compact}
+                mode={previewKind}
+                inlineContent={inlineContent}
+                isActive={isActive}
+            />
+        );
+    }
+
+    if (previewKind === "spreadsheet") {
+        return (
+            <SpreadsheetPreview
+                src={src}
+                className={className}
+                onLoad={onLoad}
+                t={translationFn}
+                compact={compact}
+                isActive={isActive}
+            />
+        );
+    }
+
+    if (previewKind === "docx") {
+        return (
+            <DocxPreview
+                src={src}
+                className={className}
+                onLoad={onLoad}
+                t={translationFn}
+                compact={compact}
+                isActive={isActive}
             />
         );
     }

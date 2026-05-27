@@ -14,19 +14,12 @@ const SelectValue = SelectPrimitive.Value;
 
 const SelectTrigger = React.forwardRef(
     ({ className, children, dir, ...props }, ref) => {
-        const isRTL =
-            dir === "rtl" ||
-            (typeof document !== "undefined" &&
-                document.documentElement.dir === "rtl");
         return (
             <SelectPrimitive.Trigger
                 ref={ref}
                 dir={dir}
                 className={cn(
-                    "flex h-10 w-full items-center rounded-md border border-gray-200 dark:border-gray-600 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 dark:bg-gray-800 dark:ring-offset-gray-950 dark:placeholder:text-gray-400 dark:focus:ring-gray-300",
-                    isRTL
-                        ? "flex-row-reverse justify-between [&>span]:text-end"
-                        : "justify-between [&>span]:text-start",
+                    "flex h-10 w-full items-center justify-between rounded-md border border-gray-200 dark:border-gray-600 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 [&>span]:text-start dark:bg-gray-800 dark:ring-offset-gray-950 dark:placeholder:text-gray-400 dark:focus:ring-gray-300",
                     className,
                 )}
                 {...props}
@@ -119,33 +112,23 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
 const SelectItem = React.forwardRef(
     ({ className, children, dir, ...props }, ref) => {
-        const isRTL =
-            dir === "rtl" ||
-            (typeof document !== "undefined" &&
-                document.documentElement.dir === "rtl");
         return (
             <SelectPrimitive.Item
                 ref={ref}
                 dir={dir}
                 className={cn(
                     "relative flex w-full cursor-default select-none items-center rounded-sm text-gray-600 dark:text-gray-300 py-1.5 ps-8 pe-2 text-sm outline-none hover:bg-gray-100 hover:text-gray-900 focus:bg-gray-100 focus:text-gray-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100",
-                    isRTL && "flex-row-reverse",
                     className,
                 )}
                 {...props}
             >
-                <span
-                    className={cn(
-                        "absolute flex h-3.5 w-3.5 items-center justify-center",
-                        isRTL ? "end-2" : "start-2",
-                    )}
-                >
+                <span className="absolute start-2 flex h-3.5 w-3.5 items-center justify-center">
                     <SelectPrimitive.ItemIndicator>
                         <Check className="h-4 w-4" />
                     </SelectPrimitive.ItemIndicator>
                 </span>
 
-                <div className={cn("grow", isRTL ? "text-end" : "text-start")}>
+                <div className="grow text-start">
                     <SelectPrimitive.ItemText>
                         {children}
                     </SelectPrimitive.ItemText>

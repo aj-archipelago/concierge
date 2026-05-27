@@ -1,15 +1,66 @@
+"use client";
 import React, {
     useEffect,
     useRef,
     useState,
     forwardRef,
     useCallback,
+    useContext,
+    useMemo,
 } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { convertMessageToMarkdown } from "../chat/ChatMessage";
+import { runAppletServiceOAuth } from "@/src/utils/appletServiceOAuth";
+import { LanguageContext } from "@/src/contexts/LanguageProvider";
+import {
+    normalizeAppletLocale,
+    parseAppletParams,
+} from "@/src/utils/themeUtils";
 
 const OutputSandbox = forwardRef(
-    ({ content, height = "300px", theme = "light" }, ref) => {
+    (
+        {
+            content,
+            height = "300px",
+            theme = "light",
+            autoResize = true,
+            language: languageProp,
+            direction: directionProp,
+        },
+        ref,
+    ) => {
+        const { t } = useTranslation();
+        const languageContext = useContext(LanguageContext) || {};
+        const locale = useMemo(() => {
+            const normalized = normalizeAppletLocale(
+                languageProp ?? languageContext.language ?? "en",
+            );
+            if (directionProp === "rtl" || directionProp === "ltr") {
+                return { ...normalized, direction: directionProp };
+            }
+            if (languageContext.direction === "rtl") {
+                return { ...normalized, direction: "rtl" };
+            }
+            return normalized;
+        }, [
+            languageProp,
+            directionProp,
+            languageContext.language,
+            languageContext.direction,
+        ]);
+        const searchParams = useSearchParams();
+        const search = searchParams.toString();
+        const appletParams = useMemo(
+            () => parseAppletParams(search ? `?${search}` : ""),
+            [search],
+        );
+        const appletParamsKey = useMemo(
+            () => JSON.stringify(appletParams),
+            [appletParams],
+        );
         const iframeRef = useRef(null);
         const [isLoading, setIsLoading] = useState(true);
         const resizeObserverRef = useRef(null);
@@ -18,6 +69,7 @@ const OutputSandbox = forwardRef(
         const isInitializedRef = useRef(false);
         const lastHeadContentRef = useRef("");
         const lastThemeRef = useRef(theme);
+        const lastAppletParamsKeyRef = useRef(appletParamsKey);
 
         // Forward the ref to the iframe
         React.useImperativeHandle(ref, () => ({
@@ -93,9 +145,6 @@ const OutputSandbox = forwardRef(
 
                 const preElements = frameDoc.querySelectorAll("pre.llm-output");
                 if (preElements.length === 0) {
-                    console.log(
-                        "No pre elements found - skipping portal processing",
-                    );
                     return;
                 }
 
@@ -357,6 +406,44 @@ const OutputSandbox = forwardRef(
                     return;
                 }
 
+                // Handle OAuth requests from iframe — host opens the popup
+                // so the iframe doesn't need allow-popups-to-escape-sandbox
+                if (event.data && event.data.type === "__OAUTH_REQUEST__") {
+                    const { requestId, connectInfo } = event.data;
+                    runAppletServiceOAuth(connectInfo)
+                        .then(() => {
+                            try {
+                                iframeRef.current?.contentWindow?.postMessage(
+                                    {
+                                        type: "__OAUTH_RESPONSE__",
+                                        requestId,
+                                        success: true,
+                                    },
+                                    window.location.origin,
+                                );
+                            } catch (e) {
+                                // iframe may have been unmounted
+                            }
+                        })
+                        .catch((err) => {
+                            try {
+                                iframeRef.current?.contentWindow?.postMessage(
+                                    {
+                                        type: "__OAUTH_RESPONSE__",
+                                        requestId,
+                                        success: false,
+                                        error: err.message,
+                                        code: err.code,
+                                    },
+                                    window.location.origin,
+                                );
+                            } catch (e) {
+                                // iframe may have been unmounted
+                            }
+                        });
+                    return;
+                }
+
                 // Handle other messages from the iframe
                 console.log("Message from sandbox:", event.data);
             };
@@ -394,16 +481,19 @@ const OutputSandbox = forwardRef(
                     const headContentChanged =
                         headContent !== lastHeadContentRef.current;
                     const themeChanged = theme !== lastThemeRef.current;
+                    const paramsChanged =
+                        appletParamsKey !== lastAppletParamsKeyRef.current;
 
                     // IMPORTANT: Only do incremental updates if:
                     // 1. Iframe is fully initialized (onload has fired)
-                    // 2. Only body content changed (head/theme unchanged)
+                    // 2. Only body content changed (head/theme/params unchanged; locale uses postMessage)
                     // 3. Iframe document is accessible
                     // Otherwise, do a full reload (which is needed for first load anyway)
                     const canDoIncrementalUpdate =
                         isInitializedRef.current &&
                         !headContentChanged &&
                         !themeChanged &&
+                        !paramsChanged &&
                         iframe.contentDocument &&
                         iframe.contentDocument.body &&
                         iframe.contentDocument.body.parentNode;
@@ -419,56 +509,59 @@ const OutputSandbox = forwardRef(
                             // Process any new pre elements that might have been added
                             processPreElements(frameDoc);
 
-                            // Manually update iframe height after content change
-                            // ResizeObserver might not fire immediately after innerHTML update
-                            // Use a double RAF to ensure layout has settled
-                            requestAnimationFrame(() => {
+                            if (autoResize) {
+                                // Manually update iframe height after content change
+                                // ResizeObserver might not fire immediately after innerHTML update
+                                // Use a double RAF to ensure layout has settled
                                 requestAnimationFrame(() => {
-                                    if (
-                                        frameDoc.body &&
-                                        frameDoc.documentElement
-                                    ) {
-                                        // Force a reflow to ensure measurements are accurate
-                                        void frameDoc.body.offsetHeight;
-
-                                        // Calculate height based on the actual content
-                                        const bodyHeight = Math.max(
-                                            frameDoc.body.scrollHeight,
-                                            frameDoc.body.offsetHeight,
-                                            frameDoc.body.clientHeight,
-                                        );
-                                        const docHeight = Math.max(
-                                            frameDoc.documentElement
-                                                .scrollHeight,
-                                            frameDoc.documentElement
-                                                .offsetHeight,
-                                            frameDoc.documentElement
-                                                .clientHeight,
-                                        );
-                                        const height = Math.max(
-                                            bodyHeight,
-                                            docHeight,
-                                            100,
-                                        ); // Minimum 100px
-                                        iframe.style.height = `${height}px`;
-
-                                        // Also trigger ResizeObserver if it exists
+                                    requestAnimationFrame(() => {
                                         if (
-                                            resizeObserverRef.current &&
-                                            frameDoc.body
+                                            frameDoc.body &&
+                                            frameDoc.documentElement
                                         ) {
-                                            // Manually trigger by temporarily changing body content
-                                            // This forces ResizeObserver to fire
-                                            const temp =
-                                                frameDoc.body.style.display;
-                                            frameDoc.body.style.display =
-                                                "none";
+                                            // Force a reflow to ensure measurements are accurate
                                             void frameDoc.body.offsetHeight;
-                                            frameDoc.body.style.display = temp;
+
+                                            // Calculate height based on the actual content
+                                            const bodyHeight = Math.max(
+                                                frameDoc.body.scrollHeight,
+                                                frameDoc.body.offsetHeight,
+                                                frameDoc.body.clientHeight,
+                                            );
+                                            const docHeight = Math.max(
+                                                frameDoc.documentElement
+                                                    .scrollHeight,
+                                                frameDoc.documentElement
+                                                    .offsetHeight,
+                                                frameDoc.documentElement
+                                                    .clientHeight,
+                                            );
+                                            const height = Math.max(
+                                                bodyHeight,
+                                                docHeight,
+                                                100,
+                                            ); // Minimum 100px
+                                            iframe.style.height = `${height}px`;
+
+                                            // Also trigger ResizeObserver if it exists
+                                            if (
+                                                resizeObserverRef.current &&
+                                                frameDoc.body
+                                            ) {
+                                                // Manually trigger by temporarily changing body content
+                                                // This forces ResizeObserver to fire
+                                                const temp =
+                                                    frameDoc.body.style.display;
+                                                frameDoc.body.style.display =
+                                                    "none";
+                                                void frameDoc.body.offsetHeight;
+                                                frameDoc.body.style.display =
+                                                    temp;
+                                            }
                                         }
-                                    }
+                                    });
                                 });
-                            });
+                            }
 
                             return; // Skip the reload
                         } catch (error) {
@@ -484,7 +577,8 @@ const OutputSandbox = forwardRef(
                     if (
                         !isInitializedRef.current ||
                         headContentChanged ||
-                        themeChanged
+                        themeChanged ||
+                        paramsChanged
                     ) {
                         setIsLoading(true);
                         clearAllPortals();
@@ -493,18 +587,25 @@ const OutputSandbox = forwardRef(
                     }
 
                     // Generate the filtered HTML document using the shared template
-                    const html = generateFilteredSandboxHtml(content, theme);
+                    const includeRuntimeScripts =
+                        typeof process === "undefined" ||
+                        !process.env?.JEST_WORKER_ID;
+                    const html = generateFilteredSandboxHtml(content, theme, {
+                        includeRuntimeScripts,
+                        language: locale.language,
+                        direction: locale.direction,
+                        params: appletParams,
+                    });
 
                     // Update references
                     lastHeadContentRef.current = headContent;
                     lastThemeRef.current = theme;
+                    lastAppletParamsKeyRef.current = appletParamsKey;
 
-                    // Set srcdoc directly - browsers will reload if content changed
-                    // Route-level key props ensure clean remounts, so no need to clear first
-                    iframe.srcdoc = html;
-
-                    // Handle iframe load
+                    // Handle content ready (fires after document.close() or srcdoc load)
                     iframe.onload = () => {
+                        // Guard against double-invocation (explicit call + native event)
+                        if (isInitializedRef.current) return;
                         let frameDoc;
                         try {
                             frameDoc =
@@ -535,21 +636,25 @@ const OutputSandbox = forwardRef(
                             mutationObserverRef.current.disconnect();
                         }
 
-                        // Setup new resize observer
-                        const resizeObserver = new ResizeObserver((entries) => {
-                            for (const entry of entries) {
-                                const height = Math.max(
-                                    entry.contentRect.height,
-                                    entry.target.scrollHeight,
-                                );
-                                iframe.style.height = `${height}px`;
-                            }
-                        });
+                        if (autoResize) {
+                            // Setup new resize observer
+                            const resizeObserver = new ResizeObserver(
+                                (entries) => {
+                                    for (const entry of entries) {
+                                        const height = Math.max(
+                                            entry.contentRect.height,
+                                            entry.target.scrollHeight,
+                                        );
+                                        iframe.style.height = `${height}px`;
+                                    }
+                                },
+                            );
 
-                        // Ensure body exists before observing
-                        if (frameDoc.body) {
-                            resizeObserver.observe(frameDoc.body);
-                            resizeObserverRef.current = resizeObserver;
+                            // Ensure body exists before observing
+                            if (frameDoc.body) {
+                                resizeObserver.observe(frameDoc.body);
+                                resizeObserverRef.current = resizeObserver;
+                            }
                         }
 
                         // Setup mutation observer to watch for pre elements being added
@@ -695,6 +800,36 @@ const OutputSandbox = forwardRef(
                         isInitializedRef.current = true;
                     };
 
+                    // Use document.write instead of srcdoc so we can set a
+                    // real URL via history.replaceState — srcdoc locks the URL
+                    // to about:srcdoc, breaking window.location.search.
+                    // Falls back to srcdoc when contentDocument is unavailable
+                    // (e.g. JSDOM in tests).
+                    if (iframe.contentDocument) {
+                        iframe.contentDocument.open();
+                        iframe.contentDocument.write(html);
+                        iframe.contentDocument.close();
+                        // Set URL after document is fully written — doing it
+                        // before open() is unreliable because open() can reset
+                        // the URL per HTML spec. APPLET_PARAMS is still available
+                        // for scripts that run during initial page parsing.
+                        try {
+                            const iframeSearch = search ? `?${search}` : "";
+                            iframe.contentWindow.history.replaceState(
+                                null,
+                                "",
+                                window.location.pathname + iframeSearch,
+                            );
+                        } catch (e) {}
+                        // document.close() doesn't reliably fire onload in all
+                        // environments (e.g. JSDOM). Trigger it explicitly —
+                        // the handler guards against double-invocation via
+                        // isInitializedRef.
+                        if (iframe.onload) iframe.onload();
+                    } else {
+                        iframe.srcdoc = html;
+                    }
+
                     // Handle errors
                     iframe.onerror = (error) => {
                         console.error("Sandbox iframe error:", error);
@@ -721,14 +856,18 @@ const OutputSandbox = forwardRef(
                     mutationObserverRef.current.disconnect();
                     mutationObserverRef.current = null;
                 }
+                // Detach handlers before navigating to avoid firing stale handlers
+                if (iframe) {
+                    iframe.onload = null;
+                    iframe.onerror = null;
+                }
                 // Clear iframe content to force fresh load on next mount
                 if (iframe && iframe.contentWindow) {
                     try {
-                        // Clear srcdoc to force reload
-                        iframe.srcdoc = "";
+                        iframe.src = "about:blank";
                     } catch (e) {
                         console.warn(
-                            "[OutputSandbox] Could not clear iframe srcdoc:",
+                            "[OutputSandbox] Could not clear iframe:",
                             e,
                         );
                     }
@@ -737,7 +876,18 @@ const OutputSandbox = forwardRef(
                 isInitializedRef.current = false;
                 clearAllPortals();
             };
-        }, [content, theme, processPreElements, clearAllPortals]);
+        }, [
+            content,
+            theme,
+            autoResize,
+            appletParams,
+            appletParamsKey,
+            search,
+            locale.language,
+            locale.direction,
+            processPreElements,
+            clearAllPortals,
+        ]);
 
         // Send theme change messages to iframe when theme changes
         useEffect(() => {
@@ -756,9 +906,29 @@ const OutputSandbox = forwardRef(
                         error,
                     );
                 }
-            } else {
             }
         }, [theme]);
+
+        // Send locale change messages to iframe when language/direction changes
+        useEffect(() => {
+            if (iframeRef.current && iframeRef.current.contentWindow) {
+                try {
+                    iframeRef.current.contentWindow.postMessage(
+                        {
+                            type: "locale-change",
+                            language: locale.language,
+                            direction: locale.direction,
+                        },
+                        window.location.origin,
+                    );
+                } catch (error) {
+                    console.warn(
+                        "Could not send locale change message to iframe:",
+                        error,
+                    );
+                }
+            }
+        }, [locale.language, locale.direction]);
 
         return (
             <div
@@ -766,8 +936,16 @@ const OutputSandbox = forwardRef(
                 style={{ minHeight: height === "100%" ? "100%" : undefined }}
             >
                 {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-700 z-10">
-                        <div className="text-gray-500">Loading...</div>
+                    <div
+                        className="absolute inset-0 z-10 flex items-center justify-center bg-gray-50 dark:bg-gray-700"
+                        role="status"
+                        aria-label={t("Loading...")}
+                    >
+                        <Loader2
+                            data-testid="output-sandbox-loading-spinner"
+                            className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500"
+                            aria-hidden="true"
+                        />
                     </div>
                 )}
                 <iframe
@@ -783,6 +961,7 @@ const OutputSandbox = forwardRef(
                         visibility: isLoading ? "hidden" : "visible", // Add visibility for mobile
                     }}
                     sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation"
+                    scrolling={autoResize ? undefined : "auto"}
                     title="Output Sandbox"
                 />
                 {/* Render React portals for detected pre elements */}

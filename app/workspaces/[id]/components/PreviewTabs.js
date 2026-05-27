@@ -407,7 +407,6 @@ function FilesTab({ workspaceId, isOwner }) {
                     emptyDescription={t(
                         "No personal files have been uploaded while developing this applet. These files are for debugging purposes only, not for end users.",
                     )}
-                    showPermanentColumn={false}
                     showDateColumn={true}
                     enableFilenameEdit={false}
                     enableHoverPreview={true}

@@ -7,7 +7,7 @@ import "./components/editor/Diff.scss";
  * This page renders the WordPress editor components that can be embedded
  * in WordPress via iframe or loaded as a standalone page.
  *
- * Access: https://labeeb.example.com/wp-editor
+ * Access: https://concierge.example.com/wp-editor
  */
 
 export const dynamic = "force-dynamic";

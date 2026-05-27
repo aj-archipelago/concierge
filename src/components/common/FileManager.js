@@ -14,17 +14,12 @@ import {
     Loader2,
     Upload,
 } from "lucide-react";
-import { getFileIcon } from "@/src/utils/mediaUtils";
 import {
     useFilePreview,
     renderFilePreview,
 } from "@/src/components/chat/useFilePreview";
-import {
-    isYoutubeUrl,
-    getYoutubeEmbedUrl,
-    extractYoutubeVideoId,
-    getYoutubeThumbnailUrl,
-} from "@/src/utils/urlUtils";
+import { isYoutubeUrl, getYoutubeEmbedUrl } from "@/src/utils/urlUtils";
+import MediaThumbnail from "@/src/components/common/MediaThumbnail";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -49,43 +44,147 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import {
-    Tooltip,
-    TooltipProvider,
-    TooltipTrigger,
-    TooltipContent,
-} from "@/components/ui/tooltip";
 import { useItemSelection } from "@/src/components/images/hooks/useItemSelection";
 import BulkActionsBar from "@/src/components/common/BulkActionsBar";
 import FilterInput from "@/src/components/common/FilterInput";
 import EmptyState from "@/src/components/common/EmptyState";
-import { Spinner } from "@/components/ui/spinner";
+import { createFileId } from "@/src/components/common/fileIdUtils";
+import {
+    getFileUrl as _getFileUrl,
+    getFilename as _getFilename,
+    getDownloadUrl,
+    INVALID_FILENAME_CHARS,
+} from "@/src/utils/fileDownloadUtils";
 
 // ============================================================================
 // Utility functions for file handling
 // ============================================================================
 
-/**
- * Get file URL from a file object
- */
+// Re-export from fileDownloadUtils (canonical source) with FileManager-specific defaults.
+// Wraps through the image proxy so blob URLs are stable (SAS tokens stripped) and
+// the browser can cache responses long-term via the proxy's Cache-Control headers.
 export function getFileUrl(file) {
-    if (typeof file === "string") return file;
-    return file?.url || file?.gcs || null;
+    return getDownloadUrl(_getFileUrl(file));
 }
 
-/**
- * Get filename from a file object
- */
+const TEXT_PREVIEW_EXTENSIONS = new Set([
+    "bash",
+    "c",
+    "clj",
+    "cpp",
+    "cs",
+    "css",
+    "csv",
+    "dart",
+    "dockerfile",
+    "erl",
+    "ex",
+    "exs",
+    "go",
+    "graphql",
+    "h",
+    "hpp",
+    "hs",
+    "htm",
+    "html",
+    "java",
+    "js",
+    "json",
+    "jsx",
+    "kt",
+    "less",
+    "lua",
+    "makefile",
+    "md",
+    "mdx",
+    "php",
+    "pl",
+    "proto",
+    "py",
+    "r",
+    "rb",
+    "rs",
+    "scala",
+    "scss",
+    "sh",
+    "sql",
+    "swift",
+    "tf",
+    "toml",
+    "ts",
+    "tsx",
+    "txt",
+    "vue",
+    "xml",
+    "yaml",
+    "yml",
+    "zsh",
+]);
+
+function getFileExtension(value) {
+    if (!value) return "";
+    const cleanValue = String(value).split("?")[0].split("#")[0];
+    const filename = cleanValue.split("/").pop() || "";
+    const lastDotIndex = filename.lastIndexOf(".");
+    return lastDotIndex > 0
+        ? filename.slice(lastDotIndex + 1).toLowerCase()
+        : "";
+}
+
+function isTextPreviewFile(file, url) {
+    const mimeType = file?.mimeType || "";
+    if (
+        mimeType.startsWith("text/") ||
+        [
+            "application/ecmascript",
+            "application/javascript",
+            "application/json",
+            "application/xml",
+            "application/x-javascript",
+            "application/x-yaml",
+            "application/yaml",
+        ].includes(mimeType)
+    ) {
+        return true;
+    }
+
+    const extension =
+        getFileExtension(_getFilename(file)) ||
+        getFileExtension(file?.filename) ||
+        getFileExtension(file?.name) ||
+        getFileExtension(url);
+
+    return TEXT_PREVIEW_EXTENSIONS.has(extension);
+}
+
+export function getFilePreviewUrl(file) {
+    if (typeof file === "string") {
+        return TEXT_PREVIEW_EXTENSIONS.has(getFileExtension(file))
+            ? file
+            : getDownloadUrl(file);
+    }
+
+    const url = file?.converted?.url || _getFileUrl(file);
+    return isTextPreviewFile(file, url) ? url : getDownloadUrl(url);
+}
+
+export function getFileThumbnailUrl(file) {
+    if (typeof file !== "object" || file === null) return null;
+    const media = file._mediaItem || file;
+    const thumbnailUrl =
+        media.thumbnailAzureUrl ||
+        media.thumbnailUrl ||
+        media.posterUrl ||
+        media.thumbnailGcsUrl ||
+        file.thumbnailUrl ||
+        file.posterUrl ||
+        null;
+
+    return thumbnailUrl ? getDownloadUrl(thumbnailUrl) : null;
+}
+
 export function getFilename(file) {
-    if (typeof file === "string") return file;
-    return (
-        file?.displayFilename ||
-        file?.originalName ||
-        file?.filename ||
-        file?.name ||
-        file?.path ||
-        "Unnamed file"
-    );
+    return _getFilename(file) || "Unnamed file";
 }
 
 /**
@@ -95,6 +194,7 @@ export function getFileDate(file) {
     if (typeof file !== "object") return null;
     const dateStr =
         file?.modifiedDate ||
+        file?.lastModified ||
         file?.lastAccessed ||
         file?.addedDate ||
         file?.uploadedAt;
@@ -102,6 +202,23 @@ export function getFileDate(file) {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return null;
     return date;
+}
+
+/**
+ * Short date for file lists, using the app i18n locale (not the browser default).
+ */
+export function formatFileListDate(fileDate) {
+    if (!fileDate) return "—";
+    const d = fileDate instanceof Date ? fileDate : new Date(fileDate);
+    if (isNaN(d.getTime())) return "—";
+    const locale = i18next.resolvedLanguage || i18next.language || "en";
+    const isArabic = /^ar/i.test(locale);
+    return d.toLocaleDateString(locale, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        ...(isArabic ? { calendar: "gregory" } : {}),
+    });
 }
 
 /**
@@ -115,36 +232,7 @@ export function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-/**
- * Create a stable ID for a file
- * Uses WeakMap to ensure consistent IDs for the same object instance
- * Priority: hash (stable content hash, works across MongoDB and Cortex) > _id (stable DB ID) > id/url/gcs
- */
-const fileIdMap = new WeakMap();
-let fileIdCounter = 0;
-
-export function createFileId(file) {
-    if (typeof file === "object" && file !== null) {
-        if (file.hash) return `hash-${file.hash}`;
-        if (file._id) return `id-${file._id}`;
-        if (file.id) return `id-${file.id}`;
-        if (file.url) return `url-${file.url}`;
-        if (file.gcs) return `gcs-${file.gcs}`;
-
-        // Use WeakMap for stable ID per object instance
-        const existingId = fileIdMap.get(file);
-        if (existingId) return existingId;
-
-        const filename = getFilename(file);
-        const size = file.size ?? file.bytes ?? "unknown";
-        const newId = `file-${filename}-${size}-${++fileIdCounter}`;
-        fileIdMap.set(file, newId);
-        return newId;
-    }
-
-    // Non-object (string path/URL) - deterministic ID
-    return `file-${getFilename(file)}`;
-}
+export { createFileId };
 
 // ============================================================================
 // Sub-components
@@ -191,74 +279,19 @@ function SortableHeader({
  * Exported for use in other components
  */
 export function HoverPreview({ file }) {
-    const { t } = useTranslation();
-    const isRtl = i18next.language === "ar";
-    const url = file ? getFileUrl(file) : null;
+    const url = file ? getFilePreviewUrl(file) : null;
     const filename = file ? getFilename(file) : null;
-    const mimeType = file?.mimeType;
-
-    const isYouTube = url ? isYoutubeUrl(url) : false;
-    const youtubeVideoId = isYouTube && url ? extractYoutubeVideoId(url) : null;
-    const youtubeThumbnail = youtubeVideoId
-        ? getYoutubeThumbnailUrl(youtubeVideoId, "maxresdefault")
-        : null;
-
-    const fileType = useFilePreview(url, filename, mimeType);
-
     if (!file || !url) return null;
-
-    let preview = null;
-    if (isYouTube && youtubeThumbnail) {
-        preview = (
-            <div className="relative w-full h-full">
-                <img
-                    src={youtubeThumbnail}
-                    alt={filename || t("YouTube video")}
-                    className="w-full h-full object-cover rounded"
-                    onError={(e) => {
-                        if (youtubeVideoId) {
-                            e.target.src = getYoutubeThumbnailUrl(
-                                youtubeVideoId,
-                                "hqdefault",
-                            );
-                        }
-                    }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded">
-                    <svg
-                        className="w-12 h-12 text-white opacity-90"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path d="M8 5v14l11-7z" />
-                    </svg>
-                </div>
-            </div>
-        );
-    } else {
-        preview = renderFilePreview({
-            src: url,
-            filename,
-            fileType,
-            className:
-                fileType.isPdf || fileType.isDoc
-                    ? "w-full h-full rounded border-none"
-                    : "max-w-full max-h-full object-contain rounded",
-            autoPlay: fileType.isVideo,
-            t,
-            compact: true,
-        });
-    }
 
     return (
         <div className="hidden sm:flex fixed z-[100] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden items-center justify-center p-2">
-            {preview || (
-                <div
-                    className={`text-gray-500 dark:text-gray-400 text-center p-4 ${isRtl ? "text-right" : ""}`}
-                >
-                    {t("No preview available")}
-                </div>
-            )}
+            <MediaThumbnail
+                src={url}
+                filename={filename}
+                mimeType={file?.mimeType}
+                className="w-full h-full rounded"
+                objectFit="contain"
+            />
         </div>
     );
 }
@@ -266,16 +299,32 @@ export function HoverPreview({ file }) {
 /**
  * File Preview Dialog Component
  */
-export function FilePreviewDialog({ file, onClose, onDownload, t }) {
+export function FilePreviewDialog({
+    file,
+    onClose,
+    onDownload,
+    t,
+    autoPlay = false,
+}) {
     const isRtl = i18next.language === "ar";
-    const url = file ? getFileUrl(file) : null;
+    const url = file ? getFilePreviewUrl(file) : null;
     const filename = file ? getFilename(file) : null;
     const mimeType = file?.mimeType;
+    const [mediaLoaded, setMediaLoaded] = useState(false);
+    const [downloading, setDownloading] = useState(false);
 
     const isYouTube = url ? isYoutubeUrl(url) : false;
     const youtubeEmbedUrl = isYouTube && url ? getYoutubeEmbedUrl(url) : null;
 
     const fileType = useFilePreview(url, filename, mimeType);
+
+    // Reset loading state when file changes
+    useEffect(() => {
+        setMediaLoaded(false);
+    }, [file]);
+
+    // Media types that need loading (images, videos, iframes)
+    const needsLoading = fileType.isImage || fileType.isVideo || isYouTube;
 
     const preview = url ? (
         isYouTube && youtubeEmbedUrl ? (
@@ -291,6 +340,7 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
                 allowFullScreen
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 title={t("YouTube video player")}
+                onLoad={() => setMediaLoaded(true)}
             />
         ) : (
             renderFilePreview({
@@ -301,17 +351,20 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
                     fileType.isPdf || fileType.isDoc
                         ? "w-full max-h-[80vh] rounded border-none"
                         : "max-w-full max-h-[80vh] object-contain rounded",
+                onLoad: () => setMediaLoaded(true),
+                autoPlay: fileType.isVideo || autoPlay,
                 t,
             })
         )
     ) : null;
 
     const hasPreview = preview !== null;
+    const showSpinner = hasPreview && needsLoading && !mediaLoaded;
 
     return (
         <Dialog open={!!file} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className={`max-w-[95vw] max-h-[95vh] p-4 sm:p-6 flex items-center justify-center ${isRtl ? "text-right" : ""}`}
+                className={`${showSpinner ? "w-[400px] h-[400px]" : "max-w-[95vw] max-h-[95vh]"} p-4 sm:p-6 flex items-center justify-center ${isRtl ? "text-right" : ""}`}
             >
                 <DialogTitle className="sr-only">
                     {isYouTube ? t("YouTube video player") : t("File preview")}
@@ -324,8 +377,13 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
                           : t("View file in full screen")}
                 </DialogDescription>
                 <div className="w-full flex items-center justify-center relative">
+                    {showSpinner && (
+                        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                        </div>
+                    )}
                     {hasPreview ? (
-                        preview
+                        <div>{preview}</div>
                     ) : (
                         <div
                             className={`text-gray-500 dark:text-gray-400 text-center p-8 ${isRtl ? "text-right" : ""}`}
@@ -348,9 +406,18 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
                             </p>
                         </div>
                     )}
-                    {url && (
+                    {url && !showSpinner && (
                         <button
-                            onClick={(e) => onDownload(file, e)}
+                            onClick={async (e) => {
+                                if (downloading) return;
+                                setDownloading(true);
+                                try {
+                                    await onDownload(file, e);
+                                } finally {
+                                    setDownloading(false);
+                                }
+                            }}
+                            disabled={downloading}
                             className={`absolute bottom-4 ${isRtl ? "left-4" : "right-4"} bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10`}
                             title={
                                 isYouTube ? t("Open in YouTube") : t("Download")
@@ -359,7 +426,11 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
                                 isYouTube ? t("Open in YouTube") : t("Download")
                             }
                         >
-                            <Download className="w-5 h-5" />
+                            {downloading ? (
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                                <Download className="w-5 h-5" />
+                            )}
                         </button>
                     )}
                 </div>
@@ -384,7 +455,6 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
  * @param {boolean} props.isDownloading - Optional flag indicating if download is in progress
  * @param {Function} props.onUploadClick - Optional callback when upload button is clicked (parent handles actual upload UI)
  * @param {Function} props.onUpdateMetadata - Optional async function to update file metadata
- * @param {Function} props.onTogglePermanent - Optional async function to toggle file retention
  * @param {string} props.title - Title for the file list
  * @param {React.ReactNode} props.titleExtra - Optional extra content to render after file count in header
  * @param {React.ReactNode} props.filterExtra - Optional extra content to render on the same line as the filter
@@ -392,7 +462,6 @@ export function FilePreviewDialog({ file, onClose, onDownload, t }) {
  * @param {string} props.emptyDescription - Description for empty state
  * @param {string} props.noMatchTitle - Title when filter has no results
  * @param {string} props.noMatchDescription - Description when filter has no results
- * @param {boolean} props.showPermanentColumn - Whether to show the permanent/keep column
  * @param {boolean} props.showDateColumn - Whether to show the date column
  * @param {boolean} props.enableFilenameEdit - Whether filenames are editable
  * @param {boolean} props.enableHoverPreview - Whether to show hover previews
@@ -417,7 +486,6 @@ export default function FileManager({
     isDownloading = false,
     onUploadClick,
     onUpdateMetadata,
-    onTogglePermanent,
     title,
     titleExtra,
     filterExtra,
@@ -425,7 +493,6 @@ export default function FileManager({
     emptyDescription,
     noMatchTitle,
     noMatchDescription,
-    showPermanentColumn = false,
     showDateColumn = true,
     enableFilenameEdit = false,
     enableHoverPreview = true,
@@ -455,43 +522,32 @@ export default function FileManager({
     const [editingFilename, setEditingFilename] = useState("");
     const [hoveredFile, setHoveredFile] = useState(null);
     const [previewFile, setPreviewFile] = useState(null);
-    const [togglingPermanentFileId, setTogglingPermanentFileId] =
-        useState(null);
     const [deletingFileIds, setDeletingFileIds] = useState(new Set());
     const containerRef = useRef(null);
     const hoverTimeoutRef = useRef(null);
     const filenameInputRef = useRef(null);
 
-    // Update local files when prop changes
+    // Update local files when prop changes, deduplicating by identity.
+    // The same content hash can appear in multiple scopes (chat + global),
+    // and files without blobPath fall back to hash — causing key collisions.
     useEffect(() => {
-        setLocalFiles(files);
+        const seen = new Set();
+        const deduped = files.filter((file) => {
+            const key =
+                file?.blobPath ||
+                file?._id ||
+                file?.hash ||
+                file?.url ||
+                getFilename(file);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        setLocalFiles(deduped);
     }, [files]);
 
     // Get file ID helper
-    // Priority: hash (stable content hash, works across MongoDB and Cortex) > _id (stable DB ID) > id/url/gcs
-    const getFileId = useCallback(
-        (file) => {
-            if (typeof file === "object" && file.hash)
-                return `hash-${file.hash}`;
-            if (typeof file === "object" && file._id) return `id-${file._id}`;
-            if (typeof file === "object" && file.id) return `id-${file.id}`;
-            if (typeof file === "object" && file.url) return `url-${file.url}`;
-            if (typeof file === "object" && file.gcs) return `gcs-${file.gcs}`;
-            const filename = getFilename(file);
-            const originalIndex = localFiles.findIndex((f) => {
-                if (typeof f === "object" && typeof file === "object") {
-                    return (
-                        (f.url && file.url && f.url === file.url) ||
-                        (f.gcs && file.gcs && f.gcs === file.gcs) ||
-                        (f.hash && file.hash && f.hash === file.hash)
-                    );
-                }
-                return f === file;
-            });
-            return `file-${filename}-${originalIndex}`;
-        },
-        [localFiles],
-    );
+    const getFileId = useCallback((file) => createFileId(file), []);
 
     // Selection hook (only used in bulk mode)
     const {
@@ -541,15 +597,7 @@ export default function FileManager({
         const searchLower = filterText.toLowerCase();
         return localFiles.filter((file) => {
             const filename = getFilename(file).toLowerCase();
-            const tags = Array.isArray(file?.tags)
-                ? file.tags.join(" ").toLowerCase()
-                : "";
-            const notes = (file?.notes || "").toLowerCase();
-            return (
-                filename.includes(searchLower) ||
-                tags.includes(searchLower) ||
-                notes.includes(searchLower)
-            );
+            return filename.includes(searchLower);
         });
     }, [localFiles, filterText]);
 
@@ -564,11 +612,6 @@ export default function FileManager({
                 const nameB = getFilename(b).toLowerCase();
                 const comparison = nameA.localeCompare(nameB);
                 return sortDirection === "asc" ? comparison : -comparison;
-            } else if (sortKey === "permanent") {
-                const permanentA = a?.permanent === true ? 1 : 0;
-                const permanentB = b?.permanent === true ? 1 : 0;
-                const comparison = permanentB - permanentA;
-                return sortDirection === "asc" ? -comparison : comparison;
             } else if (sortKey === "size") {
                 const sizeA = a?.size || 0;
                 const sizeB = b?.size || 0;
@@ -610,39 +653,6 @@ export default function FileManager({
             }
         },
         [sortKey, sortDirection, enableSort],
-    );
-
-    // Toggle permanent handler
-    const handleTogglePermanent = useCallback(
-        async (file) => {
-            if (!onTogglePermanent) return;
-
-            const fileId = getFileId(file);
-            setTogglingPermanentFileId(fileId);
-
-            try {
-                await onTogglePermanent(file);
-                // Optimistically update local state
-                setLocalFiles((prev) =>
-                    prev.map((f) =>
-                        getFileId(f) === fileId
-                            ? { ...f, permanent: !file?.permanent }
-                            : f,
-                    ),
-                );
-                // Refetch to sync
-                if (onRefetch) {
-                    await new Promise((resolve) => setTimeout(resolve, 200));
-                    await onRefetch();
-                }
-            } catch (error) {
-                console.error("Failed to toggle permanent status:", error);
-                if (onRefetch) await onRefetch();
-            } finally {
-                setTogglingPermanentFileId(null);
-            }
-        },
-        [getFileId, onTogglePermanent, onRefetch],
     );
 
     // Delete files handler
@@ -784,11 +794,30 @@ export default function FileManager({
         setPreviewFile(file);
     }, []);
 
-    const handleDownload = useCallback((file, e) => {
+    const handleDownload = useCallback(async (file, e) => {
         e?.stopPropagation?.();
         const url = getFileUrl(file);
-        if (url) {
-            window.open(url, "_blank", "noopener,noreferrer");
+        if (!url) return;
+        const proxyUrl = getDownloadUrl(url);
+        const name = getFilename(file) || "";
+        try {
+            const response = await fetch(proxyUrl);
+            if (!response.ok)
+                throw new Error(`Download failed: ${response.status}`);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = name;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error("Download error:", err);
+            // Fallback: open directly
+            window.open(proxyUrl, "_blank", "noopener,noreferrer");
         }
     }, []);
 
@@ -835,9 +864,7 @@ export default function FileManager({
                 return;
             }
 
-            // eslint-disable-next-line no-control-regex
-            const invalidChars = /[<>:"|?*\x00-\x1f]/;
-            if (invalidChars.test(trimmedFilename)) {
+            if (INVALID_FILENAME_CHARS.test(trimmedFilename)) {
                 toast.error(t("Filename contains invalid characters."));
                 return;
             }
@@ -983,7 +1010,10 @@ export default function FileManager({
     // Filtered empty state
     if (sortedFiles.length === 0 && filterText) {
         return (
-            <div className="flex flex-col gap-3" ref={containerRef}>
+            <div
+                className="flex flex-col gap-3 min-w-0 overflow-hidden"
+                ref={containerRef}
+            >
                 {/* Header with filter */}
                 <div className="flex flex-col gap-2">
                     {title && (
@@ -1037,7 +1067,10 @@ export default function FileManager({
 
     return (
         <>
-            <div className="flex flex-col gap-3" ref={containerRef}>
+            <div
+                className="flex flex-col gap-3 min-w-0 overflow-hidden"
+                ref={containerRef}
+            >
                 {/* Header with filter and upload button */}
                 {headerContent ? (
                     headerContent
@@ -1090,7 +1123,7 @@ export default function FileManager({
 
                 {/* File list table */}
                 <div
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden overflow-y-auto overflow-x-auto"
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden overflow-y-auto overflow-x-hidden"
                     style={{ height: containerHeight }}
                 >
                     <Table>
@@ -1151,17 +1184,6 @@ export default function FileManager({
                                             {t("Date")}
                                         </TableHead>
                                     ))}
-                                {showPermanentColumn && (
-                                    <SortableHeader
-                                        sortKey="permanent"
-                                        currentSort={sortKey}
-                                        currentDirection={sortDirection}
-                                        onSort={handleSort}
-                                        className="h-9 w-10 sm:w-12 px-1 sm:px-2"
-                                    >
-                                        {t("Keep")}
-                                    </SortableHeader>
-                                )}
                                 {rowActions && (
                                     <TableHead className="h-9 w-10 px-1 sm:px-2"></TableHead>
                                 )}
@@ -1173,25 +1195,8 @@ export default function FileManager({
                                 const isSelected = selectedIds.has(fileId);
                                 const isDeleting = deletingFileIds.has(fileId);
                                 const filename = getFilename(file);
-                                const fileUrl = getFileUrl(file);
+                                const fileUrl = getFilePreviewUrl(file);
                                 const fileMimeType = file?.mimeType;
-                                const Icon = getFileIcon(filename);
-
-                                const isImage =
-                                    fileMimeType?.startsWith("image/") || false;
-                                const isYouTube = fileUrl
-                                    ? isYoutubeUrl(fileUrl)
-                                    : false;
-                                const youtubeVideoId =
-                                    isYouTube && fileUrl
-                                        ? extractYoutubeVideoId(fileUrl)
-                                        : null;
-                                const youtubeThumbnail = youtubeVideoId
-                                    ? getYoutubeThumbnailUrl(
-                                          youtubeVideoId,
-                                          "maxresdefault",
-                                      )
-                                    : null;
 
                                 return (
                                     <TableRow
@@ -1257,59 +1262,21 @@ export default function FileManager({
                                                     : undefined
                                             }
                                         >
-                                            {isImage && fileUrl ? (
-                                                <img
+                                            <div
+                                                className="w-6 h-6 rounded overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 cursor-pointer"
+                                                onClick={(e) =>
+                                                    handleOpenFile(file, e)
+                                                }
+                                            >
+                                                <MediaThumbnail
                                                     src={fileUrl}
-                                                    alt={filename}
-                                                    className="w-6 h-6 rounded object-cover bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
-                                                    onClick={(e) =>
-                                                        handleOpenFile(file, e)
-                                                    }
+                                                    filename={filename}
+                                                    mimeType={fileMimeType}
+                                                    className="w-full h-full"
+                                                    iconSize="w-4 h-4"
+                                                    autoPlayVideo={false}
                                                 />
-                                            ) : isYouTube &&
-                                              youtubeThumbnail ? (
-                                                <div
-                                                    className="relative w-6 h-6 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
-                                                    onClick={(e) =>
-                                                        handleOpenFile(file, e)
-                                                    }
-                                                >
-                                                    <img
-                                                        src={youtubeThumbnail}
-                                                        alt={filename}
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            if (
-                                                                youtubeVideoId
-                                                            ) {
-                                                                e.target.src =
-                                                                    getYoutubeThumbnailUrl(
-                                                                        youtubeVideoId,
-                                                                        "hqdefault",
-                                                                    );
-                                                            }
-                                                        }}
-                                                    />
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none">
-                                                        <svg
-                                                            className="w-3 h-3 text-white opacity-90"
-                                                            fill="currentColor"
-                                                            viewBox="0 0 24 24"
-                                                        >
-                                                            <path d="M8 5v14l11-7z" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div
-                                                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                                    onClick={(e) =>
-                                                        handleOpenFile(file, e)
-                                                    }
-                                                >
-                                                    <Icon className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                                                </div>
-                                            )}
+                                            </div>
                                         </TableCell>
                                         <TableCell
                                             className={`px-2 sm:px-3 py-1.5 min-w-0 max-w-[200px] sm:max-w-[300px] ${isRtl ? "text-right" : "text-left"}`}
@@ -1344,68 +1311,6 @@ export default function FileManager({
                                                         )}
                                                         className="w-full text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-sky-500 dark:border-sky-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:focus:ring-sky-400"
                                                     />
-                                                ) : file?.notes ? (
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <span
-                                                                    className={`text-sm text-gray-700 dark:text-gray-300 truncate block ${enableFilenameEdit ? "cursor-pointer hover:text-sky-600 dark:hover:text-sky-400" : ""}`}
-                                                                    title={
-                                                                        filename
-                                                                    }
-                                                                    onClick={
-                                                                        enableFilenameEdit
-                                                                            ? (
-                                                                                  e,
-                                                                              ) =>
-                                                                                  handleStartEdit(
-                                                                                      file,
-                                                                                      e,
-                                                                                  )
-                                                                            : undefined
-                                                                    }
-                                                                >
-                                                                    {filename}
-                                                                </span>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent className="max-w-xs">
-                                                                <div className="font-medium mb-1">
-                                                                    {filename}
-                                                                </div>
-                                                                <div className="text-xs text-gray-600 dark:text-gray-300 whitespace-pre-wrap">
-                                                                    {file.notes}
-                                                                </div>
-                                                                {Array.isArray(
-                                                                    file?.tags,
-                                                                ) &&
-                                                                    file.tags
-                                                                        .length >
-                                                                        0 && (
-                                                                        <div className="mt-2 flex flex-wrap gap-1">
-                                                                            {file.tags.map(
-                                                                                (
-                                                                                    tag,
-                                                                                    tagIdx,
-                                                                                ) => (
-                                                                                    <span
-                                                                                        key={
-                                                                                            tagIdx
-                                                                                        }
-                                                                                        className="text-xs px-1.5 py-0.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded"
-                                                                                    >
-                                                                                        {
-                                                                                            tag
-                                                                                        }
-                                                                                    </span>
-                                                                                ),
-                                                                            )}
-                                                                        </div>
-                                                                    )}
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
                                                 ) : (
                                                     <span
                                                         className={`text-sm text-gray-700 dark:text-gray-300 truncate block ${enableFilenameEdit ? "cursor-pointer hover:text-sky-600 dark:hover:text-sky-400" : ""}`}
@@ -1430,65 +1335,10 @@ export default function FileManager({
                                                 className={`px-2 sm:px-3 py-1.5 hidden sm:table-cell ${isRtl ? "text-right" : "text-left"}`}
                                             >
                                                 <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                                    {(() => {
-                                                        const fileDate =
-                                                            getFileDate(file);
-                                                        if (!fileDate)
-                                                            return "—";
-                                                        return fileDate.toLocaleDateString(
-                                                            undefined,
-                                                            {
-                                                                year: "numeric",
-                                                                month: "short",
-                                                                day: "numeric",
-                                                            },
-                                                        );
-                                                    })()}
+                                                    {formatFileListDate(
+                                                        getFileDate(file),
+                                                    )}
                                                 </span>
-                                            </TableCell>
-                                        )}
-                                        {showPermanentColumn && (
-                                            <TableCell
-                                                className={`px-1 sm:px-2 py-1.5 ${isRtl ? "text-right" : "text-left"}`}
-                                            >
-                                                {togglingPermanentFileId ===
-                                                fileId ? (
-                                                    <div className="flex items-center justify-center w-4 h-4">
-                                                        <Spinner
-                                                            size="sm"
-                                                            className="text-sky-600 dark:text-sky-400"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={
-                                                            file?.permanent ===
-                                                            true
-                                                        }
-                                                        onMouseDown={(e) =>
-                                                            e.stopPropagation()
-                                                        }
-                                                        onClick={(e) =>
-                                                            e.stopPropagation()
-                                                        }
-                                                        onChange={(e) => {
-                                                            e.stopPropagation();
-                                                            handleTogglePermanent(
-                                                                file,
-                                                            );
-                                                        }}
-                                                        disabled={
-                                                            !onTogglePermanent
-                                                        }
-                                                        className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-sky-600 focus:ring-sky-500 dark:focus:ring-sky-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                                                        title={t(
-                                                            file?.permanent
-                                                                ? "Permanent file"
-                                                                : "Temporary file",
-                                                        )}
-                                                    />
-                                                )}
                                             </TableCell>
                                         )}
                                         {rowActions && (

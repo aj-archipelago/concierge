@@ -3,8 +3,28 @@ import { Logger } from "../../../jobs/logger.js";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
 import Task from "../models/task.mjs";
 import { copyTaskToChatMessage } from "./task-utils.mjs";
+import {
+    rememberLatestProgressPayload,
+    resolveCompletionPayload,
+} from "./task-progress-state.mjs";
+import { redactSensitiveText } from "./log-redaction.mjs";
 
 // Remove the Apollo client initialization code and use getClient instead
+
+function stringifyForLog(value, maxLength) {
+    if (value == null) return null;
+    try {
+        return redactSensitiveText(JSON.stringify(value)).substring(
+            0,
+            maxLength,
+        );
+    } catch {
+        return redactSensitiveText("[Unserializable log value]").substring(
+            0,
+            maxLength,
+        );
+    }
+}
 
 export async function executeTask(jobData, job) {
     const { taskId, type } = jobData;
@@ -58,7 +78,9 @@ export async function executeTask(jobData, job) {
             return;
         }
     } catch (error) {
-        console.error(`Error in executeTask: ${error.stack}`);
+        console.error(
+            `Error in executeTask: ${redactSensitiveText(error.stack)}`,
+        );
 
         // Call the handler's handleError method if it exists
         if (handler.handleError && typeof handler.handleError === "function") {
@@ -71,20 +93,28 @@ export async function executeTask(jobData, job) {
                 );
             } catch (handleErrorException) {
                 console.error(
-                    `Error in handler.handleError: ${handleErrorException.stack}`,
+                    `Error in handler.handleError: ${redactSensitiveText(
+                        handleErrorException.stack,
+                    )}`,
                 );
             }
         }
 
         await progressTracker.updateRequestStatus(
             "failed",
-            `Failed to execute ${type} task: ${error.message} ${error.stack}`,
+            redactSensitiveText(
+                `Failed to execute ${type} task: ${error.message} ${error.stack}`,
+            ),
         );
         throw error;
     }
 }
 
 class CortexRequestTracker {
+    // Task types that need a longer idle timeout (e.g. video generation
+    // polls a long-running operation with no intermediate progress updates)
+    static LONG_TIMEOUT_TYPES = new Set(["media-generation"]);
+
     constructor(job, client, logger) {
         this.logger = logger;
         this.job = job;
@@ -93,6 +123,13 @@ class CortexRequestTracker {
         this.subscription = null;
         this.progressUpdateReceived = false;
         this.intervals = new Set();
+        this.lastDataObject = null;
+        this.lastInfoObject = null;
+        this.idleTimeoutMs = CortexRequestTracker.LONG_TIMEOUT_TYPES.has(
+            job.data?.type,
+        )
+            ? 10 * 60 * 1000 // 10 minutes for media generation
+            : 5 * 60 * 1000; // 5 minutes for everything else
         this.promise = new Promise((resolve, reject) => {
             this.resolve = resolve;
             this.reject = reject;
@@ -104,7 +141,7 @@ class CortexRequestTracker {
         clearTimeout(this.timeoutId);
         this.timeoutId = setTimeout(
             () => this.handleTimeout(),
-            5 * 60 * 1000, // 5 minutes
+            this.idleTimeoutMs,
         );
     }
 
@@ -117,21 +154,23 @@ class CortexRequestTracker {
             this.resetIdleTimeout();
             return this.promise;
         } catch (error) {
-            console.error(`Error in run method: ${error.stack}`);
+            console.error(
+                `Error in run method: ${redactSensitiveText(error.stack)}`,
+            );
             this.cleanup();
             throw error;
         }
     }
 
     async handleTimeout() {
+        const timeoutMinutes = Math.round(this.idleTimeoutMs / 60000);
         console.warn(
-            `Job ${this.job.id} timed out after 5 minutes of inactivity`,
+            `Job ${this.job.id} timed out after ${timeoutMinutes} minutes of inactivity`,
         );
+        const timeoutMsg = `Operation timed out after ${timeoutMinutes} minutes of inactivity`;
+
         this.cleanup();
-        await this.updateRequestStatus(
-            "failed",
-            "Operation timed out after 5 minutes of inactivity",
-        );
+        await this.updateRequestStatus("failed", timeoutMsg);
 
         // Call handler's handleError for timeout errors
         try {
@@ -141,12 +180,9 @@ class CortexRequestTracker {
                 handler.handleError &&
                 typeof handler.handleError === "function"
             ) {
-                const timeoutError = new Error(
-                    "Operation timed out after 5 minutes of inactivity",
-                );
                 await handler.handleError(
                     this.job.data.taskId,
-                    timeoutError,
+                    new Error(timeoutMsg),
                     { ...metadata, userId },
                     this.client,
                 );
@@ -158,9 +194,7 @@ class CortexRequestTracker {
             );
         }
 
-        this.reject(
-            new Error("Operation timed out after 5 minutes of inactivity"),
-        );
+        this.reject(new Error(timeoutMsg));
     }
 
     setupCancellationCheck() {
@@ -210,6 +244,51 @@ class CortexRequestTracker {
         this.setupSubscription(cortexRequestId);
     }
 
+    /**
+     * Appends additional error details to a base error message.
+     * Handles proper spacing when the base error ends with a colon.
+     * @param {string} baseError - The base error message
+     * @param {string|object} additionalError - Additional error details (string or object with error/message/details/result)
+     * @param {boolean} checkDuplication - Whether to check if the additional error is already included
+     * @returns {string} The concatenated error message
+     */
+    appendErrorDetails(baseError, additionalError, checkDuplication = false) {
+        if (!additionalError) return baseError;
+
+        // Extract error text from object if needed
+        const errorText =
+            typeof additionalError === "string"
+                ? additionalError
+                : additionalError.error ||
+                  additionalError.message ||
+                  additionalError.details ||
+                  additionalError.result ||
+                  null;
+
+        if (!errorText) return baseError;
+
+        const errorTextString =
+            typeof errorText === "string"
+                ? errorText
+                : JSON.stringify(errorText);
+
+        // Check for duplication if requested
+        if (checkDuplication && baseError.includes(errorTextString)) {
+            return baseError;
+        }
+
+        // Check if base error ends with colon
+        const errorEndsWithColon =
+            baseError.trim().endsWith(":") || baseError.trim().endsWith(": ");
+
+        // Append with appropriate spacing
+        if (errorEndsWithColon) {
+            return `${baseError.trim()} ${errorTextString}`;
+        } else {
+            return `${baseError} ${errorTextString}`;
+        }
+    }
+
     async handleProgressUpdate(data, taskId) {
         let progress = data?.requestProgress?.progress || 0;
 
@@ -221,12 +300,51 @@ class CortexRequestTracker {
             data?.requestProgress?.info,
         );
 
+        const latestPayload = rememberLatestProgressPayload(
+            {
+                dataObject: this.lastDataObject,
+                infoObject: this.lastInfoObject,
+            },
+            {
+                rawData: data?.requestProgress?.data,
+                parsedData: dataObject,
+                rawInfo: data?.requestProgress?.info,
+                parsedInfo: infoObject,
+            },
+        );
+        this.lastDataObject = latestPayload.dataObject;
+        this.lastInfoObject = latestPayload.infoObject;
+
         if (data?.requestProgress?.error) {
-            await this.handleProgressError(
-                data.requestProgress.error,
-                taskId,
-                dataObject,
+            // Log the full requestProgress object to see what's available
+            console.error(
+                "[TaskExecutor] Full requestProgress object:",
+                redactSensitiveText(
+                    JSON.stringify(data.requestProgress, null, 2),
+                ),
             );
+
+            // Try to extract more error details from infoObject or dataObject
+            let errorDetails = data.requestProgress.error;
+
+            // Check if infoObject contains additional error information
+            if (infoObject && typeof infoObject === "object") {
+                errorDetails = this.appendErrorDetails(
+                    errorDetails,
+                    infoObject,
+                );
+            }
+
+            // Check if dataObject contains error information
+            if (dataObject && typeof dataObject === "object") {
+                errorDetails = this.appendErrorDetails(
+                    errorDetails,
+                    dataObject,
+                    true, // Check for duplication
+                );
+            }
+
+            await this.handleProgressError(errorDetails, taskId, dataObject);
             return { shouldResolve: true, dataObject };
         }
 
@@ -237,11 +355,17 @@ class CortexRequestTracker {
         );
 
         if (progress === 1) {
+            const completionPayload = resolveCompletionPayload({
+                currentDataObject: dataObject,
+                currentInfoObject: infoObject,
+                lastDataObject: this.lastDataObject,
+                lastInfoObject: this.lastInfoObject,
+            });
             return await this.handleCompletion(
                 data,
                 taskId,
-                dataObject,
-                infoObject,
+                completionPayload.dataObject,
+                completionPayload.infoObject,
             );
         }
 
@@ -312,29 +436,76 @@ class CortexRequestTracker {
     }
 
     async handleProgressError(error, taskId, dataObject) {
-        console.error("Error in request progress worker", error);
+        const { type, userId, metadata } = this.job.data;
+
+        // Extract error message - handle both Error objects and strings
+        let errorMessage = error;
+        let errorStack = undefined;
+        let errorCode = undefined;
+        let errorName = undefined;
+
+        if (error && typeof error === "object") {
+            errorMessage = error.message || error.toString();
+            errorStack = error.stack;
+            errorCode = error.code;
+            errorName = error.name;
+        } else if (typeof error === "string") {
+            errorMessage = error;
+        }
+
+        // Log comprehensive error details
+        console.error("[TaskExecutor] Error in request progress worker:", {
+            taskId,
+            type,
+            userId,
+            errorMessage: redactSensitiveText(errorMessage),
+            errorStack: redactSensitiveText(errorStack),
+            errorCode,
+            errorName,
+            originalError: redactSensitiveText(error?.message || error),
+            dataObject: stringifyForLog(dataObject, 1000),
+            metadata: stringifyForLog(metadata, 500),
+        });
+        console.error("[TaskExecutor] Full error object:", {
+            name: error?.name,
+            code: error?.code,
+            message: redactSensitiveText(error?.message),
+            stack: redactSensitiveText(error?.stack),
+        });
+
+        // Create an Error object if we only have a string
+        const errorObj =
+            typeof error === "string" ? new Error(errorMessage) : error;
 
         // Call task handler's error method if it exists
         try {
-            const { type, userId, metadata } = this.job.data;
             const handler = await loadTaskDefinition(type);
 
             if (handler.handleError) {
                 await handler.handleError(
                     this.job.data.taskId,
-                    error,
+                    errorObj,
                     { ...metadata, userId },
                     this.client,
                 );
             }
         } catch (handlerError) {
             console.error(
-                "Error calling task handler error method:",
-                handlerError,
+                "[TaskExecutor] Error calling task handler error method:",
+                {
+                    handlerError: redactSensitiveText(
+                        handlerError?.message || handlerError?.toString(),
+                    ),
+                    handlerErrorStack: redactSensitiveText(handlerError?.stack),
+                    taskType: type,
+                },
             );
         }
 
-        await this.updateRequestStatus("failed", error);
+        await this.updateRequestStatus(
+            "failed",
+            redactSensitiveText(errorMessage),
+        );
         this.cleanup();
         return { shouldResolve: true, dataObject };
     }
@@ -343,7 +514,7 @@ class CortexRequestTracker {
         if (data?.requestProgress?.error) {
             await this.updateRequestStatus(
                 "failed",
-                data.requestProgress.error,
+                redactSensitiveText(data.requestProgress.error),
             );
             return { shouldResolve: true, dataObject };
         }
@@ -353,6 +524,30 @@ class CortexRequestTracker {
                 dataObject,
                 infoObject,
             );
+
+            // Check if handler returned an error in the result
+            if (dataObject?.error) {
+                const errorMessage =
+                    typeof dataObject.error === "string"
+                        ? dataObject.error
+                        : dataObject.error?.message || "Task execution failed";
+                console.error(
+                    "[TaskExecutor] Handler returned error in completion result:",
+                    {
+                        taskId,
+                        error: redactSensitiveText(
+                            JSON.stringify(dataObject.error),
+                        ),
+                        errorMessage: redactSensitiveText(errorMessage),
+                    },
+                );
+                await this.updateRequestStatus(
+                    "failed",
+                    redactSensitiveText(errorMessage),
+                );
+                return { shouldResolve: true, dataObject };
+            }
+
             const task = await this.updateRequestStatus(
                 "completed",
                 null,
@@ -365,6 +560,31 @@ class CortexRequestTracker {
             // if infoObject contains the artifacts
             if (infoObject && infoObject.artifacts) {
                 dataObject = await this.processCompletedData(null, infoObject);
+
+                // Check if handler returned an error in the result
+                if (dataObject?.error) {
+                    const errorMessage =
+                        typeof dataObject.error === "string"
+                            ? dataObject.error
+                            : dataObject.error?.message ||
+                              "Task execution failed";
+                    console.error(
+                        "[TaskExecutor] Handler returned error in completion result:",
+                        {
+                            taskId,
+                            error: redactSensitiveText(
+                                JSON.stringify(dataObject.error),
+                            ),
+                            errorMessage: redactSensitiveText(errorMessage),
+                        },
+                    );
+                    await this.updateRequestStatus(
+                        "failed",
+                        redactSensitiveText(errorMessage),
+                    );
+                    return { shouldResolve: true, dataObject };
+                }
+
                 const task = await this.updateRequestStatus(
                     "completed",
                     null,
@@ -372,6 +592,18 @@ class CortexRequestTracker {
                 );
                 await copyTaskToChatMessage(task);
             } else {
+                if (this.job.data.type === "media-generation") {
+                    const missingDataError = new Error(
+                        "Media generation completed without returning media data. Please try again.",
+                    );
+                    missingDataError.code = "MISSING_COMPLETION_DATA";
+                    return await this.handleProgressError(
+                        missingDataError,
+                        taskId,
+                        dataObject,
+                    );
+                }
+
                 await this.updateRequestStatus("completed");
             }
         }
@@ -459,10 +691,15 @@ class CortexRequestTracker {
                             this.resolve(dataObject);
                         }
                     } catch (error) {
-                        console.error("Error handling progress update:", error);
+                        console.error("Error handling progress update:", {
+                            message: redactSensitiveText(error?.message),
+                            stack: redactSensitiveText(error?.stack),
+                        });
                         await this.updateRequestStatus(
                             "failed",
-                            `Failed to process progress update: ${error.message}`,
+                            redactSensitiveText(
+                                `Failed to process progress update: ${error.message}`,
+                            ),
                         );
                         this.cleanup();
                         this.reject(error);
@@ -471,13 +708,18 @@ class CortexRequestTracker {
                 error: async (error) => {
                     console.error(
                         `Subscription error for ${cortexRequestId}:`,
-                        error,
+                        {
+                            message: redactSensitiveText(error?.message),
+                            stack: redactSensitiveText(error?.stack),
+                        },
                     );
                     try {
                         this.cleanup();
                         await this.updateRequestStatus(
                             "failed",
-                            error.message || error.toString(),
+                            redactSensitiveText(
+                                error.message || error.toString(),
+                            ),
                         );
                     } catch (cleanupError) {
                         console.error("Error during cleanup:", cleanupError);

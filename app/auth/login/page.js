@@ -107,7 +107,7 @@ export default function LoginPage() {
                                         onChange={(e) =>
                                             setEmail(e.target.value)
                                         }
-                                        className="pl-10"
+                                        className="ps-10"
                                         placeholder="Enter your email address"
                                     />
                                 </div>

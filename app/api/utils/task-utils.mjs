@@ -1,6 +1,7 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "./redis.mjs";
 import Task from "../models/task.mjs";
+import { prepareMessagesForPersistence } from "../chats/persistence.js";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
@@ -41,13 +42,11 @@ export async function checkAndUpdateAbandonedTask(task) {
                     "../../../src/utils/task-loader.mjs"
                 );
                 const { getClient } = await import("../../../jobs/graphql.mjs");
-                const handler = await loadTaskDefinition(task.type);
+                const handler = await loadTaskDefinition(task.type, true);
+                if (!handler) return task;
                 const client = await getClient();
 
-                if (
-                    handler.handleError &&
-                    typeof handler.handleError === "function"
-                ) {
+                if (typeof handler.handleError === "function") {
                     const abandonedError = new Error(
                         "Task was abandoned due to inactivity",
                     );
@@ -113,10 +112,20 @@ export async function copyTaskToChatMessage(task) {
         task: task.toObject(),
     };
 
+    const prepared = prepareMessagesForPersistence(updatedMessages);
+    const updateData = {
+        messages: prepared.messages,
+        messageStorageBytes: prepared.messageStorageBytes,
+    };
+    if (prepared.messagesCompacted) {
+        updateData.messagesCompacted = true;
+        updateData.messagesCompactedAt = new Date();
+    }
+
     // Update the entire messages array using findOneAndUpdate
     await Chat.findOneAndUpdate(
         { _id: task.invokedFrom.chatId },
-        { $set: { messages: updatedMessages } },
+        { $set: updateData },
         { new: true },
     );
 }
@@ -192,10 +201,20 @@ export async function removeTaskFromChatMessage(task) {
         task: undefined,
     };
 
+    const prepared = prepareMessagesForPersistence(updatedMessages);
+    const updateData = {
+        messages: prepared.messages,
+        messageStorageBytes: prepared.messageStorageBytes,
+    };
+    if (prepared.messagesCompacted) {
+        updateData.messagesCompacted = true;
+        updateData.messagesCompactedAt = new Date();
+    }
+
     // Update the entire messages array using findOneAndUpdate
     await Chat.findOneAndUpdate(
         { _id: task.invokedFrom.chatId },
-        { $set: { messages: updatedMessages } },
+        { $set: updateData },
         { new: true },
     );
 }
@@ -346,14 +365,12 @@ export async function cancelTask(taskId, userId) {
                 "../../../src/utils/task-loader.mjs"
             );
             const { getClient } = await import("../../../jobs/graphql.mjs");
-            const handler = await loadTaskDefinition(task.type);
-            const client = await getClient();
-
-            if (
-                handler.cancelRequest &&
-                typeof handler.cancelRequest === "function"
-            ) {
-                await handler.cancelRequest(taskId, client);
+            const handler = await loadTaskDefinition(task.type, true);
+            if (handler) {
+                const client = await getClient();
+                if (typeof handler.cancelRequest === "function") {
+                    await handler.cancelRequest(taskId, client);
+                }
             }
         } catch (handlerError) {
             console.error("Error calling handler.cancelRequest:", handlerError);

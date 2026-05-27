@@ -2,8 +2,16 @@
  * @jest-environment jsdom
  */
 
-import { renderHook } from "@testing-library/react";
-import { useFilePreview } from "../useFilePreview";
+import "@testing-library/jest-dom";
+import { render, renderHook } from "@testing-library/react";
+import { renderFilePreview, useFilePreview } from "../useFilePreview";
+
+// Avoid pulling in MediaCard -> Layout -> ChatMessage -> react-markdown (ESM)
+jest.mock("../MediaCard", () => ({
+    ImageWithFallback: function MockImageWithFallback() {
+        return null;
+    },
+}));
 
 describe("useFilePreview", () => {
     describe("extension detection", () => {
@@ -29,6 +37,33 @@ describe("useFilePreview", () => {
             );
 
             expect(result.current.extension).toBe(".csv");
+        });
+
+        test("should ignore original mime type when a converted URL provides a better extension", () => {
+            const { result } = renderHook(() =>
+                useFilePreview(
+                    "https://storage.blob.core.windows.net/files/doc.csv?sv=2025&sig=abc",
+                    "report.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            );
+
+            expect(result.current.extension).toBe(".csv");
+            expect(result.current.previewKind).toBe("csv");
+        });
+
+        test("should fall back to filename for deployed blob object URLs", () => {
+            const { result } = renderHook(() =>
+                useFilePreview(
+                    "blob:https://concierge.example.com/ebdcd774-e783-4926-8322-59520a93a977",
+                    "CleanShot 2026-05-11 at 20.16.53@2x.png",
+                    "image/png",
+                ),
+            );
+
+            expect(result.current.extension).toBe(".png");
+            expect(result.current.previewKind).toBe("image");
+            expect(result.current.isImage).toBe(true);
         });
 
         test("should fall back to filename when src is null", () => {
@@ -103,13 +138,27 @@ describe("useFilePreview", () => {
             },
         );
 
-        test("should NOT mark binary docs as previewable", () => {
+        test("should mark raw docx files as previewable", () => {
             const { result } = renderHook(() =>
                 useFilePreview("https://example.com/doc.docx", "doc.docx"),
             );
 
             expect(result.current.isDoc).toBe(true);
-            expect(result.current.isPreviewable).toBe(false);
+            expect(result.current.isPreviewable).toBe(true);
+            expect(result.current.previewKind).toBe("docx");
+        });
+
+        test("should mark raw xlsx files as previewable", () => {
+            const { result } = renderHook(() =>
+                useFilePreview(
+                    "https://example.com/spreadsheet.xlsx",
+                    "spreadsheet.xlsx",
+                ),
+            );
+
+            expect(result.current.isDoc).toBe(true);
+            expect(result.current.isPreviewable).toBe(true);
+            expect(result.current.previewKind).toBe("spreadsheet");
         });
     });
 
@@ -124,6 +173,7 @@ describe("useFilePreview", () => {
 
             expect(result.current.extension).toBe(".csv");
             expect(result.current.isPreviewable).toBe(true);
+            expect(result.current.previewKind).toBe("csv");
         });
 
         test("docx converted to md should be previewable as text", () => {
@@ -136,6 +186,7 @@ describe("useFilePreview", () => {
 
             expect(result.current.extension).toBe(".md");
             expect(result.current.isPreviewable).toBe(true);
+            expect(result.current.previewKind).toBe("markdown");
         });
     });
 
@@ -155,5 +206,54 @@ describe("useFilePreview", () => {
 
             expect(result.current.isPreviewable).toBe(false);
         });
+    });
+});
+
+describe("renderFilePreview", () => {
+    test("can render video previews without native controls", () => {
+        const { container } = render(
+            renderFilePreview({
+                src: "https://example.com/video.mp4",
+                filename: "video.mp4",
+                fileType: { isVideo: true },
+                showVideoControls: false,
+            }),
+        );
+
+        /* eslint-disable testing-library/no-container, testing-library/no-node-access -- HTMLMediaElement controls is not exposed through a reliable testing-library role. */
+        const video = container.querySelector("video");
+        expect(video).not.toHaveAttribute("controls");
+        /* eslint-enable testing-library/no-container, testing-library/no-node-access */
+    });
+
+    test("keeps native video controls by default", () => {
+        const { container } = render(
+            renderFilePreview({
+                src: "https://example.com/video.mp4",
+                filename: "video.mp4",
+                fileType: { isVideo: true },
+            }),
+        );
+
+        /* eslint-disable testing-library/no-container, testing-library/no-node-access -- HTMLMediaElement controls is not exposed through a reliable testing-library role. */
+        const video = container.querySelector("video");
+        expect(video).toHaveAttribute("controls");
+        /* eslint-enable testing-library/no-container, testing-library/no-node-access */
+    });
+
+    test("mutes autoplaying video previews", () => {
+        const { container } = render(
+            renderFilePreview({
+                src: "https://example.com/video.mp4",
+                filename: "video.mp4",
+                fileType: { isVideo: true },
+                autoPlay: true,
+            }),
+        );
+
+        /* eslint-disable testing-library/no-container, testing-library/no-node-access -- HTMLMediaElement muted is the behavior under test. */
+        const video = container.querySelector("video");
+        expect(video.muted).toBe(true);
+        /* eslint-enable testing-library/no-container, testing-library/no-node-access */
     });
 });

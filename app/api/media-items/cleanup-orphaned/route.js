@@ -1,10 +1,11 @@
 import { getCurrentUser } from "../../utils/auth.js";
 import MediaItem from "../../models/media-item.mjs";
 import Task from "../../models/task.mjs";
+import { hasUsableMediaCompletionData } from "../../utils/task-progress-state.mjs";
 
 /**
  * Cleans up orphaned pending media items that are associated with
- * cancelled, failed, or abandoned tasks.
+ * cancelled, failed, abandoned, or stale completed tasks.
  */
 export async function POST(req) {
     const user = await getCurrentUser();
@@ -59,6 +60,58 @@ export async function POST(req) {
                     );
 
                     cleanedCount++;
+                    continue;
+                }
+
+                if (task.status === "completed") {
+                    const completionData = task.data;
+
+                    if (hasUsableMediaCompletionData(completionData)) {
+                        const completedAt = Math.floor(
+                            new Date(
+                                task.updatedAt || task.createdAt || Date.now(),
+                            ).getTime() / 1000,
+                        );
+
+                        await MediaItem.findOneAndUpdate(
+                            { _id: mediaItem._id },
+                            {
+                                status: "completed",
+                                completed: mediaItem.completed || completedAt,
+                                ...(completionData.url && {
+                                    url: completionData.url,
+                                }),
+                                ...(completionData.azureUrl && {
+                                    azureUrl: completionData.azureUrl,
+                                }),
+                                ...(completionData.gcsUrl && {
+                                    gcsUrl: completionData.gcsUrl,
+                                }),
+                                ...(completionData.hash && {
+                                    hash: completionData.hash,
+                                }),
+                                ...(completionData.blobPath && {
+                                    blobPath: completionData.blobPath,
+                                }),
+                            },
+                            { new: true, runValidators: true },
+                        );
+                    } else {
+                        await MediaItem.findOneAndUpdate(
+                            { _id: mediaItem._id },
+                            {
+                                status: "failed",
+                                error: {
+                                    code: "MISSING_COMPLETION_DATA",
+                                    message:
+                                        "Task completed, but the media result payload was not persisted.",
+                                },
+                            },
+                            { new: true, runValidators: true },
+                        );
+                    }
+
+                    cleanedCount++;
                 }
             } catch (error) {
                 console.error(
@@ -86,3 +139,5 @@ export async function POST(req) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

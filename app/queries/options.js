@@ -12,6 +12,7 @@ export function useUpdateAiOptions() {
             aiName,
             agentModel,
             useCustomEntities,
+            reasoningEffort,
         }) => {
             // persist it to user options in the database
             const response = await axios.post(`/api/options`, {
@@ -21,6 +22,7 @@ export function useUpdateAiOptions() {
                 aiName,
                 agentModel,
                 useCustomEntities,
+                reasoningEffort,
             });
             return response.data;
         },
@@ -31,6 +33,7 @@ export function useUpdateAiOptions() {
             aiName,
             agentModel,
             useCustomEntities,
+            reasoningEffort,
         }) => {
             await queryClient.cancelQueries({ queryKey: ["currentUser"] });
             const previousUser = await queryClient.getQueryData([
@@ -46,6 +49,7 @@ export function useUpdateAiOptions() {
                     aiName,
                     agentModel,
                     useCustomEntities,
+                    reasoningEffort,
                 };
             });
 

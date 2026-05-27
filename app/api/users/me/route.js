@@ -8,7 +8,6 @@ export async function GET() {
     if (!user.apps || user.apps.length === 0) {
         await initializeUserApps(user);
     }
-
     // Populate app details
     await user.populate("apps.appId");
 
@@ -25,9 +24,6 @@ export async function PUT(request) {
         // Update user fields
         if (data.apps) {
             user.apps = data.apps;
-        }
-        if (data.profilePicture !== undefined) {
-            user.profilePicture = data.profilePicture;
         }
 
         await user.save();

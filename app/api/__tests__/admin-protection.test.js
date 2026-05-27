@@ -162,7 +162,7 @@ describe("Admin API Protection", () => {
     describe("GET /api/users", () => {
         it("should be protected from non-admin users", async () => {
             // Import the route handler
-            const { GET: getUsers } = require("../users/route");
+            const { GET: getUsers } = await import("../users/route.js");
 
             // Test the route with a longer timeout
             await testAdminProtection(getUsers);
@@ -172,9 +172,9 @@ describe("Admin API Protection", () => {
     describe("PATCH /api/users/[userId]/role", () => {
         it("should be protected from non-admin users", async () => {
             // Import the route handler
-            const {
-                PATCH: updateUserRole,
-            } = require("../users/[userId]/role/route");
+            const { PATCH: updateUserRole } = await import(
+                "../users/[userId]/role/route.js"
+            );
 
             // Create mock request and params
             const mockRequest = createMockRequest("PATCH");

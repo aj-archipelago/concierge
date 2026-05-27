@@ -45,13 +45,13 @@ export default function WPEditorClientPage() {
                 event.data.type,
                 event.data,
             );
-            if (event.data.type === "__LABEEB_PING__") {
+            if (event.data.type === "__CONCIERGE_PING__") {
                 console.log(
                     "🏓 Received ping, sending pong back to event.source",
                 );
                 console.log("🔍 event.source:", event.source);
                 console.log("🔍 event.origin:", event.origin);
-                event.source.postMessage({ type: "__LABEEB_PONG__" }, "*");
+                event.source.postMessage({ type: "__CONCIERGE_PONG__" }, "*");
                 console.log("✅ Pong sent!");
             }
         };

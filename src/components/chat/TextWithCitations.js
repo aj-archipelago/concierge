@@ -3,14 +3,32 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import { Download } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import CopyButton from "../CopyButton";
+import { useFilePreview, renderFilePreview } from "./useFilePreview";
 
 function TextWithCitations({ index, citation }) {
     const [open, setOpen] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const target = useRef(null);
     const { title, url, content, path, wireid, source, slugline, date } =
         citation;
+
+    // Check if the citation URL points to a previewable media file
+    const fileType = useFilePreview(url, title || url);
+    const isMediaCitation =
+        url &&
+        (fileType.isPdf ||
+            fileType.isImage ||
+            fileType.isVideo ||
+            fileType.isAudio);
 
     var parser = new DOMParser();
     var dom = parser.parseFromString(content, "text/html");
@@ -23,7 +41,7 @@ function TextWithCitations({ index, citation }) {
         .join(" ")
         .trim();
 
-    // Handle click outside for portal contexts
+    // Handle click outside for portal contexts (text popover only)
     useEffect(() => {
         if (!open) return;
 
@@ -111,6 +129,64 @@ function TextWithCitations({ index, citation }) {
         };
     }, [open]);
 
+    // For media citations (PDF, image, video, audio), open a preview dialog
+    if (isMediaCitation) {
+        const previewClassName = fileType.isPdf
+            ? "w-full h-[80vh] rounded-lg border-none"
+            : fileType.isVideo
+              ? "max-w-full max-h-[80vh] w-auto h-auto rounded-lg"
+              : "max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-lg";
+
+        return (
+            <>
+                <span
+                    key={index}
+                    ref={target}
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="text-with-citations cursor-pointer"
+                >
+                    <sup>{index}</sup>
+                </span>
+                <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                    <DialogContent className="max-w-[95vw] max-h-[95vh] p-4 sm:p-6 flex items-center justify-center">
+                        <DialogTitle className="sr-only">
+                            {title || "Document preview"}
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            {title ? `Viewing ${title}` : "Document preview"}
+                        </DialogDescription>
+                        <div className="w-full flex items-center justify-center relative">
+                            {renderFilePreview({
+                                src: url,
+                                filename: title || url,
+                                fileType,
+                                className: previewClassName,
+                                autoPlay: fileType.isVideo,
+                            })}
+                            {url && (
+                                <button
+                                    onClick={() =>
+                                        window.open(
+                                            url,
+                                            "_blank",
+                                            "noopener,noreferrer",
+                                        )
+                                    }
+                                    className="absolute top-4 right-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 p-2 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10"
+                                    title="Download"
+                                    aria-label="Download"
+                                >
+                                    <Download className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </>
+        );
+    }
+
+    // For text citations, use the existing popover
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>

@@ -58,7 +58,7 @@ import { useEffect, useState } from "react";
 import { Progress } from "../../../@/components/ui/progress";
 import stringcase from "stringcase";
 
-const QUEUE_NAMES = ["task", "digest-build"];
+const QUEUE_NAMES = ["task", "digest-build", "automation-scheduler"];
 
 async function fetchQueueStats(queueName, page, pageSize, status, search) {
     const response = await fetch(
@@ -438,7 +438,7 @@ export default function QueuesPage() {
                                                 onChange={(e) =>
                                                     setSearch(e.target.value)
                                                 }
-                                                className="pl-10"
+                                                className="ps-10"
                                             />
                                         </div>
                                         <div className="relative">
@@ -447,7 +447,7 @@ export default function QueuesPage() {
                                                 value={status}
                                                 onValueChange={setStatus}
                                             >
-                                                <SelectTrigger className="w-[180px] pl-10">
+                                                <SelectTrigger className="w-[180px] ps-10">
                                                     <SelectValue placeholder="Select status" />
                                                 </SelectTrigger>
                                                 <SelectContent>

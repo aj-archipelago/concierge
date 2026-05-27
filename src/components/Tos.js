@@ -1,9 +1,10 @@
 "use client";
 
 import i18next from "i18next";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import config from "../../config";
+import { ThemeContext } from "../contexts/ThemeProvider";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -17,8 +18,9 @@ import {
 const Tos = ({ showTos, setShowTos }) => {
     const { getLogo, getTosContent } = config.global;
     const { language } = i18next;
+    const { theme } = useContext(ThemeContext) || {};
     const { t } = useTranslation();
-    const logo = getLogo(language);
+    const logo = getLogo(language, theme);
     const tosContent = getTosContent(language);
     const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
@@ -67,7 +69,10 @@ const Tos = ({ showTos, setShowTos }) => {
 
     return (
         <AlertDialog open={showTos} onOpenChange={setShowTos}>
-            <AlertDialogContent className="max-h-[90vh] overflow-auto w-[65%] max-w-[800px] z-50">
+            <AlertDialogContent
+                data-testid="tos-dialog"
+                className="max-h-[90vh] overflow-auto w-[65%] max-w-[800px] z-50"
+            >
                 <AlertDialogHeader>
                     <div className="flex items-center gap-3 mb-2">
                         <img
@@ -140,6 +145,7 @@ const Tos = ({ showTos, setShowTos }) => {
                             </div>
 
                             <div
+                                data-testid="tos-content"
                                 className="alert-text prose prose-sm max-w-none dark:prose-invert h-[400px] overflow-y-auto pr-4 border-2 border-gray-200 dark:border-gray-700 rounded-md p-4 scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800"
                                 onScroll={handleScroll}
                             >
@@ -163,6 +169,7 @@ const Tos = ({ showTos, setShowTos }) => {
 
                 <AlertDialogFooter>
                     <AlertDialogAction
+                        data-testid="tos-accept"
                         onClick={handleTosClose}
                         disabled={!hasScrolledToBottom}
                         className={

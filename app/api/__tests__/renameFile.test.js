@@ -26,7 +26,7 @@ describe("rename file API", () => {
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                blobPath: "media/Concierge Article Demo/demo.png",
+                blobPath: "media/Example Article Demo/demo.png",
                 url: "https://example.test/demo.png",
             }),
         });
@@ -56,8 +56,8 @@ describe("rename file API", () => {
         const response = await POST(
             createMockRequest({
                 blobPath: "users/user-context-1/media/demo.png",
-                newFilename: "Concierge Article Demo/demo.png",
-                targetBlobPath: "media/Concierge Article Demo/demo.png",
+                newFilename: "Example Article Demo/demo.png",
+                targetBlobPath: "media/Example Article Demo/demo.png",
                 userId: "user-context-1",
                 fileScope: "media",
             }),
@@ -74,10 +74,10 @@ describe("rename file API", () => {
             "users/user-context-1/media/demo.png",
         );
         expect(helperUrl.searchParams.get("newFilename")).toBe(
-            "Concierge Article Demo/demo.png",
+            "Example Article Demo/demo.png",
         );
         expect(helperUrl.searchParams.get("targetBlobPath")).toBe(
-            "media/Concierge Article Demo/demo.png",
+            "media/Example Article Demo/demo.png",
         );
         expect(helperUrl.searchParams.get("userId")).toBe("user-context-1");
         expect(helperUrl.searchParams.get("fileScope")).toBe("media");
@@ -100,8 +100,8 @@ describe("rename file API", () => {
             createMockRequest({
                 blobPath: "users/user-context-1/media/demo.png",
                 hash: "hash-demo",
-                newFilename: "Concierge Article Demo/demo.png",
-                targetBlobPath: "media/Concierge Article Demo/demo.png",
+                newFilename: "Example Article Demo/demo.png",
+                targetBlobPath: "media/Example Article Demo/demo.png",
                 userId: "user-context-1",
                 fileScope: "media",
             }),
@@ -120,8 +120,8 @@ describe("rename file API", () => {
         const response = await POST(
             createMockRequest({
                 hash: "hash-demo",
-                newFilename: "Concierge Article Demo/demo.png",
-                targetBlobPath: "media/Concierge Article Demo/demo.png",
+                newFilename: "Example Article Demo/demo.png",
+                targetBlobPath: "media/Example Article Demo/demo.png",
                 userId: "user-context-1",
                 fileScope: "media",
             }),

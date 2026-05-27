@@ -16,18 +16,17 @@ const promptSchema = new mongoose.Schema({
         required: true,
     },
     llm: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "LLM",
+        type: mongoose.Schema.Types.Mixed,
     },
     agentMode: {
         type: Boolean,
         required: false,
         default: false,
     },
-    researchMode: {
-        type: Boolean,
+    reasoningEffort: {
+        type: String,
         required: false,
-        default: false,
+        default: null,
     },
     files: [
         {

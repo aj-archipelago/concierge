@@ -1,11 +1,10 @@
+"use client";
+
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApolloClient } from "@apollo/client";
-import { useRouter } from "next/navigation";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit } from "lucide-react";
 import classNames from "../../../app/utils/class-names";
-import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
@@ -30,6 +29,40 @@ const LANGUAGE_NAMES = {
     sr: "Serbian",
     tr: "Turkish",
 };
+
+export const TRANSLATION_STRATEGIES = {
+    AZURE: "azure",
+    GEMINI_31_PRO: "gemini31pro",
+    GPT_55: "gpt55",
+    CLAUDE_47_OPUS: "claude47opus",
+    GEMINI_3_FLASH: "gemini3flash",
+    GPT_54_MINI: "gpt54mini",
+    CLAUDE_45_HAIKU: "claude45haiku",
+    GPT_4O_LEGACY: "gpt4oLegacy",
+};
+
+const DEFAULT_TRANSLATION_STRATEGY = TRANSLATION_STRATEGIES.GPT_55;
+
+const LEGACY_TRANSLATION_STRATEGY_MAP = {
+    "GPT-5.2": TRANSLATION_STRATEGIES.GPT_55,
+    "GPT-4-OMNI": TRANSLATION_STRATEGIES.GPT_4O_LEGACY,
+    traditional: TRANSLATION_STRATEGIES.AZURE,
+    translate: TRANSLATION_STRATEGIES.GPT_55,
+    quick: TRANSLATION_STRATEGIES.GPT_55,
+    context: TRANSLATION_STRATEGIES.GPT_55,
+    gpt54: TRANSLATION_STRATEGIES.GPT_55,
+};
+
+export function normalizeTranslationStrategy(strategy) {
+    if (Object.values(TRANSLATION_STRATEGIES).includes(strategy)) {
+        return strategy;
+    }
+
+    return (
+        LEGACY_TRANSLATION_STRATEGY_MAP[strategy] ||
+        DEFAULT_TRANSLATION_STRATEGY
+    );
+}
 
 // Get optimal font family and direction for target language
 const getLanguageStyles = (languageCode) => {
@@ -63,15 +96,12 @@ function Translation({
     setTranslationInputText,
     setTranslationLanguage,
     setTranslationStrategy,
-    showEditLink = false,
 }) {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
-    const router = useRouter();
     const apolloClient = useApolloClient();
     const { direction } = useContext(LanguageContext);
     const [activeTab, setActiveTab] = useState("input");
-    const { debouncedUpdateUserState } = useContext(AuthContext);
 
     const tabs = [
         {
@@ -93,27 +123,57 @@ function Translation({
         let resultKey;
         let model;
 
-        switch (strategy) {
-            case "GPT-5.2":
+        switch (normalizeTranslationStrategy(strategy)) {
+            case TRANSLATION_STRATEGIES.GEMINI_31_PRO:
                 query = QUERIES.TRANSLATE;
                 resultKey = "translate";
-                model = "oai-gpt52";
+                model = "gemini-pro-31-vision";
                 to = LANGUAGE_NAMES[to];
                 break;
-            case "GPT-4-OMNI":
+            case TRANSLATION_STRATEGIES.GPT_55:
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "oai-gpt55";
+                to = LANGUAGE_NAMES[to];
+                break;
+            case TRANSLATION_STRATEGIES.CLAUDE_47_OPUS:
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "claude-47-opus-vertex";
+                to = LANGUAGE_NAMES[to];
+                break;
+            case TRANSLATION_STRATEGIES.GEMINI_3_FLASH:
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "gemini-flash-3-vision";
+                to = LANGUAGE_NAMES[to];
+                break;
+            case TRANSLATION_STRATEGIES.GPT_54_MINI:
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "oai-gpt54-mini";
+                to = LANGUAGE_NAMES[to];
+                break;
+            case TRANSLATION_STRATEGIES.CLAUDE_45_HAIKU:
+                query = QUERIES.TRANSLATE;
+                resultKey = "translate";
+                model = "claude-45-haiku-vertex";
+                to = LANGUAGE_NAMES[to];
+                break;
+            case TRANSLATION_STRATEGIES.GPT_4O_LEGACY:
                 query = QUERIES.TRANSLATE;
                 resultKey = "translate";
                 model = "oai-gpt4o";
                 to = LANGUAGE_NAMES[to];
                 break;
-            case "traditional":
+            case TRANSLATION_STRATEGIES.AZURE:
                 query = QUERIES.TRANSLATE_AZURE;
                 resultKey = "translate_azure";
                 break;
             default:
                 query = QUERIES.TRANSLATE;
                 resultKey = "translate";
-                model = "oai-gpt52";
+                model = "oai-gpt55";
                 to = LANGUAGE_NAMES[to];
                 break;
         }
@@ -185,13 +245,38 @@ function Translation({
                                 setTranslationStrategy(strategy);
                             }}
                         >
-                            <option value="GPT-5.2">
-                                {t("Best, Newest (GPT-5.2)")}
+                            <option
+                                value={TRANSLATION_STRATEGIES.GEMINI_31_PRO}
+                            >
+                                {t("Newest Google (Gemini 3.1 Pro)")}
                             </option>
-                            <option value="GPT-4-OMNI">
-                                {t("Fast, High Quality (GPT-4-OMNI)")}
+                            <option value={TRANSLATION_STRATEGIES.GPT_55}>
+                                {t("Newest OpenAI (GPT 5.5)")}
                             </option>
-                            <option value="traditional">
+                            <option
+                                value={TRANSLATION_STRATEGIES.CLAUDE_47_OPUS}
+                            >
+                                {t("Newest Anthropic (Opus 4.7)")}
+                            </option>
+                            <option
+                                value={TRANSLATION_STRATEGIES.GEMINI_3_FLASH}
+                            >
+                                {t("Fastest Google (Gemini 3 Flash)")}
+                            </option>
+                            <option value={TRANSLATION_STRATEGIES.GPT_54_MINI}>
+                                {t("Fastest OpenAI (GPT 5.4 Mini)")}
+                            </option>
+                            <option
+                                value={TRANSLATION_STRATEGIES.CLAUDE_45_HAIKU}
+                            >
+                                {t("Fastest Anthropic (Haiku 4.5)")}
+                            </option>
+                            <option
+                                value={TRANSLATION_STRATEGIES.GPT_4O_LEGACY}
+                            >
+                                {t("Fast, HQ, Legacy (GPT-4-OMNI)")}
+                            </option>
+                            <option value={TRANSLATION_STRATEGIES.AZURE}>
                                 {t("Fastest (Azure)")}
                             </option>
                         </select>
@@ -272,30 +357,12 @@ function Translation({
                                     return (
                                         <div
                                             className={classNames(
-                                                "absolute top-1 flex gap-1 items-center z-10",
+                                                "absolute top-2 flex gap-1 items-center z-10",
                                                 isTargetRTL
-                                                    ? "start-1 flex-row-reverse"
-                                                    : "end-1",
+                                                    ? "start-5 flex-row-reverse"
+                                                    : "end-5",
                                             )}
                                         >
-                                            {showEditLink && (
-                                                <button
-                                                    className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 active:text-gray-900 dark:active:text-gray-200 cursor-pointer"
-                                                    onClick={() => {
-                                                        debouncedUpdateUserState(
-                                                            {
-                                                                write: {
-                                                                    text: translatedText,
-                                                                },
-                                                            },
-                                                        );
-                                                        router.push("/write");
-                                                    }}
-                                                    title={t("Start editing")}
-                                                >
-                                                    <Edit />
-                                                </button>
-                                            )}
                                             <CopyButton
                                                 item={translatedText}
                                                 className="static"

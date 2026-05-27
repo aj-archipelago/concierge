@@ -1,8 +1,15 @@
 import { getCurrentUser } from "../utils/auth.js";
+import {
+    fetchShortLivedUrl,
+    extractBlobPathFromUrl,
+    extractHashFromBlobUrl,
+    isAllowedBlobDomain,
+} from "../utils/llm-file-utils.js";
 
 /**
  * Proxy endpoint for fetching text-based files (CSV, MD, JSON, etc.)
- * This bypasses CORS restrictions when previewing text files from blob storage
+ * This bypasses CORS restrictions when previewing text files from blob storage.
+ * If a SAS token has expired (403), attempts to refresh via media-helper.
  */
 export async function GET(req) {
     const user = await getCurrentUser();
@@ -27,16 +34,8 @@ export async function GET(req) {
         }
 
         // Validate URL is from allowed domains
-        const allowedDomains = [
-            "ajcortexfilestorage.blob.core.windows.net",
-            "storage.googleapis.com",
-            "storage.cloud.google.com",
-        ];
-
         const urlObj = new URL(url);
-        if (
-            !allowedDomains.some((domain) => urlObj.hostname.includes(domain))
-        ) {
+        if (!isAllowedBlobDomain(urlObj.hostname)) {
             return Response.json(
                 { error: "URL is not from an allowed domain" },
                 { status: 403 },
@@ -44,7 +43,27 @@ export async function GET(req) {
         }
 
         // Fetch the file content
-        const response = await fetch(url);
+        let response = await fetch(url, { redirect: "follow" });
+
+        // If SAS token expired (403), try to refresh via media-helper
+        if (response.status === 403) {
+            const blobPath = extractBlobPathFromUrl(url);
+            const hash = extractHashFromBlobUrl(url);
+            // Use client-provided contextId (workspace artifacts use workspaceId), fall back to user's contextId
+            const contextId = searchParams.get("contextId") || user.contextId;
+            if ((blobPath || hash) && contextId) {
+                const refreshed = await fetchShortLivedUrl({
+                    blobPath,
+                    hash,
+                    contextId,
+                });
+                if (refreshed?.url) {
+                    response = await fetch(refreshed.url, {
+                        redirect: "follow",
+                    });
+                }
+            }
+        }
 
         if (!response.ok) {
             return Response.json(
@@ -58,10 +77,12 @@ export async function GET(req) {
         const contentType =
             response.headers.get("content-type") || "text/plain";
 
+        // Cache for 30 days — proxy URLs are stable and files are content-addressed (xxHash64)
         return new Response(content, {
             headers: {
                 "Content-Type": contentType,
-                "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=2592000, immutable",
             },
         });
     } catch (error) {
@@ -72,3 +93,5 @@ export async function GET(req) {
         );
     }
 }
+
+export const dynamic = "force-dynamic";

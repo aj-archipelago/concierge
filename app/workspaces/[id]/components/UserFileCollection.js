@@ -1,30 +1,54 @@
 "use client";
-import { useApolloClient } from "@apollo/client";
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useApolloClient } from "@apollo/client";
 import { getFilename as getFilenameUtil } from "@/src/components/common/FileManager";
 import { purgeFiles } from "./chatFileUtils";
-import { useFileCollection, getInCollection } from "./useFileCollection";
 import { useFileUploadHandler } from "./useFileUploadHandler";
-import { updateFileMetadata } from "./userFileCollectionUtils";
-import FileManager from "@/src/components/common/FileManager";
-import FileUploadDialog from "@/app/workspaces/components/FileUploadDialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import UnifiedFileManager from "@/src/components/common/UnifiedFileManager";
+import FileUploadDialog from "../../components/FileUploadDialog";
 import {
     downloadFilesAsZip,
     checkDownloadLimits,
 } from "@/src/utils/fileDownloadUtils";
+import {
+    createChatStorageTarget,
+    createUserGlobalStorageTarget,
+} from "@/src/utils/storageTargets";
 import { toast } from "react-toastify";
+import { useGetActiveChats } from "../../../queries/chats";
+
+function normalizeFolderPath(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/\/+/g, "/");
+}
+
+function getMoveFilename(file) {
+    const source =
+        file?.filename ||
+        file?.displayFilename ||
+        file?.displayName ||
+        file?.blobPath ||
+        file?.name ||
+        "";
+    return String(source).split("/").filter(Boolean).pop() || "";
+}
+
+function getMovedFileBlobPath({ targetFolder, filename }) {
+    const normalizedTarget = normalizeFolderPath(targetFolder);
+    return normalizedTarget ? `${normalizedTarget}/${filename}` : filename;
+}
 
 /**
  * UserFileCollection - displays and manages files in a user's file collection
+ * using the unified Finder-style file manager.
  *
  * Context ID handling:
  * - Chat context: pass user.contextId
  * - Workspace context: pass workspaceId
- * - User files in workspace/applet: pass compound contextId (workspaceId:userContextId)
  */
 export default function UserFileCollection({
     contextId,
@@ -32,60 +56,50 @@ export default function UserFileCollection({
     chatId = null,
     messages = [],
     updateChatHook = null,
+    containerHeight = "60vh",
 }) {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const [showAll, setShowAll] = useState(false);
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const storageTarget = useMemo(() => {
+        if (!contextId) return null;
+        return chatId
+            ? createChatStorageTarget(contextId, chatId)
+            : createUserGlobalStorageTarget(contextId);
+    }, [contextId, chatId]);
 
-    // Load file collection using shared hook
-    const {
-        files: allFiles,
-        setFiles: setAllFiles,
-        loading,
-        reloadFiles,
-    } = useFileCollection({ contextId, contextKey });
-
-    // Apply chatId filtering when not in "show all" mode
-    const [files, setFiles] = useState([]);
-
-    useEffect(() => {
-        if (chatId && !showAll) {
-            // Default view: only show files with global "*" or current chatId
-            const filteredFiles = allFiles.filter((file) => {
-                const collections = getInCollection(file);
-                return (
-                    collections.includes("*") || collections.includes(chatId)
-                );
-            });
-            setFiles(filteredFiles);
-        } else {
-            // Show All view or no chatId: show all files with inCollection
-            setFiles(allFiles);
+    // Build chatId → title map for the folder sidebar
+    const { data: activeChats } = useGetActiveChats();
+    const chatTitleMap = useMemo(() => {
+        const map = {};
+        if (activeChats) {
+            for (const chat of activeChats) {
+                if (chat._id && chat.title) {
+                    map[chat._id] = chat.title;
+                }
+            }
         }
-    }, [allFiles, chatId, showAll]);
+        return map;
+    }, [activeChats]);
 
-    // Handle file upload complete using shared hook
-    // Flow: [1] CFH upload done → [2] optimistic update → [3] set metadata → [4] reload
+    // Upload handler — uses a no-op setFiles since UnifiedFileManager
+    // manages its own file state via useUnifiedFileData
     const handleUploadComplete = useFileUploadHandler({
         contextId,
         contextKey,
-        files: allFiles,
-        setFiles: setAllFiles,
-        reloadFiles,
+        setFiles: () => {},
+        reloadFiles: () => {},
         chatId,
     });
 
-    // Handle file deletion
-    // Follows inCollection deletion rules (unless showAll is active):
-    // - Global (['*']): Fully deleted from Redis + cloud
-    // - Chat-scoped (multiple refs): Remove chatId, keep file
-    // - Chat-scoped (last ref): Fully deleted from Redis + cloud
-    // When showAll is active: Always fully delete regardless of inCollection
+    // Handle file deletion - simple delete from Redis + cloud
     const handleDelete = useCallback(
         async (filesToRemove) => {
-            const validFiles = filesToRemove
+            const arr = Array.isArray(filesToRemove)
+                ? filesToRemove
+                : [filesToRemove];
+            const validFiles = arr
                 .filter((f) => typeof f === "object")
                 .map((f) => ({
                     ...f,
@@ -95,117 +109,19 @@ export default function UserFileCollection({
 
             if (validFiles.length === 0) return;
 
-            // When showAll is active, fully delete all files (global override)
-            if (showAll) {
-                await purgeFiles({
-                    fileObjs: validFiles,
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    chatId,
-                    messages,
-                    updateChatHook,
-                    t,
-                    getFilename: getFilenameUtil,
-                    skipCloudDelete: false,
-                    skipUserFileCollection: true,
-                });
-                reloadFiles();
-                return;
-            }
-
-            // Process each file according to its inCollection status
-            const filesToFullyDelete = [];
-            const filesToUpdateMetadata = [];
-
-            for (const file of validFiles) {
-                const fileCollections = file.inCollection || [];
-                const isGlobal = fileCollections.includes("*");
-                const hasChatId = chatId && fileCollections.includes(chatId);
-
-                if (isGlobal) {
-                    // Global files: fully delete from Redis + cloud
-                    filesToFullyDelete.push(file);
-                } else if (hasChatId && chatId) {
-                    // Chat-scoped file: check if this is the last reference
-                    const chatIds = fileCollections.filter((c) => c !== "*");
-                    if (chatIds.length > 1) {
-                        // Multiple refs: remove chatId, keep file (no cloud delete)
-                        const updatedCollections = chatIds.filter(
-                            (c) => c !== chatId,
-                        );
-                        filesToUpdateMetadata.push({
-                            file,
-                            newInCollection: updatedCollections,
-                        });
-                    } else {
-                        // Last ref: fully delete from Redis + cloud
-                        filesToFullyDelete.push(file);
-                    }
-                } else {
-                    // File not in this chat's collection, but user wants to delete it
-                    // Treat as full delete (edge case)
-                    filesToFullyDelete.push(file);
-                }
-            }
-
-            // Update metadata for files that should have chatId removed (multiple refs case)
-            // Also update chat messages to remove file references, but don't delete from cloud
-            for (const { file, newInCollection } of filesToUpdateMetadata) {
-                try {
-                    // Update metadata to remove chatId from inCollection
-                    await updateFileMetadata(
-                        apolloClient,
-                        contextId,
-                        contextKey,
-                        file.hash,
-                        {
-                            inCollection: newInCollection,
-                        },
-                    );
-
-                    // Update chat messages to remove file references (but keep file in cloud)
-                    // This ensures the file disappears from this chat but remains available to other chats
-                    await purgeFiles({
-                        fileObjs: [file],
-                        apolloClient,
-                        contextId,
-                        contextKey,
-                        chatId,
-                        messages,
-                        updateChatHook,
-                        t,
-                        getFilename: getFilenameUtil,
-                        skipCloudDelete: true, // Keep file in cloud since other chats may reference it
-                        skipUserFileCollection: true,
-                    });
-                } catch (error) {
-                    console.error(
-                        `Failed to update file metadata for ${file.hash}:`,
-                        error,
-                    );
-                }
-            }
-
-            // Fully delete files that should be removed completely
-            if (filesToFullyDelete.length > 0) {
-                await purgeFiles({
-                    fileObjs: filesToFullyDelete,
-                    apolloClient,
-                    contextId,
-                    contextKey,
-                    chatId,
-                    messages,
-                    updateChatHook,
-                    t,
-                    getFilename: getFilenameUtil,
-                    skipCloudDelete: false,
-                    skipUserFileCollection: true,
-                });
-            }
-
-            // Reload files to reflect changes
-            reloadFiles();
+            await purgeFiles({
+                fileObjs: validFiles,
+                apolloClient,
+                contextId,
+                contextKey,
+                chatId,
+                messages,
+                updateChatHook,
+                t,
+                getFilename: getFilenameUtil,
+                skipCloudDelete: false,
+                skipUserFileCollection: true,
+            });
         },
         [
             apolloClient,
@@ -215,58 +131,20 @@ export default function UserFileCollection({
             messages,
             updateChatHook,
             t,
-            reloadFiles,
-            showAll,
         ],
     );
-
-    // Handle metadata update
-    const handleUpdateMetadata = useCallback(
-        async (file, metadata) => {
-            if (!file?.hash) throw new Error("File hash not found");
-            await updateFileMetadata(
-                apolloClient,
-                contextId,
-                contextKey,
-                file.hash,
-                metadata,
-            );
-        },
-        [apolloClient, contextId, contextKey],
-    );
-
-    // Handle permanent toggle
-    const handleTogglePermanent = useCallback(async (file) => {
-        if (!file?.hash) throw new Error("File hash not found");
-
-        const response = await fetch("/api/files/set-retention", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                hash: file.hash,
-                retention: file.permanent ? "temporary" : "permanent",
-            }),
-        });
-
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || response.statusText);
-        }
-    }, []);
 
     // Handle bulk download
     const handleDownload = useCallback(
         async (selectedFiles) => {
             if (!selectedFiles || selectedFiles.length === 0) return;
 
-            // Check download limits
             const limitCheck = checkDownloadLimits(selectedFiles, {
                 maxFiles: 100,
                 maxTotalSizeMB: 1000,
             });
 
             if (!limitCheck.allowed) {
-                // Translate error messages
                 const errorMsg = limitCheck.errorKey
                     ? t(limitCheck.errorKey)
                     : limitCheck.error;
@@ -277,11 +155,9 @@ export default function UserFileCollection({
                 return;
             }
 
-            // Handle single file download vs multiple files
             if (selectedFiles.length === 1) {
-                // Single file - download directly
                 const file = selectedFiles[0];
-                const url = file?.url || file?.gcs;
+                const url = file?.url;
                 if (url) {
                     const link = document.createElement("a");
                     link.href = url;
@@ -292,7 +168,6 @@ export default function UserFileCollection({
                     document.body.removeChild(link);
                 }
             } else {
-                // Multiple files - create ZIP
                 try {
                     await downloadFilesAsZip(selectedFiles, {
                         filenamePrefix: "chat_file_download",
@@ -308,7 +183,6 @@ export default function UserFileCollection({
                         },
                     });
                 } catch (error) {
-                    // Error already handled in onError callback
                     console.error("Download error:", error);
                 }
             }
@@ -316,149 +190,109 @@ export default function UserFileCollection({
         [t],
     );
 
-    // Handle adding files to the current chat
-    const handleAddToChat = useCallback(
-        async (selectedFiles) => {
-            if (!chatId || !selectedFiles?.length) return;
-
-            // Update each file's inCollection to include chatId
-            await Promise.allSettled(
-                selectedFiles.map(async (file) => {
-                    if (!file?.hash) return;
-
-                    // Get current inCollection
-                    const currentCollection = Array.isArray(file.inCollection)
-                        ? file.inCollection
-                        : file.inCollection
-                          ? [file.inCollection]
-                          : [];
-
-                    // Skip if already in this chat or is global
-                    if (
-                        currentCollection.includes(chatId) ||
-                        currentCollection.includes("*")
-                    ) {
-                        return;
-                    }
-
-                    // Add chatId to inCollection
-                    const newCollection = [...currentCollection, chatId];
-
-                    await updateFileMetadata(
-                        apolloClient,
+    // Handle rename via /api/files/rename endpoint
+    const handleUpdateMetadata = useCallback(
+        async (file, metadata) => {
+            const blobPath = file?.blobPath || file?.name;
+            if (!file?.hash && !blobPath)
+                throw new Error(t("File identifier not found"));
+            if (metadata.displayFilename) {
+                const response = await fetch("/api/files/rename", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        hash: file.hash || undefined,
+                        blobPath: blobPath || undefined,
+                        newFilename: metadata.displayFilename,
                         contextId,
-                        contextKey,
-                        file.hash,
-                        { inCollection: newCollection },
-                    );
-                }),
-            );
-
-            // Reload files to reflect changes
-            reloadFiles();
+                        chatId: chatId || undefined,
+                        fileScope: chatId ? "chat" : "global",
+                    }),
+                });
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || response.statusText);
+                }
+            }
         },
-        [chatId, apolloClient, contextId, contextKey, reloadFiles],
+        [contextId, chatId, t],
     );
 
-    // Determine title based on context and showAll state
-    const fileManagerTitle = chatId
-        ? showAll
-            ? t("All your files")
-            : t("Files in this conversation")
-        : t("Files available to this conversation");
+    const handleMove = useCallback(
+        async (files, targetFolder) => {
+            const normalizedTarget = normalizeFolderPath(targetFolder);
+
+            for (const file of files) {
+                const blobPath = file?.blobPath || file?.name;
+                const hash = file?.hash;
+                const filename = getMoveFilename(file);
+
+                if (!filename || !blobPath) {
+                    throw new Error(t("File identifier not found"));
+                }
+
+                const targetBlobPath = getMovedFileBlobPath({
+                    targetFolder: normalizedTarget,
+                    filename,
+                });
+                const response = await fetch("/api/files/rename", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        hash: hash || undefined,
+                        blobPath: blobPath || undefined,
+                        newFilename: normalizedTarget
+                            ? `${normalizedTarget}/${filename}`
+                            : filename,
+                        targetBlobPath,
+                        contextId,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.error || response.statusText);
+                }
+            }
+        },
+        [contextId, t],
+    );
+
+    // Wrap upload complete to also reload the unified file manager
+    const handleUploadCompleteAndRefresh = useCallback(
+        (...args) => {
+            handleUploadComplete(...args);
+        },
+        [handleUploadComplete],
+    );
 
     return (
         <>
-            <FileManager
-                files={files}
-                isLoading={loading}
-                onRefetch={reloadFiles}
+            <UnifiedFileManager
+                contextId={contextId}
+                chatId={chatId}
+                legacyMessages={messages}
+                chatTitleMap={chatTitleMap}
                 onDelete={handleDelete}
                 onDownload={handleDownload}
-                isDownloading={isDownloading}
-                onUploadClick={() => setShowUploadDialog(true)}
+                onMove={handleMove}
                 onUpdateMetadata={handleUpdateMetadata}
-                onTogglePermanent={handleTogglePermanent}
-                title={fileManagerTitle}
-                filterExtra={
-                    chatId && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                            <Checkbox
-                                id="show-all-files"
-                                checked={showAll}
-                                onCheckedChange={(checked) =>
-                                    setShowAll(checked === true)
-                                }
-                            />
-                            <Label
-                                htmlFor="show-all-files"
-                                className="text-sm font-normal cursor-pointer whitespace-nowrap"
-                            >
-                                {t("Show all")}
-                            </Label>
-                        </div>
-                    )
-                }
-                emptyStateFilterExtra={
-                    chatId && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                            <Checkbox
-                                id="show-all-files-empty"
-                                checked={showAll}
-                                onCheckedChange={(checked) =>
-                                    setShowAll(checked === true)
-                                }
-                            />
-                            <Label
-                                htmlFor="show-all-files-empty"
-                                className="text-sm font-normal cursor-pointer whitespace-nowrap"
-                            >
-                                {t("Show files from all conversations")}
-                            </Label>
-                        </div>
-                    )
-                }
-                emptyTitle={t("No files available")}
-                emptyDescription={t(
-                    "No files are available to this conversation yet.",
-                )}
-                noMatchTitle={t("No files match")}
-                noMatchDescription={t(
-                    "No files match your search. Try a different filter.",
-                )}
-                showPermanentColumn={true}
-                showDateColumn={true}
-                enableFilenameEdit={true}
-                enableHoverPreview={true}
-                enableBulkActions={true}
-                enableFilter={true}
-                enableSort={true}
-                optimisticDelete={true}
-                containerHeight="60vh"
-                customActions={
-                    chatId && showAll
-                        ? {
-                              custom: [
-                                  {
-                                      icon: Plus,
-                                      label: t("Add to Chat"),
-                                      ariaLabel: t("Add to Chat"),
-                                      onClick: handleAddToChat,
-                                      className: "lb-primary",
-                                  },
-                              ],
-                          }
-                        : null
-                }
+                onUploadClick={() => setShowUploadDialog(true)}
+                isDownloading={isDownloading}
+                containerHeight={containerHeight}
             />
 
             <FileUploadDialog
                 isOpen={showUploadDialog}
                 onClose={() => setShowUploadDialog(false)}
-                onFileUpload={handleUploadComplete}
+                onFileUpload={handleUploadCompleteAndRefresh}
                 contextId={contextId}
-                title="Upload Files"
-                description="Upload files to add them to this conversation."
+                chatId={chatId}
+                storageTarget={storageTarget}
+                title={t("Upload Files")}
+                description={t(
+                    "Upload files to add them to this conversation.",
+                )}
             />
         </>
     );

@@ -11,6 +11,9 @@ import RequestProgress from "../models/request-progress.mjs";
 import Task from "../models/task.mjs";
 import UserState from "../models/user-state.mjs";
 import Chat from "../models/chat.mjs";
+import { prepareMessagesForPersistence } from "../chats/persistence.js";
+import Automation from "../models/automation.js";
+import { assertXaiTranscribeEnabled } from "../utils/transcribe-model-options";
 
 /*  RequestProgress is deprecated. This function migrates the tasks 
     to the new Task model. */
@@ -60,7 +63,7 @@ async function addProgressMessageToChat(chatId, taskId, user) {
             // Create the progress message
             const progressMessage = {
                 payload: `A ${taskType} task has been enqueued and is in progress.`,
-                sender: "labeeb",
+                sender: "assistant",
                 sentTime: new Date().toISOString(),
                 direction: "incoming",
                 position: "single",
@@ -69,15 +72,24 @@ async function addProgressMessageToChat(chatId, taskId, user) {
             };
 
             // Create a new messages array with all existing messages plus the new one
-            const messages = [...(chat.messages || []), progressMessage];
+            const prepared = prepareMessagesForPersistence([
+                ...(chat.messages || []),
+                progressMessage,
+            ]);
+            const updateData = {
+                messages: prepared.messages,
+                isChatLoading: false,
+                messageStorageBytes: prepared.messageStorageBytes,
+            };
+            if (prepared.messagesCompacted) {
+                updateData.messagesCompacted = true;
+                updateData.messagesCompactedAt = new Date();
+            }
 
             // Replace the entire messages array in one operation
             await Chat.findOneAndUpdate(
                 { _id: chatId, userId: user._id },
-                {
-                    messages: messages,
-                    isChatLoading: false,
-                },
+                updateData,
             );
 
             console.log(
@@ -94,6 +106,59 @@ async function addProgressMessageToChat(chatId, taskId, user) {
         );
         // Don't fail if message adding fails
     }
+}
+
+async function enrichAutomationTasks(tasks, ownerId) {
+    const automationIds = [
+        ...new Set(
+            tasks
+                .map((task) =>
+                    (
+                        task?.automationRefId || task?.automation?.automationId
+                    )?.toString(),
+                )
+                .filter(Boolean),
+        ),
+    ];
+
+    if (automationIds.length === 0) {
+        return tasks;
+    }
+
+    const automations = await Automation.find({
+        _id: { $in: automationIds },
+        owner: ownerId,
+    })
+        .select("name slug")
+        .lean();
+    const automationById = new Map(
+        automations.map((automation) => [
+            automation._id.toString(),
+            automation,
+        ]),
+    );
+
+    return tasks.map((task) => {
+        const obj =
+            typeof task?.toObject === "function"
+                ? task.toObject({ virtuals: true })
+                : task;
+        const automation = automationById.get(
+            (obj?.automationRefId || obj?.automation?.automationId)?.toString(),
+        );
+        if (!automation) {
+            return obj;
+        }
+
+        return {
+            ...obj,
+            automation: {
+                ...obj.automation,
+                name: automation.name,
+                slug: automation.slug,
+            },
+        };
+    });
 }
 
 export async function GET(request) {
@@ -134,8 +199,12 @@ export async function GET(request) {
         await Promise.all(requests.map((task) => syncTaskWithBullMQJob(task)));
 
         // Check each task for abandoned status
-        const updatedRequests = await Promise.all(
+        let updatedRequests = await Promise.all(
             requests.map((task) => checkAndUpdateAbandonedTask(task)),
+        );
+        updatedRequests = await enrichAutomationTasks(
+            updatedRequests,
+            user._id,
         );
 
         const total = await Task.countDocuments(query);
@@ -183,11 +252,27 @@ export async function POST(req) {
             // Get current user
             const user = await getCurrentUser();
 
+            const taskMetadata =
+                type === "transcribe"
+                    ? { ...metadata, contextId: user.contextId }
+                    : metadata;
+
+            if (type === "transcribe") {
+                try {
+                    assertXaiTranscribeEnabled(taskMetadata.modelOption);
+                } catch (error) {
+                    return NextResponse.json(
+                        { error: error.message },
+                        { status: 400 },
+                    );
+                }
+            }
+
             // Create initial progress record and add job to queue
             const result = await createBackgroundTask({
                 userId: user._id,
                 type,
-                metadata,
+                metadata: taskMetadata,
                 synchronous,
                 invokedFrom: { source, chatId },
             });
@@ -217,3 +302,5 @@ export async function POST(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+export const dynamic = "force-dynamic";

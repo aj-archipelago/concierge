@@ -11,14 +11,18 @@ import {
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AuthContext } from "../../App";
+import { AuthContext, ServerContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
-import { QUERIES } from "../../graphql";
 import { isYoutubeUrl } from "../../utils/urlUtils";
 import LoadingButton from "../editor/LoadingButton";
 import TranslationOptions from "./TranslationOptions";
 import { useRunTask } from "../../../app/queries/notifications";
+import {
+    getDefaultTranscribeModelOption,
+    isXaiTranscribeModelOption,
+    supportsWordTimestampedTranscribeOption,
+} from "./transcribeQueries";
 
 export function AddTrackOptions({
     url,
@@ -284,19 +288,6 @@ function ClipboardPaste({ onAdd }) {
     );
 }
 
-export const getTranscribeQuery = (modelOption) => {
-    switch (modelOption?.toLowerCase()) {
-        case "neuralSpace":
-            return QUERIES.TRANSCRIBE_NEURALSPACE;
-        case "gemini":
-            return QUERIES.TRANSCRIBE_GEMINI;
-        case "whisper":
-            return QUERIES.TRANSCRIBE;
-        default:
-            return QUERIES.TRANSCRIBE;
-    }
-};
-
 export default function TranscribeVideo({
     url,
     onAdd,
@@ -306,18 +297,30 @@ export default function TranscribeVideo({
 }) {
     const { t } = useTranslation();
     const isYouTubeVideo = url ? isYoutubeUrl(url) : false;
+    const { debouncedUpdateUserState } = useContext(AuthContext);
+    const {
+        neuralspaceEnabled,
+        xaiTranscribeEnabled,
+        xaiTranscribeDefaultEnabled,
+        transcribeDefaultModelOption,
+    } = useContext(ServerContext);
+    const defaultModelOption = getDefaultTranscribeModelOption(
+        url,
+        xaiTranscribeEnabled,
+        xaiTranscribeDefaultEnabled,
+        transcribeDefaultModelOption,
+    );
 
     const [language, setLanguage] = useState("");
-    const [selectedModelOption, setSelectedModelOption] = useState(
-        isYouTubeVideo ? "Gemini" : "Whisper",
-    );
+    const [selectedModelOption, setSelectedModelOption] =
+        useState(defaultModelOption);
+    const userSelectedModelRef = useRef(false);
     const [transcriptionOption, setTranscriptionOption] = useState(null);
     const [selectedTranscriptionType, setSelectedTranscriptionType] =
         useState("");
     const [loading, setLoading] = useState(false);
     const [currentOperation, setCurrentOperation] = useState("");
     const [error, setError] = useState(null);
-    const { debouncedUpdateUserState } = useContext(AuthContext);
     const { openNotifications } = useNotificationsContext();
     const runTask = useRunTask();
 
@@ -329,13 +332,83 @@ export default function TranscribeVideo({
         maxWordsPerLine,
         highlightWords,
     } = transcriptionOption ?? {};
+    const selectedModelSupportsWordTimestamps =
+        supportsWordTimestampedTranscribeOption(selectedModelOption);
 
-    // Update model if URL changes and it's a YouTube video
+    // Keep defaults aligned with URL capability without wiping a manual choice.
     useEffect(() => {
-        if (isYouTubeVideo) {
-            setSelectedModelOption("Gemini");
+        if (!userSelectedModelRef.current) {
+            setSelectedModelOption(defaultModelOption);
+            return;
         }
-    }, [url, isYouTubeVideo]);
+
+        if (isYouTubeVideo && isXaiTranscribeModelOption(selectedModelOption)) {
+            setSelectedModelOption(defaultModelOption);
+        }
+    }, [defaultModelOption, isYouTubeVideo, selectedModelOption]);
+
+    useEffect(() => {
+        if (
+            !xaiTranscribeEnabled &&
+            isXaiTranscribeModelOption(selectedModelOption)
+        ) {
+            setSelectedModelOption(defaultModelOption);
+        }
+    }, [defaultModelOption, selectedModelOption, xaiTranscribeEnabled]);
+
+    const handleModelOptionChange = useCallback((value) => {
+        userSelectedModelRef.current = true;
+        setSelectedModelOption(value);
+    }, []);
+
+    useEffect(() => {
+        if (selectedModelSupportsWordTimestamps) {
+            return;
+        }
+
+        const unsupportedWordMode =
+            selectedTranscriptionType === "wordLevel" ||
+            selectedTranscriptionType === "wordsPerLine" ||
+            maxWordsPerLine;
+
+        if (!unsupportedWordMode && !wordTimestamped) {
+            return;
+        }
+
+        setSelectedTranscriptionType(
+            unsupportedWordMode ? "phraseLevel" : selectedTranscriptionType,
+        );
+        setTranscriptionOption((prev) => ({
+            ...prev,
+            wordTimestamped: false,
+            transcriptionType: "",
+            ...(unsupportedWordMode
+                ? {
+                      maxWordsPerLine: undefined,
+                      maxLineWidth: undefined,
+                      maxLineCount: undefined,
+                  }
+                : {}),
+        }));
+        debouncedUpdateUserState((prev) => ({
+            ...prev,
+            transcriptionType: "",
+            wordTimestamped: false,
+            ...(unsupportedWordMode
+                ? {
+                      maxWordsPerLine: undefined,
+                      maxLineWidth: undefined,
+                      maxLineCount: undefined,
+                  }
+                : {}),
+        }));
+    }, [
+        selectedModelSupportsWordTimestamps,
+        selectedTranscriptionType,
+        wordTimestamped,
+        maxWordsPerLine,
+        debouncedUpdateUserState,
+    ]);
 
     const handleSubmit = useCallback(async () => {
         if (!url || loading) return;
@@ -406,7 +479,12 @@ export default function TranscribeVideo({
     };
 
     const handleTranscriptionTypeChange = (e) => {
-        const selectedValue = e.target.value;
+        const selectedValue =
+            !selectedModelSupportsWordTimestamps &&
+            (e.target.value === "wordLevel" ||
+                e.target.value === "wordsPerLine")
+                ? "phraseLevel"
+                : e.target.value;
         let newOptions = {
             responseFormat,
             wordTimestamped: false,
@@ -420,11 +498,11 @@ export default function TranscribeVideo({
             newOptions.wordTimestamped = true;
             newOptions.transcriptionType = "word";
         } else if (selectedValue === "horizontal") {
-            newOptions.wordTimestamped = true;
+            newOptions.wordTimestamped = selectedModelSupportsWordTimestamps;
             newOptions.maxLineWidth = 35;
             newOptions.maxLineCount = 1;
         } else if (selectedValue === "vertical") {
-            newOptions.wordTimestamped = true;
+            newOptions.wordTimestamped = selectedModelSupportsWordTimestamps;
             newOptions.maxLineWidth = 25;
             newOptions.maxLineCount = 1;
         } else if (selectedValue === "wordsPerLine") {
@@ -447,20 +525,19 @@ export default function TranscribeVideo({
 
     return (
         <>
-            {/* <div>
-                <span className="flex items-center pb-2">
-                    <label className="text-sm px-1 whitespace-nowrap">
-                        {t("Using model")}
-                    </label>
-                    <ModelSelector
-                        loading={loading}
-                        selectedModelOption={selectedModelOption}
-                        setSelectedModelOption={setSelectedModelOption}
-                        neuralspaceEnabled={neuralspaceEnabled}
-                        disabled={isYouTubeVideo}
-                    />
-                </span>
-            </div> */}
+            <div className="mb-2">
+                <h5 className="font-semibold text-xs text-gray-400 mb-1">
+                    {t("Model")}
+                </h5>
+                <ModelSelector
+                    loading={loading}
+                    selectedModelOption={selectedModelOption}
+                    setSelectedModelOption={handleModelOptionChange}
+                    neuralspaceEnabled={neuralspaceEnabled}
+                    xaiTranscribeEnabled={xaiTranscribeEnabled}
+                    disabled={isYouTubeVideo}
+                />
+            </div>
 
             <div className="options-section flex flex-col justify-between gap-2 mb-5 p-2.5 border border-gray-300 rounded-md bg-neutral-100 dark:bg-gray-700 w-full">
                 <div className="flex flex-col">
@@ -596,7 +673,10 @@ function TranscriptionTypeSelector({
     selectedModelOption,
 }) {
     const { t } = useTranslation();
-    const isGemini = selectedModelOption?.toLowerCase() === "gemini";
+    // Word-level timestamps need a per-word source. Gemini alone can't provide
+    // them; xAI+Gemini hybrid can (xAI supplies the timestamps).
+    const supportsWordTimestamps =
+        supportsWordTimestampedTranscribeOption(selectedModelOption);
 
     return (
         <select
@@ -619,10 +699,44 @@ function TranscriptionTypeSelector({
             onChange={handleTranscriptionTypeChange}
         >
             <option value="phraseLevel">{t("Phrase level")}</option>
-            {!isGemini && <option value="wordLevel">{t("Word level")}</option>}
+            {supportsWordTimestamps && (
+                <option value="wordLevel">{t("Word level")}</option>
+            )}
             <option value="horizontal">{t("Horizontal")}</option>
             <option value="vertical">{t("Vertical")}</option>
-            <option value="wordsPerLine">{t("Words per line")}</option>
+            {supportsWordTimestamps && (
+                <option value="wordsPerLine">{t("Words per line")}</option>
+            )}
+        </select>
+    );
+}
+
+function ModelSelector({
+    loading,
+    selectedModelOption,
+    setSelectedModelOption,
+    neuralspaceEnabled,
+    xaiTranscribeEnabled,
+    disabled,
+}) {
+    const { t } = useTranslation();
+    return (
+        <select
+            disabled={loading || disabled}
+            className="lb-select"
+            aria-label={t("Model")}
+            value={selectedModelOption || "Whisper"}
+            onChange={(e) => setSelectedModelOption(e.target.value)}
+        >
+            <option value="Whisper">{t("Whisper")}</option>
+            {neuralspaceEnabled && (
+                <option value="NeuralSpace">{t("NeuralSpace")}</option>
+            )}
+            <option value="Gemini">{t("Gemini")}</option>
+            {xaiTranscribeEnabled && <option value="xAI">{t("xAI")}</option>}
+            {xaiTranscribeEnabled && (
+                <option value="xAI + Gemini">{t("xAI + Gemini")}</option>
+            )}
         </select>
     );
 }

@@ -7,7 +7,7 @@ import NewStyleGuideModal from "../../../../src/components/editor/NewStyleGuideM
  * Wrapper component to integrate NewStyleGuideModal into wp-editor context
  * This bridges the interface expected by AIModal with the NewStyleGuideModal component
  */
-const NewStyleGuideWrapper = ({ text, onSelect }) => {
+const NewStyleGuideWrapper = ({ text, html, onSelect }) => {
     const handleCommit = (correctedText) => {
         // Call onSelect with the corrected text to update the editor
         onSelect(correctedText);
@@ -15,7 +15,11 @@ const NewStyleGuideWrapper = ({ text, onSelect }) => {
 
     return (
         <div className="new-style-guide-wrapper">
-            <NewStyleGuideModal text={text} onCommit={handleCommit} />
+            <NewStyleGuideModal
+                text={text}
+                html={html}
+                onCommit={handleCommit}
+            />
         </div>
     );
 };

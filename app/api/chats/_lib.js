@@ -4,65 +4,29 @@ import { getCurrentUser } from "../utils/auth";
 import mongoose from "mongoose";
 import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
+import {
+    extractPreviewTextFromStoredPayload,
+    extractSearchableText,
+} from "../../../src/utils/assistantInlinePayload";
+import { NEW_CHAT_ID } from "../../utils/chatClientIds";
+import {
+    CHAT_STORAGE_WARNING_BYTES,
+    prepareMessagesForPersistence,
+    sanitizeToolForPersistence,
+} from "./persistence.js";
 
-/**
- * Removes artifacts from the tool field of a message to prevent storing large base64 data
- * Artifacts should not be stored in messages as they make requests too large
- */
-function removeArtifactsFromTool(tool) {
-    if (!tool) return tool;
-
-    try {
-        // Parse tool if it's a string
-        const toolObj = typeof tool === "string" ? JSON.parse(tool) : tool;
-
-        // If it's not an object, return as-is
-        if (typeof toolObj !== "object" || toolObj === null) {
-            return tool;
-        }
-
-        // Remove artifacts field if present
-        if ("artifacts" in toolObj) {
-            const { artifacts, ...toolWithoutArtifacts } = toolObj;
-            // Stringify back if original was a string
-            return typeof tool === "string"
-                ? JSON.stringify(toolWithoutArtifacts)
-                : toolWithoutArtifacts;
-        }
-
-        return tool;
-    } catch (e) {
-        // If parsing fails, return original tool
-        console.warn("Failed to parse tool field for artifact removal:", e);
-        return tool;
-    }
-}
-
-/**
- * Removes artifacts from all messages to prevent storing large base64 data
- */
-export function removeArtifactsFromMessages(messages) {
-    if (!Array.isArray(messages)) return messages;
-
-    return messages.map((msg) => {
-        if (!msg || typeof msg !== "object") return msg;
-
-        // Remove artifacts from tool field
-        if (msg.tool) {
-            return {
-                ...msg,
-                tool: removeArtifactsFromTool(msg.tool),
-            };
-        }
-
-        return msg;
-    });
-}
+export {
+    CHAT_DOCUMENT_LIMIT_BYTES,
+    CHAT_STORAGE_WARNING_BYTES,
+    prepareMessagesForPersistence,
+    sanitizeMessagesForPersistence,
+    sanitizeToolForPersistence,
+} from "./persistence.js";
 
 /**
  * Sanitizes a message object to remove Mongoose metadata fields (createdAt, updatedAt)
  * that shouldn't be sent to the client or included in updates.
- * Also removes artifacts from tool field to prevent sending large base64 data.
+ * Also limits tool metadata to the fields consumed by the client.
  */
 export function sanitizeMessage(msg) {
     if (!msg) return null;
@@ -70,7 +34,7 @@ export function sanitizeMessage(msg) {
     return {
         payload: msgObj.payload,
         sender: msgObj.sender,
-        tool: removeArtifactsFromTool(msgObj.tool) || null,
+        tool: sanitizeToolForPersistence(msgObj.tool) || null,
         sentTime: msgObj.sentTime,
         direction: msgObj.direction,
         position: msgObj.position,
@@ -86,16 +50,53 @@ export function sanitizeMessage(msg) {
     };
 }
 
+const MAX_PREVIEW_LENGTH = 200;
+
+const extractPreviewText = (message) => {
+    if (!message || typeof message !== "object") return "";
+    const payload = message.payload;
+    return extractPreviewTextFromStoredPayload(payload);
+};
+
+export const buildLastMessagePreview = (messages) => {
+    if (!Array.isArray(messages) || messages.length === 0) {
+        return {
+            lastMessagePreview: "",
+            lastMessageSender: "",
+            lastMessageAt: "",
+        };
+    }
+
+    const lastMessage = messages[messages.length - 1];
+    const preview = extractPreviewText(lastMessage);
+
+    return {
+        lastMessagePreview: preview ? preview.slice(0, MAX_PREVIEW_LENGTH) : "",
+        lastMessageSender: lastMessage?.sender || "",
+        lastMessageAt: lastMessage?.sentTime || "",
+    };
+};
+
+const serializeForPersistenceComparison = (value) => {
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return null;
+    }
+};
+
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
-
 const getSimpleTitle = (message) => {
-    return (message?.payload || "").substring(0, 14);
+    return extractPreviewText(message).substring(0, 14);
 };
 
 export async function getRecentChatsOfCurrentUser() {
     const currentUser = await getCurrentUser(false);
+    if (!currentUser?._id || currentUser.userId === "nodb") {
+        return [];
+    }
     const recentChatIds = currentUser.recentChatIds || [];
 
     const recentChatsUnordered = await Chat.find(
@@ -104,31 +105,39 @@ export async function getRecentChatsOfCurrentUser() {
             userId: currentUser._id,
         },
         { _id: 1, title: 1, titleSetByUser: 1, isUnused: 1 },
-    );
+    ).lean();
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
     const firstChatId =
         recentChatIds.length > 0 ? String(recentChatIds[0]) : null;
-    for (const chat of recentChatsUnordered) {
+    const chatsNeedingFirstMessage = recentChatsUnordered.filter((chat) => {
         const isFirstChat = firstChatId && String(chat._id) === firstChatId;
-        const needsFirstMessage =
+        return (
             isFirstChat ||
             !chat.title ||
             chat.title === "New Chat" ||
-            chat.title === "";
+            chat.title === ""
+        );
+    });
 
-        if (needsFirstMessage) {
-            const chatWithFirstMessage = await Chat.findOne(
-                { _id: chat._id },
-                { messages: { $slice: 1 } },
-            );
-            if (
-                chatWithFirstMessage &&
-                chatWithFirstMessage.messages &&
-                chatWithFirstMessage.messages.length > 0
-            ) {
-                chat._doc.firstMessage = chatWithFirstMessage.messages[0];
+    if (chatsNeedingFirstMessage.length > 0) {
+        const chatIds = chatsNeedingFirstMessage.map((chat) => chat._id);
+        const chatsWithFirstMessage = await Chat.find(
+            { _id: { $in: chatIds } },
+            { messages: { $slice: 1 } },
+        ).lean();
+        const firstMessageMap = new Map(
+            chatsWithFirstMessage.map((chat) => [
+                String(chat._id),
+                chat?.messages?.[0],
+            ]),
+        );
+
+        for (const chat of chatsNeedingFirstMessage) {
+            const firstMessage = firstMessageMap.get(String(chat._id));
+            if (firstMessage) {
+                chat.firstMessage = firstMessage;
             }
         }
     }
@@ -147,14 +156,32 @@ export async function getRecentChatsOfCurrentUser() {
 
 export async function getChatsOfCurrentUser(page = 1, limit = 20) {
     const user = await getCurrentUser(false);
+    if (!user?._id || user.userId === "nodb") {
+        return [];
+    }
     const userId = user._id;
 
     const skip = (page - 1) * limit;
 
-    let chats = await Chat.find({ userId })
+    const projection = {
+        _id: 1,
+        title: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        isPublic: 1,
+        isUnused: 1,
+        titleSetByUser: 1,
+        lastMessagePreview: 1,
+        lastMessageSender: 1,
+        lastMessageAt: 1,
+    };
+
+    // Filter out unused chats - they shouldn't appear in the saved chats list
+    let chats = await Chat.find({ userId, isUnused: { $ne: true } }, projection)
         .sort({ updatedAt: -1 })
         .skip(skip)
-        .limit(limit);
+        .limit(limit)
+        .lean();
 
     // If no chats exist and it's the first page, create a default empty chat
     if (chats.length === 0 && page === 1) {
@@ -162,14 +189,85 @@ export async function getChatsOfCurrentUser(page = 1, limit = 20) {
             messages: [],
             title: "",
         });
-        chats = [defaultChat];
+        chats = [defaultChat.toObject ? defaultChat.toObject() : defaultChat];
+    }
+
+    chats = chats.map((chat) => ({
+        ...chat,
+        messagesTruncated: true,
+    }));
+
+    const missingPreviewIds = chats
+        .filter((chat) => {
+            if (chat.isUnused) return false;
+            const missingPreview =
+                !chat.lastMessagePreview || chat.lastMessagePreview === "";
+            const missingSender =
+                !chat.lastMessageSender || chat.lastMessageSender === "";
+            const missingAt = !chat.lastMessageAt || chat.lastMessageAt === "";
+            return missingPreview && missingSender && missingAt;
+        })
+        .map((chat) => chat._id);
+
+    if (missingPreviewIds.length > 0) {
+        const previews = await Chat.find(
+            { _id: { $in: missingPreviewIds }, userId },
+            { _id: 1, updatedAt: 1, messages: { $slice: -1 } },
+        ).lean();
+
+        const previewMap = new Map();
+        const bulkOps = [];
+
+        for (const previewChat of previews) {
+            const preview = buildLastMessagePreview(previewChat.messages || []);
+            if (
+                !preview.lastMessagePreview &&
+                !preview.lastMessageSender &&
+                !preview.lastMessageAt &&
+                Array.isArray(previewChat.messages) &&
+                previewChat.messages.length > 0
+            ) {
+                // Non-text or legacy messages may not generate a preview.
+                // Persist lastMessageAt to prevent repeated backfill queries.
+                preview.lastMessageAt =
+                    previewChat.messages[0]?.sentTime || previewChat.updatedAt;
+            }
+            previewMap.set(String(previewChat._id), preview);
+            if (
+                preview.lastMessagePreview ||
+                preview.lastMessageSender ||
+                preview.lastMessageAt
+            ) {
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: previewChat._id },
+                        update: { $set: preview },
+                    },
+                });
+            }
+        }
+
+        if (bulkOps.length > 0) {
+            Chat.bulkWrite(bulkOps, { ordered: false }).catch((error) => {
+                console.warn("Failed to backfill chat previews:", error);
+            });
+        }
+
+        chats = chats.map((chat) => {
+            const preview = previewMap.get(String(chat._id));
+            if (!preview) return chat;
+            return { ...chat, ...preview };
+        });
     }
 
     return chats;
 }
 
-export async function createNewChat(data) {
-    const { messages, title } = data;
+export async function createNewChat(
+    data,
+    { setActive = true, forceNew = false } = {},
+) {
+    const { messages, title, isUnused } = data;
     const currentUser = await getCurrentUser(false);
     const userId = currentUser._id;
 
@@ -179,42 +277,58 @@ export async function createNewChat(data) {
           ? [messages]
           : [];
 
-    // Remove artifacts from messages before saving to prevent storing large base64 data
-    const messagesWithoutArtifacts =
-        removeArtifactsFromMessages(normalizedMessages);
+    const prepared = prepareMessagesForPersistence(normalizedMessages);
+    const messagesForPersistence = prepared.messages;
 
-    // Only look for existing unused chat if we're creating a new empty chat
-    if (messagesWithoutArtifacts.length === 0) {
-        // Find the latest unused chat (one-way gate: once used, never unused again)
-        const unusedChat = await Chat.findOne({
+    // Only look for existing unused chat if we're creating a new empty chat and not forcing new
+    if (!forceNew && messagesForPersistence.length === 0) {
+        const activeChatIdStr = currentUser.activeChatId
+            ? String(currentUser.activeChatId)
+            : null;
+        // Prefer an unused chat that isn't the current active one
+        const unusedChats = await Chat.find({
             userId: currentUser._id,
             isUnused: true,
-        }).sort({ createdAt: -1 });
+        })
+            .sort({ createdAt: -1 })
+            .limit(2);
 
+        const unusedChat = unusedChats.find(
+            (chat) => String(chat._id) !== activeChatIdStr,
+        );
         if (unusedChat) {
-            await setActiveChatId(unusedChat._id);
+            if (setActive) {
+                await setActiveChatId(unusedChat._id);
+            }
             return unusedChat;
         }
     }
 
     const chat = new Chat({
         userId,
-        messages: messagesWithoutArtifacts,
-        isUnused: messagesWithoutArtifacts.length === 0,
-        title: title || getSimpleTitle(messagesWithoutArtifacts[0] || ""),
+        messages: messagesForPersistence,
+        isUnused:
+            typeof isUnused === "boolean"
+                ? isUnused
+                : messagesForPersistence.length === 0,
+        title: title || getSimpleTitle(messagesForPersistence[0] || ""),
+        messageStorageBytes: prepared.messageStorageBytes,
+        messagesCompacted: prepared.messagesCompacted,
+        messagesCompactedAt: prepared.messagesCompacted ? new Date() : null,
+        ...buildLastMessagePreview(messagesForPersistence),
     });
 
     await chat.save();
-    await setActiveChatId(chat._id);
+    if (setActive) {
+        await setActiveChatId(chat._id);
+    }
     return chat;
 }
 
-export async function getChatById(chatId) {
-    // Handle temporary chat IDs from client-side optimistic updates
-    if (chatId && typeof chatId === "string" && chatId.startsWith("temp_")) {
-        // Return a minimal temporary chat object
+export async function getChatById(chatId, { limit } = {}) {
+    if (chatId === NEW_CHAT_ID) {
         return {
-            _id: chatId,
+            _id: NEW_CHAT_ID,
             title: "",
             messages: [],
             isPublic: false,
@@ -225,41 +339,124 @@ export async function getChatById(chatId) {
     }
 
     if (!chatId || !Types.ObjectId.isValid(chatId)) {
-        console.error("Invalid chatId: ", chatId);
         return null;
     }
 
     const currentUser = await getCurrentUser(false);
 
-    const chat = await Chat.findOne({ _id: chatId }).populate(
-        "userId",
-        "name username",
-    );
+    const effectiveLimit =
+        typeof limit === "number" && limit > 0 ? limit + 1 : null;
+    const messageProjection = effectiveLimit ? { $slice: -effectiveLimit } : 1;
+
+    let chat = await Chat.findOne(
+        { _id: chatId },
+        {
+            _id: 1,
+            title: 1,
+            messages: messageProjection,
+            isPublic: 1,
+            isChatLoading: 1,
+            activeSubscriptionId: 1,
+            titleSetByUser: 1,
+            selectedEntityId: 1,
+            messageStorageBytes: 1,
+            messagesCompacted: 1,
+            messagesCompactedAt: 1,
+            userId: 1,
+        },
+    ).lean();
 
     if (!chat) {
         return null;
     }
 
-    if (String(chat.userId._id) !== String(currentUser._id) && !chat.isPublic) {
+    const isOwner = String(chat.userId) === String(currentUser._id);
+    if (!isOwner && !chat.isPublic) {
         throw new Error("Unauthorized access");
     }
 
-    const isReadOnly = String(chat.userId._id) !== String(currentUser._id);
+    if (
+        isOwner &&
+        Number(chat.messageStorageBytes || 0) >= CHAT_STORAGE_WARNING_BYTES
+    ) {
+        const fullChat = await Chat.findOne(
+            { _id: chatId, userId: currentUser._id },
+            {
+                messages: 1,
+            },
+        ).lean();
+        const prepared = prepareMessagesForPersistence(
+            fullChat?.messages || [],
+        );
+        const messagesChanged =
+            serializeForPersistenceComparison(fullChat?.messages || []) !==
+            serializeForPersistenceComparison(prepared.messages);
+        const compactionTimestampNeedsUpdate = prepared.messagesCompacted
+            ? !chat.messagesCompactedAt
+            : Boolean(chat.messagesCompactedAt);
+        const currentMessagesCompacted = chat.messagesCompacted === true;
+        const storageStatusChanged =
+            Number(chat.messageStorageBytes || 0) !==
+                prepared.messageStorageBytes ||
+            currentMessagesCompacted !== prepared.messagesCompacted ||
+            compactionTimestampNeedsUpdate;
+        let nextMessagesCompactedAt = null;
+        if (prepared.messagesCompacted) {
+            nextMessagesCompactedAt =
+                messagesChanged || !chat.messagesCompactedAt
+                    ? new Date()
+                    : chat.messagesCompactedAt;
+        }
+
+        const storageUpdate = {
+            messages: prepared.messages,
+            messageStorageBytes: prepared.messageStorageBytes,
+            messagesCompacted: prepared.messagesCompacted,
+            messagesCompactedAt: nextMessagesCompactedAt,
+            ...buildLastMessagePreview(prepared.messages),
+        };
+
+        if (messagesChanged || storageStatusChanged) {
+            await Chat.updateOne(
+                { _id: chatId, userId: currentUser._id },
+                { $set: storageUpdate },
+            );
+        }
+
+        chat = {
+            ...chat,
+            ...storageUpdate,
+            messages: effectiveLimit
+                ? prepared.messages.slice(-effectiveLimit)
+                : prepared.messages,
+        };
+    }
+
+    const isReadOnly = !isOwner;
     const {
         _id,
         title,
         messages,
         isPublic,
         isChatLoading,
-        codeRequestId,
+        activeSubscriptionId,
         titleSetByUser,
         selectedEntityId,
-        researchMode,
+        messageStorageBytes,
+        messagesCompacted,
+        messagesCompactedAt,
     } = chat;
+
+    const rawMessages = Array.isArray(messages) ? messages : [];
+    const trimmedMessages = effectiveLimit
+        ? rawMessages.slice(-limit)
+        : rawMessages;
 
     // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
     // that shouldn't be sent to the client
-    const sanitizedMessages = (messages || []).map(sanitizeMessage);
+    const sanitizedMessages = trimmedMessages.map(sanitizeMessage);
+
+    const hasMoreMessages = effectiveLimit ? rawMessages.length > limit : false;
 
     const result = {
         _id,
@@ -268,17 +465,26 @@ export async function getChatById(chatId) {
         isPublic,
         readOnly: isReadOnly,
         isChatLoading,
-        codeRequestId,
+        activeSubscriptionId: activeSubscriptionId || null,
         titleSetByUser,
         selectedEntityId,
-        researchMode,
+        messageStorageBytes: messageStorageBytes || 0,
+        messagesCompacted: messagesCompacted === true,
+        messagesCompactedAt: messagesCompactedAt || null,
+        messagesTruncated: hasMoreMessages,
+        hasMoreMessages,
     };
 
     if (isReadOnly) {
-        result.owner = {
-            name: chat.userId.name,
-            username: chat.userId.username,
-        };
+        const owner = await User.findById(chat.userId)
+            .select({ name: 1, username: 1 })
+            .lean();
+        if (owner) {
+            result.owner = {
+                name: owner.name,
+                username: owner.username,
+            };
+        }
     }
 
     return result;
@@ -287,35 +493,31 @@ export async function getChatById(chatId) {
 export async function setActiveChatId(activeChatId) {
     if (!activeChatId) throw new Error("activeChatId is required");
 
-    // Handle temporary chat IDs from client-side optimistic updates
-    if (typeof activeChatId === "string" && activeChatId.startsWith("temp_")) {
-        // Return a successful response without making database changes
-        // The real chat ID will be set after the server creates the actual chat
-        return {
-            recentChatIds: [],
-            activeChatId: activeChatId,
-        };
-    }
-
     if (!mongoose.Types.ObjectId.isValid(activeChatId)) {
         throw new Error("Invalid activeChatId");
     }
 
     const currentUser = await getCurrentUser(false);
     let recentChatIds = currentUser.recentChatIds || [];
+    // Normalize to strings and remove duplicates while preserving order
+    const seenIds = new Set();
+    recentChatIds = recentChatIds
+        .map((id) => String(id))
+        .filter((id) => {
+            if (seenIds.has(id)) return false;
+            seenIds.add(id);
+            return true;
+        });
 
     const activeChatIdStr = String(activeChatId);
     const existingIndex = recentChatIds.indexOf(activeChatIdStr);
 
     if (existingIndex === -1) {
-        // If the chat is not in the list, add it to the beginning
         recentChatIds.unshift(activeChatIdStr);
-    } else if (existingIndex >= 3) {
-        // If the chat is beyond the top 3, move it to the beginning
+    } else if (existingIndex > 0) {
         recentChatIds.splice(existingIndex, 1);
         recentChatIds.unshift(activeChatIdStr);
     }
-    // If it's already in the top 3, do nothing to preserve order
 
     // Ensure we only keep the last n recent chat IDs
     const MAX_RECENT_CHATS = 1_000;
@@ -337,6 +539,12 @@ export async function setActiveChatId(activeChatId) {
 
 export async function getUserChatInfo() {
     const currentUser = await getCurrentUser(false);
+    if (!currentUser?._id || currentUser.userId === "nodb") {
+        return {
+            recentChatIds: [],
+            activeChatId: null,
+        };
+    }
     let recentChatIds = currentUser.recentChatIds || [];
     let activeChatId = currentUser.activeChatId;
 
@@ -588,7 +796,9 @@ export async function searchChatTitles(
             title: 1,
             createdAt: 1,
             updatedAt: 1,
-            messages: { $slice: 1 },
+            lastMessagePreview: 1,
+            lastMessageSender: 1,
+            lastMessageAt: 1,
         },
     )
         .sort({ updatedAt: -1 })
@@ -634,6 +844,9 @@ export async function searchChatContent(
             title: 1,
             createdAt: 1,
             updatedAt: 1,
+            lastMessagePreview: 1,
+            lastMessageSender: 1,
+            lastMessageAt: 1,
             // Use a helper to ensure at least one message is returned when slice <= 0.
             messages: { $slice: getMessageSliceWindow(slice) },
         },
@@ -646,8 +859,8 @@ export async function searchChatContent(
     for (const chat of chats) {
         const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
         const hasMatch = msgs.some((m) => {
-            if (!m || typeof m.payload !== "string") return false;
-            return matchesAllTerms(m.payload, searchTerms);
+            const text = extractSearchableText(m?.payload);
+            return text ? matchesAllTerms(text, searchTerms) : false;
         });
         if (hasMatch) {
             results.push(chat);

@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useApolloClient } from "@apollo/client";
 import CopyButton from "../CopyButton";
 import MermaidPlaceholder from "./MermaidPlaceholder";
+import { normalizeMermaidSvgForDarkTheme } from "./mermaidThemeUtils";
 import SVGViewer from "../common/SVGViewer";
 import { QUERIES } from "../../graphql";
 
@@ -27,13 +28,42 @@ const lightThemeVars = {
 };
 
 const darkThemeVars = {
-    primaryColor: "#90cdf4",
-    primaryTextColor: "#fff",
-    primaryBorderColor: "#90cdf4",
-    lineColor: "#90cdf4",
-    secondaryColor: "#222",
-    tertiaryColor: "#333",
-    background: "#222",
+    darkMode: true,
+    background: "#0b1220",
+    primaryColor: "#172033",
+    secondaryColor: "#111827",
+    tertiaryColor: "#1e293b",
+    primaryBorderColor: "#38bdf8",
+    secondaryBorderColor: "#475569",
+    tertiaryBorderColor: "#334155",
+    primaryTextColor: "#f8fafc",
+    secondaryTextColor: "#e2e8f0",
+    tertiaryTextColor: "#cbd5e1",
+    textColor: "#e2e8f0",
+    mainBkg: "#172033",
+    nodeBkg: "#172033",
+    nodeBorder: "#38bdf8",
+    nodeTextColor: "#f8fafc",
+    clusterBkg: "#0f172a",
+    clusterBorder: "#334155",
+    titleColor: "#f8fafc",
+    lineColor: "#7dd3fc",
+    defaultLinkColor: "#7dd3fc",
+    arrowheadColor: "#7dd3fc",
+    edgeLabelBackground: "#1e293b",
+    labelTextColor: "#e2e8f0",
+    actorBkg: "#172033",
+    actorBorder: "#38bdf8",
+    actorTextColor: "#f8fafc",
+    actorLineColor: "#7dd3fc",
+    signalColor: "#e2e8f0",
+    signalTextColor: "#f8fafc",
+    labelBoxBkgColor: "#1e293b",
+    labelBoxBorderColor: "#334155",
+    loopTextColor: "#e2e8f0",
+    noteBkgColor: "#1f2937",
+    noteBorderColor: "#475569",
+    noteTextColor: "#f8fafc",
 };
 
 const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
@@ -50,12 +80,14 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
     const isRetryingRef = useRef(false);
 
     // Memoize the theme configuration
+    const isDarkTheme = theme === "dark";
     const themeConfig = useMemo(
         () => ({
-            theme: theme === "dark" ? "dark" : "default",
-            themeVariables: theme === "dark" ? darkThemeVars : lightThemeVars,
+            theme: isDarkTheme ? "base" : "default",
+            darkMode: isDarkTheme,
+            themeVariables: isDarkTheme ? darkThemeVars : lightThemeVars,
         }),
-        [theme],
+        [isDarkTheme],
     );
 
     // Update currentCode when code prop changes
@@ -173,10 +205,13 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
                 });
 
                 const { svg } = await mermaid.render(id, currentCode);
+                const themedSvg = isDarkTheme
+                    ? normalizeMermaidSvgForDarkTheme(svg)
+                    : svg;
 
                 if (isMounted) {
                     // Store the SVG string
-                    setRenderedSvg(svg);
+                    setRenderedSvg(themedSvg);
                     setError(null); // Clear any previous errors
                     setIsLoading(false);
 
@@ -236,7 +271,16 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
             isMounted = false;
             renderingInProgress = false;
         };
-    }, [currentCode, themeConfig, theme, t, attemptFix, onLoad, onMermaidFix]);
+    }, [
+        currentCode,
+        themeConfig,
+        theme,
+        isDarkTheme,
+        t,
+        attemptFix,
+        onLoad,
+        onMermaidFix,
+    ]);
 
     // Prepare error text for copying
     const errorText = error
@@ -279,7 +323,9 @@ const MermaidDiagram = ({ code, onLoad, onMermaidFix }) => {
                 <div
                     className="mermaid-diagram-container relative group my-3 rounded-lg shadow-sm overflow-hidden"
                     style={{
-                        background: theme === "dark" ? "#222" : "#fff",
+                        background: isDarkTheme
+                            ? darkThemeVars.background
+                            : lightThemeVars.background,
                         width: "100%",
                         paddingLeft: "0.75rem",
                     }}

@@ -173,24 +173,164 @@ export function filterDarkClasses(content, theme) {
     return content.replace(/\bdark:[^\s"'`>]+/g, "");
 }
 
+/** Supported applet UI languages. */
+export const SUPPORTED_APPLET_LANGUAGES = new Set(["en", "ar"]);
+
+/**
+ * Normalize a language code to a supported applet locale.
+ * @param {string} [language="en"]
+ * @returns {{ language: "en"|"ar", direction: "ltr"|"rtl" }}
+ */
+export function normalizeAppletLocale(language = "en") {
+    const normalized = String(language || "en")
+        .toLowerCase()
+        .split("-")[0];
+    const resolved = SUPPORTED_APPLET_LANGUAGES.has(normalized)
+        ? normalized
+        : "en";
+    return {
+        language: resolved,
+        direction: resolved === "ar" ? "rtl" : "ltr",
+    };
+}
+
+/** Concierge-internal query params that should not be exposed to applets. */
+export const RESERVED_APPLET_QUERY_PARAMS = new Set([
+    "openChat",
+    "openCanvasApplet",
+]);
+
+const UNSAFE_APPLET_PARAM_KEYS = new Set([
+    "__proto__",
+    "constructor",
+    "prototype",
+]);
+
+function isSafeAppletParamKey(key) {
+    return (
+        !RESERVED_APPLET_QUERY_PARAMS.has(key) &&
+        !UNSAFE_APPLET_PARAM_KEYS.has(key)
+    );
+}
+
+/**
+ * Filter a params object for applet consumption, excluding reserved and unsafe keys.
+ * @param {Record<string, string>} [params={}]
+ * @returns {Record<string, string>}
+ */
+export function filterAppletParams(params = {}) {
+    const filtered = Object.create(null);
+    for (const [key, value] of Object.entries(params)) {
+        if (isSafeAppletParamKey(key) && typeof value === "string") {
+            filtered[key] = value;
+        }
+    }
+    return filtered;
+}
+
+/**
+ * Parse URL query params for applet consumption, excluding Concierge-internal keys.
+ * @param {string} [search=""] - Query string (with or without leading "?")
+ * @returns {Record<string, string>}
+ */
+export function parseAppletParams(search = "") {
+    const normalized = search.startsWith("?") ? search.slice(1) : search;
+    const params = Object.create(null);
+    for (const [key, value] of new URLSearchParams(normalized).entries()) {
+        if (isSafeAppletParamKey(key)) {
+            params[key] = value;
+        }
+    }
+    return params;
+}
+
 /**
  * Generates the complete HTML template for sandbox/preview iframes with theme filtering applied
  * Extracts head content (styles, scripts) and body content from user HTML and merges them properly
  * @param {string} content - The HTML content to include
  * @param {string} theme - The current theme ('light' or 'dark')
+ * @param {object} options - Optional generation flags
+ * @param {boolean} options.includeRuntimeScripts - Include platform/runtime scripts
+ * @param {string} [options.language] - Applet UI language (en or ar)
+ * @param {string} [options.direction] - Text direction (ltr or rtl)
+ * @param {Record<string, string>} [options.params] - Query params to inject (defaults to parent page URL)
  * @returns {string} - The complete HTML document with dark classes filtered based on theme
  */
-export function generateFilteredSandboxHtml(content, theme) {
+export function generateFilteredSandboxHtml(content, theme, options = {}) {
+    const includeRuntimeScripts = options.includeRuntimeScripts !== false;
+    const locale = {
+        ...normalizeAppletLocale(options.language),
+        ...(options.direction === "rtl" || options.direction === "ltr"
+            ? { direction: options.direction }
+            : {}),
+    };
+
+    // Capture parent page query params and inject as window.APPLET_PARAMS
+    const params =
+        options.params !== undefined
+            ? filterAppletParams(options.params)
+            : typeof window !== "undefined"
+              ? parseAppletParams(window.location.search)
+              : Object.create(null);
+
     // Extract head and body content from the user's HTML
     const { headContent, bodyContent } = extractHtmlStructure(content);
+
+    // Tailwind v4 browser script - required for <style type="text/tailwindcss"> and Tailwind classes in applet body
+    const TAILWIND_SCRIPT = includeRuntimeScripts
+        ? '<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>'
+        : "";
+
+    // Recovery script for Tailwind v4 compilation errors (e.g., AI-hallucinated or deprecated v3
+    // classes in @apply directives). A single bad @apply prevents ALL Tailwind CSS from generating,
+    // breaking the entire page. This catches the error, strips bad @apply rules from AI-generated
+    // style blocks, and reloads Tailwind so valid classes still work.
+    const TAILWIND_ERROR_RECOVERY = includeRuntimeScripts
+        ? `<script>
+(function(){
+    var recovered = false;
+    function recover() {
+        if (recovered) return;
+        recovered = true;
+        document.querySelectorAll('style[type="text/tailwindcss"]:not([data-system])').forEach(function(el) {
+            el.textContent = el.textContent.replace(/@apply\\b[^;]*;/g, '');
+        });
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
+        document.head.appendChild(s);
+    }
+    window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('unknown utility class')) {
+            e.preventDefault();
+            recover();
+        }
+    }, true);
+    window.addEventListener('unhandledrejection', function(e) {
+        var msg = e.reason && (e.reason.message || String(e.reason));
+        if (msg && msg.includes('unknown utility class')) {
+            e.preventDefault();
+            recover();
+        }
+    });
+})();
+</script>`
+        : "";
+
+    // Concierge Applet SDK - provides platform functions to applets (e.g. ConciergeSDK.agent.chat())
+    const APPLET_SDK_SCRIPT = includeRuntimeScripts
+        ? '<script src="/applet-sdk.js"></script>'
+        : "";
 
     // Generate the full HTML document with user's head content merged in
     const fullHtml = `
         <!DOCTYPE html>
-        <html data-theme="${theme}">
+        <html data-theme="${theme}" lang="${locale.language}" dir="${locale.direction}">
             <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
+                ${TAILWIND_ERROR_RECOVERY}
+                ${TAILWIND_SCRIPT}
+                ${APPLET_SDK_SCRIPT}
                 <style>
                     html, body {
                         margin: 0;
@@ -205,6 +345,12 @@ export function generateFilteredSandboxHtml(content, theme) {
                         min-height: auto;
                         height: auto;
                         background-color: #ffffff;
+                    }
+                    html[dir="rtl"] body {
+                        direction: rtl;
+                    }
+                    html[dir="ltr"] body {
+                        direction: ltr;
                     }
                     html[data-theme="dark"] body {
                         background-color: #1f2937; /* gray-800 - matches layout content container */
@@ -241,7 +387,7 @@ export function generateFilteredSandboxHtml(content, theme) {
                         display: none !important;
                     }
                 </style>
-                <style type="text/tailwindcss">
+                <style type="text/tailwindcss" data-system>
                     /* Styles for rendered markdown content from the LLM */
                     .chat-message {
                         @apply text-sm text-gray-800 dark:text-gray-200 leading-relaxed;
@@ -290,26 +436,74 @@ export function generateFilteredSandboxHtml(content, theme) {
                 </style>
                 ${headContent}
                 <script>
-                    // Make theme available to applets via JavaScript
-                    window.LABEEB_THEME = "${theme}";
-                    window.LABEEB_PREFERS_COLOR_SCHEME = "${theme}";
-                    
-                    // Listen for theme changes from parent
+                    // Make theme and locale available to applets via JavaScript
+                    window.CONCIERGE_THEME = "${theme}";
+                    window.CONCIERGE_PREFERS_COLOR_SCHEME = "${theme}";
+                    window.CONCIERGE_LANGUAGE = "${locale.language}";
+                    window.CONCIERGE_DIRECTION = "${locale.direction}";
+
+                    // Make querystring params available to applets
+                    window.APPLET_PARAMS = ${JSON.stringify(params).replace(/<\//g, "<\\/")};
+
+                    function __conciergeIsTrustedParentMessage(event) {
+                        if (!event || event.source !== window.parent) return false;
+                        try {
+                            var expectedOrigin = window.location.origin;
+                            if (expectedOrigin && expectedOrigin !== 'null') {
+                                return event.origin === expectedOrigin;
+                            }
+                            return event.origin === window.parent.location.origin;
+                        } catch (e) {
+                            return false;
+                        }
+                    }
+
+                    function __conciergeNormalizeAppletLocale(language, direction) {
+                        var lang = String(language || 'en').toLowerCase().split('-')[0];
+                        if (lang !== 'ar') lang = 'en';
+                        var dir;
+                        if (direction === 'rtl' || direction === 'ltr') {
+                            dir = direction;
+                        } else {
+                            dir = lang === 'ar' ? 'rtl' : 'ltr';
+                        }
+                        return { language: lang, direction: dir };
+                    }
+
+                    function __conciergeApplyAppletLocale(language, direction) {
+                        var locale = __conciergeNormalizeAppletLocale(language, direction);
+                        document.documentElement.setAttribute('lang', locale.language);
+                        document.documentElement.setAttribute('dir', locale.direction);
+                        window.CONCIERGE_LANGUAGE = locale.language;
+                        window.CONCIERGE_DIRECTION = locale.direction;
+                        document.dispatchEvent(new CustomEvent('concierge-locale-change', {
+                            detail: { language: locale.language, direction: locale.direction }
+                        }));
+                    }
+
+                    // Listen for theme and locale changes from parent
                     window.addEventListener('message', function(event) {
+                        if (!__conciergeIsTrustedParentMessage(event)) return;
                         if (event.data && event.data.type === 'theme-change') {
                             const newTheme = event.data.theme;
+                            if (newTheme !== 'light' && newTheme !== 'dark') return;
                             document.documentElement.setAttribute('data-theme', newTheme);
                             document.documentElement.style.setProperty('--prefers-color-scheme', newTheme);
-                            window.LABEEB_THEME = newTheme;
-                            window.LABEEB_PREFERS_COLOR_SCHEME = newTheme;
+                            window.CONCIERGE_THEME = newTheme;
+                            window.CONCIERGE_PREFERS_COLOR_SCHEME = newTheme;
+                            document.dispatchEvent(new CustomEvent('concierge-theme-change', {
+                                detail: { theme: newTheme }
+                            }));
+                        }
+                        if (event.data && event.data.type === 'locale-change') {
+                            __conciergeApplyAppletLocale(event.data.language, event.data.direction);
                         }
                     });
                     
-                    // Proxy fetch requests through parent window on iOS Safari to avoid Azure App Service 403 errors
-                    // iOS Safari doesn't send x-ms-client-principal-name header in iframes, causing 403
-                    // Chrome/Desktop works fine from iframe, so we only proxy on iOS Safari
-                    const originalFetch = window.fetch;
-                    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                    // Proxy fetch requests through parent window on iOS Safari to avoid Azure App Service 403 errors.
+                    // OutputSandbox can rewrite this document repeatedly, so keep the shim idempotent.
+                    window.__CONCIERGE_ORIGINAL_FETCH__ = window.__CONCIERGE_ORIGINAL_FETCH__ || window.fetch;
+                    window.__CONCIERGE_IS_IOS__ = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
                     
                     window.fetch = function(url, options) {
                         // Normalize URL to string and check if it's a same-origin API request
@@ -317,6 +511,8 @@ export function generateFilteredSandboxHtml(content, theme) {
                         try {
                             if (typeof url === 'string') {
                                 urlStr = url;
+                            } else if (typeof Request !== 'undefined' && url instanceof Request) {
+                                urlStr = url.url;
                             } else if (url instanceof URL) {
                                 urlStr = url.href;
                             } else {
@@ -326,12 +522,18 @@ export function generateFilteredSandboxHtml(content, theme) {
                             urlStr = String(url);
                         }
                         
-                        // Check if this is a same-origin API request that needs proxying
-                        const isSameOriginApi = urlStr.startsWith('/api/') || 
-                            (urlStr.startsWith(window.location.origin) && urlStr.includes('/api/'));
+                        let requestUrl;
+                        try {
+                            requestUrl = new URL(urlStr, window.location.href);
+                        } catch (e) {
+                            requestUrl = null;
+                        }
+
+                        const isSameOrigin = !!requestUrl && requestUrl.origin === window.location.origin;
+                        const isSameOriginApi = isSameOrigin && requestUrl.pathname.startsWith('/api/');
                         
                         // Only proxy on iOS Safari for same-origin API requests
-                        if (window.parent !== window && isSameOriginApi && isIOS) {
+                        if (window.parent !== window && isSameOriginApi && window.__CONCIERGE_IS_IOS__) {
                             console.log('[Fetch Proxy] Proxying request:', urlStr);
                             return new Promise((resolve, reject) => {
                                 const requestId = '__fetch_proxy_' + Date.now() + '_' + Math.random();
@@ -393,18 +595,20 @@ export function generateFilteredSandboxHtml(content, theme) {
                             });
                         }
                         
-                        // For non-API requests or when not in iframe, use original fetch with credentials
-                        const opts = options || {};
-                        if (!opts.credentials) {
+                        // Same-origin applet API calls need auth cookies. Cross-origin data/CDN
+                        // calls must stay anonymous unless the applet explicitly opts into
+                        // credentials; otherwise wildcard CORS responses are rejected.
+                        const opts = options ? { ...options } : {};
+                        if (isSameOrigin && !opts.credentials) {
                             opts.credentials = 'include';
                         }
-                        return originalFetch.call(this, url, opts);
+                        return window.__CONCIERGE_ORIGINAL_FETCH__.call(this, url, options ? opts : (isSameOrigin ? opts : undefined));
                     };
                     
                     // Also override XMLHttpRequest for compatibility with older code
-                    const OriginalXHR = window.XMLHttpRequest;
+                    window.__CONCIERGE_ORIGINAL_XHR__ = window.__CONCIERGE_ORIGINAL_XHR__ || window.XMLHttpRequest;
                     window.XMLHttpRequest = function() {
-                        const xhr = new OriginalXHR();
+                        const xhr = new window.__CONCIERGE_ORIGINAL_XHR__();
                         const originalOpen = xhr.open;
                         xhr.open = function(method, url, async, user, password) {
                             originalOpen.call(this, method, url, async, user, password);

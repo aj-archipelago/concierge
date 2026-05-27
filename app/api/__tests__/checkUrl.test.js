@@ -141,7 +141,7 @@ describe("check-url API", () => {
 
         const response = await POST(
             createMockRequest({
-                url: "https://storage.example.blob.core.windows.net/files/test.pdf",
+                url: "https://customerstorage.blob.core.windows.net/files/test.pdf",
                 hash: "hash123",
                 chatId: "chat-123",
                 fileScope: "chat",
@@ -159,7 +159,7 @@ describe("check-url API", () => {
             source: "url",
         });
         expect(global.fetch).toHaveBeenCalledWith(
-            "https://storage.example.blob.core.windows.net/files/test.pdf",
+            "https://customerstorage.blob.core.windows.net/files/test.pdf",
             expect.objectContaining({
                 method: "HEAD",
                 redirect: "follow",
@@ -195,7 +195,7 @@ describe("check-url API", () => {
 
         const response = await POST(
             createMockRequest({
-                url: "https://storage.example.blob.core.windows.net/cortexfiles-user-context-1/chats/chat-123/abc123_file.pdf?sv=old&sig=expired",
+                url: "https://customerstorage.blob.core.windows.net/cortexfiles-user-context-1/chats/chat-123/abc123_file.pdf?sv=old&sig=expired",
                 chatId: "chat-123",
                 fileScope: "chat",
             }),
@@ -252,7 +252,7 @@ describe("check-url API", () => {
 
         const response = await POST(
             createMockRequest({
-                url: "https://storage.example.blob.core.windows.net/cortexfiles-user-context-1/chats/chat-123/abc123_old.pdf?sv=old&sig=expired",
+                url: "https://customerstorage.blob.core.windows.net/cortexfiles-user-context-1/chats/chat-123/abc123_old.pdf?sv=old&sig=expired",
                 chatId: "chat-123",
                 fileScope: "chat",
             }),
@@ -305,9 +305,9 @@ describe("check-url API", () => {
             },
         });
         checkMediaFile.mockResolvedValue({
-            url: "https://storage.example.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
+            url: "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
             shortLivedUrl:
-                "https://storage.example.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
+                "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
             blobPath: "mod63eq7-act.jpeg",
             hash: "af67fc86281c4eb0",
         });
@@ -327,9 +327,9 @@ describe("check-url API", () => {
             exists: true,
             source: "canonical",
             file: {
-                url: "https://storage.example.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
+                url: "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
                 shortLivedUrl:
-                    "https://storage.example.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
+                    "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
                 blobPath: "chats/chat-123/mod63eq7-act.jpeg",
                 hash: "af67fc86281c4eb0",
             },

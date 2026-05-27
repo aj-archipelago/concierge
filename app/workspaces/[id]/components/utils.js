@@ -1,5 +1,4 @@
 import { ensureAppletSdkScript } from "../../../../src/utils/appletSdkUtils.js";
-
 export { ensureAppletSdkScript };
 
 export function getMessagesUpToVersion(messages, versionIndex) {
@@ -217,7 +216,7 @@ export function extractHtmlFromStreamingContent(content) {
     const htmlContent = extractHtmlFromAppletTag(content);
     if (htmlContent) {
         return {
-            html: htmlContent,
+            html: ensureAppletSdkScript(htmlContent),
             changes: "HTML code generated from APPLET tag",
             isComplete: true,
         };
@@ -237,7 +236,7 @@ export function extractHtmlFromStreamingContent(content) {
         const htmlFromBlock = lastMatch[1].trim();
         if (htmlFromBlock) {
             return {
-                html: htmlFromBlock,
+                html: ensureAppletSdkScript(htmlFromBlock),
                 changes: "HTML code generated from code block",
                 isComplete: true,
             };

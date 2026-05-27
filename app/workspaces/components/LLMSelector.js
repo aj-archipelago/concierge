@@ -1,5 +1,5 @@
 import { useContext, useEffect } from "react";
-import { useLLMs } from "../../queries/llms";
+import { useChatModels } from "../../queries/modelMetadata";
 import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
 export default function LLMSelector({
@@ -8,30 +8,23 @@ export default function LLMSelector({
     defaultModelIdentifier,
     disabled = false,
 }) {
-    const { data: llms, isLoading } = useLLMs();
+    const { data: chatModels, isLoading } = useChatModels();
     const { direction } = useContext(LanguageContext);
 
-    // Filter out labeeb-agent type LLMs (they should use agentMode instead)
-    const filteredLLMs = llms?.filter(
-        (llm) =>
-            llm.identifier !== "labeebagent" &&
-            llm.identifier !== "labeebresearchagent",
-    );
-
     useEffect(() => {
-        if (filteredLLMs && filteredLLMs.length > 0 && !value) {
-            const defaultLLM = filteredLLMs.find((llm) =>
+        if (chatModels && chatModels.length > 0 && !value) {
+            const defaultModel = chatModels.find((m) =>
                 defaultModelIdentifier
-                    ? llm.identifier === defaultModelIdentifier
-                    : llm.isDefault,
+                    ? m.modelId === defaultModelIdentifier
+                    : m.isDefault,
             );
-            if (defaultLLM) {
-                onChange(defaultLLM._id);
-            } else if (filteredLLMs.length > 0) {
-                onChange(filteredLLMs[0]._id);
+            if (defaultModel) {
+                onChange(defaultModel.modelId);
+            } else if (chatModels.length > 0) {
+                onChange(chatModels[0].modelId);
             }
         }
-    }, [filteredLLMs, value, onChange, defaultModelIdentifier]);
+    }, [chatModels, value, onChange, defaultModelIdentifier]);
 
     if (isLoading) return null;
 
@@ -43,9 +36,9 @@ export default function LLMSelector({
             dir={direction}
             className="lb-input w-full text-sm"
         >
-            {filteredLLMs?.map((llm) => (
-                <option key={llm._id} value={llm._id}>
-                    {llm.name}
+            {chatModels?.map((model) => (
+                <option key={model.modelId} value={model.modelId}>
+                    {model.displayName}
                 </option>
             ))}
         </select>

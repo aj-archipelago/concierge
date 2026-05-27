@@ -6,11 +6,11 @@ import { useEffect } from "react";
 /**
  * WordPress Editor Layout
  *
- * Minimal layout without the main Labeeb navigation/sidebar
+ * Minimal layout without the main Concierge navigation/sidebar
  * since this will be embedded in WordPress.
  *
  * This layout bypasses the main App authentication to allow
- * WordPress to embed the editor without requiring Labeeb login.
+ * WordPress to embed the editor without requiring Concierge login.
  */
 export default function WordPressEditorLayout({ children }) {
     useEffect(() => {
@@ -28,7 +28,7 @@ export default function WordPressEditorLayout({ children }) {
                 return;
             }
 
-            const message = { type: "__LABEEB_AUTH_SUCCESS__" };
+            const message = { type: "__CONCIERGE_AUTH_SUCCESS__" };
 
             // If opened in a popup, notify the opener
             if (window.opener && !window.opener.closed) {
@@ -87,7 +87,7 @@ export default function WordPressEditorLayout({ children }) {
                         pointer-events: auto;
                     }
 
-                    /* Hide Labeeb main navigation when embedded */
+                    /* Hide Concierge main navigation when embedded */
                     body.wp-editor-embedded {
                         margin: 0;
                         padding: 0;

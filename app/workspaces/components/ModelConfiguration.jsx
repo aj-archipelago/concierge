@@ -1,5 +1,12 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import LLMSelector from "./LLMSelector";
+import { useChatModels } from "../../queries/modelMetadata";
+import {
+    getReasoningEffortLevelsForModel,
+    normalizeReasoningEffortForModel,
+    reasoningEffortLevelLabelKey,
+} from "@/src/utils/reasoningEffortI18n";
 
 /**
  * Combined component for LLM selection and agent mode configuration
@@ -10,13 +17,39 @@ export default function ModelConfiguration({
     setLLM,
     agentMode,
     setAgentMode,
-    researchMode,
-    setResearchMode,
+    reasoningEffort,
+    setReasoningEffort,
     disabled = false,
     defaultModelIdentifier,
     showPublishedWarning = false,
 }) {
     const { t } = useTranslation();
+    const { data: chatModels } = useChatModels();
+    const selectedModel = chatModels?.find((model) => model.modelId === llm);
+    const reasoningEffortLevels =
+        getReasoningEffortLevelsForModel(selectedModel);
+    const hasModelReasoningRestriction =
+        Array.isArray(selectedModel?.supportedReasoningEfforts) &&
+        selectedModel.supportedReasoningEfforts.length > 0;
+    const displayedReasoningEffort = hasModelReasoningRestriction
+        ? normalizeReasoningEffortForModel(selectedModel, reasoningEffort)
+        : reasoningEffort;
+
+    useEffect(() => {
+        if (
+            agentMode &&
+            hasModelReasoningRestriction &&
+            reasoningEffort !== displayedReasoningEffort
+        ) {
+            setReasoningEffort(displayedReasoningEffort);
+        }
+    }, [
+        agentMode,
+        hasModelReasoningRestriction,
+        reasoningEffort,
+        displayedReasoningEffort,
+        setReasoningEffort,
+    ]);
 
     return (
         <div className="mb-4">
@@ -50,7 +83,7 @@ export default function ModelConfiguration({
                             const checked = e.target.checked;
                             setAgentMode(checked);
                             if (!checked) {
-                                setResearchMode(false);
+                                setReasoningEffort(null);
                             }
                         }}
                         disabled={disabled}
@@ -63,26 +96,30 @@ export default function ModelConfiguration({
                         {t("Agent Mode")}
                     </label>
                 </div>
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="researchMode"
-                        checked={researchMode}
-                        onChange={(e) => setResearchMode(e.target.checked)}
-                        disabled={disabled || !agentMode}
-                        className="accent-sky-500"
-                    />
-                    <label
-                        htmlFor="researchMode"
-                        className={`text-sm cursor-pointer ${
-                            !agentMode
-                                ? "text-gray-400 dark:text-gray-600"
-                                : "text-gray-700 dark:text-gray-300"
-                        }`}
-                    >
-                        {t("Research Mode")}
-                    </label>
-                </div>
+                {agentMode && (
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-700 dark:text-gray-300">
+                            {t("Reasoning")}
+                        </label>
+                        <div className="flex rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
+                            {reasoningEffortLevels.map((level) => (
+                                <button
+                                    key={level}
+                                    type="button"
+                                    onClick={() => setReasoningEffort(level)}
+                                    disabled={disabled}
+                                    className={`px-2 py-1 text-xs font-medium transition-colors capitalize ${
+                                        displayedReasoningEffort === level
+                                            ? "bg-sky-500 text-white"
+                                            : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    {t(reasoningEffortLevelLabelKey(level))}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

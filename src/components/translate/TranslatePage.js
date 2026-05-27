@@ -2,6 +2,10 @@
 
 import { useContext, useEffect, useState } from "react";
 import { AuthContext } from "../../App";
+import {
+    normalizeTranslationStrategy,
+    TRANSLATION_STRATEGIES,
+} from "./Translation";
 import Translation from "./Translation";
 
 function TranslatePage() {
@@ -10,14 +14,20 @@ function TranslatePage() {
     const [inputText, setInputText] = useState("");
     const [translatedText, setTranslatedText] = useState("");
     const [translationLanguage, setTranslationLanguage] = useState("en");
-    const [translationStrategy, setTranslationStrategy] = useState("GPT-5.2");
+    const [translationStrategy, setTranslationStrategy] = useState(
+        TRANSLATION_STRATEGIES.GPT_55,
+    );
 
     useEffect(() => {
         if (userState?.translate?.inputText) {
             setInputText(userState.translate.inputText);
         }
         if (userState?.translate?.translationStrategy) {
-            setTranslationStrategy(userState.translate.translationStrategy);
+            setTranslationStrategy(
+                normalizeTranslationStrategy(
+                    userState.translate.translationStrategy,
+                ),
+            );
         }
         if (userState?.translate?.translationLanguage) {
             setTranslationLanguage(userState.translate.translationLanguage);
@@ -78,7 +88,6 @@ function TranslatePage() {
                     },
                 });
             }}
-            showEditLink={true}
         />
     );
 }

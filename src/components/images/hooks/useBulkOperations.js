@@ -2,6 +2,8 @@ import { useCallback, useState } from "react";
 import {
     downloadFilesAsZip,
     checkDownloadLimits as checkDownloadLimitsUtil,
+    getFilename,
+    getDownloadUrl,
 } from "@/src/utils/fileDownloadUtils";
 
 export const useBulkOperations = ({
@@ -39,30 +41,42 @@ export const useBulkOperations = ({
     }, [selectedImagesObjects, t]);
 
     const handleBulkAction = useCallback(
-        async (action) => {
-            if (selectedImagesObjects.length === 0) return;
+        async (action, items = selectedImagesObjects) => {
+            if (items.length === 0) return;
 
             if (action === "delete") {
                 setShowDeleteSelectedConfirm(true);
             } else if (action === "download") {
                 // Check limits first
-                const limitCheck = checkDownloadLimits();
+                const limitCheck = checkDownloadLimitsUtil(items, {
+                    maxFiles: 100,
+                    maxTotalSizeMB: 1000,
+                });
                 if (!limitCheck.allowed) {
                     // Show error dialog - we'll need to pass this up to the parent component
                     throw new Error(
-                        `${limitCheck.error}: ${limitCheck.details}`,
+                        `${limitCheck.errorKey ? t(limitCheck.errorKey) : t(limitCheck.error || "Download limit exceeded")}: ${
+                            limitCheck.detailsKey
+                                ? t(
+                                      limitCheck.detailsKey,
+                                      limitCheck.detailsParams || {},
+                                  )
+                                : limitCheck.details
+                                  ? t(limitCheck.details)
+                                  : limitCheck.details
+                        }`,
                     );
                 }
 
                 // Handle single file download vs multiple files
-                if (selectedImagesObjects.length === 1) {
+                if (items.length === 1) {
                     // Single file - download directly
-                    const img = selectedImagesObjects[0];
+                    const img = items[0];
                     const url = img.azureUrl || img.url;
                     if (url) {
                         const link = document.createElement("a");
-                        link.href = url;
-                        link.download = ""; // Let browser determine filename
+                        link.href = getDownloadUrl(url);
+                        link.download = getFilename(img) || "";
                         link.style.display = "none";
                         document.body.appendChild(link);
                         link.click();
@@ -70,7 +84,7 @@ export const useBulkOperations = ({
                     }
                 } else {
                     // Multiple files - create ZIP using shared utility
-                    await downloadFilesAsZip(selectedImagesObjects, {
+                    await downloadFilesAsZip(items, {
                         filenamePrefix: "media_file_download",
                         onProgress: (isLoading) => {
                             setIsDownloading(isLoading);
@@ -87,7 +101,7 @@ export const useBulkOperations = ({
             setSelectedImages,
             setSelectedImagesObjects,
             setShowDeleteSelectedConfirm,
-            checkDownloadLimits,
+            t,
         ],
     );
 

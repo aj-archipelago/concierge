@@ -12,6 +12,7 @@ import {
     detectCodeBlockInStream,
     extractChatContent,
 } from "./utils.js";
+import { ensureAppletSdkScript } from "../../../../src/utils/appletSdkUtils.js";
 
 describe("Workspace Utils", () => {
     describe("getMessagesUpToVersion", () => {
@@ -248,7 +249,7 @@ describe("Workspace Utils", () => {
             const content = "```html\n<div>Hello World</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Hello World</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
@@ -258,7 +259,7 @@ describe("Workspace Utils", () => {
             const content = "```\n<div>Hello World</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Hello World</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
@@ -269,7 +270,7 @@ describe("Workspace Utils", () => {
                 "```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Second</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Second</div>',
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
@@ -279,7 +280,7 @@ describe("Workspace Utils", () => {
             const content = "```html\n  <div>Hello World</div>  \n```";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Hello World</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
                 changes: "HTML code generated from code block",
                 isComplete: true,
             });
@@ -304,6 +305,7 @@ describe("Workspace Utils", () => {
             expect(result.html).toContain("<!DOCTYPE html>");
             expect(result.html).toContain("<html>");
             expect(result.html).toContain("<h1>Hello</h1>");
+            expect(result.html).toContain("applet-sdk.js");
         });
     });
 
@@ -479,7 +481,7 @@ describe("Workspace Utils", () => {
             const content = "<APPLET><div>Hello World</div></APPLET>";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Hello World</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
                 changes: "HTML code generated from APPLET tag",
                 isComplete: true,
             });
@@ -490,7 +492,7 @@ describe("Workspace Utils", () => {
                 "<APPLET>```html\n<div>Hello World</div>\n```</APPLET>";
             const result = extractHtmlFromStreamingContent(content);
             expect(result).toEqual({
-                html: "<div>Hello World</div>",
+                html: '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
                 changes: "HTML code generated from APPLET tag",
                 isComplete: true,
             });
@@ -502,25 +504,32 @@ describe("Workspace Utils", () => {
             const result = extractHtmlFromStreamingContent(content);
             expect(result.html.trim()).toContain("<!DOCTYPE html>");
             expect(result.html.trim()).toContain("<html>");
+            expect(result.html).toContain("applet-sdk.js");
         });
 
         it("should handle APPLET tag with attributes", () => {
             const content = '<APPLET id="test"><div>Hello</div></APPLET>';
             const result = extractHtmlFromStreamingContent(content);
-            expect(result.html).toBe("<div>Hello</div>");
+            expect(result.html).toBe(
+                '<script src="/applet-sdk.js"></script>\n<div>Hello</div>',
+            );
         });
 
         it("should use last code block when multiple exist inside APPLET", () => {
             const content =
                 "<APPLET>```html\n<div>First</div>\n```\n```html\n<div>Second</div>\n```</APPLET>";
             const result = extractHtmlFromStreamingContent(content);
-            expect(result.html).toBe("<div>Second</div>");
+            expect(result.html).toBe(
+                '<script src="/applet-sdk.js"></script>\n<div>Second</div>',
+            );
         });
 
         it("should handle APPLET tag case-insensitively", () => {
             const content = "<applet><div>Hello</div></applet>";
             const result = extractHtmlFromStreamingContent(content);
-            expect(result.html).toBe("<div>Hello</div>");
+            expect(result.html).toBe(
+                '<script src="/applet-sdk.js"></script>\n<div>Hello</div>',
+            );
         });
 
         it("should return null for empty APPLET tag", () => {
@@ -532,7 +541,9 @@ describe("Workspace Utils", () => {
         it("should fall back to code blocks if no APPLET tag found", () => {
             const content = "```html\n<div>Hello</div>\n```";
             const result = extractHtmlFromStreamingContent(content);
-            expect(result.html).toBe("<div>Hello</div>");
+            expect(result.html).toBe(
+                '<script src="/applet-sdk.js"></script>\n<div>Hello</div>',
+            );
         });
     });
 
@@ -682,6 +693,47 @@ describe("Workspace Utils", () => {
                 "Text before <APPLET id='test'><div>Hello</div></APPLET> after";
             const result = extractChatContent(content);
             expect(result).toBe("Text before  after");
+        });
+    });
+
+    describe("ensureAppletSdkScript", () => {
+        it("should return falsy/non-string input unchanged", () => {
+            expect(ensureAppletSdkScript(null)).toBeNull();
+            expect(ensureAppletSdkScript(undefined)).toBeUndefined();
+            expect(ensureAppletSdkScript("")).toBe("");
+        });
+
+        it("should not inject when SDK script already present", () => {
+            const html =
+                '<html><head><script src="/applet-sdk.js"></script></head><body></body></html>';
+            expect(ensureAppletSdkScript(html)).toBe(html);
+        });
+
+        it("should inject into </head> when present", () => {
+            const html =
+                "<html><head><title>Test</title></head><body></body></html>";
+            const result = ensureAppletSdkScript(html);
+            expect(result).toContain('src="/applet-sdk.js"');
+            expect(result.indexOf("applet-sdk.js")).toBeLessThan(
+                result.indexOf("</head>"),
+            );
+        });
+
+        it("should inject before </body> when no </head>", () => {
+            const html = "<html><body><p>Content</p></body></html>";
+            const result = ensureAppletSdkScript(html);
+            expect(result).toContain('src="/applet-sdk.js"');
+            expect(result.indexOf("applet-sdk.js")).toBeLessThan(
+                result.indexOf("</body>"),
+            );
+        });
+
+        it("should prepend when no </head> or </body>", () => {
+            const html = "<div>Hello World</div>";
+            const result = ensureAppletSdkScript(html);
+            expect(result).toBe(
+                '<script src="/applet-sdk.js"></script>\n<div>Hello World</div>',
+            );
         });
     });
 });

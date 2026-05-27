@@ -73,11 +73,19 @@ export const AUDIO_EXTENSIONS = [
     ".flac",
 ];
 
-export const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) => mime.lookup(ext));
-export const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) => mime.lookup(ext));
-export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) => mime.lookup(ext));
+export const DOC_MIME_TYPES = DOC_EXTENSIONS.map((ext) =>
+    mime.lookup(ext),
+).filter(Boolean);
+export const IMAGE_MIME_TYPES = IMAGE_EXTENSIONS.map((ext) =>
+    mime.lookup(ext),
+).filter(Boolean);
+export const VIDEO_MIME_TYPES = VIDEO_EXTENSIONS.map((ext) =>
+    mime.lookup(ext),
+).filter(Boolean);
 VIDEO_MIME_TYPES.push("video/youtube");
-export const AUDIO_MIME_TYPES = AUDIO_EXTENSIONS.map((ext) => mime.lookup(ext));
+export const AUDIO_MIME_TYPES = AUDIO_EXTENSIONS.map((ext) =>
+    mime.lookup(ext),
+).filter(Boolean);
 
 export const MEDIA_MIME_TYPES = [...VIDEO_MIME_TYPES, ...AUDIO_MIME_TYPES];
 
@@ -88,12 +96,62 @@ export const ACCEPTED_FILE_TYPES = [
     ...AUDIO_MIME_TYPES,
 ];
 
+/**
+ * Extract a clean filename from a URL.
+ * Strips query params, path segments, and blob hash prefix ({hex}_{filename}).
+ * @param {string} url - The URL to extract from
+ * @returns {string} The clean filename
+ */
+export function getFilename(url) {
+    if (!url) return "";
+    try {
+        if (isYoutubeUrl(url)) {
+            const videoId = getYoutubeVideoId(url);
+            return videoId ? `youtube-video-${videoId}` : "youtube-video";
+        }
+        const urlObj = new URL(url);
+        const path = urlObj.pathname.replace(/^\/|\/$/g, "");
+        const fullFilename = path.split("/").pop() || "";
+        const decoded = decodeURIComponent(fullFilename);
+        // Strip blob hash prefix: {hex}_{filename}
+        const idx = decoded.indexOf("_");
+        if (idx > 0) {
+            const prefix = decoded.substring(0, idx);
+            if (/^[0-9a-f]+$/i.test(prefix)) {
+                return decoded.substring(idx + 1);
+            }
+        }
+        return decoded;
+    } catch {
+        return url.split("/").pop()?.split("?")[0] || "";
+    }
+}
+
 // File type utilities
 export function getExtension(url) {
     if (!url) return "";
-    const filename = url.split("?")[0].split("#")[0];
+    let pathname = url.split("?")[0].split("#")[0];
+
+    try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol === "blob:") {
+            try {
+                pathname = new URL(parsedUrl.pathname).pathname;
+            } catch {
+                pathname = parsedUrl.pathname;
+            }
+        } else {
+            pathname = parsedUrl.pathname;
+        }
+    } catch {
+        // Keep the string fallback above for filenames and relative paths.
+    }
+
+    const filename = pathname.split("/").pop() || "";
     const lastDotIndex = filename.lastIndexOf(".");
-    return lastDotIndex > 0 ? filename.slice(lastDotIndex).toLowerCase() : "";
+    return lastDotIndex > 0 && lastDotIndex < filename.length - 1
+        ? filename.slice(lastDotIndex).toLowerCase()
+        : "";
 }
 
 export function isDocumentUrl(url) {
@@ -133,7 +191,7 @@ export function isMediaUrl(url) {
 }
 
 export function isSupportedFileUrl(url) {
-    return isDocumentUrl(url) || isMediaUrl(url);
+    return Boolean(url);
 }
 
 export function getYoutubeVideoId(url) {
@@ -156,46 +214,51 @@ export function getYoutubeVideoId(url) {
     }
 }
 
-// Extracts the filename from a URL
-export function getFilename(url) {
-    try {
-        // Special handling for YouTube URLs
-        if (isYoutubeUrl(url)) {
-            const videoId = getYoutubeVideoId(url);
-            return videoId ? `youtube-video-${videoId}` : "youtube-video";
-        }
+/**
+ * Known generic filenames that browsers assign to clipboard pastes.
+ * These need unique suffixes to avoid collisions across chats.
+ */
+const GENERIC_CLIPBOARD_NAMES = new Set([
+    "image.png",
+    "image.jpg",
+    "image.jpeg",
+    "image.gif",
+    "image.webp",
+    "image.bmp",
+]);
 
-        // Create a URL object to handle parsing
-        const urlObject = new URL(url);
-
-        // Get the pathname and remove leading/trailing slashes
-        const path = urlObject.pathname.replace(/^\/|\/$/g, "");
-
-        // Get the last part of the path (filename)
-        const fullFilename = path.split("/").pop() || "";
-
-        // Decode the filename to handle URL encoding
-        const decodedFilename = decodeURIComponent(fullFilename);
-
-        // Split by underscore and remove the first part if it exists
-        const parts = decodedFilename.split("_");
-        const relevantParts = parts.length > 1 ? parts.slice(1) : parts;
-
-        // Join the parts back together
-        return relevantParts.join("_");
-    } catch (error) {
-        console.error("Error parsing URL:", error);
-        return "";
-    }
+function isGenericClipboardName(name) {
+    return GENERIC_CLIPBOARD_NAMES.has(name.toLowerCase().trim());
 }
 
 /**
- * Generates a filename from a File object's MIME type if it doesn't have a name
+ * Generate a unique filename by inserting a short timestamp-based ID before the extension.
+ * E.g., "image.png" -> "image-m1a2b3c.png"
+ * @param {string} basename - The original filename
+ * @returns {string} Filename with unique suffix
+ */
+export function makeUniqueFilename(basename) {
+    const shortId = Date.now().toString(36);
+    const dotIndex = basename.lastIndexOf(".");
+    if (dotIndex > 0) {
+        const name = basename.substring(0, dotIndex);
+        const ext = basename.substring(dotIndex);
+        return `${name}-${shortId}${ext}`;
+    }
+    return `${basename}-${shortId}`;
+}
+
+/**
+ * Generates a filename from a File object's MIME type if it doesn't have a name,
+ * or uniquifies generic clipboard names (e.g., "image.png") to avoid collisions.
  * @param {File} file - The file object to generate a filename for
  * @returns {string} The generated filename (kept in English for file system compatibility)
  */
 export function generateFilenameFromMimeType(file) {
     if (file.name && file.name.trim() !== "") {
+        if (isGenericClipboardName(file.name)) {
+            return makeUniqueFilename(file.name);
+        }
         return file.name;
     }
 
@@ -211,10 +274,10 @@ export function generateFilenameFromMimeType(file) {
 
     // If we got an extension, use it; otherwise fall back to "bin"
     if (extension) {
-        return `pasted-file.${extension}`;
+        return makeUniqueFilename(`pasted-file.${extension}`);
     }
 
-    return "pasted-file";
+    return makeUniqueFilename("pasted-file");
 }
 
 // Media file utilities
@@ -241,9 +304,22 @@ export const getVideoDuration = (file) => {
     return new Promise((resolve, reject) => {
         const video = document.createElement("video");
         video.preload = "metadata";
-        video.onloadedmetadata = () => resolve(video.duration);
-        video.onerror = reject;
-        video.src = URL.createObjectURL(file);
+        const objectUrl = URL.createObjectURL(file);
+        const timeout = setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error("Video metadata load timed out"));
+        }, 30000);
+        video.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(objectUrl);
+            resolve(video.duration);
+        };
+        video.onerror = (e) => {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(objectUrl);
+            reject(e);
+        };
+        video.src = objectUrl;
     });
 };
 
@@ -251,9 +327,18 @@ export const getVideoDurationFromUrl = (url) => {
     return new Promise((resolve, reject) => {
         const video = document.createElement("video");
         video.preload = "metadata";
+        const timeout = setTimeout(() => {
+            reject(new Error("Video metadata load timed out"));
+        }, 30000);
+        video.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            resolve(video.duration);
+        };
+        video.onerror = (e) => {
+            clearTimeout(timeout);
+            reject(e);
+        };
         video.src = url;
-        video.onloadedmetadata = () => resolve(video.duration);
-        video.onerror = reject;
     });
 };
 
@@ -265,7 +350,7 @@ export function getFileIcon(filename) {
 
     switch (extension) {
         case "pdf":
-            return FileImage;
+            return FileText;
         case "doc":
         case "docx":
         case "txt":

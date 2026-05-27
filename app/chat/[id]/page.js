@@ -6,8 +6,11 @@ import {
 import { redirect } from "next/navigation";
 import Chat from "../../../src/components/chat/Chat";
 import { getActiveChatId, getChatById } from "../../api/chats/_lib";
+import { isClientOnlyChatId } from "../../utils/chatClientIds";
 
-export default async function ChatPage({ params }) {
+const DEFAULT_CHAT_MESSAGES_LIMIT = 30;
+
+export default async function ChatPage({ params, searchParams }) {
     let id = String(params.id);
     //also check id if valid mongo object id
     if (!id || id === "undefined" || id === "null") {
@@ -16,9 +19,22 @@ export default async function ChatPage({ params }) {
         // route page to active chat
     }
 
+    const forceClient = searchParams?.client === "1";
+
+    // INSTANT: /chat/new should never SSR because the stream promotes it
+    // into a persisted chat ID on the client.
+    if (forceClient || isClientOnlyChatId(id)) {
+        return (
+            <div className="flex flex-col h-full">
+                <Chat viewingChat={null} />
+            </div>
+        );
+    }
     let chat;
     try {
-        chat = await getChatById(id);
+        chat = await getChatById(id, {
+            limit: DEFAULT_CHAT_MESSAGES_LIMIT,
+        });
     } catch (error) {
         // Handle unauthorized access (e.g., user switched accounts)
         if (error.message === "Unauthorized access") {
@@ -36,39 +52,37 @@ export default async function ChatPage({ params }) {
     }
 
     if (!chat) {
-        return (
-            <div className="flex items-center justify-center">
-                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-                    <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">
-                        Chat not found!
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400">
-                        The requested chat does not exist or has been deleted.
-                    </p>
-                </div>
-            </div>
-        );
+        const activeChatId = await getActiveChatId();
+        if (activeChatId && activeChatId !== id) {
+            redirect(`/chat/${activeChatId}`);
+        }
+        redirect("/chat");
     }
-    const { readOnly } = chat;
+    const { readOnly } = chat || {};
 
     const queryClient = new QueryClient();
 
-    let viewingChat = JSON.parse(JSON.stringify(chat));
-    if (!readOnly) {
-        viewingChat = null;
-        // Note: Active chat ID will be updated asynchronously by Chat.js component
-        // No need to update it here during navigation
+    let viewingChat = null;
+    if (chat) {
+        viewingChat = JSON.parse(JSON.stringify(chat));
+        if (!readOnly) {
+            viewingChat = null;
+            // Note: Active chat ID will be updated asynchronously by Chat.js component
+            // No need to update it here during navigation
+        }
     }
 
     // Prefetch the chat data with a short staleTime to allow refetching
     // This ensures we get fresh data if server persisted messages while user was away
-    await queryClient.prefetchQuery({
-        queryKey: ["chat", id],
-        queryFn: async () => {
-            return JSON.parse(JSON.stringify(chat));
-        },
-        staleTime: 0, // Always refetch on navigation to get latest server state
-    });
+    if (chat) {
+        await queryClient.prefetchQuery({
+            queryKey: ["chat", id],
+            queryFn: async () => {
+                return JSON.parse(JSON.stringify(chat));
+            },
+            staleTime: 0, // Always refetch on navigation to get latest server state
+        });
+    }
 
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>

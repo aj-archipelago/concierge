@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Loader2, Globe, AppWindow } from "lucide-react";
+import { Plus, Loader2, Globe, AppWindow, Star } from "lucide-react";
 import * as Icons from "lucide-react";
 import {
     Tooltip,
@@ -11,8 +11,10 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import Loader from "../../components/loader";
 import { useCreateWorkspace, useWorkspaces } from "../../queries/workspaces";
+import { useUserState, useUpdateUserState } from "../../queries/users";
 import FilterInput from "../../../src/components/common/FilterInput";
 import EmptyState from "../../../src/components/common/EmptyState";
 import dayjs from "dayjs";
@@ -24,6 +26,8 @@ export default function Workspaces() {
     const router = useRouter();
     const { data: workspaces, isLoading } = useWorkspaces();
     const createWorkspace = useCreateWorkspace();
+    const userState = useUserState();
+    const updateUserState = useUpdateUserState();
     const { t } = useTranslation();
     const [filterText, setFilterText] = useState("");
     const [debouncedFilterText, setDebouncedFilterText] = useState("");
@@ -50,6 +54,26 @@ export default function Workspaces() {
                 workspace.publishedPathwayName?.toLowerCase().includes(query),
         );
     }, [workspaces, debouncedFilterText]);
+
+    const favoriteWorkspaceIds = useMemo(
+        () => userState.data?.favoriteWorkspaceIds || [],
+        [userState.data?.favoriteWorkspaceIds],
+    );
+
+    const isWorkspaceFavorited = (workspaceId) =>
+        favoriteWorkspaceIds.includes(workspaceId);
+
+    const handleToggleFavorite = (workspaceId) => {
+        const newIds = isWorkspaceFavorited(workspaceId)
+            ? favoriteWorkspaceIds.filter((id) => id !== workspaceId)
+            : [...favoriteWorkspaceIds, workspaceId];
+        updateUserState.mutate({ favoriteWorkspaceIds: newIds });
+    };
+
+    const favoriteWorkspaces = useMemo(() => {
+        if (!workspaces || favoriteWorkspaceIds.length === 0) return [];
+        return workspaces.filter((w) => favoriteWorkspaceIds.includes(w._id));
+    }, [workspaces, favoriteWorkspaceIds]);
 
     const handleCreate = async () => {
         const workspace = await createWorkspace.mutateAsync({
@@ -117,6 +141,28 @@ export default function Workspaces() {
                 </div>
             </div>
 
+            {favoriteWorkspaces.length > 0 && (
+                <div className="mb-6">
+                    <h2 className="text-base font-semibold mb-3">
+                        {t("Favorites")}
+                    </h2>
+                    <div className="workspace-grid">
+                        {favoriteWorkspaces.map((workspace) => (
+                            <WorkspaceTile
+                                key={workspace._id}
+                                workspace={workspace}
+                                onClick={() =>
+                                    router.push(`/workspaces/${workspace._id}`)
+                                }
+                                isFavorited={true}
+                                onToggleFavorite={handleToggleFavorite}
+                            />
+                        ))}
+                    </div>
+                    <hr className="mt-6 border-gray-200 dark:border-gray-700" />
+                </div>
+            )}
+
             <div className="workspaces">
                 {filteredWorkspaces.length > 0 ? (
                     <div className="workspace-grid">
@@ -127,6 +173,10 @@ export default function Workspaces() {
                                 onClick={() =>
                                     router.push(`/workspaces/${workspace._id}`)
                                 }
+                                isFavorited={isWorkspaceFavorited(
+                                    workspace._id,
+                                )}
+                                onToggleFavorite={handleToggleFavorite}
                             />
                         ))}
                     </div>
@@ -181,7 +231,7 @@ export default function Workspaces() {
     );
 }
 
-function WorkspaceTile({ workspace, onClick }) {
+function WorkspaceTile({ workspace, onClick, isFavorited, onToggleFavorite }) {
     const { t } = useTranslation();
 
     const promptCount = workspace.prompts?.length || 0;
@@ -199,9 +249,38 @@ function WorkspaceTile({ workspace, onClick }) {
 
     return (
         <div
-            className="workspace-tile cursor-pointer group hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+            className="workspace-tile relative cursor-pointer group hover:shadow-lg transition-all duration-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
             onClick={onClick}
         >
+            {/* Favorite star button */}
+            <button
+                type="button"
+                aria-label={
+                    isFavorited
+                        ? t("Remove from favorites")
+                        : t("Add to favorites")
+                }
+                aria-pressed={isFavorited}
+                className={cn(
+                    "absolute top-2 end-2 z-10 p-1 rounded-full transition-colors",
+                    "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                    "pointer-events-none group-hover:pointer-events-auto focus-visible:pointer-events-auto",
+                    isFavorited && "opacity-100 pointer-events-auto",
+                    isFavorited
+                        ? "text-yellow-400 hover:text-yellow-500"
+                        : "text-gray-400 hover:text-yellow-400",
+                )}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite(workspace._id);
+                }}
+            >
+                <Star
+                    className="h-[18px] w-[18px]"
+                    fill={isFavorited ? "currentColor" : "none"}
+                />
+            </button>
+
             {/* Workspace content */}
             <div className="p-4 flex flex-col h-full">
                 {/* Title Section with Icon */}

@@ -11,7 +11,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ClockIcon, TrashIcon, XIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
 import TimeAgo from "react-time-ago";
@@ -29,6 +29,7 @@ import {
     getStatusColorClass,
 } from "../../src/components/notifications/NotificationButton";
 import { TASK_INFO } from "../../src/utils/task-info";
+import { LanguageContext } from "@/src/contexts/LanguageProvider";
 
 const StatusText = ({ text, id, t }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -76,6 +77,7 @@ const StatusText = ({ text, id, t }) => {
 };
 
 const JobInfoBox = ({ job }) => {
+    const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
 
     if (!job) return null;
@@ -85,15 +87,15 @@ const JobInfoBox = ({ job }) => {
             <div
                 className="flex items-center justify-between cursor-pointer font-medium text-gray-800 dark:text-gray-200"
                 onClick={() => setExpanded((prev) => !prev)}
-                title={expanded ? "Collapse" : "Expand"}
+                title={expanded ? t("Collapse") : t("Expand")}
             >
-                <span>Job Info</span>
+                <span>{t("Job Info")}</span>
                 <button
                     className="ml-2 text-xs text-sky-500 hover:underline focus:outline-none"
                     tabIndex={-1}
                     type="button"
                 >
-                    {expanded ? "Hide" : "Show"}
+                    {expanded ? t("Hide") : t("Show")}
                 </button>
             </div>
             {expanded && (
@@ -209,8 +211,11 @@ function NotificationItem({
 
 export default function NotificationsPage() {
     const { t } = useTranslation();
+    const { direction: pageDirection } = useContext(LanguageContext);
+    const direction = pageDirection ?? "ltr";
     const { ref, inView } = useInView();
     const [showDeleteOldDialog, setShowDeleteOldDialog] = useState(false);
+    const [deleteNotificationId, setDeleteNotificationId] = useState(null);
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } =
         useInfiniteTasks();
 
@@ -226,14 +231,15 @@ export default function NotificationsPage() {
     }, [inView, hasNextPage, fetchNextPage]);
 
     const handleDelete = (_id) => {
-        if (
-            window.confirm(
-                t("Are you sure you want to delete this notification?"),
-            )
-        ) {
-            deleteNotification.mutate(_id);
-        }
+        setDeleteNotificationId(_id);
     };
+
+    const confirmDeleteNotification = useCallback(() => {
+        if (deleteNotificationId) {
+            deleteNotification.mutate(deleteNotificationId);
+            setDeleteNotificationId(null);
+        }
+    }, [deleteNotificationId, deleteNotification]);
 
     const handleCancelRequest = (_id) => {
         setCancelRequestId(_id);
@@ -248,9 +254,14 @@ export default function NotificationsPage() {
 
     const notifications = data?.pages.flatMap((page) => page.requests) ?? [];
 
-    const displayType = (type) => {
-        return TASK_INFO[type]?.displayName || type;
-    };
+    const displayType = useCallback(
+        (type) => {
+            const info = TASK_INFO[type];
+            if (info?.displayNameKey) return t(info.displayNameKey);
+            return info?.displayName || type;
+        },
+        [t],
+    );
 
     const handleDeleteOld = async () => {
         try {
@@ -324,6 +335,29 @@ export default function NotificationsPage() {
                     </>
                 )}
             </div>
+            <AlertDialog
+                open={!!deleteNotificationId}
+                onOpenChange={(open) => {
+                    if (!open) setDeleteNotificationId(null);
+                }}
+            >
+                <AlertDialogContent dir={direction}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {t("notification_delete_confirm_title")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("notification_delete_confirm_description")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteNotification}>
+                            {t("Delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <AlertDialog
                 open={showDeleteOldDialog}
                 onOpenChange={setShowDeleteOldDialog}

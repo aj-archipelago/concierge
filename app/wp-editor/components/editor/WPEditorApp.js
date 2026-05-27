@@ -7,7 +7,6 @@ import EntitySuggestions from "./EntitySuggestions";
 import TranslateModalContent from "./TranslateModalContent";
 import CompleteSuggestions from "./CompleteSuggestions";
 import ReadabilitySuggestions from "./ReadabilitySuggestions";
-import ImportSuggestions from "./ImportSuggestions";
 import InternalLinksDiff from "./InternalLinksDiff";
 import NewStyleGuideWrapper from "./NewStyleGuideWrapper";
 import i18n from "../../../../src/i18n";
@@ -23,7 +22,7 @@ const WPEditorApp = () => {
             window?.AIModules?.postType === "liveblog-update");
 
     return (
-        <div className="ucms-react-editor" id="ucms-react-editor">
+        <div className="wp-react-editor" id="wp-react-editor">
             <AIModal
                 command="generateHeadline"
                 title={
@@ -101,11 +100,6 @@ const WPEditorApp = () => {
                 command="readability"
                 title={i18n.t("Readability issues")}
                 SuggestionsComponent={ReadabilitySuggestions}
-            />
-            <AIModal
-                command="aiImportPosts"
-                title={i18n.t("Import Posts")}
-                SuggestionsComponent={ImportSuggestions}
             />
             <AIModal
                 command="internalLinks"

@@ -1,9 +1,9 @@
+"use client";
+
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import i18next from "i18next";
 import {
     EditIcon,
-    UserCircle,
     Trash2,
     Plus,
     Upload,
@@ -11,15 +11,19 @@ import {
     Download,
     X,
     Users,
+    LayoutGrid,
+    List,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useDispatch } from "react-redux";
 import { useQueryClient } from "@tanstack/react-query";
+import { startNewChat } from "../../utils/requestChatInputFocus";
 import Loader from "../../../app/components/loader";
+import axios from "../../../app/utils/axios-client";
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import {
-    useAddChat,
     useBulkDeleteChats,
     useBulkImportChats,
     useDeleteChat,
@@ -29,8 +33,6 @@ import {
     useSearchContent,
     useTotalChatCount,
 } from "../../../app/queries/chats";
-import classNames from "../../../app/utils/class-names";
-import config from "../../../config";
 import { getChatIdString, isValidObjectId } from "../../utils/helper";
 import { useItemSelection } from "../images/hooks/useItemSelection";
 import {
@@ -49,9 +51,15 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "@/components/ui/tooltip";
+import { extractSearchableText } from "../../utils/assistantInlinePayload";
+import {
+    parseSearchQuery,
+    matchesAllTerms,
+} from "../../../app/api/utils/search-parser";
 import BulkActionsBar from "../common/BulkActionsBar";
 import FilterInput from "../common/FilterInput";
 import EmptyState from "../common/EmptyState";
+import { renderChatMarkdownMessage } from "./chatMarkdownRenderer";
 
 dayjs.extend(relativeTime);
 
@@ -62,6 +70,29 @@ const MAX_SEARCH_QUERY_LENGTH = 100;
 const MAX_CONTENT_SEARCH_RESULTS = 20;
 const DEFAULT_TITLE_SEARCH_LIMIT = 50;
 const MAX_TITLE_SEARCH_LIMIT = 500;
+const VIRTUALIZE_THRESHOLD = 80;
+const VIRTUAL_ROW_GAP_PX = 16;
+const VIRTUAL_HEADER_HEIGHT_PX = 36;
+const VIRTUAL_OVERSCAN_ROWS = 5;
+const CHAT_VIEW_MODE_STORAGE_KEY = "concierge.savedChats.viewMode";
+const CHAT_LIST_VIEW = "list";
+const CHAT_GRID_VIEW = "grid";
+const GRID_MIN_CARD_WIDTH_PX = 260;
+const GRID_CARD_HEIGHT_PX = 156;
+const CHAT_VIEW_OPTIONS = [
+    {
+        mode: CHAT_LIST_VIEW,
+        label: "List view",
+        testId: "saved-chats-list-view",
+        Icon: List,
+    },
+    {
+        mode: CHAT_GRID_VIEW,
+        label: "Grid view",
+        testId: "saved-chats-grid-view",
+        Icon: LayoutGrid,
+    },
+];
 
 const getCategoryTranslation = (category, t) => {
     const titles = {
@@ -74,7 +105,20 @@ const getCategoryTranslation = (category, t) => {
     return titles[category] || category;
 };
 
-function SavedChats({ displayState }) {
+const ChatPreviewMarkdown = memo(function ChatPreviewMarkdown({ previewText }) {
+    if (!previewText) return null;
+
+    // Previews come from stored message text and may contain raw HTML; render
+    // through the markdown pipeline with rehypeRaw disabled so any embedded
+    // <script>/<img onerror>/etc. is escaped instead of executed.
+    return renderChatMarkdownMessage({
+        message: { payload: previewText },
+        finalRender: true,
+        allowRawHtml: false,
+    });
+});
+
+function SavedChats({ displayState, initialChats = null }) {
     const { t } = useTranslation();
     const deleteChat = useDeleteChat();
     const bulkImportChats = useBulkImportChats();
@@ -86,14 +130,27 @@ function SavedChats({ displayState }) {
         fetchNextPage,
         isFetchingNextPage,
         hasNextPage,
-    } = useGetChats();
+    } = useGetChats({ initialPage: initialChats || undefined });
     const router = useRouter();
-    const addChat = useAddChat();
+    const params = useParams();
+    const pathname = usePathname();
+    const dispatch = useDispatch();
     const updateChat = useUpdateChat();
-    const { getLogo } = config.global;
+    const [chatViewMode, setChatViewMode] = useState(() => {
+        if (typeof window === "undefined") return CHAT_LIST_VIEW;
+        try {
+            const storedMode = window.localStorage.getItem(
+                CHAT_VIEW_MODE_STORAGE_KEY,
+            );
+            return storedMode === CHAT_GRID_VIEW
+                ? CHAT_GRID_VIEW
+                : CHAT_LIST_VIEW;
+        } catch (error) {
+            return CHAT_LIST_VIEW;
+        }
+    });
     const [editingId, setEditingId] = useState(null);
     const [editedName, setEditedName] = useState("");
-    const { language } = i18next;
     const [deleteChatId, setDeleteChatId] = useState(null);
 
     // Use shared selection hook
@@ -111,6 +168,11 @@ function SavedChats({ displayState }) {
     const [shouldSelectAll, setShouldSelectAll] = useState(false);
     const importInputRef = useRef(null);
     const chatsContainerRef = useRef(null);
+    const [virtualScrollTop, setVirtualScrollTop] = useState(0);
+    const [virtualContainerSize, setVirtualContainerSize] = useState({
+        width: 0,
+        height: 0,
+    });
     const [noticeDialog, setNoticeDialog] = useState({
         open: false,
         title: "",
@@ -118,7 +180,20 @@ function SavedChats({ displayState }) {
     });
     const [isBulkProcessing, setIsBulkProcessing] = useState(false);
     const [showSharedOnly, setShowSharedOnly] = useState(false);
+    const [shouldFetchTotalCount, setShouldFetchTotalCount] = useState(false);
+    const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
     const queryClient = useQueryClient();
+    const isGridView = chatViewMode === CHAT_GRID_VIEW;
+
+    const handleChatViewModeChange = useCallback((mode) => {
+        setChatViewMode(mode);
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem(CHAT_VIEW_MODE_STORAGE_KEY, mode);
+        } catch (error) {
+            // Ignore storage failures; the toggle still works for this session.
+        }
+    }, []);
 
     const summarizeItems = useCallback(
         (items, limit = 10) => {
@@ -150,7 +225,8 @@ function SavedChats({ displayState }) {
     const allChats = useMemo(() => {
         try {
             const pages = data?.pages || [];
-            return pages.flat().filter(Boolean);
+            const flattened = pages.flat().filter(Boolean);
+            return flattened;
         } catch (e) {
             return [];
         }
@@ -200,7 +276,16 @@ function SavedChats({ displayState }) {
                         .filter((id) => !deletedSet.has(id)),
                 );
 
-                clearSelection();
+                const successfullyDeleted = new Set(
+                    ids.filter((id) => !notDeleted.has(getChatIdString(id))),
+                );
+                setSelectedIds((prev) => {
+                    const next = new Set(prev);
+                    for (const id of successfullyDeleted) {
+                        next.delete(id);
+                    }
+                    return next;
+                });
 
                 if (notDeleted.size > 0) {
                     const failedLabels = Array.from(notDeleted).map((id) => {
@@ -234,13 +319,64 @@ function SavedChats({ displayState }) {
         }, 0);
     };
 
-    const handleExportSelected = () => {
+    const handleExportSelected = async () => {
         try {
             const byId = new Map(
                 allChats.map((c) => [getChatIdString(c._id), c]),
             );
-            const selected = Array.from(selectedIds)
-                .map((id) => byId.get(getChatIdString(id)))
+            const selectedIdList = Array.from(selectedIds)
+                .map((id) => getChatIdString(id))
+                .filter(Boolean);
+            if (selectedIdList.length === 0) return;
+
+            const selectedResults = await Promise.all(
+                selectedIdList.map(async (id) => {
+                    let chat =
+                        byId.get(id) || queryClient.getQueryData(["chat", id]);
+                    const needsFull =
+                        !chat ||
+                        !Array.isArray(chat?.messages) ||
+                        chat?.messagesTruncated;
+                    if (needsFull && isValidObjectId(id)) {
+                        try {
+                            const response = await axios.get(
+                                `/api/chats/${String(id)}`,
+                            );
+                            chat = response.data;
+                            if (chat) {
+                                queryClient.setQueryData(["chat", id], chat);
+                            }
+                        } catch (error) {
+                            return { id, chat: null };
+                        }
+                    }
+                    if (
+                        !chat ||
+                        !Array.isArray(chat?.messages) ||
+                        chat?.messagesTruncated
+                    ) {
+                        return { id, chat: null };
+                    }
+                    return { id, chat };
+                }),
+            );
+
+            const missingIds = selectedResults
+                .filter((result) => !result.chat)
+                .map((result) => result.id);
+            if (missingIds.length > 0) {
+                const preview = summarizeItems(missingIds);
+                showNotice(
+                    t("Export failed"),
+                    preview
+                        ? `${t("Unable to load chats")}: ${preview}`
+                        : t("Unable to load chats"),
+                );
+                return;
+            }
+
+            const selected = selectedResults
+                .map((result) => result.chat)
                 .filter(Boolean);
             if (selected.length === 0) return;
 
@@ -459,7 +595,38 @@ function SavedChats({ displayState }) {
     ]);
 
     // Get total chat count from database
-    const { data: totalChatCount = 0 } = useTotalChatCount();
+    const { data: totalChatCount } = useTotalChatCount({
+        enabled: shouldFetchTotalCount,
+    });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        let cancelled = false;
+
+        const enableFetch = () => {
+            if (!cancelled) {
+                setShouldFetchTotalCount(true);
+            }
+        };
+
+        if ("requestIdleCallback" in window) {
+            const idleId = window.requestIdleCallback(enableFetch, {
+                timeout: 2000,
+            });
+            return () => {
+                cancelled = true;
+                if ("cancelIdleCallback" in window) {
+                    window.cancelIdleCallback(idleId);
+                }
+            };
+        }
+
+        const timeoutId = setTimeout(enableFetch, 1500);
+        return () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
+        };
+    }, []);
 
     // Progressive content search using loaded chats with performance optimizations
     const searchTimeoutRef = useRef(null);
@@ -484,10 +651,25 @@ function SavedChats({ displayState }) {
         searchResultsRef.current = searchResults;
     }, [data, searchResults]);
 
+    const hasTruncatedMessages = useMemo(() => {
+        if (!Array.isArray(data?.pages)) return false;
+        return data.pages.some(
+            (page) =>
+                Array.isArray(page) &&
+                page.some((chat) => chat?.messagesTruncated),
+        );
+    }, [data]);
+
     useEffect(() => {
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
             searchTimeoutRef.current = null;
+        }
+
+        if (hasTruncatedMessages) {
+            setContentMatches((prev) => (prev.length ? [] : prev));
+            setSearchError((prev) => (prev ? null : prev));
+            return;
         }
 
         if (isBulkProcessing) {
@@ -521,7 +703,6 @@ function SavedChats({ displayState }) {
                         getChatIdString(chat?._id),
                     ),
                 );
-                const lowerSearchQuery = searchQuery.toLowerCase();
 
                 const totalLoaded = allLoadedChats.length;
                 if (
@@ -543,16 +724,20 @@ function SavedChats({ displayState }) {
                     return id && !titleIdSet.has(id);
                 });
 
+                const clientTerms = parseSearchQuery(searchQuery);
                 const matches = [];
                 for (const chat of chatsToSearch) {
                     if (!chat.messages?.length) continue;
-                    const hasMatch = chat.messages.some(
-                        (message) =>
-                            typeof message.payload === "string" &&
-                            message.payload
-                                .toLowerCase()
-                                .includes(lowerSearchQuery),
-                    );
+                    const hasMatch =
+                        clientTerms.length > 0 &&
+                        chat.messages.some((message) => {
+                            const text = extractSearchableText(
+                                message?.payload,
+                            );
+                            return text
+                                ? matchesAllTerms(text, clientTerms)
+                                : false;
+                        });
                     if (hasMatch) {
                         matches.push(chat);
                         if (matches.length >= MAX_CONTENT_SEARCH_RESULTS) break;
@@ -606,6 +791,7 @@ function SavedChats({ displayState }) {
         hasNextPage,
         isFetchingNextPage,
         fetchNextPage,
+        hasTruncatedMessages,
     ]);
 
     const categorizedChats = useMemo(() => {
@@ -640,22 +826,226 @@ function SavedChats({ displayState }) {
         return categories;
     }, [data, filterSharedChats]);
 
-    const handleCreateNewChat = async () => {
-        try {
-            // Always call server - it will find an unused chat or create a new one
-            // Server handles all the logic, we just navigate to the result
-            const { _id } = await addChat.mutateAsync({ messages: [] });
-            router.push(`/chat/${String(_id)}`);
-        } catch (error) {
-            console.error("Error adding chat:", error);
+    useEffect(() => {
+        const container = chatsContainerRef.current;
+        if (!container) return;
+        let frame = null;
+
+        // Find the real scroll ancestor — the container itself may have
+        // overflow-y set but no height constraint, so it never scrolls.
+        let scrollParent = null;
+        let node = container.parentElement;
+        while (node && node !== document.documentElement) {
+            const style = getComputedStyle(node);
+            if (
+                /(auto|scroll)/.test(style.overflow + style.overflowY) &&
+                node.scrollHeight > node.clientHeight + 1
+            ) {
+                scrollParent = node;
+                break;
+            }
+            node = node.parentElement;
         }
-    };
+
+        const scrollEl = scrollParent || container;
+
+        const updateMetrics = () => {
+            const rect = container.getBoundingClientRect();
+
+            let scrollTop;
+            let height;
+
+            if (scrollParent) {
+                const spRect = scrollParent.getBoundingClientRect();
+                // How far the container top has scrolled above the scroll
+                // parent's visible top edge — this is the virtual offset.
+                scrollTop = Math.max(0, spRect.top - rect.top);
+                height = scrollParent.clientHeight;
+            } else {
+                const hasScroll =
+                    container.scrollHeight > container.clientHeight + 2;
+                const absoluteTop = rect.top + window.scrollY;
+                scrollTop = hasScroll
+                    ? container.scrollTop
+                    : Math.max(0, window.scrollY - absoluteTop);
+                height = hasScroll
+                    ? container.clientHeight
+                    : window.innerHeight;
+            }
+
+            setVirtualScrollTop(scrollTop);
+            setVirtualContainerSize({
+                width: rect.width,
+                height,
+            });
+        };
+
+        const scheduleUpdate = () => {
+            if (frame) cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(updateMetrics);
+        };
+
+        const handleScroll = () => scheduleUpdate();
+        const handleResize = () => scheduleUpdate();
+
+        scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+        window.addEventListener("resize", handleResize);
+
+        let observer;
+        if (typeof ResizeObserver !== "undefined") {
+            observer = new ResizeObserver(scheduleUpdate);
+            observer.observe(container);
+        }
+
+        scheduleUpdate();
+
+        return () => {
+            if (frame) cancelAnimationFrame(frame);
+            scrollEl.removeEventListener("scroll", handleScroll);
+            window.removeEventListener("resize", handleResize);
+            if (observer) observer.disconnect();
+        };
+    }, []);
+
+    const VIRTUAL_LIST_ROW_HEIGHT = 52; // px per list item (py-2 + content)
+
+    const gridMetrics = useMemo(() => {
+        const width = virtualContainerSize.width;
+        if (isGridView) {
+            const availableWidth = Math.max(width || GRID_MIN_CARD_WIDTH_PX, 1);
+            const columns = Math.max(
+                1,
+                Math.floor(availableWidth / GRID_MIN_CARD_WIDTH_PX),
+            );
+
+            return {
+                columns,
+                rowHeight: GRID_CARD_HEIGHT_PX,
+            };
+        }
+
+        return {
+            columns: 1,
+            rowHeight: VIRTUAL_LIST_ROW_HEIGHT,
+        };
+    }, [isGridView, virtualContainerSize.width]);
+
+    const totalCategorizedChats = useMemo(
+        () =>
+            Object.values(categorizedChats).reduce(
+                (sum, chats) => sum + chats.length,
+                0,
+            ),
+        [categorizedChats],
+    );
+
+    const shouldVirtualize =
+        !searchQuery &&
+        totalCategorizedChats > VIRTUALIZE_THRESHOLD &&
+        gridMetrics.rowHeight > 0;
+
+    const buildUniqueChats = useCallback((chats) => {
+        const uniqueChats = [];
+        const seenIds = new Set();
+
+        for (const chat of chats) {
+            if (!chat) continue;
+            const id = getChatIdString(chat._id);
+            if (!id || seenIds.has(id)) continue;
+            seenIds.add(id);
+            uniqueChats.push(chat);
+        }
+
+        return uniqueChats;
+    }, []);
+
+    const getCategoryTitle = useCallback(
+        (key, count) => `${getCategoryTranslation(key, t)} (${count})`,
+        [t],
+    );
+
+    const virtualRows = useMemo(() => {
+        if (!shouldVirtualize) return [];
+
+        const rows = [];
+        const categoryOrder = [
+            "today",
+            "yesterday",
+            "thisWeek",
+            "thisMonth",
+            "older",
+        ];
+
+        for (const category of categoryOrder) {
+            const chats = categorizedChats[category] || [];
+            if (chats.length === 0) continue;
+            const uniqueChats = buildUniqueChats(chats);
+            rows.push({
+                type: "header",
+                key: `header-${category}`,
+                title: getCategoryTitle(category, uniqueChats.length),
+                height: VIRTUAL_HEADER_HEIGHT_PX,
+                uniqueChats,
+            });
+
+            for (let i = 0; i < uniqueChats.length; i += gridMetrics.columns) {
+                rows.push({
+                    type: "row",
+                    key: `${category}-${i}`,
+                    chats: uniqueChats.slice(i, i + gridMetrics.columns),
+                    height: gridMetrics.rowHeight,
+                    uniqueChats,
+                });
+            }
+        }
+
+        return rows;
+    }, [
+        buildUniqueChats,
+        categorizedChats,
+        getCategoryTitle,
+        gridMetrics.columns,
+        gridMetrics.rowHeight,
+        shouldVirtualize,
+    ]);
+
+    const handleCreateNewChat = useCallback(() => {
+        if (isCreatingNewChat) return;
+        setIsCreatingNewChat(true);
+        startNewChat({ pathname, router, dispatch });
+        setIsCreatingNewChat(false);
+    }, [isCreatingNewChat, pathname, router, dispatch]);
 
     const handleDelete = async (chatId) => {
         try {
             if (isBulkProcessing) return;
             if (!chatId) return;
-            await deleteChat.mutateAsync({ chatId });
+            if (
+                params?.id &&
+                String(params.id) === String(chatId) &&
+                pathname?.startsWith("/chat")
+            ) {
+                const activeChats =
+                    queryClient.getQueryData(["activeChats"]) || [];
+                const userChatInfo =
+                    queryClient.getQueryData(["userChatInfo"]) || {};
+
+                const remainingActive = Array.isArray(activeChats)
+                    ? activeChats.filter((chat) => chat?._id !== chatId)
+                    : [];
+                const fallbackRecent = Array.isArray(userChatInfo.recentChatIds)
+                    ? userChatInfo.recentChatIds.filter((id) => id !== chatId)
+                    : [];
+                const nextActiveId =
+                    remainingActive[0]?._id || fallbackRecent[0] || null;
+
+                if (nextActiveId) {
+                    router.push(`/chat/${nextActiveId}`);
+                } else {
+                    router.push("/chat");
+                }
+            }
+            deleteChat.mutate({ chatId });
             setDeleteChatId(null);
         } catch (error) {
             console.error("Failed to delete chat", error);
@@ -700,219 +1090,276 @@ function SavedChats({ displayState }) {
         }
     };
 
-    const renderChatElements = (chats) => {
-        const uniqueChats = [];
-        const seenIds = new Set();
-
-        for (const chat of chats) {
-            if (!chat) continue;
-            const id = getChatIdString(chat._id);
-            if (!id || seenIds.has(id)) continue;
-            seenIds.add(id);
-            uniqueChats.push(chat);
+    const renderChatTile = (chat, uniqueChats) => {
+        if (!chat || !chat._id || !isValidObjectId(chat._id)) {
+            return null;
         }
 
+        const chatId = getChatIdString(chat._id);
+        const isSelected = selectedIds.has(chatId);
+        const previewText =
+            chat?.lastMessagePreview || (chat?.isUnused ? t("Empty chat") : "");
+        const timeLabel = chat?.createdAt
+            ? dayjs(chat.createdAt).fromNow()
+            : "";
+
         return (
-            <div className="chat-grid">
-                {uniqueChats.map(
-                    (chat) =>
-                        chat &&
-                        chat._id &&
-                        isValidObjectId(chat._id) && (
-                            <div
-                                key={chat._id}
-                                className="chat-tile cursor-pointer"
-                                onClick={(e) => handleChatClick(chat, e)}
-                            >
-                                {/* Selection checkbox - always visible */}
-                                <div
-                                    className={`selection-checkbox ${selectedIds.has(chat._id) ? "selected" : ""}`}
+            <div
+                key={chat._id}
+                data-testid="saved-chat-item"
+                data-chat-id={chatId}
+                className={`group rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer transition-colors ${
+                    isGridView
+                        ? "relative flex min-h-[9.75rem] flex-col p-3"
+                        : "flex items-center gap-3 px-3 py-2"
+                }`}
+                onClick={(e) => handleChatClick(chat, e)}
+            >
+                <div
+                    data-testid="saved-chat-select"
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-colors select-none ${
+                        isGridView ? "absolute start-3 top-3" : "flex-shrink-0"
+                    } ${
+                        isSelected
+                            ? "bg-sky-500 border-sky-500"
+                            : "border-gray-300 dark:border-gray-600 hover:border-sky-400"
+                    }`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        const chatIdStr = getChatIdString(chat._id);
+                        if (e.shiftKey && lastSelectedId) {
+                            const lastIndex = uniqueChats.findIndex(
+                                (c) =>
+                                    getChatIdString(c._id) === lastSelectedId,
+                            );
+                            const currentIndex = uniqueChats.findIndex(
+                                (c) => getChatIdString(c._id) === chatIdStr,
+                            );
+                            if (lastIndex !== -1 && currentIndex !== -1) {
+                                const start = Math.min(lastIndex, currentIndex);
+                                const end = Math.max(lastIndex, currentIndex);
+                                selectRangeHook(uniqueChats, start, end);
+                            }
+                        } else {
+                            toggleSelection(chat);
+                        }
+                    }}
+                >
+                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                </div>
+
+                <div
+                    className={
+                        isGridView
+                            ? "flex min-w-0 flex-1 flex-col ps-8 pe-8"
+                            : "flex-1 min-w-0"
+                    }
+                >
+                    <div
+                        className={`flex items-center gap-2 ${
+                            isGridView ? "min-h-5" : "h-5"
+                        }`}
+                    >
+                        {editingId === chat._id ? (
+                            <input
+                                autoFocus
+                                type="text"
+                                className="font-medium text-sm leading-5 h-5 p-0 m-0 bg-transparent border-0 ring-0 focus:ring-0 outline-none text-gray-900 dark:text-gray-100 truncate flex-1 min-w-0 w-full"
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                                onBlur={() => handleSaveEdit(chat)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveEdit(chat);
+                                    if (e.key === "Escape") setEditingId(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <>
+                                <span
+                                    className="font-medium text-sm leading-5 text-gray-900 dark:text-gray-100 truncate cursor-text hover:text-sky-500 dark:hover:text-sky-400"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        const chatIdStr = getChatIdString(
-                                            chat._id,
-                                        );
-                                        if (e.shiftKey && lastSelectedId) {
-                                            // Find indices for range selection
-                                            const lastIndex =
-                                                uniqueChats.findIndex(
-                                                    (c) =>
-                                                        getChatIdString(
-                                                            c._id,
-                                                        ) === lastSelectedId,
-                                                );
-                                            const currentIndex =
-                                                uniqueChats.findIndex(
-                                                    (c) =>
-                                                        getChatIdString(
-                                                            c._id,
-                                                        ) === chatIdStr,
-                                                );
-
-                                            if (
-                                                lastIndex !== -1 &&
-                                                currentIndex !== -1
-                                            ) {
-                                                const start = Math.min(
-                                                    lastIndex,
-                                                    currentIndex,
-                                                );
-                                                const end = Math.max(
-                                                    lastIndex,
-                                                    currentIndex,
-                                                );
-                                                selectRangeHook(
-                                                    uniqueChats,
-                                                    start,
-                                                    end,
-                                                );
-                                            }
-                                        } else {
-                                            toggleSelection(chat);
-                                        }
+                                        setEditingId(chat._id);
+                                        setEditedName(chat.title);
                                     }}
                                 >
-                                    <Check
-                                        className={`text-sm ${selectedIds.has(chat._id) ? "opacity-100" : "opacity-0"}`}
+                                    {t(chat.title) || t("New Chat")}
+                                </span>
+                                {chat.isPublic && (
+                                    <Users className="w-3 h-3 text-sky-500 flex-shrink-0" />
+                                )}
+                            </>
+                        )}
+                    </div>
+                    {isGridView ? (
+                        <>
+                            <div
+                                className="pointer-events-none mt-2 max-h-[3.75rem] overflow-hidden text-xs leading-5 text-gray-500 dark:text-gray-400"
+                                style={{
+                                    maskImage:
+                                        "linear-gradient(to bottom, black 70%, transparent 100%)",
+                                }}
+                            >
+                                <ChatPreviewMarkdown
+                                    previewText={previewText}
+                                />
+                            </div>
+                            <div className="mt-auto pt-3 text-xs text-gray-500 dark:text-gray-400">
+                                {timeLabel}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex min-w-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                            {previewText && (
+                                <div
+                                    className="pointer-events-none min-w-0 flex-1 overflow-hidden"
+                                    style={{
+                                        maxHeight: "1.25rem",
+                                        whiteSpace: "nowrap",
+                                        maskImage:
+                                            "linear-gradient(to right, black 90%, transparent 100%)",
+                                    }}
+                                >
+                                    <ChatPreviewMarkdown
+                                        previewText={previewText}
                                     />
                                 </div>
+                            )}
+                            {chat?.lastMessagePreview && (
+                                <span className="flex-shrink-0">·</span>
+                            )}
+                            <span className="flex-shrink-0">{timeLabel}</span>
+                        </div>
+                    )}
+                </div>
 
-                                {/* Chat content wrapper */}
-                                <div className="p-4 flex flex-col h-full">
-                                    {/* Title */}
-                                    {chat._id && editingId === chat._id ? (
-                                        <input
-                                            autoFocus
-                                            type="text"
-                                            className="font-semibold underline focus:ring-0 text-md w-full p-0 mb-2 bg-transparent border-0 ring-0"
-                                            value={editedName}
-                                            onChange={(e) =>
-                                                setEditedName(e.target.value)
-                                            }
-                                            onBlur={() => {
-                                                handleSaveEdit(chat);
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") {
-                                                    handleSaveEdit(chat);
-                                                }
-                                                if (e.key === "Escape") {
-                                                    setEditingId(null);
-                                                }
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    ) : (
-                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                <h3
-                                                    className="font-semibold text-md truncate flex-1 cursor-pointer hover:text-sky-500"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingId(chat._id);
-                                                        setEditedName(
-                                                            chat.title,
-                                                        );
-                                                    }}
-                                                >
-                                                    {t(chat.title) ||
-                                                        t("New Chat")}
-                                                </h3>
-                                                {chat.isPublic && (
-                                                    <div
-                                                        className="flex-shrink-0 flex items-center justify-center w-5 h-5 bg-sky-500 rounded-full"
-                                                        title={t("Shared chat")}
-                                                    >
-                                                        <Users className="w-3 h-3 text-white" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setEditingId(chat._id);
-                                                        setEditedName(
-                                                            chat.title,
-                                                        );
-                                                    }}
-                                                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                                                    title={t("Edit title")}
-                                                >
-                                                    <EditIcon className="h-3 w-3" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDeleteChatId(
-                                                            chat._id,
-                                                        );
-                                                    }}
-                                                    className="text-gray-400 hover:text-red-500"
-                                                    title={t("Delete")}
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Messages preview */}
-                                    <div className="flex-1 overflow-hidden">
-                                        <ul className="w-full">
-                                            {!chat?.messages?.length && (
-                                                <li className="text-xs text-gray-500 flex gap-1 items-center">
-                                                    {t("Empty chat")}
-                                                </li>
-                                            )}
-                                            {chat?.messages
-                                                ?.slice(-3)
-                                                .map((m, index) => (
-                                                    <li
-                                                        key={index}
-                                                        className={classNames(
-                                                            "text-xs text-gray-500 dark:text-gray-400 flex gap-1 items-center overflow-hidden mb-0.5",
-                                                            m?.sender === "user"
-                                                                ? "bg-white dark:bg-gray-800"
-                                                                : "bg-sky-50 dark:bg-gray-700",
-                                                        )}
-                                                    >
-                                                        <div className="flex-shrink-0 flex items-center gap-1">
-                                                            {m?.sender ===
-                                                            "user" ? (
-                                                                <UserCircle className="w-4 h-4 text-gray-300" />
-                                                            ) : (
-                                                                <img
-                                                                    src={getLogo(
-                                                                        language,
-                                                                    )}
-                                                                    alt="Logo"
-                                                                    className="w-4 h-4"
-                                                                />
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 truncate py-0.5">
-                                                            {m?.payload}
-                                                        </div>
-                                                    </li>
-                                                ))}
-                                        </ul>
-                                    </div>
-
-                                    {/* Timestamp */}
-                                    <div className="text-[.7rem] text-gray-400 text-right mt-2">
-                                        {dayjs(chat.createdAt).fromNow()}
-                                    </div>
-                                </div>
-                            </div>
-                        ),
-                )}
+                <div
+                    className={`flex items-center gap-1 transition-opacity ${
+                        isGridView
+                            ? "absolute end-3 top-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                            : "flex-shrink-0 opacity-0 group-hover:opacity-100"
+                    }`}
+                >
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingId(chat._id);
+                            setEditedName(chat.title);
+                        }}
+                        className="p-1 text-gray-400 hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
+                        title={t("Edit title")}
+                    >
+                        <EditIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                        data-testid="saved-chat-delete"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteChatId(chat._id);
+                        }}
+                        className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        title={t("Delete")}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </div>
         );
     };
 
-    const getCategoryTitle = (key, count) =>
-        `${getCategoryTranslation(key, t)} (${count})`;
+    const renderChatElements = (chats) => {
+        const uniqueChats = buildUniqueChats(chats);
+
+        return (
+            <div
+                className={isGridView ? "grid gap-3" : "flex flex-col gap-1"}
+                style={
+                    isGridView
+                        ? {
+                              gridTemplateColumns:
+                                  "repeat(auto-fill, minmax(min(100%, 16rem), 1fr))",
+                          }
+                        : undefined
+                }
+            >
+                {uniqueChats.map((chat) => renderChatTile(chat, uniqueChats))}
+            </div>
+        );
+    };
+
+    const renderVirtualizedCategories = () => {
+        if (!shouldVirtualize) return null;
+
+        const totalHeight =
+            virtualRows.reduce((sum, row) => sum + row.height, 0) +
+            Math.max(0, virtualRows.length - 1) * VIRTUAL_ROW_GAP_PX;
+        const overscan =
+            VIRTUAL_OVERSCAN_ROWS *
+            (gridMetrics.rowHeight + VIRTUAL_ROW_GAP_PX);
+        const startOffset = Math.max(0, virtualScrollTop - overscan);
+        const endOffset =
+            virtualScrollTop + virtualContainerSize.height + overscan;
+
+        let offset = 0;
+        const visibleRows = [];
+
+        for (const row of virtualRows) {
+            const rowHeight = row.height;
+            const rowEnd = offset + rowHeight;
+            if (rowEnd >= startOffset && offset <= endOffset) {
+                visibleRows.push({ ...row, top: offset });
+            }
+            offset += rowHeight + VIRTUAL_ROW_GAP_PX;
+        }
+
+        return (
+            <div style={{ height: totalHeight, position: "relative" }}>
+                {visibleRows.map((row) =>
+                    row.type === "header" ? (
+                        <div
+                            key={row.key}
+                            style={{
+                                position: "absolute",
+                                top: row.top,
+                                left: 0,
+                                right: 0,
+                                height: row.height,
+                                display: "flex",
+                                alignItems: "flex-end",
+                            }}
+                        >
+                            <h2 className="text-md font-semibold border-b border-gray-200 dark:border-gray-700 pb-1 w-full">
+                                {row.title}
+                            </h2>
+                        </div>
+                    ) : (
+                        <div
+                            key={row.key}
+                            style={{
+                                position: "absolute",
+                                top: row.top,
+                                left: 0,
+                                right: 0,
+                                height: row.height,
+                                ...(isGridView
+                                    ? {
+                                          display: "grid",
+                                          gap: `${VIRTUAL_ROW_GAP_PX}px`,
+                                          gridTemplateColumns: `repeat(${gridMetrics.columns}, minmax(0, 1fr))`,
+                                      }
+                                    : {}),
+                            }}
+                        >
+                            {row.chats.map((chat) =>
+                                renderChatTile(chat, row.uniqueChats),
+                            )}
+                        </div>
+                    ),
+                )}
+            </div>
+        );
+    };
 
     // Infinite scroll with additional condition: don't load if bulk processing
     const { ref } = useInfiniteScroll({
@@ -920,6 +1367,7 @@ function SavedChats({ displayState }) {
         isFetchingNextPage,
         fetchNextPage,
         additionalConditions: [!isBulkProcessing],
+        rootRef: chatsContainerRef,
     });
 
     const filteredSearchResults = useMemo(
@@ -1029,13 +1477,26 @@ function SavedChats({ displayState }) {
 
     const visibleIds = useMemo(() => Array.from(visibleIdSet), [visibleIdSet]);
 
+    const resolvedTotalChatCount = useMemo(
+        () =>
+            typeof totalChatCount === "number"
+                ? totalChatCount
+                : visibleChats.length,
+        [totalChatCount, visibleChats.length],
+    );
+
     // Calculate the count of visible chats for display
     const visibleChatCount = useMemo(() => {
         if (searchQuery || showSharedOnly) {
             return visibleChats.length;
         }
-        return totalChatCount;
-    }, [searchQuery, showSharedOnly, visibleChats.length, totalChatCount]);
+        return resolvedTotalChatCount;
+    }, [
+        searchQuery,
+        showSharedOnly,
+        visibleChats.length,
+        resolvedTotalChatCount,
+    ]);
 
     const allVisibleSelected = useMemo(
         () =>
@@ -1177,7 +1638,7 @@ function SavedChats({ displayState }) {
                                         )}
                                     </>
                                 )}
-                                {` ${t("of")} ${totalChatCount} ${t("total")}`}
+                                {` ${t("of")} ${resolvedTotalChatCount} ${t("total")}`}
                                 {statusLabel && (
                                     <>
                                         <span className="mx-1 text-gray-400 dark:text-gray-500">
@@ -1200,6 +1661,7 @@ function SavedChats({ displayState }) {
                     {/* Filter Search Control with Shared Chats Toggle */}
                     <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-lg">
                         <FilterInput
+                            dataTestId="saved-chats-search"
                             value={searchQuery}
                             onChange={(value) => {
                                 // Limit search query length to prevent performance issues
@@ -1248,6 +1710,46 @@ function SavedChats({ displayState }) {
                             )}
                         </div>
                         <TooltipProvider>
+                            <div
+                                className="inline-flex h-9 items-center rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 p-0.5"
+                                role="group"
+                                aria-label={t("Chat view")}
+                            >
+                                {CHAT_VIEW_OPTIONS.map(
+                                    ({ mode, label, testId, Icon }) => {
+                                        const isActive = chatViewMode === mode;
+
+                                        return (
+                                            <Tooltip key={mode}>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        type="button"
+                                                        data-testid={testId}
+                                                        aria-label={t(label)}
+                                                        aria-pressed={isActive}
+                                                        className={`inline-flex h-8 w-8 items-center justify-center rounded transition-colors ${
+                                                            isActive
+                                                                ? "bg-sky-500 text-white"
+                                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                        }`}
+                                                        onClick={() =>
+                                                            handleChatViewModeChange(
+                                                                mode,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Icon className="h-4 w-4" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    {t(label)}
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        );
+                                    },
+                                )}
+                            </div>
+
                             {/* Export button - always visible, disabled when nothing selected */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1270,6 +1772,7 @@ function SavedChats({ displayState }) {
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
+                                        data-testid="saved-chats-bulk-delete"
                                         className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
                                             selectedIds.size === 0
                                                 ? "opacity-50 cursor-not-allowed"
@@ -1335,8 +1838,13 @@ function SavedChats({ displayState }) {
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
-                                        className="lb-primary inline-flex items-center justify-center h-9 w-9 p-0"
+                                        className={`lb-primary inline-flex items-center justify-center h-9 w-9 p-0 ${
+                                            isCreatingNewChat
+                                                ? "opacity-70 cursor-wait"
+                                                : ""
+                                        }`}
                                         onClick={handleCreateNewChat}
+                                        disabled={isCreatingNewChat}
                                     >
                                         <Plus className="h-5 w-5" />
                                     </button>
@@ -1347,7 +1855,11 @@ function SavedChats({ displayState }) {
                     </div>
                 </div>
             </div>
-            <div ref={chatsContainerRef} className="chats">
+            <div
+                ref={chatsContainerRef}
+                data-testid="saved-chats-container"
+                className="chats overflow-y-auto"
+            >
                 {searchQuery ? (
                     // Search results view
                     <div>
@@ -1433,75 +1945,86 @@ function SavedChats({ displayState }) {
                     </div>
                 ) : (
                     // Normal categorized view
-                    (() => {
-                        const hasAnyChats = Object.values(
-                            categorizedChats,
-                        ).some((chats) => chats.length > 0);
+                    <div>
+                        {(() => {
+                            const hasAnyChats = Object.values(
+                                categorizedChats,
+                            ).some((chats) => chats.length > 0);
 
-                        // Show empty state if shared filter is active and no shared chats
-                        if (showSharedOnly && !hasAnyChats) {
+                            // Show empty state if shared filter is active and no shared chats
+                            if (showSharedOnly && !hasAnyChats) {
+                                return (
+                                    <EmptyState
+                                        icon={
+                                            <Users className="w-16 h-16 mx-auto text-gray-400" />
+                                        }
+                                        title={t("No shared chats found")}
+                                        description={t(
+                                            "You don't have any shared chats yet. Share a chat to see it here.",
+                                        )}
+                                        action={() => setShowSharedOnly(false)}
+                                        actionLabel={t("Show All Chats")}
+                                    />
+                                );
+                            }
+
+                            // Show empty state if no chats at all (and not filtering)
+                            if (
+                                !showSharedOnly &&
+                                !hasAnyChats &&
+                                !areChatsLoading
+                            ) {
+                                return (
+                                    <EmptyState
+                                        icon="💬"
+                                        title={t("No chats yet")}
+                                        description={t(
+                                            "Start a new conversation to see your chat history here.",
+                                        )}
+                                        action={handleCreateNewChat}
+                                        actionLabel={t("New Chat")}
+                                    />
+                                );
+                            }
+
+                            if (shouldVirtualize) {
+                                return renderVirtualizedCategories();
+                            }
+
+                            // Render categorized chats
                             return (
-                                <EmptyState
-                                    icon={
-                                        <Users className="w-16 h-16 mx-auto text-gray-400" />
-                                    }
-                                    title={t("No shared chats found")}
-                                    description={t(
-                                        "You don't have any shared chats yet. Share a chat to see it here.",
+                                <>
+                                    {Object.entries(categorizedChats).map(
+                                        ([category, chats]) =>
+                                            chats.length > 0 && (
+                                                <div key={category}>
+                                                    <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                                        {t(
+                                                            getCategoryTitle(
+                                                                category,
+                                                                chats.length,
+                                                            ),
+                                                        )}
+                                                    </h2>
+                                                    {renderChatElements(chats)}
+                                                </div>
+                                            ),
                                     )}
-                                    action={() => setShowSharedOnly(false)}
-                                    actionLabel={t("Show All Chats")}
-                                />
+                                </>
                             );
-                        }
-
-                        // Show empty state if no chats at all (and not filtering)
-                        if (
-                            !showSharedOnly &&
-                            !hasAnyChats &&
-                            !areChatsLoading
-                        ) {
-                            return (
-                                <EmptyState
-                                    icon="💬"
-                                    title={t("No chats yet")}
-                                    description={t(
-                                        "Start a new conversation to see your chat history here.",
-                                    )}
-                                    action={handleCreateNewChat}
-                                    actionLabel={t("New Chat")}
-                                />
-                            );
-                        }
-
-                        // Render categorized chats
-                        return Object.entries(categorizedChats).map(
-                            ([category, chats]) =>
-                                chats.length > 0 && (
-                                    <div key={category}>
-                                        <h2 className="text-md font-semibold mt-4 mb-2 border-b border-gray-200 dark:border-gray-700 pb-1">
-                                            {t(
-                                                getCategoryTitle(
-                                                    category,
-                                                    chats.length,
-                                                ),
-                                            )}
-                                        </h2>
-                                        {renderChatElements(chats)}
-                                    </div>
-                                ),
-                        );
-                    })()
+                        })()}
+                        {!searchQuery && hasNextPage && (
+                            <div
+                                ref={ref}
+                                data-testid="saved-chats-load-more"
+                                className="h-10 flex items-center justify-center"
+                            >
+                                {isFetchingNextPage && <Loader />}
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
-            {!searchQuery && hasNextPage && (
-                <div
-                    ref={ref}
-                    className="h-10 flex items-center justify-center"
-                >
-                    {isFetchingNextPage && <Loader />}
-                </div>
-            )}
 
             <AlertDialog
                 open={deleteChatId !== null}
@@ -1523,6 +2046,7 @@ function SavedChats({ displayState }) {
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             autoFocus
+                            data-testid="saved-chat-delete-confirm"
                             className="lb-danger dark:bg-rose-600 dark:hover:bg-rose-700 dark:text-white"
                             onClick={() => handleDelete(deleteChatId)}
                         >
@@ -1584,6 +2108,7 @@ function SavedChats({ displayState }) {
                     <AlertDialogFooter>
                         <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
                         <AlertDialogAction
+                            data-testid="saved-chats-bulk-delete-confirm"
                             autoFocus
                             className="lb-danger dark:bg-rose-600 dark:hover:bg-rose-700 dark:text-white"
                             onClick={handleBulkDelete}

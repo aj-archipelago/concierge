@@ -7,6 +7,13 @@ import {
     TooltipContent,
     TooltipProvider,
 } from "@/components/ui/tooltip";
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import { Menu } from "lucide-react";
 
 function Toolbar({
     actions,
@@ -14,6 +21,8 @@ function Toolbar({
     isTextSelected,
     onAction,
     inputText,
+    sidebarItems = [],
+    onSidebarItemClick,
 }) {
     const ref = useRef(null);
     const targetRef = useRef(null);
@@ -51,7 +60,7 @@ function Toolbar({
 
     return (
         <div className="relative px-2.5" ref={ref}>
-            <div className="flex gap-6">
+            <div className="flex gap-6 items-center">
                 {Object.keys(actions)
                     .filter(
                         (k) =>
@@ -111,6 +120,49 @@ function Toolbar({
                             </div>
                         );
                     })}
+                {sidebarItems.length > 0 && (
+                    <DropdownMenu>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            className="mb-2.5 text-sm text-start text-sky-600 rounded-md"
+                                            disabled={!isTextPresent}
+                                        >
+                                            <Menu className="w-5 h-5" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side={
+                                        language.includes("ar")
+                                            ? "left"
+                                            : "right"
+                                    }
+                                >
+                                    {t("AI Tools")}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <DropdownMenuContent
+                            align={language.includes("ar") ? "end" : "start"}
+                            className="w-56"
+                        >
+                            {sidebarItems.map((item) => (
+                                <DropdownMenuItem
+                                    key={item.key}
+                                    onClick={() => onSidebarItemClick(item.key)}
+                                    disabled={!isTextPresent}
+                                    className="flex items-center gap-2"
+                                >
+                                    {item.icon}
+                                    <span>{t(item.name)}</span>
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
         </div>
     );

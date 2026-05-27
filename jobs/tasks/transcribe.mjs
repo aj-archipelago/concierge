@@ -1,12 +1,14 @@
 import mongoose from "mongoose";
 import { connectToDatabase } from "../../src/db.mjs";
-import {
-    FORMAT_PARAGRAPH_TURBO,
-    TRANSCRIBE,
-    TRANSCRIBE_GEMINI,
-    TRANSCRIBE_NEURALSPACE,
-} from "../graphql.mjs";
+import { FORMAT_PARAGRAPH_TURBO } from "../graphql.mjs";
 import { BaseTask } from "./base-task.mjs";
+import { getStoredTranscriptFormat } from "./transcribe-format.mjs";
+import { getTranscribeQueryForModelOption } from "./transcribe-query.mjs";
+import {
+    redactObjectForLog,
+    redactSensitiveText,
+    redactUrlForLog,
+} from "../../app/api/utils/log-redaction.mjs";
 // Update model imports to use dynamic import since they're ES modules
 let User, UserState, Task;
 
@@ -45,7 +47,7 @@ class TranscribeHandler extends BaseTask {
         const { taskId, metadata } = job.data;
         console.debug(
             `[TranscribeHandler] Initializing job ${taskId}`,
-            metadata,
+            redactObjectForLog(metadata),
         );
 
         const {
@@ -58,6 +60,7 @@ class TranscribeHandler extends BaseTask {
             maxWordsPerLine,
             highlightWords,
             modelOption,
+            contextId,
         } = metadata;
 
         // Validate URL
@@ -65,32 +68,23 @@ class TranscribeHandler extends BaseTask {
             new URL(url);
         } catch (error) {
             console.debug(
-                `[TranscribeHandler] URL validation failed for ${url}`,
+                `[TranscribeHandler] URL validation failed for ${redactUrlForLog(url)}`,
             );
-            throw new Error(`Invalid URL: ${url}`);
+            throw new Error(`Invalid URL: ${redactUrlForLog(url)}`);
         }
 
         // Select query based on model option
-        let query;
         console.debug(
             `[TranscribeHandler] Selected model option: ${modelOption}`,
         );
-        switch (modelOption?.toLowerCase()) {
-            case "neuralspace":
-                query = TRANSCRIBE_NEURALSPACE;
-                break;
-            case "gemini":
-                query = TRANSCRIBE_GEMINI;
-                break;
-            default:
-                query = TRANSCRIBE;
-        }
+        const query = getTranscribeQueryForModelOption(modelOption);
 
         console.debug(`[TranscribeHandler] Sending transcription request`, {
-            url,
+            url: redactUrlForLog(url),
             language,
             modelOption,
             responseFormat,
+            hasContextId: !!contextId,
         });
 
         const { data, errors } = await job.client.query({
@@ -106,22 +100,26 @@ class TranscribeHandler extends BaseTask {
                 maxWordsPerLine,
                 highlightWords,
                 async: true,
+                contextId,
             },
             fetchPolicy: "no-cache",
         });
 
         if (errors) {
+            const redactedErrors = redactSensitiveText(JSON.stringify(errors));
             console.debug(
                 `[TranscribeHandler] GraphQL errors encountered`,
-                errors,
+                redactedErrors,
             );
-            throw new Error(`GraphQL errors: ${JSON.stringify(errors)}`);
+            throw new Error(`GraphQL errors: ${redactedErrors}`);
         }
 
         const result =
             data?.transcribe?.result ||
             data?.transcribe_neuralspace?.result ||
-            data?.transcribe_gemini?.result;
+            data?.transcribe_gemini?.result ||
+            data?.transcribe_xai_gemini?.result ||
+            data?.transcribe_xai?.result;
 
         if (!result) {
             console.debug(
@@ -232,16 +230,15 @@ class TranscribeHandler extends BaseTask {
             }
 
             const transcribeState = state.transcribe || {};
-            const videoInformation = transcribeState.videoInformation || {};
             const transcripts = transcribeState.transcripts || [];
 
             const { url } = metadata || {};
             console.debug(
-                `[TranscribeHandler] Adding transcript for video ${url}`,
+                `[TranscribeHandler] Adding transcript for video ${redactUrlForLog(url)}`,
             );
 
-            // Create a name for the transcript based on the format
-            const name = format === "vtt" ? "Subtitles" : "Transcript";
+            const storedFormat = getStoredTranscriptFormat(format);
+            const name = storedFormat === "vtt" ? "Subtitles" : "Transcript";
 
             // Find existing tracks with the same name and get the highest number
             const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
@@ -270,7 +267,7 @@ class TranscribeHandler extends BaseTask {
                 ...transcripts,
                 {
                     text: transcriptionData,
-                    format: format || "vtt",
+                    format: storedFormat,
                     name: newName,
                     timestamp: new Date().toISOString(),
                 },
@@ -332,4 +329,6 @@ class TranscribeHandler extends BaseTask {
     }
 }
 
-export default new TranscribeHandler();
+const transcribeHandler = new TranscribeHandler();
+
+export default transcribeHandler;

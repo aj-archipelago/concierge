@@ -141,12 +141,11 @@ export default function SyncedAudioControl({
                 publishState({ playing: false, activeSurface: surface });
             }}
             onTimeUpdate={() => {
-                if (isActive) {
+                if (isActive)
                     publishState(
                         { playing: !audioRef.current.paused },
                         { silent: true },
                     );
-                }
             }}
             onSeeked={() =>
                 publishState({

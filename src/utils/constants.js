@@ -1,5 +1,9 @@
 export const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
+// Canonical default chat model ID used across server-side code and config.
+// Keep in sync with the Cortex model catalog.
+export const DEFAULT_CHAT_MODEL = "cortex-agent-chat";
+
 export const LOCALES = [
     "ar-AE",
     "ar-BH",

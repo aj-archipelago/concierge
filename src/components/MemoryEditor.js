@@ -331,7 +331,7 @@ function MemoryItem({
 }
 
 // Export the content component so it can be used without the Modal wrapper
-export const MemoryEditorContent = ({ user, aiName, onClose }) => {
+export const MemoryEditorContent = ({ user, aiName, onClose, onSaved }) => {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const isRTL = direction === "rtl";
@@ -608,7 +608,9 @@ export const MemoryEditorContent = ({ user, aiName, onClose }) => {
                     aiMemory: combinedMemory,
                 },
             });
-            onClose();
+            setSaving(false);
+            onSaved?.();
+            onClose?.();
         } catch (error) {
             console.error("Failed to save memory:", error);
             setError(
@@ -629,7 +631,7 @@ export const MemoryEditorContent = ({ user, aiName, onClose }) => {
         const now = new Date();
         const date = now.toISOString().split("T")[0];
         const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
-        a.download = `${(aiName || "labeeb").toLowerCase()}-memory-${date}-${time}.json`;
+        a.download = `${(aiName || "concierge").toLowerCase()}-memory-${date}-${time}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

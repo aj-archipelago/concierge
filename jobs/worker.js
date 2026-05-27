@@ -1,7 +1,12 @@
 import { Queue, Worker } from "bullmq";
 import "dotenv/config";
 import Redis from "ioredis";
+import automationScheduler from "./automation-scheduler.js";
 import cortexRequestWorker from "./cortex-request-worker.js";
+import {
+    closeDbConnectionIfInitialized,
+    ensureDbConnection,
+} from "./db-connection.js";
 import { buildDigestsForAllUsers } from "./digest-build.js";
 import { Logger } from "./logger.js";
 
@@ -93,78 +98,6 @@ worker.on("failed", (job, error) => {
     logger.log("job failed with error: " + error.message);
 });
 
-// Shared database connection management
-let dbInitialized = false;
-let connectionAttempts = 0;
-const MAX_CONNECTION_ATTEMPTS = 5;
-
-// Ensure we have a database connection
-async function ensureDbConnection(forceReconnect = false) {
-    if (forceReconnect) {
-        dbInitialized = false;
-    }
-
-    // Get mongoose to check connection state
-    const mongoose = (await import("mongoose")).default;
-
-    if (
-        !dbInitialized ||
-        !mongoose.connection ||
-        mongoose.connection.readyState !== 1
-    ) {
-        try {
-            connectionAttempts++;
-            console.log(
-                `Connecting to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS})...`,
-            );
-
-            const connectToDatabase = (await import("../src/db.mjs"))
-                .connectToDatabase;
-            await connectToDatabase();
-
-            // Give the connection a moment to fully establish
-            await new Promise((resolve) => setTimeout(resolve, 500));
-
-            if (mongoose.connection && mongoose.connection.readyState === 1) {
-                console.log("Successfully connected to MongoDB database");
-                dbInitialized = true;
-                connectionAttempts = 0;
-            } else {
-                throw new Error(
-                    `Failed to establish MongoDB connection, current state: ${mongoose.connection ? mongoose.connection.readyState : "unknown"}`,
-                );
-            }
-        } catch (error) {
-            console.error(
-                `Failed to connect to database (attempt ${connectionAttempts}/${MAX_CONNECTION_ATTEMPTS}):`,
-                error,
-            );
-
-            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
-                console.error(
-                    "Maximum connection attempts reached. Giving up.",
-                );
-                throw new Error(
-                    `Failed to connect to MongoDB after ${MAX_CONNECTION_ATTEMPTS} attempts: ${error.message}`,
-                );
-            }
-
-            // Wait before next attempt with exponential backoff
-            const backoffTime = Math.min(
-                1000 * Math.pow(2, connectionAttempts),
-                30000,
-            );
-            console.log(
-                `Waiting ${backoffTime / 1000}s before next connection attempt...`,
-            );
-            await new Promise((resolve) => setTimeout(resolve, backoffTime));
-
-            // Recursive call to retry
-            return ensureDbConnection();
-        }
-    }
-}
-
 // Graceful shutdown handler
 const cleanupAndExit = async () => {
     console.log("Shutting down workers...");
@@ -173,14 +106,12 @@ const cleanupAndExit = async () => {
         // Stop processing new jobs
         await worker.close();
         console.log("Digest worker stopped");
+        await automationScheduler.close();
+        console.log("Automation scheduler stopped");
 
         // Close database connection
-        if (dbInitialized) {
-            const closeDatabaseConnection = (await import("../src/db.mjs"))
-                .closeDatabaseConnection;
-            await closeDatabaseConnection();
-            console.log("Database connection closed");
-        }
+        await closeDbConnectionIfInitialized();
+        console.log("Database connection closed");
 
         console.log("Cleanup completed, exiting");
         process.exit(0);
@@ -204,6 +135,7 @@ async function startWorkers() {
         // Start workers
         console.log("Starting workers...");
         await cortexRequestWorker.run();
+        await automationScheduler.run();
         worker.run();
 
         console.log("All workers are running");

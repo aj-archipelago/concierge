@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@apollo/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { QUERIES } from "../../graphql";
 import LoadingButton from "../editor/LoadingButton";
@@ -15,12 +15,19 @@ export default function Jira({ clientSecret }) {
     const [text, setText] = useState("");
     const [storyCount, setStoryCount] = useState("one");
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { t } = useTranslation();
     const { userState, debouncedUpdateUserState } = useContext(AuthContext);
     const [preferences, setPreferences] = useState(
         JSON.parse(localStorage.getItem("jira_preferences") || "{}"),
     );
     const [token, setToken] = useState(null);
+    const callbackState = searchParams.get("state");
+    const isAtlassianConnectorCallback =
+        !!searchParams.get("code") &&
+        (callbackState === "mcp" ||
+            callbackState?.startsWith("mcp21_") ||
+            callbackState?.startsWith("applet_"));
 
     const variables = {
         text: prompt,
@@ -52,11 +59,22 @@ export default function Jira({ clientSecret }) {
         }
     }, [data, router]);
 
+    if (isAtlassianConnectorCallback) {
+        return (
+            <div className="flex min-h-[50vh] items-center justify-center">
+                <ConnectJiraButton
+                    clientSecret={clientSecret}
+                    onTokenChange={setToken}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="">
             <ol className="list-decimal text-lg font-medium ps-8 flex flex-col gap-4 mb-6">
                 <li>
-                    <h4 className="mb-2 ">{t("Connect Jira to Labeeb")}</h4>
+                    <h4 className="mb-2 ">{t("Connect Jira to Concierge")}</h4>
                     <div className="ps4">
                         <ConnectJiraButton
                             clientSecret={clientSecret}

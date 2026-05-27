@@ -10,6 +10,7 @@ import { onError } from "@apollo/client/link/error";
 import { getMainDefinition } from "@apollo/client/utilities";
 import config from "../config";
 import { triggerAuthRefresh, checkAuthHeaders } from "./utils/auth";
+import { getRunWorkspacePromptQuery } from "./utils/runWorkspacePromptQuery";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
@@ -17,7 +18,24 @@ const CORTEX_GRAPHQL_API_URL =
 // Track authentication state for GraphQL
 let isGraphQLRefreshing = false;
 
-const getClient = (serverUrl, useBlueGraphQL) => {
+const isExpectedConnectionFailure = (networkError) => {
+    const message = String(networkError?.message || "").toLowerCase();
+    const causeCode = String(networkError?.cause?.code || "").toLowerCase();
+    const nestedCauseCode = String(
+        networkError?.cause?.errors?.[0]?.code || "",
+    ).toLowerCase();
+
+    return (
+        networkError?.statusCode === 0 ||
+        message.includes("econnrefused") ||
+        message.includes("fetch failed") ||
+        causeCode === "econnrefused" ||
+        nestedCauseCode === "econnrefused"
+    );
+};
+
+const getClient = (serverUrl, useBlueGraphQL, options = {}) => {
+    const { suppressNetworkErrors = false } = options;
     let graphqlEndpoint;
     if (serverUrl) {
         graphqlEndpoint = config.endpoints.graphql(serverUrl, useBlueGraphQL);
@@ -70,12 +88,16 @@ const getClient = (serverUrl, useBlueGraphQL) => {
 
             // Handle other network errors
             if (networkError) {
+                if (
+                    suppressNetworkErrors &&
+                    isExpectedConnectionFailure(networkError)
+                ) {
+                    return;
+                }
+
                 console.error("GraphQL network error:", networkError);
                 // Don't retry connection refused errors - they indicate the service is down
-                if (
-                    networkError.statusCode === 0 ||
-                    networkError.message?.includes("ECONNREFUSED")
-                ) {
+                if (isExpectedConnectionFailure(networkError)) {
                     return;
                 }
             }
@@ -192,46 +214,6 @@ const SYS_SAVE_MEMORY = gql`
     }
 `;
 
-const SYS_READ_FILE_COLLECTION = gql`
-    query SysReadFileCollection(
-        $agentContext: [AgentContextInput]
-        $useCache: Boolean
-    ) {
-        sys_read_file_collection(
-            agentContext: $agentContext
-            useCache: $useCache
-        ) {
-            result
-        }
-    }
-`;
-
-const SYS_UPDATE_FILE_METADATA = gql`
-    mutation SysUpdateFileMetadata(
-        $agentContext: [AgentContextInput]!
-        $hash: String!
-        $displayFilename: String
-        $tags: [String!]
-        $notes: String
-        $mimeType: String
-        $permanent: Boolean
-        $inCollection: [String!]
-    ) {
-        sys_update_file_metadata(
-            agentContext: $agentContext
-            hash: $hash
-            displayFilename: $displayFilename
-            tags: $tags
-            notes: $notes
-            mimeType: $mimeType
-            permanent: $permanent
-            inCollection: $inCollection
-        ) {
-            result
-        }
-    }
-`;
-
 const CHAT_TITLE = gql`
     query Chat_title(
         $text: String
@@ -247,35 +229,39 @@ const CHAT_TITLE = gql`
 const SYS_ENTITY_AGENT = gql`
     query StartAgent(
         $chatHistory: [MultiMessage]!
-        $agentContext: [AgentContextInput]
+        $fileAccessPlan: [FileAccessTargetInput]
+        $contextId: String
+        $contextKey: String
         $text: String
         $aiName: String
         $aiMemorySelfModify: Boolean
         $title: String
-        $codeRequestId: String
         $stream: Boolean
         $entityId: String
         $chatId: String
-        $researchMode: Boolean
+        $reasoningEffort: String
         $model: String
         $userInfo: String
+        $clientSideTools: String
         $mcpConfig: String
         $mcpAvailableServers: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
-            agentContext: $agentContext
+            fileAccessPlan: $fileAccessPlan
+            contextId: $contextId
+            contextKey: $contextKey
             text: $text
             aiName: $aiName
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
-            codeRequestId: $codeRequestId
             stream: $stream
             entityId: $entityId
             chatId: $chatId
-            researchMode: $researchMode
+            reasoningEffort: $reasoningEffort
             model: $model
             userInfo: $userInfo
+            clientSideTools: $clientSideTools
             mcpConfig: $mcpConfig
             mcpAvailableServers: $mcpAvailableServers
         ) {
@@ -284,6 +270,26 @@ const SYS_ENTITY_AGENT = gql`
             tool
             warnings
             errors
+        }
+    }
+`;
+
+const SYS_ENTITY_UPDATE = gql`
+    query Sys_entity_update(
+        $entityId: String!
+        $contextId: String!
+        $name: String
+        $secrets: String
+        $reasoningEffort: String
+    ) {
+        sys_entity_update(
+            entityId: $entityId
+            contextId: $contextId
+            name: $name
+            secrets: $secrets
+            reasoningEffort: $reasoningEffort
+        ) {
+            result
         }
     }
 `;
@@ -521,6 +527,70 @@ const TRANSCRIBE_GEMINI = gql`
     }
 `;
 
+const TRANSCRIBE_XAI_GEMINI = gql`
+    query TranscribeXaiGemini(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_xai_gemini(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_XAI = gql`
+    query TranscribeXai(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_xai(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSCRIBE_NEURALSPACE = gql`
     query TranscribeNeuralSpace(
         $file: String!
@@ -618,6 +688,28 @@ const REQUEST_PROGRESS = gql`
 const CANCEL_REQUEST = gql`
     mutation CancelRequest($requestId: String!) {
         cancelRequest(requestId: $requestId)
+    }
+`;
+
+const SUBMIT_CLIENT_TOOL_RESULT = gql`
+    mutation SubmitClientToolResult(
+        $requestId: String!
+        $toolCallbackId: String!
+        $result: String!
+        $success: Boolean!
+    ) {
+        submitClientToolResult(
+            requestId: $requestId
+            toolCallbackId: $toolCallbackId
+            result: $result
+            success: $success
+        )
+    }
+`;
+
+const INJECT_AGENT_MESSAGE = gql`
+    mutation InjectAgentMessage($requestId: String!, $message: String!) {
+        injectAgentMessage(requestId: $requestId, message: $message)
     }
 `;
 
@@ -751,6 +843,55 @@ const IMAGE_GEMINI_25 = gql`
             input_image_2: $input_image_2
             input_image_3: $input_image_3
             optimizePrompt: $optimizePrompt
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const IMAGE_GEMINI_31 = gql`
+    query ImageGemini31(
+        $text: String!
+        $async: Boolean
+        $input_image: String
+        $input_image_2: String
+        $input_image_3: String
+        $input_image_4: String
+        $input_image_5: String
+        $input_image_6: String
+        $input_image_7: String
+        $input_image_8: String
+        $input_image_9: String
+        $input_image_10: String
+        $input_image_11: String
+        $input_image_12: String
+        $input_image_13: String
+        $input_image_14: String
+        $optimizePrompt: Boolean
+        $aspectRatio: String
+        $image_size: String
+    ) {
+        image_gemini_31(
+            text: $text
+            async: $async
+            input_image: $input_image
+            input_image_2: $input_image_2
+            input_image_3: $input_image_3
+            input_image_4: $input_image_4
+            input_image_5: $input_image_5
+            input_image_6: $input_image_6
+            input_image_7: $input_image_7
+            input_image_8: $input_image_8
+            input_image_9: $input_image_9
+            input_image_10: $input_image_10
+            input_image_11: $input_image_11
+            input_image_12: $input_image_12
+            input_image_13: $input_image_13
+            input_image_14: $input_image_14
+            optimizePrompt: $optimizePrompt
+            aspectRatio: $aspectRatio
+            image_size: $image_size
         ) {
             result
             resultData
@@ -1154,49 +1295,28 @@ const JIRA_STORY = gql`
     }
 `;
 
-const CODE_HUMAN_INPUT = gql`
-    query ($text: String, $codeRequestId: String) {
-        code_human_input(text: $text, codeRequestId: $codeRequestId) {
-            result
-        }
-    }
-`;
+const getWorkspacePromptQuery = getRunWorkspacePromptQuery;
 
-const getWorkspacePromptQuery = (pathwayName) => {
-    return gql`
-        query ${pathwayName}(
-            $chatHistory: [MultiMessage]
-            $async: Boolean
-            $model: String
-        ) {
-            ${pathwayName}(
-                chatHistory: $chatHistory
-                async: $async
-                model: $model
-            ) {
-                result
-                tool
-            }
-        }
-    `;
-};
-
-// Agent-specific query with agentContext and researchMode
+// Agent-specific query with fileAccessPlan and reasoningEffort
 const getWorkspaceAgentQuery = (pathwayName) => {
     return gql`
         query ${pathwayName}(
             $chatHistory: [MultiMessage]
             $async: Boolean
             $model: String
-            $agentContext: [AgentContextInput]
-            $researchMode: Boolean
+            $fileAccessPlan: [FileAccessTargetInput]
+            $contextId: String
+            $contextKey: String
+            $reasoningEffort: String
         ) {
             ${pathwayName}(
                 chatHistory: $chatHistory
                 async: $async
                 model: $model
-                agentContext: $agentContext
-                researchMode: $researchMode
+                fileAccessPlan: $fileAccessPlan
+                contextId: $contextId
+                contextKey: $contextKey
+                reasoningEffort: $reasoningEffort
             ) {
                 result
                 tool
@@ -1226,8 +1346,16 @@ const AZURE_VIDEO_TRANSLATE = gql`
 `;
 
 const SYS_GET_ENTITIES = gql`
-    query Sys_get_entities {
-        sys_get_entities {
+    query Sys_get_entities($userId: String, $fresh: String) {
+        sys_get_entities(userId: $userId, fresh: $fresh) {
+            result
+        }
+    }
+`;
+
+const SYS_ENTITY_UPSERT_PERSONAL = gql`
+    query Sys_entity_upsert_personal($userId: String!, $name: String) {
+        sys_entity_upsert_personal(userId: $userId, name: $name) {
             result
         }
     }
@@ -1268,27 +1396,46 @@ const WORKSPACE_APPLET_EDIT = gql`
     }
 `;
 
+const AI_TEXT_EDIT = gql`
+    query AiTextEdit(
+        $text: String!
+        $currentText: String
+        $context: String
+        $async: Boolean
+        $stream: Boolean
+    ) {
+        ai_text_edit(
+            text: $text
+            currentText: $currentText
+            context: $context
+            async: $async
+            stream: $stream
+        ) {
+            result
+        }
+    }
+`;
+
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_TITLE,
-    CODE_HUMAN_INPUT,
     COGNITIVE_DELETE,
     COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_31,
     MEDIA_PROMPT_ASSISTANT,
     IMAGE_GEMINI_3,
-    MEDIA_GENERATE,
-    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
+    MEDIA_PROMPT_TAGS,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    SYS_READ_FILE_COLLECTION,
-    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
+    SYS_ENTITY_UPDATE,
     SYS_GET_ENTITIES,
+    SYS_ENTITY_UPSERT_PERSONAL,
     SYS_TOOL_MERMAID,
     EXPAND_STORY,
     FORMAT_PARAGRAPH_TURBO,
@@ -1315,6 +1462,8 @@ const QUERIES = {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_XAI_GEMINI,
+    TRANSCRIBE_XAI,
     TRANSLATE,
     TRANSLATE_AZURE,
     TRANSLATE_CONTEXT,
@@ -1326,6 +1475,7 @@ const QUERIES = {
     SUBHEAD,
     VISION,
     WORKSPACE_APPLET_EDIT,
+    AI_TEXT_EDIT,
 };
 
 const SUBSCRIPTIONS = {
@@ -1375,6 +1525,8 @@ const SYS_MODEL_METADATA = gql`
 
 const MUTATIONS = {
     CANCEL_REQUEST,
+    INJECT_AGENT_MESSAGE,
+    SUBMIT_CLIENT_TOOL_RESULT,
     PUT_PATHWAY,
     DELETE_PATHWAY,
 };
@@ -1383,16 +1535,15 @@ export {
     getClient,
     SYS_MODEL_METADATA,
     AZURE_VIDEO_TRANSLATE,
-    CODE_HUMAN_INPUT,
     COGNITIVE_INSERT,
     COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
-    SYS_READ_FILE_COLLECTION,
-    SYS_UPDATE_FILE_METADATA,
     SYS_ENTITY_AGENT,
+    SYS_ENTITY_UPDATE,
     SYS_GET_ENTITIES,
+    SYS_ENTITY_UPSERT_PERSONAL,
     SYS_TOOL_MERMAID,
     SELECT_SERVICES,
     SUMMARY,
@@ -1400,14 +1551,15 @@ export {
     HEADLINE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
+    IMAGE_GEMINI_31,
     MEDIA_PROMPT_ASSISTANT,
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
-    MEDIA_GENERATE,
-    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
+    MEDIA_GENERATE,
+    MEDIA_PROMPT_TAGS,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -1428,6 +1580,8 @@ export {
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,
+    TRANSCRIBE_XAI_GEMINI,
+    TRANSCRIBE_XAI,
     VISION,
     WORKSPACE_APPLET_EDIT,
 };

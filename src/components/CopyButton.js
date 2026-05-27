@@ -42,9 +42,9 @@ function CopyButton({ item, className = "absolute top-1 end-1 " }) {
             onClick={() => copyFormattedText(item)}
         >
             {copied ? (
-                <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
             ) : (
-                <Copy className="w-3.5 h-3.5" />
+                <Copy className="w-5 h-5" />
             )}
         </button>
     );

@@ -32,18 +32,6 @@ jest.mock("../pathways/[id]/db", () => ({
     deletePathway: jest.fn(),
 }));
 
-jest.mock("../models/llm", () => ({
-    default: {
-        findById: jest.fn(),
-        findOne: jest.fn(),
-    },
-    __esModule: true,
-}));
-
-jest.mock("../utils/llm-file-utils", () => ({
-    getLLMWithFallback: jest.fn(),
-}));
-
 // Import mocked modules to access their mock functions
 import {
     publishWorkspace,
@@ -54,14 +42,12 @@ import Pathway from "../models/pathway";
 import Prompt from "../models/prompt";
 import User from "../models/user.mjs";
 import { putPathway, deletePathway } from "../pathways/[id]/db";
-import { getLLMWithFallback } from "../utils/llm-file-utils";
 
 // Get mock function references
 const mockPathwayFindById = Pathway.findById;
 const mockPromptFind = Prompt.find;
 const mockPromptPopulate = Prompt.find().populate;
 const mockUserFindById = User.findById;
-const mockGetLLMWithFallback = getLLMWithFallback;
 
 describe("Workspace Publishing Utils", () => {
     let mockWorkspace;
@@ -101,15 +87,6 @@ describe("Workspace Publishing Utils", () => {
             mockPrompts.map((p) => ({ ...p, files: [] })),
         );
 
-        // Mock getLLMWithFallback to return a default LLM
-        mockGetLLMWithFallback.mockResolvedValue({
-            _id: "defaultLLM",
-            identifier: "gpt4o",
-            name: "GPT 4o",
-            cortexPathwayName: "run_workspace_prompt",
-            cortexModelName: "oai-gpt4o",
-        });
-
         // Mock putPathway
         putPathway.mockResolvedValue({
             _id: "pathway123",
@@ -136,7 +113,6 @@ describe("Workspace Publishing Utils", () => {
             expect(mockPromptPopulate).toHaveBeenCalledWith("files");
 
             // Verify putPathway was called with correct data structure
-            // Note: researchMode is only included for agent pathways
             expect(putPathway).toHaveBeenCalledWith(
                 null, // workspace.pathway is null initially
                 {
@@ -215,7 +191,6 @@ describe("Workspace Publishing Utils", () => {
             expect(mockPromptPopulate).toHaveBeenCalledWith("files");
 
             // Verify putPathway was called with correct format
-            // Note: researchMode is only included for agent pathways
             expect(putPathway).toHaveBeenCalledWith(
                 "pathway123",
                 expect.objectContaining({

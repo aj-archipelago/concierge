@@ -161,4 +161,62 @@ describe("SyncedAudioControl", () => {
             expect.anything(),
         );
     });
+
+    test("exposes the underlying audio element for modal handoff snapshots", () => {
+        const audioRef = { current: null };
+
+        render(
+            <SyncedAudioControl
+                mediaId="audio-1"
+                src="/clip.mp3"
+                surface="modal"
+                playback={{
+                    activeSurface: "modal",
+                    currentTime: 0,
+                    playing: false,
+                }}
+                onPlaybackChange={jest.fn()}
+                audioRef={audioRef}
+                ariaLabel="Play generated audio"
+            />,
+        );
+
+        expect(audioRef.current).toBe(
+            screen.getByLabelText("Play generated audio"),
+        );
+    });
+
+    test("can ignore pause events during modal surface handoff", () => {
+        const onPlaybackChange = jest.fn();
+        render(
+            <SyncedAudioControl
+                mediaId="audio-1"
+                src="/clip.mp3"
+                surface="modal"
+                playback={{
+                    activeSurface: "modal",
+                    currentTime: 8,
+                    playing: false,
+                }}
+                onPlaybackChange={onPlaybackChange}
+                ignorePauseRef={{ current: true }}
+                ariaLabel="Play generated audio"
+            />,
+        );
+
+        const audio = screen.getByLabelText("Play generated audio");
+        mockAudioElement(audio, {
+            currentTime: 8,
+            duration: 30,
+            paused: false,
+        });
+
+        fireEvent.pause(audio);
+
+        expect(onPlaybackChange).not.toHaveBeenCalledWith(
+            "audio-1",
+            expect.objectContaining({ playing: false }),
+            expect.anything(),
+        );
+    });
 });

@@ -20,7 +20,7 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 import { Modal } from "../../../@/components/ui/modal";
 import LoadingButton from "../../../src/components/editor/LoadingButton";
-import { useLLMs } from "../../queries/llms";
+import { useChatModels, resolveModelId } from "../../queries/modelMetadata";
 import {
     useCreatePrompt,
     useDeletePrompt,
@@ -45,6 +45,10 @@ import FileManager from "../../../src/components/common/FileManager";
 import UserFileCollectionPicker from "../[id]/components/UserFileCollectionPicker";
 import { useHashToIdLookup } from "../hooks/useHashToIdLookup";
 import AttachedFilesList from "./AttachedFilesList";
+import {
+    createAppletUserStorageTarget,
+    createWorkspacePrivateStorageTarget,
+} from "../../../src/utils/storageTargets";
 
 export default function WorkspaceInput({ onRun, onRunMany }) {
     const [text, setText] = useState("");
@@ -67,6 +71,27 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const { data: workspaceState, isStateLoading } = useWorkspaceState(
         workspace?._id,
     );
+    const workspacePrivateStorageTarget =
+        user?.contextId && workspace?._id
+            ? workspace?.applet
+                ? createAppletUserStorageTarget(
+                      user.contextId,
+                      workspace.applet,
+                  )
+                : createWorkspacePrivateStorageTarget(
+                      user.contextId,
+                      workspace._id,
+                  )
+            : null;
+    const workspacePrivateFallbackStorageTargets =
+        user?.contextId && workspace?._id && workspace?.applet
+            ? [
+                  createWorkspacePrivateStorageTarget(
+                      user.contextId,
+                      workspace._id,
+                  ),
+              ]
+            : [];
     const updateWorkspaceState = useUpdateWorkspaceState();
     const updateWorkspace = useUpdateWorkspace();
     const { data: workspaceFilesData } = useWorkspaceFiles(workspace?._id);
@@ -103,7 +128,7 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 attrs: { inputText: text },
             });
         }, 1000);
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [text, workspace?._id]);
 
     // Remove file handler - just detaches from input (does NOT delete from cloud)
@@ -117,7 +142,8 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
     const handleFileUpload = (fileData) => {
         const { url } = fileData;
 
-        // Only add supported files to urlsData
+        // Upload validation happens at the upload destination; keep the
+        // composer payload permissive so stored workspace files can attach.
         if (isSupportedFileUrl(url)) {
             setUrlsData((prevUrlsData) => [...prevUrlsData, fileData]);
         }
@@ -129,11 +155,11 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
 
         // Add uploaded files (urlsData)
         if (urlsData && urlsData.length > 0) {
-            urlsData.forEach(({ url, gcs, converted, hash }) => {
+            urlsData.forEach(({ url, converted, hash, blobPath }) => {
                 files.push({
                     url: converted?.url || url,
-                    gcs: converted?.gcs || gcs,
-                    hash: hash || undefined, // Explicitly handle undefined hash
+                    blobPath: converted?.blobPath || blobPath || undefined,
+                    hash: hash || undefined,
                 });
             });
         }
@@ -325,6 +351,8 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 onClose={() => setShowFileUploadDialog(false)}
                 onFileUpload={handleFileUpload}
                 workspaceId={workspace?._id}
+                contextId={user?.contextId || null}
+                storageTarget={workspacePrivateStorageTarget}
                 title="Upload Files"
                 description="Upload files to include with your input. These are your private files for this workspace."
             />
@@ -346,15 +374,20 @@ export default function WorkspaceInput({ onRun, onRunMany }) {
                 <div className="p-4">
                     {workspace?._id && user?.contextId && (
                         <UserFileCollectionPicker
-                            contextId={`${workspace._id}:${user.contextId}`}
+                            contextId={user.contextId}
                             contextKey={user.contextKey}
+                            folderWorkspaceId={workspace._id}
+                            storageTarget={workspacePrivateStorageTarget}
+                            fallbackStorageTargets={
+                                workspacePrivateFallbackStorageTargets
+                            }
                             selectedFiles={urlsData}
                             onFilesSelected={(selected) => {
                                 // Convert Cortex file format to urlsData format
                                 const newUrlsData = selected.map((file) => ({
-                                    url: file.url || file.gcs,
-                                    gcs: file.gcs,
+                                    url: file.url,
                                     hash: file.hash,
+                                    blobPath: file.blobPath,
                                     displayFilename:
                                         file.displayFilename ||
                                         file.filename ||
@@ -470,7 +503,7 @@ function SystemPromptEditor({ value, onCancel, onSave }) {
                 value={prompt}
                 onChange={setPrompt}
                 placeholder={t(
-                    "e.g. You are an expert journalist working at Al Jazeera Media Network.",
+                    "e.g. You are an expert analyst preparing concise research briefs.",
                 )}
                 className="mb-2"
             />
@@ -563,10 +596,10 @@ function PromptEditor({ selectedPrompt, onBack }) {
     const createPrompt = useCreatePrompt();
     const deletePrompt = useDeletePrompt();
     const { user, workspace } = useContext(WorkspaceContext);
-    const { data: llms } = useLLMs();
+    const { data: chatModels, redirects } = useChatModels();
     const [llm, setLLM] = useState("");
     const [agentMode, setAgentMode] = useState(false);
-    const [researchMode, setResearchMode] = useState(false);
+    const [reasoningEffort, setReasoningEffort] = useState(null);
     const { t } = useTranslation();
 
     // Hash -> _id lookup for matching Cortex files to MongoDB files
@@ -577,13 +610,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setTitle(selectedPrompt.title);
             setPrompt(selectedPrompt.text);
             setAgentMode(selectedPrompt.agentMode || false);
-            setResearchMode(selectedPrompt.researchMode || false);
-            setLLM(
-                selectedPrompt?.llm &&
-                    llms?.some((l) => l._id === selectedPrompt.llm)
-                    ? selectedPrompt?.llm
-                    : llms?.find((l) => l.isDefault)?._id,
-            );
+            setReasoningEffort(selectedPrompt.reasoningEffort || null);
+            setLLM(resolveModelId(selectedPrompt?.llm, chatModels, redirects));
             // Files from prompt already have hash for matching
             setSelectedFiles(selectedPrompt.files || []);
         } else {
@@ -591,10 +619,10 @@ function PromptEditor({ selectedPrompt, onBack }) {
             setPrompt("");
             setSelectedFiles([]);
             setAgentMode(false);
-            setResearchMode(false);
-            setLLM(llms?.find((l) => l.isDefault)?._id);
+            setReasoningEffort(null);
+            setLLM(resolveModelId(null, chatModels, redirects));
         }
-    }, [selectedPrompt, llms]);
+    }, [selectedPrompt, chatModels, redirects]);
     const isOwner = selectedPrompt?.owner?.toString() === user._id?.toString();
 
     const isPublished = workspace?.published;
@@ -631,8 +659,8 @@ function PromptEditor({ selectedPrompt, onBack }) {
                 setLLM={setLLM}
                 agentMode={agentMode}
                 setAgentMode={setAgentMode}
-                researchMode={researchMode}
-                setResearchMode={setResearchMode}
+                reasoningEffort={reasoningEffort}
+                setReasoningEffort={setReasoningEffort}
                 disabled={isPublished}
                 showPublishedWarning={isPublished}
             />
@@ -722,7 +750,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         text: prompt,
                                         llm,
                                         agentMode,
-                                        researchMode,
+                                        reasoningEffort,
                                         files: fileIds,
                                     },
                                 });
@@ -735,7 +763,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                                         text: prompt,
                                         llm,
                                         agentMode,
-                                        researchMode,
+                                        reasoningEffort,
                                         files: fileIds,
                                     },
                                 });
@@ -768,6 +796,7 @@ function PromptEditor({ selectedPrompt, onBack }) {
                             contextId={workspace._id}
                             contextKey={workspace.contextKey}
                             workspaceId={workspace._id}
+                            source="workspace-api"
                             selectedFiles={selectedFiles}
                             onFilesSelected={setSelectedFiles}
                         />
@@ -956,7 +985,6 @@ function WorkspaceFilesDialog({ isOpen, onClose, workspaceId }) {
                     emptyDescription={t(
                         "Upload files to this workspace to use them in prompts.",
                     )}
-                    showPermanentColumn={false}
                     showDateColumn={true}
                     enableFilenameEdit={false}
                     enableHoverPreview={true}

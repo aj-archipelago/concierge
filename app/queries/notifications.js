@@ -9,10 +9,6 @@ import { useContext } from "react";
 import { AuthContext } from "../../src/App";
 
 const clientSideCompletionHandlers = {
-    coding: async ({ task, queryClient }) => {
-        const { chatId } = task.metadata;
-        queryClient.invalidateQueries({ queryKey: ["chat", chatId] });
-    },
     "subtitle-translate": async ({ refetchUserState }) => {
         refetchUserState();
     },
@@ -26,6 +22,13 @@ const clientSideCompletionHandlers = {
         refetchUserState();
     },
     "build-digest": async ({ queryClient }) => {
+        queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
+    },
+    "automation-run": async ({ queryClient }) => {
+        queryClient.invalidateQueries({ queryKey: ["automations"] });
+        queryClient.invalidateQueries({
+            queryKey: ["automations", "pinned"],
+        });
         queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
     },
 };
