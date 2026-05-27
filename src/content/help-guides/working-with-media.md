@@ -26,6 +26,7 @@ Concierge keeps uploaded and generated files in scoped storage so chat, workspac
 ### Generating and Previewing Media
 
 - The Media page can show generated images, videos, and audio files when your connected Cortex instance supports those generation models
+- Use the prompt-assist button to suggest a starter prompt or refine the current prompt for the selected model and references
 - Use the play control on audio and video tiles to preview results without leaving the grid
 - Open an audio item to continue playback in the details dialog, then close it to return playback to the tile
 - Concierge uses its managed file proxy for previews so expired direct storage links do not break supported media playback

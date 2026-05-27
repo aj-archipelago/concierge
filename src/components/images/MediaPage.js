@@ -20,12 +20,12 @@ import {
     Tag,
     Sparkles,
     Music2,
+    Lightbulb,
 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
 import { Modal } from "../../../@/components/ui/modal";
-import { getClient } from "../../graphql";
-import { gql } from "@apollo/client";
+import { getClient, QUERIES } from "../../graphql";
 
 import {
     Tooltip,
@@ -90,6 +90,7 @@ import { useFileUpload } from "./hooks/useFileUpload";
 import BulkActionsBar from "../common/BulkActionsBar";
 import FilterInput from "../common/FilterInput";
 import EmptyState from "../common/EmptyState";
+import { buildMediaPromptAssistantVariables } from "./mediaPromptAssistant";
 import "./Media.scss";
 
 function getAudioTime(audio, key) {
@@ -459,6 +460,7 @@ function MediaPage() {
     const currentModelSettings = useMemo(() => {
         return getModelSettings(settings, selectedModel);
     }, [settings, selectedModel]);
+    const selectedModelType = currentModelSettings?.type || outputType;
 
     // Count selected images for context badge
     const selectedImageCount = useMemo(() => {
@@ -481,44 +483,42 @@ function MediaPage() {
         setLoading,
     });
 
-    // Optimize prompt using AI
+    // Use Cortex's media prompt assistant to start or refine prompts with model context.
     const handleOptimizePrompt = useCallback(async () => {
-        if (!prompt.trim() || isOptimizing) return;
+        if (isOptimizing) return;
 
         setIsOptimizing(true);
         try {
-            const hasInputImages = selectedImageCount > 0;
             const response = await getClient().query({
-                query: gql`
-                    query ImagePromptOptimizer(
-                        $userPrompt: String!
-                        $hasInputImages: Boolean
-                    ) {
-                        image_prompt_optimizer_gemini_25(
-                            userPrompt: $userPrompt
-                            hasInputImages: $hasInputImages
-                        ) {
-                            result
-                        }
-                    }
-                `,
-                variables: {
-                    userPrompt: prompt,
-                    hasInputImages,
-                },
+                query: QUERIES.MEDIA_PROMPT_ASSISTANT,
+                variables: buildMediaPromptAssistantVariables({
+                    prompt,
+                    mediaType: selectedModelType,
+                    model: selectedModel,
+                    references: selectedImagesObjects,
+                }),
             });
 
-            const optimizedPrompt =
-                response.data.image_prompt_optimizer_gemini_25.result;
-            if (optimizedPrompt) {
-                setPrompt(optimizedPrompt.trim());
+            const assistedPrompt =
+                response.data?.media_prompt_assistant?.result;
+            if (assistedPrompt) {
+                setPrompt(assistedPrompt.trim());
+                setTimeout(() => {
+                    promptRef.current?.focus();
+                }, 0);
             }
         } catch (error) {
-            console.error("Error optimizing prompt:", error);
+            console.error("Error assisting prompt:", error);
         } finally {
             setIsOptimizing(false);
         }
-    }, [prompt, isOptimizing, selectedImageCount]);
+    }, [
+        isOptimizing,
+        prompt,
+        selectedImagesObjects,
+        selectedModel,
+        selectedModelType,
+    ]);
 
     // Wrapper functions to pass required parameters to hooks
     const handleModifySelectedWrapper = useCallback(async () => {
@@ -1132,7 +1132,7 @@ function MediaPage() {
                                             </Select>
                                         );
                                     })()}
-                                    {/* Optimize prompt button - after model selector */}
+                                    {/* Prompt assist button - after model selector */}
                                     <TooltipProvider>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -1142,21 +1142,32 @@ function MediaPage() {
                                                         handleOptimizePrompt
                                                     }
                                                     disabled={
-                                                        !prompt.trim() ||
-                                                        isOptimizing ||
-                                                        loading
+                                                        isOptimizing || loading
                                                     }
                                                     className="flex-shrink-0 p-1.5 text-gray-500 hover:text-amber-500 dark:text-gray-400 dark:hover:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                    aria-label={
+                                                        prompt.trim()
+                                                            ? t(
+                                                                  "Enhance prompt",
+                                                              )
+                                                            : t(
+                                                                  "Suggest a prompt",
+                                                              )
+                                                    }
                                                 >
                                                     {isOptimizing ? (
                                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                                    ) : (
+                                                    ) : prompt.trim() ? (
                                                         <Sparkles className="h-4 w-4" />
+                                                    ) : (
+                                                        <Lightbulb className="h-4 w-4" />
                                                     )}
                                                 </button>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                {t("Enhance prompt")}
+                                                {prompt.trim()
+                                                    ? t("Enhance prompt")
+                                                    : t("Suggest a prompt")}
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
