@@ -1,5 +1,5 @@
 {
-    "name": "labeeb",
+    "name": "concierge",
     "version": "3.6.4",
     "private": true,
     "type": "module",
@@ -91,6 +91,7 @@
         "remark-directive": "^3.0.0",
         "remark-gfm": "^4.0.0",
         "remark-math": "^6.0.0",
+        "sanitize-html": "^2.17.4",
         "sass-loader": "^13.2.0",
         "sharp": "^0.34.5",
         "stringcase": "^4.3.1",
