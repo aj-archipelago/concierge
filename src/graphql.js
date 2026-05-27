@@ -259,6 +259,8 @@ const SYS_ENTITY_AGENT = gql`
         $researchMode: Boolean
         $model: String
         $userInfo: String
+        $mcpConfig: String
+        $mcpAvailableServers: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
@@ -274,6 +276,8 @@ const SYS_ENTITY_AGENT = gql`
             researchMode: $researchMode
             model: $model
             userInfo: $userInfo
+            mcpConfig: $mcpConfig
+            mcpAvailableServers: $mcpAvailableServers
         ) {
             result
             contextId

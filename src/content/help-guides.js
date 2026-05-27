@@ -2,6 +2,7 @@ import gettingStarted from "./help-guides/getting-started.md";
 import usingChat from "./help-guides/using-chat.md";
 import creatingUsingApplets from "./help-guides/creating-using-applets.md";
 import workingWithMedia from "./help-guides/working-with-media.md";
+import usingConnectors from "./help-guides/using-connectors.md";
 import managingProfileSettings from "./help-guides/managing-profile-settings.md";
 import keyboardShortcuts from "./help-guides/keyboard-shortcuts.md";
 
@@ -9,6 +10,7 @@ import gettingStartedAr from "./help-guides/getting-started.ar.md";
 import usingChatAr from "./help-guides/using-chat.ar.md";
 import creatingUsingAppletsAr from "./help-guides/creating-using-applets.ar.md";
 import workingWithMediaAr from "./help-guides/working-with-media.ar.md";
+import usingConnectorsAr from "./help-guides/using-connectors.ar.md";
 import managingProfileSettingsAr from "./help-guides/managing-profile-settings.ar.md";
 import keyboardShortcutsAr from "./help-guides/keyboard-shortcuts.ar.md";
 
@@ -31,6 +33,7 @@ const guidesByLang = {
         usingChat,
         creatingUsingApplets,
         workingWithMedia,
+        usingConnectors,
         managingProfileSettings,
         keyboardShortcuts,
     ].map(parseGuide),
@@ -39,6 +42,7 @@ const guidesByLang = {
         usingChatAr,
         creatingUsingAppletsAr,
         workingWithMediaAr,
+        usingConnectorsAr,
         managingProfileSettingsAr,
         keyboardShortcutsAr,
     ].map(parseGuide),
