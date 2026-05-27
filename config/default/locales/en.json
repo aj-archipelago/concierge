@@ -384,5 +384,7 @@
     "Play generated audio": "Play generated audio",
     "Audio expired or not available.": "Audio expired or not available.",
     "Suggest a prompt": "Suggest a prompt",
+    "Zoom in image": "Zoom in image",
+    "Zoom out image": "Zoom out image",
     "help_desc_using_connectors": "Connect custom MCP servers so Concierge can use external tools and data."
 }

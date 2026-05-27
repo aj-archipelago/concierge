@@ -1045,5 +1045,7 @@
     "Play generated audio": "تشغيل الصوت المولد",
     "Audio expired or not available.": "انتهت صلاحية الصوت أو غير متاح.",
     "Suggest a prompt": "اقتراح وصف",
+    "Zoom in image": "تكبير الصورة",
+    "Zoom out image": "تصغير الصورة",
     "help_desc_using_connectors": "اربط خوادم MCP مخصصة ليتمكن Concierge من استخدام أدوات وبيانات خارجية."
 }

@@ -21,6 +21,8 @@ import {
     Sparkles,
     Music2,
     Lightbulb,
+    ZoomIn,
+    ZoomOut,
 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
@@ -2280,12 +2282,19 @@ function ImageModal({
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [newTag, setNewTag] = useState("");
+    const [imageZoom, setImageZoom] = useState(1);
     const updateTagsMutation = useUpdateMediaItemTags();
     const tagInputRef = useRef(null);
     const modalAudioRef = useRef(null);
+    const imageZoomContainerRef = useRef(null);
     const ignoreModalPauseRef = useRef(false);
     const sourceUrl = image?.azureUrl || image?.url || null;
     const displayUrl = sourceUrl ? getDownloadUrl(sourceUrl) : sourceUrl;
+    const isZoomableImagePreview =
+        image?.type !== "video" &&
+        image?.type !== "audio" &&
+        Boolean(displayUrl);
+    const isImageZoomed = imageZoom > 1;
 
     // Initialize tags when image changes
     useEffect(() => {
@@ -2303,6 +2312,10 @@ function ImageModal({
         }
     }, [show]);
 
+    useEffect(() => {
+        setImageZoom(1);
+    }, [displayUrl, image?.taskId, image?.cortexRequestId, show]);
+
     const handleHide = useCallback(() => {
         const audio = modalAudioRef.current;
         if (image?.type === "audio" && mediaPlaybackId && audio) {
@@ -2316,6 +2329,55 @@ function ImageModal({
         }
         onHide();
     }, [image?.type, mediaPlaybackId, onAudioPlaybackChange, onHide]);
+
+    const toggleImageZoom = useCallback(
+        (event) => {
+            if (!isZoomableImagePreview) return;
+            const container =
+                imageZoomContainerRef.current || event?.currentTarget || null;
+            const clickPoint =
+                event?.clientX != null && event?.clientY != null && container
+                    ? {
+                          x:
+                              (event.clientX -
+                                  container.getBoundingClientRect().left) /
+                              Math.max(container.clientWidth, 1),
+                          y:
+                              (event.clientY -
+                                  container.getBoundingClientRect().top) /
+                              Math.max(container.clientHeight, 1),
+                      }
+                    : null;
+
+            setImageZoom((current) => {
+                if (current > 1) return 1;
+
+                window.requestAnimationFrame(() => {
+                    if (!container) return;
+                    const targetX = clickPoint?.x ?? 0.5;
+                    const targetY = clickPoint?.y ?? 0.5;
+                    container.scrollLeft =
+                        targetX * container.scrollWidth -
+                        container.clientWidth / 2;
+                    container.scrollTop =
+                        targetY * container.scrollHeight -
+                        container.clientHeight / 2;
+                });
+
+                return 2;
+            });
+        },
+        [isZoomableImagePreview],
+    );
+
+    const handleImageZoomKeyDown = useCallback(
+        (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            toggleImageZoom(event);
+        },
+        [toggleImageZoom],
+    );
 
     const addTag = async () => {
         if (!newTag.trim() || tags.includes(newTag.trim())) return;
@@ -2413,11 +2475,78 @@ function ImageModal({
                             />
                         </div>
                     ) : (
-                        <ChatImage
-                            className="rounded-md w-full"
-                            src={displayUrl}
-                            alt={image?.prompt}
-                        />
+                        <div className="group relative">
+                            <div
+                                ref={imageZoomContainerRef}
+                                className={`flex h-[min(70vh,720px)] min-h-[240px] w-full rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${
+                                    isImageZoomed
+                                        ? "items-start justify-center overflow-auto cursor-zoom-out touch-pan-x touch-pan-y"
+                                        : "items-center justify-center overflow-hidden cursor-zoom-in touch-manipulation"
+                                }`}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={
+                                    isImageZoomed
+                                        ? t("Zoom out image")
+                                        : t("Zoom in image")
+                                }
+                                title={
+                                    isImageZoomed
+                                        ? t("Zoom out image")
+                                        : t("Zoom in image")
+                                }
+                                onClick={toggleImageZoom}
+                                onKeyDown={handleImageZoomKeyDown}
+                            >
+                                <div
+                                    className={
+                                        isImageZoomed
+                                            ? "flex items-start justify-center"
+                                            : "flex h-full w-full items-center justify-center"
+                                    }
+                                    style={{
+                                        width: `${imageZoom * 100}%`,
+                                        height: `${imageZoom * 100}%`,
+                                    }}
+                                >
+                                    <ChatImage
+                                        className={
+                                            isImageZoomed
+                                                ? "h-full w-full object-contain object-top"
+                                                : "max-h-full max-w-full object-contain"
+                                        }
+                                        src={displayUrl}
+                                        alt={image?.prompt}
+                                    />
+                                </div>
+                            </div>
+                            {isZoomableImagePreview && (
+                                <button
+                                    type="button"
+                                    className="absolute end-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200/80 bg-white/80 text-gray-900 shadow-lg backdrop-blur-md transition-colors hover:bg-white/95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 sm:pointer-events-none sm:opacity-0 sm:transition-opacity sm:duration-75 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 dark:border-white/15 dark:bg-black/45 dark:text-white dark:hover:bg-black/65 dark:focus-visible:outline-sky-300"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        toggleImageZoom(event);
+                                    }}
+                                    title={
+                                        isImageZoomed
+                                            ? t("Zoom out image")
+                                            : t("Zoom in image")
+                                    }
+                                    aria-label={
+                                        isImageZoomed
+                                            ? t("Zoom out image")
+                                            : t("Zoom in image")
+                                    }
+                                >
+                                    {isImageZoomed ? (
+                                        <ZoomOut className="h-4 w-4" />
+                                    ) : (
+                                        <ZoomIn className="h-4 w-4" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
                 <div className="sm:basis-5/12 flex flex-col max-h-[500px] overflow-y-auto overflow-x-hidden">
