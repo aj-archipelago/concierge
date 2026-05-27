@@ -844,6 +844,155 @@ const VIDEO_SEEDANCE = gql`
     }
 `;
 
+const MEDIA_GENERATE = gql`
+    query MediaGenerate(
+        $model: String!
+        $text: String!
+        $async: Boolean
+        $inputImages: [String]
+        $inputImageRoles: [String]
+        $inputVideos: [String]
+        $aspectRatio: String
+        $duration: Int
+        $outputFormat: String
+        $outputQuality: Int
+        $quality: String
+        $negativePrompt: String
+        $numberResults: Int
+        $seed: Int
+        $optimizePrompt: Boolean
+        $generateAudio: Boolean
+        $forceInstrumental: Boolean
+        $resolution: String
+        $cameraFixed: Boolean
+        $enhancePrompt: Boolean
+        $imageSize: String
+        $width: Int
+        $height: Int
+        $size: String
+        $lyrics: String
+        $isInstrumental: Boolean
+        $lyricsOptimizer: Boolean
+        $audioUrl: String
+        $inputAudioUrl: String
+        $audioFormat: String
+        $sampleRate: Int
+        $bitrate: Int
+        $voiceName: String
+        $speaker1Name: String
+        $speaker1VoiceName: String
+        $speaker2Name: String
+        $speaker2VoiceName: String
+        $mode: String
+        $language: String
+        $speaker: String
+        $referenceText: String
+        $styleInstruction: String
+        $voiceDescription: String
+        $voice: String
+        $stability: Float
+        $similarityBoost: Float
+        $style: Float
+        $speed: Float
+        $previousText: String
+        $nextText: String
+        $languageCode: String
+        $voiceId: String
+        $customVoiceId: String
+        $volume: Float
+        $pitch: Int
+        $emotion: String
+        $channel: String
+        $languageBoost: String
+        $subtitleEnable: Boolean
+        $englishNormalization: Boolean
+        $contextId: String
+    ) {
+        media_generate(
+            model: $model
+            text: $text
+            async: $async
+            inputImages: $inputImages
+            inputImageRoles: $inputImageRoles
+            inputVideos: $inputVideos
+            aspectRatio: $aspectRatio
+            duration: $duration
+            outputFormat: $outputFormat
+            outputQuality: $outputQuality
+            quality: $quality
+            negativePrompt: $negativePrompt
+            numberResults: $numberResults
+            seed: $seed
+            optimizePrompt: $optimizePrompt
+            generateAudio: $generateAudio
+            forceInstrumental: $forceInstrumental
+            resolution: $resolution
+            cameraFixed: $cameraFixed
+            enhancePrompt: $enhancePrompt
+            imageSize: $imageSize
+            width: $width
+            height: $height
+            size: $size
+            lyrics: $lyrics
+            isInstrumental: $isInstrumental
+            lyricsOptimizer: $lyricsOptimizer
+            audioUrl: $audioUrl
+            inputAudioUrl: $inputAudioUrl
+            audioFormat: $audioFormat
+            sampleRate: $sampleRate
+            bitrate: $bitrate
+            voiceName: $voiceName
+            speaker1Name: $speaker1Name
+            speaker1VoiceName: $speaker1VoiceName
+            speaker2Name: $speaker2Name
+            speaker2VoiceName: $speaker2VoiceName
+            mode: $mode
+            language: $language
+            speaker: $speaker
+            referenceText: $referenceText
+            styleInstruction: $styleInstruction
+            voiceDescription: $voiceDescription
+            voice: $voice
+            stability: $stability
+            similarityBoost: $similarityBoost
+            style: $style
+            speed: $speed
+            previousText: $previousText
+            nextText: $nextText
+            languageCode: $languageCode
+            voiceId: $voiceId
+            customVoiceId: $customVoiceId
+            volume: $volume
+            pitch: $pitch
+            emotion: $emotion
+            channel: $channel
+            languageBoost: $languageBoost
+            subtitleEnable: $subtitleEnable
+            englishNormalization: $englishNormalization
+            contextId: $contextId
+        ) {
+            result
+            resultData
+        }
+    }
+`;
+
+const MEDIA_PROMPT_TAGS = gql`
+    query MediaPromptTags($text: String!) {
+        media_prompt_tags(text: $text) {
+            result
+        }
+    }
+`;
+
+const SYS_MODEL_METADATA = gql`
+    query SysModelMetadata($category: String) {
+        sys_model_metadata(category: $category) {
+            result
+        }
+    }
+`;
+
 const JIRA_STORY = gql`
     query JiraStory(
         $text: String!
@@ -935,8 +1084,11 @@ const QUERIES = {
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
+    MEDIA_GENERATE,
+    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
+    SYS_MODEL_METADATA,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
     EXPAND_STORY,
@@ -1000,8 +1152,11 @@ export {
     IMAGE_GEMINI_3,
     IMAGE_QWEN,
     IMAGE_SEEDREAM4,
+    MEDIA_GENERATE,
+    MEDIA_PROMPT_TAGS,
     VIDEO_VEO,
     VIDEO_SEEDANCE,
+    SYS_MODEL_METADATA,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,

@@ -1,5 +1,32 @@
 import mongoose from "mongoose";
 
+const MAX_INPUT_IMAGE_REFERENCES = 14;
+const MAX_INPUT_VIDEO_REFERENCES = 1;
+const inputImageUrlFields = Object.fromEntries(
+    Array.from({ length: MAX_INPUT_IMAGE_REFERENCES }, (_, index) => [
+        index === 0 ? "inputImageUrl" : `inputImageUrl${index + 1}`,
+        String,
+    ]),
+);
+const inputImageRoleFields = Object.fromEntries(
+    Array.from({ length: MAX_INPUT_IMAGE_REFERENCES }, (_, index) => [
+        index === 0 ? "inputImageRole" : `inputImageRole${index + 1}`,
+        String,
+    ]),
+);
+const inputVideoUrlFields = Object.fromEntries(
+    Array.from({ length: MAX_INPUT_VIDEO_REFERENCES }, (_, index) => [
+        index === 0 ? "inputVideoUrl" : `inputVideoUrl${index + 1}`,
+        String,
+    ]),
+);
+const inputVideoRoleFields = Object.fromEntries(
+    Array.from({ length: MAX_INPUT_VIDEO_REFERENCES }, (_, index) => [
+        index === 0 ? "inputVideoRole" : `inputVideoRole${index + 1}`,
+        String,
+    ]),
+);
+
 const mediaItemSchema = new mongoose.Schema(
     {
         user: {
@@ -24,7 +51,7 @@ const mediaItemSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ["image", "video"],
+            enum: ["image", "video", "audio"],
             required: true,
         },
         model: {
@@ -40,15 +67,30 @@ const mediaItemSchema = new mongoose.Schema(
         url: String,
         azureUrl: String,
         gcsUrl: String,
+        thumbnailUrl: String,
+        thumbnailAzureUrl: String,
+        thumbnailGcsUrl: String,
+        thumbnailBlobPath: String,
+        thumbnailHash: String,
+        // File hash for file collection integration
+        hash: String,
+        blobPath: String,
+        outputFolder: String,
         // Video-specific fields
         duration: Number,
         generateAudio: Boolean,
         resolution: String,
         cameraFixed: Boolean,
-        // Input images for video generation
-        inputImageUrl: String,
-        inputImageUrl2: String,
-        inputImageUrl3: String,
+        // Input image references used for derivative image/video/audio generation
+        ...inputImageUrlFields,
+        ...inputImageRoleFields,
+        // Input video references used for video extension
+        ...inputVideoUrlFields,
+        ...inputVideoRoleFields,
+        // Input audio reference used for audio-to-audio generation
+        inputAudioUrl: String,
+        inputAudioBlobPath: String,
+        inputAudioHash: String,
         // Metadata
         created: {
             type: Number,

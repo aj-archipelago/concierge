@@ -1,21 +1,231 @@
 import { useCallback } from "react";
+import { useMediaModels } from "../../../../app/queries/modelMetadata";
+import { sanitizeMediaSettings } from "../../../utils/mediaGenerationSettings";
+import {
+    getImageReferenceLimitConfig,
+    selectImageReferencesWithinLimits,
+    validateImageReferenceLimits,
+} from "../mediaReferenceLimits";
 
 const LOADING_STATE_DELAY_MS = 1000;
+const IMAGE_ONLY_AUDIO_PROMPT = "Image-only music generation";
+export const MAX_INPUT_IMAGE_REFERENCES = 14;
+export const MAX_INPUT_VIDEO_REFERENCES = 1;
+const VIDEO_EXTEND_REFERENCE_ROLE = "extend";
+
+function getInputImageFieldName(base, index) {
+    return index === 0 ? base : `${base}${index + 1}`;
+}
+
+function getInputVideoFieldName(base, index) {
+    return index === 0 ? base : `${base}${index + 1}`;
+}
+
+export function hasUsableInputImageUrl(image) {
+    return Boolean(image?.url || image?.azureUrl || image?.gcsUrl);
+}
+
+export function hasUsableInputVideoUrl(video) {
+    return Boolean(video?.url || video?.azureUrl || video?.gcsUrl);
+}
+
+export function hasUsableInputAudioUrl(media) {
+    return (
+        media?.type === "audio" &&
+        Boolean(media?.url || media?.azureUrl || media?.gcsUrl)
+    );
+}
+
+export function getInputImageUrl(image, preferGcs = false) {
+    if (!image) return "";
+    if (preferGcs) {
+        return image.gcsUrl || image.azureUrl || image.url || "";
+    }
+    return image.azureUrl || image.gcsUrl || image.url || "";
+}
+
+export function getStoredInputImageUrl(image) {
+    return image?.url || image?.azureUrl || image?.gcsUrl || "";
+}
+
+export function getInputVideoUrl(video, preferGcs = false) {
+    return getInputImageUrl(video, preferGcs);
+}
+
+export function getStoredInputVideoUrl(video) {
+    return getStoredInputImageUrl(video);
+}
+
+export function getInputAudioUrl(media) {
+    if (!media) return "";
+    return media.azureUrl || media.url || media.gcsUrl || "";
+}
+
+export function getStoredInputAudioUrl(media) {
+    return media?.url || media?.azureUrl || media?.gcsUrl || "";
+}
+
+export function applyInputImageReference(taskData, image, index, preferGcs) {
+    const url = getInputImageUrl(image, preferGcs);
+    if (!url) return;
+
+    taskData[getInputImageFieldName("inputImageUrl", index)] = url;
+    if (image?.blobPath) {
+        taskData[getInputImageFieldName("inputImageBlobPath", index)] =
+            image.blobPath;
+    }
+    if (image?.hash) {
+        taskData[getInputImageFieldName("inputImageHash", index)] = image.hash;
+    }
+}
+
+export function applyInputVideoReference(taskData, video, index, preferGcs) {
+    const url = getInputVideoUrl(video, preferGcs);
+    if (!url) return;
+
+    taskData[getInputVideoFieldName("inputVideoUrl", index)] = url;
+    if (video?.blobPath) {
+        taskData[getInputVideoFieldName("inputVideoBlobPath", index)] =
+            video.blobPath;
+    }
+    if (video?.hash) {
+        taskData[getInputVideoFieldName("inputVideoHash", index)] = video.hash;
+    }
+}
+
+export function applyInputAudioReference(taskData, media) {
+    const url = getInputAudioUrl(media);
+    if (!url) return;
+
+    taskData.inputAudioUrl = url;
+    if (media?.blobPath) {
+        taskData.inputAudioBlobPath = media.blobPath;
+    }
+    if (media?.hash) {
+        taskData.inputAudioHash = media.hash;
+    }
+}
+
+export function applyInputImageRole(target, role, index) {
+    if (!role) return;
+    target[getInputImageFieldName("inputImageRole", index)] = role;
+}
+
+export function applyInputVideoRole(target, role, index) {
+    if (!role) return;
+    target[getInputVideoFieldName("inputVideoRole", index)] = role;
+}
+
+export function applyStoredInputImageReference(
+    mediaItemData,
+    image,
+    index,
+    role,
+) {
+    const url = getStoredInputImageUrl(image);
+    if (!url) return;
+
+    mediaItemData[getInputImageFieldName("inputImageUrl", index)] = url;
+    applyInputImageRole(mediaItemData, role, index);
+}
+
+export function applyStoredInputVideoReference(
+    mediaItemData,
+    video,
+    index,
+    role,
+) {
+    const url = getStoredInputVideoUrl(video);
+    if (!url) return;
+
+    mediaItemData[getInputVideoFieldName("inputVideoUrl", index)] = url;
+    applyInputVideoRole(mediaItemData, role, index);
+}
+
+export function applyStoredInputAudioReference(mediaItemData, media) {
+    const url = getStoredInputAudioUrl(media);
+    if (!url) return;
+
+    mediaItemData.inputAudioUrl = url;
+    if (media?.blobPath) {
+        mediaItemData.inputAudioBlobPath = media.blobPath;
+    }
+    if (media?.hash) {
+        mediaItemData.inputAudioHash = media.hash;
+    }
+}
+
+function getDisplayPrompt(prompt, outputType, hasInputImage) {
+    if (prompt?.trim()) return prompt;
+    if (outputType === "audio" && hasInputImage) return IMAGE_ONLY_AUDIO_PROMPT;
+    return prompt || "";
+}
+
+function getInputImageRole(image, rolesById) {
+    const id =
+        image?.cortexRequestId ||
+        image?.taskId ||
+        image?._id ||
+        image?.url ||
+        image?.azureUrl ||
+        image?.gcsUrl;
+    return rolesById?.[id] || image?.inputImageRole || "";
+}
+
+function isVideoExtendReference(media, rolesById) {
+    return (
+        media?.type === "video" &&
+        getInputImageRole(media, rolesById) === VIDEO_EXTEND_REFERENCE_ROLE
+    );
+}
+
+function isUsableGenerationReference(media, rolesById) {
+    if (media?.type === "image") {
+        return hasUsableInputImageUrl(media);
+    }
+    if (isVideoExtendReference(media, rolesById)) {
+        return hasUsableInputVideoUrl(media);
+    }
+    return false;
+}
+
+function normalizeOutputFolder(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\\/g, "/")
+        .replace(/^\/+|\/+$/g, "")
+        .replace(/\/+/g, "/");
+}
 
 export const useMediaGeneration = ({
     selectedModel,
     outputType,
     settings,
+    settingsRef,
+    outputFolder = "",
     runTask,
     createMediaItem,
     promptRef,
     setLoading,
 }) => {
+    const { data: mediaModels } = useMediaModels();
     const generateMedia = useCallback(
-        async (prompt, inputImageUrl = null, modelOverride = null) => {
+        async (
+            prompt,
+            inputImageUrl = null,
+            modelOverride = null,
+            inputImageRole = "",
+            generationSettings = null,
+            inputAudio = null,
+        ) => {
             // Determine which model to use
             const modelToUse = modelOverride || selectedModel;
             const modelName = modelToUse;
+            const effectiveSettings = sanitizeMediaSettings(
+                generationSettings || settingsRef?.current || settings,
+            );
+            const modelSettings = effectiveSettings?.models?.[modelName] || {};
+            const normalizedOutputFolder = normalizeOutputFolder(outputFolder);
 
             try {
                 const taskData = {
@@ -24,11 +234,16 @@ export const useMediaGeneration = ({
                     outputType,
                     model: modelName,
                     inputImageUrl: inputImageUrl || "",
+                    inputImageRole: inputImageUrl ? inputImageRole : "",
                     inputImageUrl2: "",
                     inputImageUrl3: "",
-                    settings,
+                    settings: effectiveSettings,
                     source: "media_page",
+                    ...(normalizedOutputFolder && {
+                        outputFolder: normalizedOutputFolder,
+                    }),
                 };
+                applyInputAudioReference(taskData, inputAudio);
 
                 const result = await runTask.mutateAsync(taskData);
 
@@ -46,13 +261,22 @@ export const useMediaGeneration = ({
                         type: outputType,
                         model: modelName,
                         status: "pending",
-                        settings: settings,
+                        settings: effectiveSettings,
+                        ...(normalizedOutputFolder && {
+                            outputFolder: normalizedOutputFolder,
+                        }),
+                        ...(modelSettings.duration && {
+                            duration: modelSettings.duration,
+                        }),
                     };
 
-                    // Only add inputImageUrl if it exists
                     if (inputImageUrl) {
                         mediaItemData.inputImageUrl = inputImageUrl;
+                        if (inputImageRole) {
+                            mediaItemData.inputImageRole = inputImageRole;
+                        }
                     }
+                    applyStoredInputAudioReference(mediaItemData, inputAudio);
 
                     await createMediaItem.mutateAsync(mediaItemData);
 
@@ -69,8 +293,10 @@ export const useMediaGeneration = ({
         },
         [
             outputType,
+            outputFolder,
             selectedModel,
             settings,
+            settingsRef,
             runTask,
             createMediaItem,
             promptRef,
@@ -88,48 +314,78 @@ export const useMediaGeneration = ({
             runTask,
             createMediaItem,
             promptRef,
+            inputImageRolesById = {},
+            outputFolder = "",
+            inputAudio = null,
         }) => {
-            if (!prompt.trim() || selectedImagesObjects.length === 0) return;
-
             // Use the selectedImagesObjects array directly
-            const selectedImageObjects = selectedImagesObjects.filter(
-                (img) => img.url && img.type === "image",
+            const selectedReferenceObjects = selectedImagesObjects.filter(
+                (item) =>
+                    isUsableGenerationReference(item, inputImageRolesById),
             );
+            if (
+                selectedReferenceObjects.length === 0 ||
+                (!prompt.trim() && outputType !== "audio")
+            )
+                return;
+            const effectiveSettings = sanitizeMediaSettings(settings);
+            const normalizedOutputFolder = normalizeOutputFolder(outputFolder);
 
-            for (const image of selectedImageObjects) {
+            for (const image of selectedReferenceObjects) {
                 try {
                     const combinedPrompt = prompt;
+                    const referenceRole = getInputImageRole(
+                        image,
+                        inputImageRolesById,
+                    );
+                    const isVideoExtend = isVideoExtendReference(
+                        image,
+                        inputImageRolesById,
+                    );
 
-                    // For Veo and Gemini models, use GCS URL; for others, use Azure URL
-                    const isVeoModel = selectedModel.includes("veo");
-                    const isGeminiModel = selectedModel.includes("gemini");
-                    const inputImageUrl =
-                        isVeoModel || isGeminiModel
-                            ? image.gcsUrl || image.azureUrl || image.url
-                            : image.azureUrl || image.gcsUrl || image.url;
-
+                    // Use metadata to determine URL format preference
+                    const modelMeta = mediaModels?.find(
+                        (m) => m.modelId === selectedModel,
+                    );
+                    const preferGcs = modelMeta?.preferredUrlFormat === "gcs";
                     // Collect tags from input image
                     const inputTags = image.tags || [];
 
                     const taskData = {
                         type: "media-generation",
                         prompt: combinedPrompt,
+                        displayPrompt: getDisplayPrompt(
+                            combinedPrompt,
+                            outputType,
+                            true,
+                        ),
                         outputType,
                         model: selectedModel,
-                        inputImageUrl: inputImageUrl,
+                        inputImageUrl: "",
                         inputImageUrl2: "",
                         inputImageUrl3: "",
-                        settings,
+                        settings: effectiveSettings,
                         source: "media_page",
+                        ...(normalizedOutputFolder && {
+                            outputFolder: normalizedOutputFolder,
+                        }),
                         // Pass tags from input image for inheritance
                         inputTags: inputTags,
                     };
+                    if (isVideoExtend) {
+                        applyInputVideoReference(taskData, image, 0, preferGcs);
+                        applyInputVideoRole(taskData, referenceRole, 0);
+                    } else {
+                        applyInputImageReference(taskData, image, 0, preferGcs);
+                        applyInputImageRole(taskData, referenceRole, 0);
+                    }
+                    applyInputAudioReference(taskData, inputAudio);
 
                     const result = await runTask.mutateAsync(taskData);
 
                     if (result.taskId) {
                         // Task is queued, set loading to false (only for first image in batch)
-                        if (image === selectedImageObjects[0]) {
+                        if (image === selectedReferenceObjects[0]) {
                             setLoading?.(false);
                         }
 
@@ -137,19 +393,41 @@ export const useMediaGeneration = ({
                         const mediaItemData = {
                             taskId: result.taskId,
                             cortexRequestId: result.taskId,
-                            prompt: combinedPrompt,
+                            prompt: getDisplayPrompt(
+                                combinedPrompt,
+                                outputType,
+                                true,
+                            ),
                             type: outputType,
                             model: selectedModel,
                             status: "pending",
-                            settings: settings,
+                            settings: effectiveSettings,
+                            ...(normalizedOutputFolder && {
+                                outputFolder: normalizedOutputFolder,
+                            }),
                             // Include inherited tags
                             tags: inputTags,
                         };
 
-                        // Only add inputImageUrl if it exists
-                        if (image.url) {
-                            mediaItemData.inputImageUrl = image.url;
+                        if (isVideoExtend) {
+                            applyStoredInputVideoReference(
+                                mediaItemData,
+                                image,
+                                0,
+                                referenceRole,
+                            );
+                        } else {
+                            applyStoredInputImageReference(
+                                mediaItemData,
+                                image,
+                                0,
+                                referenceRole,
+                            );
                         }
+                        applyStoredInputAudioReference(
+                            mediaItemData,
+                            inputAudio,
+                        );
 
                         await createMediaItem.mutateAsync(mediaItemData);
                     }
@@ -164,7 +442,7 @@ export const useMediaGeneration = ({
                 promptRef.current && promptRef.current.focus();
             }, 0);
         },
-        [setLoading],
+        [mediaModels, setLoading],
     );
 
     const handleCombineSelected = useCallback(
@@ -177,43 +455,86 @@ export const useMediaGeneration = ({
             runTask,
             createMediaItem,
             promptRef,
+            inputImageRolesById = {},
+            outputFolder = "",
+            inputAudio = null,
         }) => {
             // Use the selectedImagesObjects array directly
-            const selectedImageObjects = selectedImagesObjects.filter(
-                (img) => img.url && img.type === "image",
+            const selectedReferenceObjects = selectedImagesObjects.filter(
+                (item) =>
+                    isUsableGenerationReference(item, inputImageRolesById),
+            );
+            const selectedImageObjects = selectedReferenceObjects.filter(
+                (item) => item.type === "image",
+            );
+            const selectedVideoObjects = selectedReferenceObjects.filter(
+                (item) => isVideoExtendReference(item, inputImageRolesById),
             );
 
-            // Check if this is gemini-3-pro-image-preview which supports up to 14 images
-            const isGemini3Pro = selectedModel === "gemini-3-pro-image-preview";
-            const maxImages = isGemini3Pro ? 14 : 3;
-            const minImages = 2;
+            const effectiveSettings = sanitizeMediaSettings(settings);
+            const modelMeta = mediaModels?.find(
+                (m) => m.modelId === selectedModel,
+            );
+            const modelSettings = effectiveSettings?.models?.[selectedModel];
+            const { totalMax: maxImages } = getImageReferenceLimitConfig(
+                modelMeta,
+                modelSettings,
+            );
+            const maxVideos =
+                modelMeta?.mediaDefaults?.inputVideos?.[1] ??
+                modelSettings?.inputVideos?.[1] ??
+                0;
+            const minReferences = selectedVideoObjects.length > 0 ? 1 : 2;
+            const normalizedOutputFolder = normalizeOutputFolder(outputFolder);
+            const getReferenceRole = (image) =>
+                getInputImageRole(image, inputImageRolesById);
 
             if (
-                !prompt.trim() ||
-                selectedImageObjects.length < minImages ||
-                selectedImageObjects.length > maxImages
+                (!prompt.trim() && outputType !== "audio") ||
+                selectedReferenceObjects.length < minReferences ||
+                selectedVideoObjects.length > maxVideos
             )
                 return;
+
+            const selectedImageObjectsForTask =
+                selectImageReferencesWithinLimits(selectedImageObjects, {
+                    modelMeta,
+                    modelSettings,
+                    getRole: getReferenceRole,
+                }).slice(0, Math.min(maxImages, MAX_INPUT_IMAGE_REFERENCES));
+
+            if (
+                selectedImageObjects.length > 0 &&
+                selectedImageObjectsForTask.length === 0
+            ) {
+                return;
+            }
+
+            const selectedReferencesForTask = [
+                ...selectedImageObjectsForTask,
+                ...selectedVideoObjects.slice(
+                    0,
+                    Math.min(maxVideos, MAX_INPUT_VIDEO_REFERENCES),
+                ),
+            ];
+            const isWithinImageReferenceLimits = validateImageReferenceLimits(
+                selectedImageObjectsForTask,
+                {
+                    modelMeta,
+                    modelSettings,
+                    getRole: getReferenceRole,
+                },
+            );
+            if (!isWithinImageReferenceLimits) return;
 
             try {
                 const combinedPrompt = prompt;
 
-                // For Veo and Gemini models, use GCS URL; for others, use Azure URL
-                const isVeoModel = selectedModel.includes("veo");
-                const isGeminiModel = selectedModel.includes("gemini");
-                const useGcsUrl = isVeoModel || isGeminiModel;
-
-                // Helper function to get the appropriate URL
-                const getImageUrl = (image) => {
-                    if (useGcsUrl) {
-                        return image.gcsUrl || image.azureUrl || image.url;
-                    }
-                    return image.azureUrl || image.gcsUrl || image.url;
-                };
-
+                // Use metadata to determine URL format preference
+                const preferGcs = modelMeta?.preferredUrlFormat === "gcs";
                 // Collect tags from all input images
                 const allInputTags = new Set();
-                selectedImageObjects.forEach((image) => {
+                selectedReferencesForTask.forEach((image) => {
                     if (image.tags && Array.isArray(image.tags)) {
                         image.tags.forEach((tag) => allInputTags.add(tag));
                     }
@@ -223,88 +544,48 @@ export const useMediaGeneration = ({
                 const taskData = {
                     type: "media-generation",
                     prompt: combinedPrompt,
+                    displayPrompt: getDisplayPrompt(
+                        combinedPrompt,
+                        outputType,
+                        true,
+                    ),
                     outputType,
                     model: selectedModel,
-                    settings,
+                    settings: effectiveSettings,
                     source: "media_page",
+                    ...(normalizedOutputFolder && {
+                        outputFolder: normalizedOutputFolder,
+                    }),
                     // Pass tags from all input images for inheritance
                     inputTags: Array.from(allInputTags),
                 };
 
-                // Add input images (up to 14 for gemini-3-pro-image-preview)
-                if (selectedImageObjects[0]) {
-                    taskData.inputImageUrl = getImageUrl(
-                        selectedImageObjects[0],
+                // Add generic image references up to the model limit while
+                // preserving explicit start/end frame references.
+                selectedImageObjectsForTask.forEach((image, index) => {
+                    applyInputImageReference(taskData, image, index, preferGcs);
+                    applyInputImageRole(
+                        taskData,
+                        getReferenceRole(image),
+                        index,
                     );
-                }
-                if (selectedImageObjects[1]) {
-                    taskData.inputImageUrl2 = getImageUrl(
-                        selectedImageObjects[1],
-                    );
-                }
-                if (selectedImageObjects[2]) {
-                    taskData.inputImageUrl3 = getImageUrl(
-                        selectedImageObjects[2],
-                    );
-                }
-                // Only add additional images if this is gemini-3-pro-image-preview
-                if (isGemini3Pro) {
-                    if (selectedImageObjects[3]) {
-                        taskData.inputImageUrl4 = getImageUrl(
-                            selectedImageObjects[3],
+                });
+                selectedVideoObjects
+                    .slice(0, Math.min(maxVideos, MAX_INPUT_VIDEO_REFERENCES))
+                    .forEach((video, index) => {
+                        applyInputVideoReference(
+                            taskData,
+                            video,
+                            index,
+                            preferGcs,
                         );
-                    }
-                    if (selectedImageObjects[4]) {
-                        taskData.inputImageUrl5 = getImageUrl(
-                            selectedImageObjects[4],
+                        applyInputVideoRole(
+                            taskData,
+                            getReferenceRole(video),
+                            index,
                         );
-                    }
-                    if (selectedImageObjects[5]) {
-                        taskData.inputImageUrl6 = getImageUrl(
-                            selectedImageObjects[5],
-                        );
-                    }
-                    if (selectedImageObjects[6]) {
-                        taskData.inputImageUrl7 = getImageUrl(
-                            selectedImageObjects[6],
-                        );
-                    }
-                    if (selectedImageObjects[7]) {
-                        taskData.inputImageUrl8 = getImageUrl(
-                            selectedImageObjects[7],
-                        );
-                    }
-                    if (selectedImageObjects[8]) {
-                        taskData.inputImageUrl9 = getImageUrl(
-                            selectedImageObjects[8],
-                        );
-                    }
-                    if (selectedImageObjects[9]) {
-                        taskData.inputImageUrl10 = getImageUrl(
-                            selectedImageObjects[9],
-                        );
-                    }
-                    if (selectedImageObjects[10]) {
-                        taskData.inputImageUrl11 = getImageUrl(
-                            selectedImageObjects[10],
-                        );
-                    }
-                    if (selectedImageObjects[11]) {
-                        taskData.inputImageUrl12 = getImageUrl(
-                            selectedImageObjects[11],
-                        );
-                    }
-                    if (selectedImageObjects[12]) {
-                        taskData.inputImageUrl13 = getImageUrl(
-                            selectedImageObjects[12],
-                        );
-                    }
-                    if (selectedImageObjects[13]) {
-                        taskData.inputImageUrl14 = getImageUrl(
-                            selectedImageObjects[13],
-                        );
-                    }
-                }
+                    });
+                applyInputAudioReference(taskData, inputAudio);
 
                 const result = await runTask.mutateAsync(taskData);
 
@@ -316,28 +597,44 @@ export const useMediaGeneration = ({
                     const mediaItemData = {
                         taskId: result.taskId,
                         cortexRequestId: result.taskId,
-                        prompt: combinedPrompt,
+                        prompt: getDisplayPrompt(
+                            combinedPrompt,
+                            outputType,
+                            true,
+                        ),
                         type: outputType,
                         model: selectedModel,
                         status: "pending",
-                        settings: settings,
+                        settings: effectiveSettings,
+                        ...(normalizedOutputFolder && {
+                            outputFolder: normalizedOutputFolder,
+                        }),
                         // Include inherited tags
                         tags: Array.from(allInputTags),
                     };
 
-                    // Add input image URLs to media item data
-                    if (selectedImageObjects[0]?.url) {
-                        mediaItemData.inputImageUrl =
-                            selectedImageObjects[0].url;
-                    }
-                    if (selectedImageObjects[1]?.url) {
-                        mediaItemData.inputImageUrl2 =
-                            selectedImageObjects[1].url;
-                    }
-                    if (selectedImageObjects[2]?.url) {
-                        mediaItemData.inputImageUrl3 =
-                            selectedImageObjects[2].url;
-                    }
+                    selectedImageObjectsForTask.forEach((image, index) => {
+                        applyStoredInputImageReference(
+                            mediaItemData,
+                            image,
+                            index,
+                            getReferenceRole(image),
+                        );
+                    });
+                    selectedVideoObjects
+                        .slice(
+                            0,
+                            Math.min(maxVideos, MAX_INPUT_VIDEO_REFERENCES),
+                        )
+                        .forEach((video, index) => {
+                            applyStoredInputVideoReference(
+                                mediaItemData,
+                                video,
+                                index,
+                                getReferenceRole(video),
+                            );
+                        });
+                    applyStoredInputAudioReference(mediaItemData, inputAudio);
 
                     await createMediaItem.mutateAsync(mediaItemData);
 
@@ -353,7 +650,7 @@ export const useMediaGeneration = ({
                 setLoading?.(false);
             }
         },
-        [setLoading],
+        [mediaModels, setLoading],
     );
 
     return {
