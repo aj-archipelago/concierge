@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check } from "lucide-react";
+import { Check, Music2 } from "lucide-react";
 import ChatImage from "./ChatImage";
 import ProgressUpdate from "../editor/ProgressUpdate";
+import SyncedAudioControl from "./SyncedAudioControl";
+import { getDownloadUrl } from "../../utils/fileDownloadUtils";
 import {
     Dialog,
     DialogContent,
@@ -27,6 +29,8 @@ function ImageTile({
     setLastSelectedImage,
     images,
     setShowDeleteSelectedConfirm,
+    audioPlayback,
+    onAudioPlaybackChange,
 }) {
     const [loadError, setLoadError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
@@ -35,12 +39,45 @@ function ImageTile({
     const url = image?.azureUrl || image?.url;
     // Check if URL is valid (not null, undefined, or "null" string)
     const hasValidUrl = url && url !== "null" && url !== "undefined";
+    const displayUrl = hasValidUrl ? getDownloadUrl(url) : url;
     const { t } = useTranslation();
     const expired = image?.expires ? image.expires < Date.now() / 1000 : false;
     const { cortexRequestId, prompt, result, regenerating, uploading, error } =
         image || {};
     const { code, message } = error || result?.error || {};
     const isSelected = selectedImages.has(cortexRequestId);
+    const mediaId = cortexRequestId || image?.taskId;
+    const stopCardClick = (event) => event.stopPropagation();
+
+    const handleMediaWrapperClick = (event) => {
+        const target = event.target;
+        if (
+            target instanceof Element &&
+            target.closest(
+                "audio, .audio-control-zone, button, input, select, textarea, a",
+            )
+        ) {
+            return;
+        }
+
+        if (image?.type === "audio" && mediaId) {
+            const audio = event.currentTarget.querySelector("audio");
+            if (audio) {
+                onAudioPlaybackChange?.(mediaId, {
+                    activeSurface: "modal",
+                    currentTime: Number.isFinite(audio.currentTime)
+                        ? audio.currentTime
+                        : 0,
+                    duration: Number.isFinite(audio.duration)
+                        ? audio.duration
+                        : 0,
+                    playing: !audio.paused,
+                });
+            }
+        }
+
+        onClick?.(event);
+    };
 
     const handleSelection = (e) => {
         e.stopPropagation();
@@ -107,7 +144,12 @@ function ImageTile({
                 />
             </div>
 
-            <div className="media-wrapper relative" onClick={onClick}>
+            <div
+                className={`media-wrapper relative ${
+                    image?.type === "audio" ? "audio-media-wrapper" : ""
+                }`}
+                onClick={handleMediaWrapperClick}
+            >
                 {regenerating ||
                 (image?.status === "pending" && image?.taskId) ||
                 (!url &&
@@ -126,7 +168,8 @@ function ImageTile({
                     image.type === "video" ? (
                         <div className="relative w-full h-full">
                             <video
-                                src={url}
+                                src={displayUrl}
+                                data-testid="image-tile-video-preview"
                                 className="w-full h-full object-cover object-center"
                                 preload="metadata"
                                 onError={() => {
@@ -155,9 +198,44 @@ function ImageTile({
                                 </div>
                             </div>
                         </div>
+                    ) : image.type === "audio" ? (
+                        <div className="audio-tile-preview">
+                            <div className="audio-artwork">
+                                <Music2 className="h-10 w-10" />
+                                <div className="audio-bars" aria-hidden="true">
+                                    {Array.from({ length: 18 }).map((_, i) => (
+                                        <span
+                                            key={i}
+                                            style={{
+                                                height: `${18 + ((i * 13) % 38)}%`,
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            <div
+                                className="audio-control-zone"
+                                onClick={stopCardClick}
+                                onDoubleClick={stopCardClick}
+                                onPointerDown={stopCardClick}
+                                onMouseDown={stopCardClick}
+                                onTouchStart={stopCardClick}
+                                onKeyDown={stopCardClick}
+                            >
+                                <SyncedAudioControl
+                                    mediaId={mediaId}
+                                    src={displayUrl}
+                                    surface="tile"
+                                    playback={audioPlayback}
+                                    onPlaybackChange={onAudioPlaybackChange}
+                                    ariaLabel={t("Play generated audio")}
+                                    onError={() => setLoadError(true)}
+                                />
+                            </div>
+                        </div>
                     ) : (
                         <ChatImage
-                            src={url}
+                            src={displayUrl}
                             alt={prompt}
                             onError={() => setLoadError(true)}
                             onLoad={() => setLoadError(false)}
@@ -352,7 +430,8 @@ function ImageTile({
                 </div>
 
                 <div className="mt-4 flex-shrink-0">
-                    {image.type === "video" ? null : !image.model ? null : (
+                    {image.type === "video" ||
+                    image.type === "audio" ? null : !image.model ? null : (
                         <button
                             className="lb-primary text-sm px-3 py-1"
                             onClick={(e) => {
@@ -373,11 +452,17 @@ function ImageTile({
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="mb-4 text-center">
                     {t(
-                        `${image.type === "video" ? "Video" : "Image"} expired or not available.`,
+                        `${
+                            image.type === "video"
+                                ? "Video"
+                                : image.type === "audio"
+                                  ? "Audio"
+                                  : "Image"
+                        } expired or not available.`,
                     )}
                 </div>
                 <div>
-                    {image.type === "video" ? (
+                    {image.type === "video" || image.type === "audio" ? (
                         <button
                             className="lb-primary"
                             onClick={(e) => {
@@ -451,7 +536,7 @@ function ImageTile({
                 </div>
 
                 <div className="mt-4 flex-shrink-0">
-                    {image.type === "video" ? (
+                    {image.type === "video" || image.type === "audio" ? (
                         <div className="text-xs text-gray-500 dark:text-gray-500 text-center break-words overflow-hidden px-2">
                             {t(
                                 "Please try a different prompt or contact support if the issue persists.",

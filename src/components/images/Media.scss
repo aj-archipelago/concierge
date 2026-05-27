@@ -336,6 +336,55 @@ $image-container-height: 200px;
         }
     }
 
+    .audio-media-wrapper {
+        height: calc(100% - 2.35rem);
+    }
+
+    .audio-tile-preview {
+        width: 100%;
+        height: 100%;
+        padding: 0.75rem;
+        background: linear-gradient(
+            135deg,
+            #0f172a 0%,
+            #1f2937 52%,
+            #0e7490 100%
+        );
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 0.75rem;
+
+        .audio-control-zone {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            cursor: default;
+            pointer-events: auto;
+        }
+
+        audio {
+            width: 100%;
+            height: 2rem;
+            pointer-events: auto;
+        }
+    }
+
+    .audio-artwork {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .audio-bars {
+        height: 2.5rem;
+    }
+
     .image-prompt,
     .media-prompt {
         position: absolute;
@@ -365,6 +414,22 @@ $image-container-height: 200px;
     align-items: center;
     padding: 0.5rem;
     gap: 0.5rem;
+}
+
+.audio-bars {
+    width: 100%;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+
+    span {
+        width: 0.25rem;
+        min-height: 0.45rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+    }
 }
 
 .image-modal {

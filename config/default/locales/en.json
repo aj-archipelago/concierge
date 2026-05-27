@@ -379,5 +379,9 @@
     "Not authenticated": "Not authenticated",
     "No token": "No token",
     "Remove {{name}}": "Remove {{name}}",
+    "Generated video": "Generated video",
+    "Generated audio": "Generated audio",
+    "Play generated audio": "Play generated audio",
+    "Audio expired or not available.": "Audio expired or not available.",
     "help_desc_using_connectors": "Connect custom MCP servers so Concierge can use external tools and data."
 }

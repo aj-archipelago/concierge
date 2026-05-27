@@ -23,6 +23,13 @@ Concierge keeps uploaded and generated files in scoped storage so chat, workspac
 - Large files may take longer to upload or process
 - Unsupported or unsafe files are rejected during upload with an error
 
+### Generating and Previewing Media
+
+- The Media page can show generated images, videos, and audio files when your connected Cortex instance supports those generation models
+- Use the play control on audio and video tiles to preview results without leaving the grid
+- Open an audio item to continue playback in the details dialog, then close it to return playback to the tile
+- Concierge uses its managed file proxy for previews so expired direct storage links do not break supported media playback
+
 ### Scoped File Access
 
 - Chat files are available to the current conversation

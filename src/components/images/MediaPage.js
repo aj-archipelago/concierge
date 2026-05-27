@@ -19,6 +19,7 @@ import {
     X,
     Tag,
     Sparkles,
+    Music2,
 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
@@ -49,6 +50,8 @@ import {
 import { AutosizeTextarea } from "@/components/ui/autosize-textarea";
 import ChatImage from "./ChatImage";
 import ImageTile from "./ImageTile";
+import SyncedAudioControl from "./SyncedAudioControl";
+import { getDownloadUrl } from "../../utils/fileDownloadUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -88,6 +91,10 @@ import BulkActionsBar from "../common/BulkActionsBar";
 import FilterInput from "../common/FilterInput";
 import EmptyState from "../common/EmptyState";
 import "./Media.scss";
+
+function getAudioTime(audio, key) {
+    return Number.isFinite(audio?.[key]) ? audio[key] : 0;
+}
 
 function MediaPage() {
     const { direction } = useContext(LanguageContext);
@@ -218,6 +225,29 @@ function MediaPage() {
     const mediaContainerRef = useRef(null);
     const modelSelectorRef = useRef(null);
     const [isImageBadgeHovered, setIsImageBadgeHovered] = useState(false);
+    const [audioPlayback, setAudioPlayback] = useState({});
+    const audioPlaybackRef = useRef({});
+
+    const handleAudioPlaybackChange = useCallback(
+        (mediaId, patch, options = {}) => {
+            if (!mediaId) return;
+
+            const nextPlayback = {
+                ...(audioPlaybackRef.current[mediaId] || {}),
+                ...patch,
+                updatedAt: Date.now(),
+            };
+            audioPlaybackRef.current = {
+                ...audioPlaybackRef.current,
+                [mediaId]: nextPlayback,
+            };
+
+            if (!options?.silent) {
+                setAudioPlayback(audioPlaybackRef.current);
+            }
+        },
+        [],
+    );
 
     // Use custom selection hook
     const {
@@ -678,6 +708,7 @@ function MediaPage() {
         return sortedImages.map((image, index) => {
             // Since we now preserve cortexRequestId, we can use it directly
             const key = image?.cortexRequestId || `temp-${index}`;
+            const mediaPlaybackId = image?.cortexRequestId || image?.taskId;
             // Check if URL is valid (not null, undefined, or "null" string)
             const hasValidUrl =
                 (image?.azureUrl || image?.url) &&
@@ -697,6 +728,8 @@ function MediaPage() {
                     setLastSelectedImage={setLastSelectedImage}
                     images={sortedImages}
                     setShowDeleteSelectedConfirm={setShowDeleteSelectedConfirm}
+                    audioPlayback={audioPlayback[mediaPlaybackId]}
+                    onAudioPlaybackChange={handleAudioPlaybackChange}
                     onClick={() => {
                         if (hasValidUrl) {
                             setSelectedImage(image);
@@ -777,6 +810,8 @@ function MediaPage() {
         lastSelectedImage,
         setLastSelectedImage,
         setShowDeleteSelectedConfirm,
+        audioPlayback,
+        handleAudioPlaybackChange,
         selectedModel,
         deleteMediaItem,
     ]);
@@ -1517,6 +1552,15 @@ function MediaPage() {
             <ImageModal
                 show={showModal}
                 image={selectedImage}
+                mediaPlaybackId={
+                    selectedImage?.cortexRequestId || selectedImage?.taskId
+                }
+                audioPlayback={
+                    audioPlayback[
+                        selectedImage?.cortexRequestId || selectedImage?.taskId
+                    ]
+                }
+                onAudioPlaybackChange={handleAudioPlaybackChange}
                 onHide={() => {
                     setShowModal(false);
                     setTimeout(() => {
@@ -2214,21 +2258,53 @@ function SettingsDialog({
     );
 }
 
-function ImageModal({ show, image, onHide }) {
+function ImageModal({
+    show,
+    image,
+    onHide,
+    mediaPlaybackId,
+    audioPlayback,
+    onAudioPlaybackChange,
+}) {
     const { t } = useTranslation();
     const [tags, setTags] = useState([]);
     const [newTag, setNewTag] = useState("");
     const updateTagsMutation = useUpdateMediaItemTags();
     const tagInputRef = useRef(null);
+    const modalAudioRef = useRef(null);
+    const ignoreModalPauseRef = useRef(false);
+    const sourceUrl = image?.azureUrl || image?.url || null;
+    const displayUrl = sourceUrl ? getDownloadUrl(sourceUrl) : sourceUrl;
 
     // Initialize tags when image changes
     useEffect(() => {
+        ignoreModalPauseRef.current = false;
         if (image?.tags) {
             setTags(image.tags);
         } else {
             setTags([]);
         }
     }, [image]);
+
+    useEffect(() => {
+        if (show) {
+            ignoreModalPauseRef.current = false;
+        }
+    }, [show]);
+
+    const handleHide = useCallback(() => {
+        const audio = modalAudioRef.current;
+        if (image?.type === "audio" && mediaPlaybackId && audio) {
+            ignoreModalPauseRef.current = true;
+            onAudioPlaybackChange?.(mediaPlaybackId, {
+                activeSurface: "tile",
+                currentTime: getAudioTime(audio, "currentTime"),
+                duration: getAudioTime(audio, "duration"),
+                playing: !audio.paused,
+            });
+        }
+        onHide();
+    }, [image?.type, mediaPlaybackId, onAudioPlaybackChange, onHide]);
 
     const addTag = async () => {
         if (!newTag.trim() || tags.includes(newTag.trim())) return;
@@ -2281,7 +2357,7 @@ function ImageModal({ show, image, onHide }) {
     return (
         <Modal
             show={show}
-            onHide={onHide}
+            onHide={handleHide}
             title={t(`Generated ${image?.type || "image"}`)}
         >
             <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
@@ -2289,14 +2365,46 @@ function ImageModal({ show, image, onHide }) {
                     {image?.type === "video" ? (
                         <video
                             className="rounded-md w-full"
-                            src={image?.azureUrl || image?.url}
+                            src={displayUrl}
                             controls
                             preload="metadata"
                         />
+                    ) : image?.type === "audio" ? (
+                        <div className="rounded-md border border-gray-200 bg-white p-6 text-gray-900 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            <div className="mb-6 flex min-h-48 flex-col items-center justify-center gap-5">
+                                <Music2 className="h-12 w-12 text-sky-500 dark:text-sky-300" />
+                                <div className="audio-bars w-full max-w-sm">
+                                    {Array.from({ length: 28 }).map((_, i) => (
+                                        <span
+                                            key={i}
+                                            style={{
+                                                height: `${16 + ((i * 11) % 48)}%`,
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                            <SyncedAudioControl
+                                key={
+                                    sourceUrl ||
+                                    image?.cortexRequestId ||
+                                    image?.taskId
+                                }
+                                className="w-full"
+                                mediaId={mediaPlaybackId}
+                                src={displayUrl}
+                                surface="modal"
+                                playback={audioPlayback}
+                                onPlaybackChange={onAudioPlaybackChange}
+                                audioRef={modalAudioRef}
+                                ignorePauseRef={ignoreModalPauseRef}
+                                ariaLabel={t("Play generated audio")}
+                            />
+                        </div>
                     ) : (
                         <ChatImage
                             className="rounded-md w-full"
-                            src={image?.azureUrl || image?.url}
+                            src={displayUrl}
                             alt={image?.prompt}
                         />
                     )}
