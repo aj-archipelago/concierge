@@ -149,6 +149,7 @@ const options = {
     allowDirty: false,
     failOnReview: false,
     fetch: true,
+    diffMode: "merge-base",
     json: false,
     out: null,
     patternFile: null,
@@ -170,6 +171,7 @@ Options:
   --source-branch <name>   Source branch to fetch when --source-url is set
   --source-ref <ref>       Source git ref to compare from
   --target-ref <ref>       Target git ref to compare to
+  --diff-mode <mode>       Diff mode: merge-base (default) or tree
   --pattern-file <path>    JSON file containing scan patterns
   --no-fetch               Do not fetch the source ref before auditing
   --allow-dirty            Continue when this worktree has local changes
@@ -199,6 +201,9 @@ for (let index = 0; index < args.length; index += 1) {
     } else if (arg === "--target-ref") {
         options.targetRef = args[index + 1];
         index += 1;
+    } else if (arg === "--diff-mode") {
+        options.diffMode = args[index + 1];
+        index += 1;
     } else if (arg === "--pattern-file") {
         options.patternFile = args[index + 1];
         index += 1;
@@ -221,6 +226,14 @@ for (let index = 0; index < args.length; index += 1) {
         usage();
         process.exit(2);
     }
+}
+
+if (!["merge-base", "tree"].includes(options.diffMode)) {
+    console.error(
+        `Invalid --diff-mode: ${options.diffMode}. Expected merge-base or tree.`,
+    );
+    usage();
+    process.exit(2);
 }
 
 const run = (command, commandArgs, { allowFailure = false } = {}) => {
@@ -352,6 +365,14 @@ const scanFiles = (filePaths, ref, patterns) => {
     return findings;
 };
 
+const diffArgs = (...extraArgs) => {
+    const refs =
+        options.diffMode === "tree"
+            ? [options.targetRef, options.sourceRef]
+            : [`${options.targetRef}...${options.sourceRef}`];
+    return [...extraArgs, ...refs];
+};
+
 const buildReport = () => {
     const status = git(["status", "-sb"]);
     const dirty = lines(git(["status", "--porcelain"]));
@@ -391,24 +412,12 @@ const buildReport = () => {
     ])
         .split(/\s+/)
         .map(Number);
-    const shortstat = git([
-        "diff",
-        "--shortstat",
-        `${options.targetRef}...${options.sourceRef}`,
-    ]);
+    const shortstat = git(diffArgs("diff", "--shortstat"));
     const dirstat = lines(
-        git([
-            "diff",
-            "--dirstat=files,0",
-            `${options.targetRef}...${options.sourceRef}`,
-        ]),
+        git(diffArgs("diff", "--dirstat=files,0")),
     );
     const nameStatus = lines(
-        git([
-            "diff",
-            "--name-status",
-            `${options.targetRef}...${options.sourceRef}`,
-        ]),
+        git(diffArgs("diff", "--name-status")),
     ).map(changedPathFromStatus);
 
     const clusters = new Map([
@@ -465,6 +474,7 @@ const buildReport = () => {
             mergeBase,
         },
         divergence: {
+            diffMode: options.diffMode,
             targetOnly,
             sourceOnly,
             shortstat,
@@ -511,6 +521,7 @@ Worktree: ${report.status}
 
 - Target-only commits: ${report.divergence.targetOnly}
 - Source-only commits: ${report.divergence.sourceOnly}
+- Diff mode: ${report.divergence.diffMode}
 - Diff: ${report.divergence.shortstat || "no file diff"}
 
 Directory spread:

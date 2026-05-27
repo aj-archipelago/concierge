@@ -18,6 +18,18 @@ then reports:
 - changed files grouped by feature area
 - optional forbidden-pattern scan results
 
+By default, the report uses Git's merge-base diff (`target...source`), which is
+best for the first audit of a downstream branch. After sanitized upstream PRs
+have landed, use a tree diff to see what is still different between the current
+source and target trees:
+
+```sh
+npm run upstream:audit -- \
+  --source-url ../my-downstream-fork \
+  --source-branch main \
+  --diff-mode tree
+```
+
 ## Forbidden Pattern Scans
 
 Keep organization-specific terms, internal hostnames, tenant IDs, and private
