@@ -1,3 +1,7 @@
+import { ensureAppletSdkScript } from "../../../../src/utils/appletSdkUtils.js";
+
+export { ensureAppletSdkScript };
+
 export function getMessagesUpToVersion(messages, versionIndex) {
     if (!messages) return [];
     const idx = messages.findLastIndex(

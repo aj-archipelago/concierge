@@ -3,7 +3,11 @@ import Workspace from "@/app/api/models/workspace";
 import Applet from "@/app/api/models/applet";
 import { getWorkspace } from "../db.js";
 import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
-// Removed unused import
+import { hydrateAppletVersionContents } from "@/app/api/canvas-applets/versioning";
+
+// Legacy v1 workspace applet endpoint. Keep this route on the original
+// Mongo-inline applet shape; v2 canvas applet versioning/publication belongs in
+// /api/canvas-applets and app/api/canvas-applets/registry.js.
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
@@ -35,7 +39,11 @@ export async function GET(request, { params }) {
             await workspaceDoc.save();
             await workspaceDoc.populate("applet");
         }
-        return NextResponse.json(workspaceDoc.applet);
+        const applet =
+            typeof workspaceDoc.applet?.toObject === "function"
+                ? workspaceDoc.applet.toObject()
+                : workspaceDoc.applet;
+        return NextResponse.json(await hydrateAppletVersionContents(applet));
     } catch (error) {
         console.error(error);
         return NextResponse.json(
