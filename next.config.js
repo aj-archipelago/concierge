@@ -104,6 +104,9 @@ const config = {
         // Add @ path alias
         config.resolve.alias["@"] = path.join(__dirname, "@");
 
+        // Allow importing .md files as raw strings for local help guides.
+        config.module.rules.push({ test: /\.md$/, type: "asset/source" });
+
         return config;
     },
 };
