@@ -81,9 +81,8 @@ const config = {
     },
     experimental: {
         proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
-        instrumentationHook: true,
-        serverComponentsExternalPackages: ["busboy"],
     },
+    serverExternalPackages: ["busboy"],
     redirects: async () => {
         return redirects;
     },
@@ -91,6 +90,7 @@ const config = {
         includePaths: [path.join(__dirname, "src")],
     },
     output: "standalone",
+    outputFileTracingRoot: __dirname,
     basePath: basePath || "",
     webpack: (config) => {
         // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime

@@ -46,6 +46,7 @@ function enrichRunForHtmlOutput(run, automation) {
 }
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const automation = await findAutomationForUser(params.id, user._id);

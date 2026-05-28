@@ -9,6 +9,7 @@ import { getWorkspace } from "../../api/workspaces/[id]/db";
 import WorkspaceTabs from "./components/WorkspaceTabs";
 
 export default async function Page({ params }) {
+    params = await params;
     const id = params.id;
 
     const user = await getCurrentUser();

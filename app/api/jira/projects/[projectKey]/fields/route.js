@@ -1,6 +1,7 @@
 import axios from "../../../../../utils/axios-client";
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const searchParams = request.nextUrl.searchParams;
         // read token parameter from querystring

@@ -27,6 +27,7 @@ function jsonNoStore(body, init = {}) {
 }
 
 export async function GET(req, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         if (!user) {
@@ -65,6 +66,7 @@ export async function GET(req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         if (!user) {

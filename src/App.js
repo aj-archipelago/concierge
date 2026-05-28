@@ -1,5 +1,5 @@
 "use client";
-import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support";
+import { ApolloProvider } from "@apollo/client";
 import React, {
     useCallback,
     useContext,
@@ -160,14 +160,20 @@ const App = ({
         ],
     );
 
-    if (!currentUser) {
+    const currentUserId =
+        currentUser?.userId || currentUser?._id || currentUser?.id;
+    const userScopedApolloKey = currentUserId || Boolean(currentUser);
+    const apolloClient = useMemo(() => {
+        if (!userScopedApolloKey) return null;
+        return getClient(serverUrl, useBlueGraphQL);
+    }, [serverUrl, useBlueGraphQL, userScopedApolloKey]);
+
+    if (!currentUser || !apolloClient) {
         return null;
     }
 
     return (
-        <ApolloNextAppProvider
-            makeClient={() => getClient(serverUrl, useBlueGraphQL)}
-        >
+        <ApolloProvider client={apolloClient}>
             <ServerContext.Provider value={serverContextValue}>
                 <StoreProvider>
                     <AutoTranscribeProvider>
@@ -201,7 +207,7 @@ const App = ({
                     </AutoTranscribeProvider>
                 </StoreProvider>
             </ServerContext.Provider>
-        </ApolloNextAppProvider>
+        </ApolloProvider>
     );
 };
 

@@ -5,6 +5,7 @@ import { getWorkspace } from "../../db.js";
 import { ensureAppletSdkScript } from "../../../../../workspaces/[id]/components/utils.js";
 
 export async function POST(request, { params }) {
+    params = await params;
     try {
         const {
             messages,

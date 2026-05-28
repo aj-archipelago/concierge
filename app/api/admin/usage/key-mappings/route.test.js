@@ -56,10 +56,7 @@ describe("GET /api/admin/usage/key-mappings", () => {
     it("returns API key hash labels", async () => {
         const response = await GET();
 
-        expect(ApiKeyMapping.find).toHaveBeenCalledWith(
-            {},
-            "apiKeyHash label",
-        );
+        expect(ApiKeyMapping.find).toHaveBeenCalledWith({}, "apiKeyHash label");
         expect(response.body).toEqual({
             "key-a": "Production",
             "key-b": "Development",

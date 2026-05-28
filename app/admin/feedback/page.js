@@ -2,6 +2,7 @@ import Feedback from "../../api/models/feedback";
 import FeedbackAdminClient from "./FeedbackAdminClient";
 
 export default async function FeedbackPage({ searchParams }) {
+    searchParams = await searchParams;
     const status = searchParams.status || "open";
     const selected = searchParams.selected || null;
     const query = ["open", "resolved"].includes(status) ? { status } : {};

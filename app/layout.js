@@ -31,11 +31,11 @@ const SOCIAL_DESCRIPTION =
     "Concierge - AI workspace for research, writing, and collaboration.";
 
 export async function generateMetadata() {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const language = cookieStore.get("i18next")?.value || "en";
     const { getLogo, siteTitle } = config.global;
 
-    const headerList = headers();
+    const headerList = await headers();
     const host =
         headerList.get("x-forwarded-host") ||
         headerList.get("host") ||
@@ -79,15 +79,16 @@ export async function generateMetadata() {
 }
 
 export default async function RootLayout({ children }) {
-    const host = headers().get("x-forwarded-host");
-    const protocol = headers().get("x-forwarded-proto");
+    const headerList = await headers();
+    const host = headerList.get("x-forwarded-host");
+    const protocol = headerList.get("x-forwarded-proto");
     const serverUrl = `${protocol}://${host}`;
     const useBlueGraphQL = !!process.env.CORTEX_GRAPHQL_API_BLUE_URL;
     const graphQLPublicEndpoint = config.global.getPublicGraphQLEndpoint(
         process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql",
     );
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const language = cookieStore.get("i18next")?.value || "en";
     const theme = cookieStore.get("theme")?.value || "light";
 

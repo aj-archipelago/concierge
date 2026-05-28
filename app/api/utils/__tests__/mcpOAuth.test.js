@@ -136,7 +136,9 @@ describe("mcpOAuth utilities", () => {
 
     it("only allows the shared MCP callback path", () => {
         expect(
-            isAllowedMcpOAuthRedirectUri("https://concierge.example.com/code/mcp"),
+            isAllowedMcpOAuthRedirectUri(
+                "https://concierge.example.com/code/mcp",
+            ),
         ).toBe(true);
         expect(
             isAllowedMcpOAuthRedirectUri(

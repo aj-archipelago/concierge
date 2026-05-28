@@ -3,6 +3,7 @@ import { getCurrentUser } from "../../../utils/auth";
 import User from "../../../models/user";
 
 export async function PATCH(request, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
 

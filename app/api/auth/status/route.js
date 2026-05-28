@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 export async function HEAD(request) {
     try {
         // Check if this request is coming from the login page
-        const headerList = headers();
+        const headerList = await headers();
         const referer = headerList.get("referer");
 
         // If coming from login page, just return 401 without triggering redirect
@@ -35,7 +35,7 @@ export async function GET(request) {
             user && user.userId && user.userId !== "anonymous";
 
         // Check for Azure headers and local auth cookies for debugging
-        const headerList = headers();
+        const headerList = await headers();
         const azureId = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
         const azureName = headerList.get("X-MS-CLIENT-PRINCIPAL-NAME");
 

@@ -14,6 +14,7 @@ import { readBlobContent } from "../../../../../utils/media-service-utils";
 import { createAutomationStorageTarget } from "../../../../../../../src/utils/storageTargets";
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const automation = await findAutomationForUser(params.id, user._id);
@@ -115,7 +116,7 @@ export async function GET(request, { params }) {
             );
         }
         const theme =
-            cookies().get("theme")?.value === "dark" ? "dark" : "light";
+            (await cookies()).get("theme")?.value === "dark" ? "dark" : "light";
         const themedHtml = applyAutomationHtmlTheme(html, theme);
 
         return new NextResponse(themedHtml, {

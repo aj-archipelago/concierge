@@ -34,8 +34,9 @@ React.useContext = jest.fn((context) => {
 });
 
 // Mock the modules and hooks before importing App
-jest.mock("@apollo/experimental-nextjs-app-support", () => ({
-    ApolloNextAppProvider: ({ children }) => children,
+jest.mock("@apollo/client", () => ({
+    ...jest.requireActual("@apollo/client"),
+    ApolloProvider: ({ children }) => children,
 }));
 
 jest.mock("../graphql", () => ({

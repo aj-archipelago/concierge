@@ -1,7 +1,7 @@
 // tsconfig.json
 {
     "compilerOptions": {
-        "jsx": "preserve",
+        "jsx": "react-jsx",
         "lib": ["dom", "dom.iterable", "esnext"],
         "allowJs": true,
         "skipLibCheck": true,
@@ -10,7 +10,7 @@
         "incremental": true,
         "esModuleInterop": true,
         "module": "esnext",
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "resolveJsonModule": true,
         "isolatedModules": true,
         "plugins": [
@@ -22,7 +22,8 @@
         "paths": {
             "@/*": ["./*"]
         },
-        "strictNullChecks": true
+        "strictNullChecks": true,
+        "target": "ES2017"
     },
     "include": [
         "next-env.d.ts",
@@ -34,7 +35,8 @@
         "app/write/page.js",
         "app/layout.js",
         "app/page.js",
-        "src/app/page.js"
+        "src/app/page.js",
+        ".next/dev/types/**/*.ts"
     ],
     "exclude": ["node_modules"]
 }

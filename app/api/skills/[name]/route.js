@@ -18,6 +18,7 @@ const SKILL_MD = "SKILL.md";
 
 // GET: fetch a single skill by name
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const { name } = params;
@@ -63,6 +64,7 @@ export async function GET(request, { params }) {
 
 // PUT: update a skill
 export async function PUT(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const { name } = params;
@@ -161,6 +163,7 @@ export async function PUT(request, { params }) {
 
 // DELETE: remove a skill
 export async function DELETE(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const { name } = params;

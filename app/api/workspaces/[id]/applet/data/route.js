@@ -7,6 +7,7 @@ import { parseJsonRequest } from "@/app/api/utils/parseJsonRequest.js";
 
 // PUT: store data for an applet
 export async function PUT(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -87,6 +88,7 @@ export async function PUT(request, { params }) {
 
 // GET: retrieve data for an applet
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

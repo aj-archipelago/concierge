@@ -4,6 +4,7 @@ import { getCurrentUser } from "../../../utils/auth";
 import { retryTask } from "../../../utils/task-utils.mjs"; // We'll assume this exists
 
 export async function POST(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const { id } = params;

@@ -136,6 +136,7 @@ async function enrichDigest(digest, ownerId) {
 }
 
 export async function GET(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
 
     let digest = await Digest.findOne({
@@ -185,6 +186,7 @@ export async function GET(req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { blocks } = await req.json();
 

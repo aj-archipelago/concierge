@@ -11,7 +11,7 @@ export default async function AdminLayout({ children }) {
         return redirect("/");
     }
 
-    const headerList = headers();
+    const headerList = await headers();
     const host =
         headerList.get("x-forwarded-host") || headerList.get("host") || "";
     const hostname = host.split(",")[0].trim().split(":")[0].toLowerCase();

@@ -9,6 +9,7 @@ import { resolvePublishedAppletContent } from "@/app/api/canvas-applets/versioni
 // the authenticated workspace editor route so published links keep working for
 // anonymous users.
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

@@ -4,6 +4,7 @@ import { getCurrentUser } from "../../../../utils/auth";
 import { republishWorkspace } from "../../publish/utils";
 
 export async function DELETE(req, { params }) {
+    params = await params;
     const { id, promptId } = params;
     const user = await getCurrentUser();
     const prompt = await Prompt.findById(promptId);
@@ -39,6 +40,7 @@ export async function DELETE(req, { params }) {
 }
 
 export async function PUT(req, { params }) {
+    params = await params;
     const { id, promptId } = params;
     const attrs = await req.json();
     const user = await getCurrentUser();

@@ -4,6 +4,7 @@ import { getCurrentUser } from "../../../../../../utils/auth";
 import { enqueueBuildDigest } from "../../../utils";
 
 export async function POST(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { id } = params;
 

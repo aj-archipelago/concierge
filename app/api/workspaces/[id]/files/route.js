@@ -95,6 +95,7 @@ function getFilesFromSharedDocument(sharedDocument) {
 
 // POST: upload a shared file for a workspace/applet with streaming support
 export async function POST(request, { params }) {
+    params = await params;
     const { id } = params;
     const workspace = await Workspace.findById(id);
 
@@ -179,6 +180,7 @@ export async function POST(request, { params }) {
 
 // GET: retrieve shared files for a workspace/applet
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

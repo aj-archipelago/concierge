@@ -1175,7 +1175,9 @@ function ChatContent({
 
                     return {
                         role:
-                            message?.sender === "assistant" ? "assistant" : "user",
+                            message?.sender === "assistant"
+                                ? "assistant"
+                                : "user",
                         content,
                     };
                 })

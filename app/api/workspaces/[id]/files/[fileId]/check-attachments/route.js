@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../../../utils/auth.js";
 
 // GET: check if a file is attached to any prompts in the workspace
 export async function GET(request, { params }) {
+    params = await params;
     const { id: workspaceId, fileId } = params;
 
     try {

@@ -10,6 +10,7 @@ import {
 
 // GET: retrieve data for a canvas applet
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -45,6 +46,7 @@ export async function GET(request, { params }) {
 
 // PUT: store data for a canvas applet
 export async function PUT(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

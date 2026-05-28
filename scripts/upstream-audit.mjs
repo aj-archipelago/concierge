@@ -413,12 +413,10 @@ const buildReport = () => {
         .split(/\s+/)
         .map(Number);
     const shortstat = git(diffArgs("diff", "--shortstat"));
-    const dirstat = lines(
-        git(diffArgs("diff", "--dirstat=files,0")),
+    const dirstat = lines(git(diffArgs("diff", "--dirstat=files,0")));
+    const nameStatus = lines(git(diffArgs("diff", "--name-status"))).map(
+        changedPathFromStatus,
     );
-    const nameStatus = lines(
-        git(diffArgs("diff", "--name-status")),
-    ).map(changedPathFromStatus);
 
     const clusters = new Map([
         ...DEFAULT_CLUSTERS.map((cluster) => [

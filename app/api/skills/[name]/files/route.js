@@ -23,6 +23,7 @@ async function getSkillForUser(name, userId) {
 
 // POST: upload a file for a skill
 export async function POST(request, { params }) {
+    params = await params;
     const { name } = params;
 
     try {
@@ -87,6 +88,7 @@ export async function POST(request, { params }) {
 
 // GET: list files for a skill
 export async function GET(request, { params }) {
+    params = await params;
     const { name } = params;
 
     try {
@@ -111,6 +113,7 @@ export async function GET(request, { params }) {
 
 // DELETE: remove a file from a skill
 export async function DELETE(request, { params }) {
+    params = await params;
     const { name } = params;
     const { searchParams } = new URL(request.url);
     const filename = searchParams.get("filename");

@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../utils/auth";
 const VALID_STATUSES = new Set(["open", "resolved"]);
 
 export async function PATCH(request, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
 

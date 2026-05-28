@@ -39,6 +39,7 @@ async function toPublicAppletPayload(applet) {
 }
 
 export async function GET(request, { params }) {
+    params = await params;
     const { slug } = params;
 
     try {

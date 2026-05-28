@@ -3,6 +3,7 @@ import User from "../../../app/api/models/user";
 import UserManagementClient from "./UserManagementClient";
 
 export default async function UsersPage({ searchParams }) {
+    searchParams = await searchParams;
     const page = parseInt(searchParams.page) || 1;
     const limit = parseInt(searchParams.limit) || 10;
     const search = searchParams.search || "";

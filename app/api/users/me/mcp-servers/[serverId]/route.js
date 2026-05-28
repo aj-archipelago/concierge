@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
  * Returns a specific MCP server config without sensitive tokens (headers stripped).
  */
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser(false);
         const { serverId } = await params;
@@ -39,6 +40,7 @@ export async function GET(request, { params }) {
  * Removes a specific MCP server from the user's config.
  */
 export async function DELETE(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser(false);
         const { serverId } = await params;

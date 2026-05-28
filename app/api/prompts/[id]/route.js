@@ -1,6 +1,7 @@
 import Prompt from "../../models/prompt";
 
 export async function GET(req, { params }) {
+    params = await params;
     const { id } = params;
     try {
         const prompt = await Prompt.findById(id).populate("files");

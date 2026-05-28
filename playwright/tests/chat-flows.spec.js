@@ -1001,8 +1001,7 @@ async function getMessageCounts(page) {
         userMessages ||
         (await messageList.locator(".chat-message-user").count());
     const botCount =
-        botMessages ||
-        (await messageList.locator(".chat-message-bot").count());
+        botMessages || (await messageList.locator(".chat-message-bot").count());
     return { userCount, botCount, total: userCount + botCount };
 }
 

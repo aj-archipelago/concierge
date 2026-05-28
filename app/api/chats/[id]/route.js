@@ -21,6 +21,7 @@ const isServerOwnedAssistantMessage = (message) =>
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
+    params = await params;
     try {
         const { id } = params;
         if (!id) {
@@ -70,6 +71,7 @@ export async function POST(req, { params }) {
 
 // Handle DELETE request to delete a chat for the current user
 export async function DELETE(req, { params }) {
+    params = await params;
     try {
         const { id } = params;
         if (!id || !Types.ObjectId.isValid(id)) {
@@ -97,6 +99,7 @@ export async function DELETE(req, { params }) {
 
 // Handle GET request to retrieve a chat for the current user
 export async function GET(req, { params }) {
+    params = await params;
     try {
         const start = performance.now();
         const { id } = params;
@@ -117,6 +120,7 @@ export async function GET(req, { params }) {
 
 // Handle PUT request to update a chat for the current user
 export async function PUT(req, { params }) {
+    params = await params;
     try {
         const { id } = params;
         if (!id || !Types.ObjectId.isValid(id)) {
