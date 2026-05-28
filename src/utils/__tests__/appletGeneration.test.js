@@ -46,7 +46,9 @@ describe("appletGeneration helpers", () => {
 
         const tagged = injectAppletMetaTags(html, "Task Tracker");
 
-        expect(tagged).toContain('<meta name="concierge-type" content="applet">');
+        expect(tagged).toContain(
+            '<meta name="concierge-type" content="applet">',
+        );
         expect(tagged).toContain(
             '<meta name="applet-name" content="Task Tracker">',
         );

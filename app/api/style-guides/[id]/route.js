@@ -4,6 +4,7 @@ import { getCurrentUser } from "../../utils/auth.js";
 
 // GET: retrieve a single style guide
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const { id } = params;
 
@@ -33,6 +34,7 @@ export async function GET(request, { params }) {
 
 // DELETE: delete a style guide (admin only)
 export async function DELETE(request, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
 
@@ -69,6 +71,7 @@ export async function DELETE(request, { params }) {
 
 // PATCH: update a style guide (admin only)
 export async function PATCH(request, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
 

@@ -37,9 +37,7 @@ describe("mediaUtils", () => {
 
         test("should ignore hostname dots when URL path has no extension", () => {
             expect(
-                getExtension(
-                    "https://concierge.example.com/uploads/file-id",
-                ),
+                getExtension("https://concierge.example.com/uploads/file-id"),
             ).toBe("");
         });
 

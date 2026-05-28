@@ -2,6 +2,7 @@ import WorkspaceState from "../../../models/workspace-state";
 import { getCurrentUser } from "../../../utils/auth";
 
 export async function PUT(req, { params }) {
+    params = await params;
     const body = await req.json();
     const attrs = body;
     const user = await getCurrentUser();
@@ -30,6 +31,7 @@ export async function PUT(req, { params }) {
 }
 
 export async function GET(req, { params }) {
+    params = await params;
     const workspaceId = params.id;
     try {
         const user = await getCurrentUser();

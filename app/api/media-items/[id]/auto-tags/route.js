@@ -52,6 +52,7 @@ function buildMediaItemQuery(userId, id) {
 }
 
 export async function POST(_req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { id } = params;
 

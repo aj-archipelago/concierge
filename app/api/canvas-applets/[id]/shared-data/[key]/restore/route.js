@@ -26,6 +26,7 @@ function findBackupQuery({ appletId, key, body }) {
 
 // POST: restore a shared data recovery snapshot.
 export async function POST(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

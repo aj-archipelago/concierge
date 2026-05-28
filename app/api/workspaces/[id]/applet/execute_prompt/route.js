@@ -8,6 +8,7 @@ import { getPromptConfig } from "../../../../utils/prompt-utils";
 import config from "../../../../../../config";
 
 export async function POST(request, { params }) {
+    params = await params;
     try {
         let {
             prompt: userInput,

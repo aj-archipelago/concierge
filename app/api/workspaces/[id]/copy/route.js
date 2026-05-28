@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../utils/auth";
 import { createWorkspace } from "../../db";
 
 export async function POST(req, { params }) {
+    params = await params;
     const { id } = params;
     const user = await getCurrentUser();
 

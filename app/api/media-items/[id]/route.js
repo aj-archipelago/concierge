@@ -12,6 +12,7 @@ import {
 } from "../../utils/llm-file-utils.js";
 
 export async function PUT(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { id } = params;
     const body = await req.json();
@@ -41,6 +42,7 @@ export async function PUT(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { id } = params;
 

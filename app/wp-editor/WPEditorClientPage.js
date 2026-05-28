@@ -2,9 +2,9 @@
 
 import React from "react";
 import dynamicImport from "next/dynamic";
-import { ApolloNextAppProvider } from "@apollo/experimental-nextjs-app-support/ssr";
+import { ApolloProvider } from "@apollo/client";
 import { getClient } from "../../src/graphql";
-import { DataProvider } from "./contexts/DataProvider";
+import { DataContext, DataProvider } from "./contexts/DataProvider";
 
 // Dynamically import WPEditorApp to avoid SSR issues with window access
 const WPEditorApp = dynamicImport(
@@ -13,21 +13,18 @@ const WPEditorApp = dynamicImport(
 );
 
 function ApolloWrapper({ children }) {
-    const makeClient = () => {
-        const apiUrl =
+    const { apiUrl } = React.useContext(DataContext) || {};
+    const client = React.useMemo(() => {
+        const fallbackApiUrl =
             typeof window !== "undefined" && window.arc_ai_editor_api_url
                 ? window.arc_ai_editor_api_url[0]
                 : undefined;
+        const clientApiUrl = apiUrl || fallbackApiUrl;
 
-        console.log("🔧 API URL:", apiUrl);
-        return getClient(apiUrl);
-    };
+        return getClient(clientApiUrl);
+    }, [apiUrl]);
 
-    return (
-        <ApolloNextAppProvider makeClient={makeClient}>
-            {children}
-        </ApolloNextAppProvider>
-    );
+    return <ApolloProvider client={client}>{children}</ApolloProvider>;
 }
 
 export default function WPEditorClientPage() {

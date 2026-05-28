@@ -58,8 +58,7 @@ const projects = process.env.CI
                   "^react-markdown$": "<rootDir>/__mocks__/react-markdown.js",
                   "^mermaid$": "<rootDir>/__mocks__/mermaid.js",
                   "^remark-gfm$": "<rootDir>/__mocks__/remark-plugin.js",
-                  "^remark-directive$":
-                      "<rootDir>/__mocks__/remark-plugin.js",
+                  "^remark-directive$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^remark-math$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-katex$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-raw$": "<rootDir>/__mocks__/remark-plugin.js",
@@ -128,8 +127,7 @@ const projects = process.env.CI
                   "^react-markdown$": "<rootDir>/__mocks__/react-markdown.js",
                   "^mermaid$": "<rootDir>/__mocks__/mermaid.js",
                   "^remark-gfm$": "<rootDir>/__mocks__/remark-plugin.js",
-                  "^remark-directive$":
-                      "<rootDir>/__mocks__/remark-plugin.js",
+                  "^remark-directive$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^remark-math$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-katex$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-raw$": "<rootDir>/__mocks__/remark-plugin.js",
@@ -189,8 +187,7 @@ const projects = process.env.CI
                   "^react-markdown$": "<rootDir>/__mocks__/react-markdown.js",
                   "^mermaid$": "<rootDir>/__mocks__/mermaid.js",
                   "^remark-gfm$": "<rootDir>/__mocks__/remark-plugin.js",
-                  "^remark-directive$":
-                      "<rootDir>/__mocks__/remark-plugin.js",
+                  "^remark-directive$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^remark-math$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-katex$": "<rootDir>/__mocks__/remark-plugin.js",
                   "^rehype-raw$": "<rootDir>/__mocks__/remark-plugin.js",

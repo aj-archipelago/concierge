@@ -4,6 +4,7 @@ import App from "@/app/api/models/app";
 
 // GET: fetch existing app for workspace
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

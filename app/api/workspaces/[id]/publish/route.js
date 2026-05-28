@@ -7,6 +7,7 @@ import {
 } from "./utils";
 
 export async function POST(req, { params }) {
+    params = await params;
     const { id } = params;
     const { publish, pathwayName, model } = await req.json();
     const user = await getCurrentUser();

@@ -60,6 +60,7 @@ const findClosestIcon = (requestedName, availableIcons) => {
 };
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const { name } = params;
 

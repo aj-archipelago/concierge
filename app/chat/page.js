@@ -6,7 +6,7 @@ const CHAT_LIST_PAGE_SIZE = 30;
 
 export default async function ChatHistoryPage() {
     let initialChats = null;
-    const headerList = headers();
+    const headerList = await headers();
     const skipSSR = headerList.get("x-skip-ssr-chats") === "true";
 
     if (!skipSSR) {

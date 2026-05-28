@@ -122,6 +122,7 @@ async function deleteCloudFile(file, { scope, appletId, userContextId }) {
 
 // POST: upload a file for a canvas applet
 export async function POST(request, { params }) {
+    params = await params;
     const { id } = params;
     const scope = getRequestedScope(request);
 
@@ -223,6 +224,7 @@ export async function POST(request, { params }) {
 
 // GET: retrieve files for a canvas applet
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
     const scope = getRequestedScope(request);
 
@@ -269,6 +271,7 @@ export async function GET(request, { params }) {
 
 // DELETE: delete a specific file from a canvas applet
 export async function DELETE(request, { params }) {
+    params = await params;
     const { id } = params;
     const scope = getRequestedScope(request);
     const { searchParams } = new URL(request.url);

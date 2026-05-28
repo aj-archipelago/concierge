@@ -66,6 +66,7 @@ async function removeSharedFileReference(workspaceId, workspace, fileId) {
 
 // DELETE: delete a specific shared file from a workspace/applet by file ID
 export async function DELETE(request, { params }) {
+    params = await params;
     const { id: workspaceId, fileId } = params;
     const { searchParams } = new URL(request.url);
     const force = searchParams.get("force") === "true";

@@ -11,6 +11,8 @@ import { isClientOnlyChatId } from "../../utils/chatClientIds";
 const DEFAULT_CHAT_MESSAGES_LIMIT = 30;
 
 export default async function ChatPage({ params, searchParams }) {
+    params = await params;
+    searchParams = await searchParams;
     let id = String(params.id);
     //also check id if valid mongo object id
     if (!id || id === "undefined" || id === "null") {

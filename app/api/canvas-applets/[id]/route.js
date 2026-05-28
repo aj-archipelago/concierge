@@ -33,6 +33,7 @@ async function requireUser() {
 }
 
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -47,6 +48,7 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -64,6 +66,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

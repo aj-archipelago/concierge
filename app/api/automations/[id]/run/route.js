@@ -8,6 +8,7 @@ import {
 } from "../../utils";
 
 export async function POST(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const automation = await findAutomationForUser(params.id, user._id);

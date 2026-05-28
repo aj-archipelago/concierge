@@ -11,6 +11,7 @@ import { resolveAndHealFile } from "../../../../../../utils/file-resolution-util
 
 // GET: stream file content for an applet (proxies Azure storage to avoid CORS)
 export async function GET(request, { params }) {
+    params = await params;
     const { id: workspaceId, fileId } = params;
 
     try {

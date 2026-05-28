@@ -2,6 +2,7 @@ import Run from "../../../models/run";
 import { getCurrentUser } from "../../../utils/auth";
 
 export async function GET(req, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
         const outputs = await Run.find({
@@ -17,6 +18,7 @@ export async function GET(req, { params }) {
 }
 
 export async function DELETE(req, { params }) {
+    params = await params;
     try {
         const currentUser = await getCurrentUser();
         const workspaceId = params.id;

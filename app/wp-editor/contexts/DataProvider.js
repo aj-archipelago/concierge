@@ -15,7 +15,9 @@ export const DataProvider = ({ children }) => {
 
     // Listen for init message from WordPress parent window
     useEffect(() => {
-        console.log("🎬 DataProvider: Setting up __CONCIERGE_INIT__ listener...");
+        console.log(
+            "🎬 DataProvider: Setting up __CONCIERGE_INIT__ listener...",
+        );
 
         const handleMessage = (event) => {
             if (event.data.type === "__CONCIERGE_INIT__") {

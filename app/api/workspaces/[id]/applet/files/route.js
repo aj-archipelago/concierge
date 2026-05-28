@@ -20,6 +20,7 @@ async function deleteCloudFile(file, userContextId, appletId) {
 
 // POST: upload a file for an applet with streaming support
 export async function POST(request, { params }) {
+    params = await params;
     const { id } = params;
     const workspace = await getWorkspace(id);
     const user = await getCurrentUser();
@@ -112,6 +113,7 @@ export async function POST(request, { params }) {
 
 // GET: retrieve files for an applet
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -146,6 +148,7 @@ export async function GET(request, { params }) {
 
 // DELETE: delete a specific file from an applet
 export async function DELETE(request, { params }) {
+    params = await params;
     const { id } = params;
     const { searchParams } = new URL(request.url);
     const filename = searchParams.get("filename");

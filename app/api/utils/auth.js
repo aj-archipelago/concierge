@@ -211,7 +211,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
     let username = null;
 
     // Check for Azure App Service authentication headers
-    const headerList = headers();
+    const headerList = await headers();
     id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
     username = resolveEntraPrincipalEmail(headerList);
 

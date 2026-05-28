@@ -39,6 +39,7 @@ async function getStoreDocument({ scope, appletId, userId }) {
 
 // GET: stream file content for a canvas applet (proxies storage to avoid CORS)
 export async function GET(request, { params }) {
+    params = await params;
     const { id: appletId, fileId } = params;
     const scope = getRequestedScope(request);
 

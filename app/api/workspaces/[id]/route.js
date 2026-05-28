@@ -11,6 +11,7 @@ import { getWorkspace } from "./db";
 import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
 
 export async function DELETE(req, { params }) {
+    params = await params;
     const { id } = params;
     const user = await getCurrentUser();
     const workspace = await Workspace.findById(id);
@@ -86,6 +87,7 @@ export async function DELETE(req, { params }) {
 }
 
 export async function PUT(req, { params }) {
+    params = await params;
     const { id } = params;
     const attrs = await req.json();
     const workspace = await Workspace.findById(id);
@@ -122,6 +124,7 @@ export async function PUT(req, { params }) {
 }
 
 export async function GET(req, { params }) {
+    params = await params;
     const { id } = params;
     let workspace = await getWorkspace(id);
 

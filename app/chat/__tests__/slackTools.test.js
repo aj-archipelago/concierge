@@ -2,10 +2,7 @@
  * @jest-environment node
  */
 
-import {
-    handleSendSlackMessage,
-    SLACK_CONTEXTUAL_TOOLS,
-} from "../slackTools";
+import { handleSendSlackMessage, SLACK_CONTEXTUAL_TOOLS } from "../slackTools";
 
 describe("Slack contextual tools", () => {
     let originalFetch;

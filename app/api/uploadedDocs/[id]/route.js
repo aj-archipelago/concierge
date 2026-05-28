@@ -2,6 +2,7 @@ import User from "../../models/user";
 import { getCurrentUser, handleError } from "../../utils/auth";
 
 export async function DELETE(req, { params }) {
+    params = await params;
     try {
         const { id } = params;
 
@@ -23,6 +24,7 @@ export async function DELETE(req, { params }) {
 }
 
 export async function GET(req, { params }) {
+    params = await params;
     try {
         const { id } = params;
 

@@ -1833,7 +1833,8 @@ export async function handleGetChatContent(toolInfo, context) {
         const messages = chat.messages || [];
         const messagesList = messages
             .map((msg, index) => {
-                const sender = msg.sender === "assistant" ? "Assistant" : "User";
+                const sender =
+                    msg.sender === "assistant" ? "Assistant" : "User";
                 const payload =
                     typeof msg.payload === "string"
                         ? msg.payload

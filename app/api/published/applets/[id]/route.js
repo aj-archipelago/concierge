@@ -18,6 +18,7 @@ function jsonNoStore(body, init = {}) {
 
 // GET: fetch a published canvas applet (no auth required - public endpoint)
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

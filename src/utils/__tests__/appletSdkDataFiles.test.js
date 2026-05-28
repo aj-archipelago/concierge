@@ -88,9 +88,9 @@ describe("ConciergeSDK data and files namespaces", () => {
         });
 
         test("sharedData.get rejects when no applet-id meta tag", async () => {
-            await expect(ConciergeSDK.sharedData.get("workspace")).rejects.toThrow(
-                "No applet-id meta tag found",
-            );
+            await expect(
+                ConciergeSDK.sharedData.get("workspace"),
+            ).rejects.toThrow("No applet-id meta tag found");
         });
 
         test("files.upload rejects when no applet-id meta tag", async () => {
@@ -192,15 +192,15 @@ describe("ConciergeSDK data and files namespaces", () => {
             });
 
             test("rejects when key is not a string", async () => {
-                await expect(ConciergeSDK.data.set(123, "value")).rejects.toThrow(
-                    "key must be a non-empty string",
-                );
+                await expect(
+                    ConciergeSDK.data.set(123, "value"),
+                ).rejects.toThrow("key must be a non-empty string");
             });
 
             test("rejects when key is empty", async () => {
-                await expect(ConciergeSDK.data.set("", "value")).rejects.toThrow(
-                    "key must be a non-empty string",
-                );
+                await expect(
+                    ConciergeSDK.data.set("", "value"),
+                ).rejects.toThrow("key must be a non-empty string");
             });
 
             test("rejects when value is undefined", async () => {
@@ -568,9 +568,9 @@ describe("ConciergeSDK data and files namespaces", () => {
         });
 
         test("sharedData.set rejects missing value", async () => {
-            await expect(ConciergeSDK.sharedData.set("workspace")).rejects.toThrow(
-                "value is required",
-            );
+            await expect(
+                ConciergeSDK.sharedData.set("workspace"),
+            ).rejects.toThrow("value is required");
         });
 
         test("sharedData.set rejects non-object values", async () => {

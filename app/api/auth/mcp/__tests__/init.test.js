@@ -30,7 +30,11 @@ import {
     registerMcpOAuthClient,
 } from "../../../utils/mcpOAuth";
 
-function makeRequest({ body, host = "concierge.example.com", proto = "https" }) {
+function makeRequest({
+    body,
+    host = "concierge.example.com",
+    proto = "https",
+}) {
     return {
         json: jest.fn().mockResolvedValue(body),
         headers: {

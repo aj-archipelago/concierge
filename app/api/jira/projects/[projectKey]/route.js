@@ -3,6 +3,7 @@ const getJiraRestUrl = (siteId, projectKey) =>
     `https://api.atlassian.com/ex/jira/${siteId}/rest/api/3/project/${projectKey}`;
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const searchParams = request.nextUrl.searchParams;
         // read token parameter from querystring

@@ -8,6 +8,7 @@ const taskQueue = new Queue("task", {
 });
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const { id } = params;
 

@@ -14,6 +14,7 @@ const TERMINAL_TASK_STATUSES = new Set([
 ]);
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const { id } = params;

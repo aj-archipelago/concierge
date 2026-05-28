@@ -187,6 +187,7 @@ async function clearChatLoading(chatId) {
  * - No reconnection support - if client wants to reconnect, they wait for completion and refresh
  */
 export async function POST(req, { params }) {
+    params = await params;
     const { id } = params;
     if (!id) {
         return NextResponse.json(

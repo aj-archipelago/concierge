@@ -22,7 +22,7 @@ const logUnauthorizedEntraRequest = (
     resolvedEmail = null,
     authContext = {},
 ) => {
-    console.warn("Unauthorized Entra request blocked by middleware", {
+    console.warn("Unauthorized Entra request blocked by proxy", {
         reason,
         ...getEntraPrincipalLogContext(request.headers, resolvedEmail),
         ...authContext,
@@ -72,7 +72,7 @@ const isAuthorized = (request) => {
     return true;
 };
 
-export function middleware(request) {
+export function proxy(request) {
     if (!isAuthorized(request)) {
         return Response.json(
             { success: false, message: "Unauthorized" },

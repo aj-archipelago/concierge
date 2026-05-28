@@ -61,6 +61,7 @@ async function setHomeWidget(ownerId, automation, pinned) {
 }
 
 export async function GET(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const automation = await findAutomationForUser(params.id, user._id);
@@ -91,6 +92,7 @@ export async function GET(request, { params }) {
 }
 
 export async function PUT(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const automation = await findAutomationForUser(params.id, user._id);
@@ -197,6 +199,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+    params = await params;
     try {
         const user = await getCurrentUser();
         const existing = await findAutomationForUser(params.id, user._id);

@@ -2,6 +2,7 @@ import Run from "../../models/run";
 import { getCurrentUser } from "../../utils/auth";
 
 export async function DELETE(req, { params }) {
+    params = await params;
     const id = params.id;
     const currentUser = await getCurrentUser();
 

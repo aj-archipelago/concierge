@@ -2,6 +2,7 @@ import { getCurrentUser } from "../../../utils/auth.js";
 import MediaItem from "../../../models/media-item.mjs";
 
 export async function PUT(req, { params }) {
+    params = await params;
     const user = await getCurrentUser();
     const { id } = params;
     const body = await req.json();

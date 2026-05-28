@@ -16,6 +16,7 @@ import {
  * attempts to re-upload them from their last known URL
  */
 export async function POST(request, { params }) {
+    params = await params;
     const { id: workspaceId } = params;
 
     try {

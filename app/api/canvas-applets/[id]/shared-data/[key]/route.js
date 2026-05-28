@@ -28,6 +28,7 @@ function sharedDataResponse(doc) {
 
 // GET: retrieve shared data for a canvas applet workspace.
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -64,6 +65,7 @@ export async function GET(request, { params }) {
 
 // PUT: create or replace shared data with revision protection.
 export async function PUT(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

@@ -5,6 +5,7 @@ import { republishWorkspace } from "../publish/utils";
 import config from "../../../../../config";
 
 export async function POST(req, { params }) {
+    params = await params;
     const { id } = params;
     const user = await getCurrentUser();
 

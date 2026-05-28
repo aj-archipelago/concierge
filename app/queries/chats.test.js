@@ -52,7 +52,11 @@ describe("useUpdateChat", () => {
     it("preserves newer cached messages for non-message updates", async () => {
         const chatId = "507f1f77bcf86cd799439011";
         const cachedMessages = [
-            { _id: "m_latest", sender: "assistant", payload: "latest assistant" },
+            {
+                _id: "m_latest",
+                sender: "assistant",
+                payload: "latest assistant",
+            },
         ];
 
         queryClient.setQueryData(["chat", chatId], {

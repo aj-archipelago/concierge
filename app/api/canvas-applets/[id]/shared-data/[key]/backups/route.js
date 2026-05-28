@@ -23,6 +23,7 @@ function toBackupSummary(backup) {
 
 // GET: list shared data recovery snapshots for a workspace key.
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {

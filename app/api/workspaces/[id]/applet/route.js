@@ -11,6 +11,7 @@ import { hydrateAppletVersionContents } from "@/app/api/canvas-applets/versionin
 
 // GET: fetch or create applet (already implemented)
 export async function GET(request, { params }) {
+    params = await params;
     const { id } = params;
 
     try {
@@ -55,6 +56,7 @@ export async function GET(request, { params }) {
 
 // PUT: update applet (html, messages, etc)
 export async function PUT(request, { params }) {
+    params = await params;
     const { id } = params;
     const body = await request.json();
 
