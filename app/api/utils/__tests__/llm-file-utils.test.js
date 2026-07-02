@@ -1661,6 +1661,26 @@ describe("blob URL allowlist", () => {
         );
     });
 
+    it("allows Azure Blob account hosts by default while rejecting lookalikes", () => {
+        expect(
+            isAllowedBlobDomain("customerstorage.blob.core.windows.net"),
+        ).toBe(true);
+        expect(() =>
+            validateAllowedBlobUrl(
+                "https://customerstorage.blob.core.windows.net/container/file.txt",
+            ),
+        ).not.toThrow();
+
+        expect(
+            isAllowedBlobDomain("evil.customerstorage.blob.core.windows.net"),
+        ).toBe(false);
+        expect(() =>
+            validateAllowedBlobUrl(
+                "https://evil.customerstorage.blob.core.windows.net/container/file.txt",
+            ),
+        ).toThrow("URL is not from an allowed domain");
+    });
+
     it("rejects non-exact storage origins before fetch", () => {
         expect(() =>
             validateAllowedBlobUrl(

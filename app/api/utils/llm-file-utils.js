@@ -22,6 +22,8 @@ const DEFAULT_BLOB_ORIGINS = [
     "https://storage.googleapis.com",
     "https://storage.cloud.google.com",
 ];
+const AZURE_BLOB_HOST_SUFFIX = ".blob.core.windows.net";
+const AZURE_STORAGE_ACCOUNT_RE = /^[a-z0-9]{3,24}$/;
 
 function parseBlobOrigins(value) {
     return String(value || "")
@@ -61,19 +63,45 @@ export const LOCAL_BLOB_DOMAINS = LOCAL_BLOB_ORIGINS.map(
     (origin) => new URL(origin).hostname,
 );
 
+function isDefaultAzureBlobHostname(hostname) {
+    const normalizedHostname = String(hostname || "").toLowerCase();
+    if (!normalizedHostname.endsWith(AZURE_BLOB_HOST_SUFFIX)) {
+        return false;
+    }
+
+    const accountName = normalizedHostname.slice(
+        0,
+        -AZURE_BLOB_HOST_SUFFIX.length,
+    );
+    return AZURE_STORAGE_ACCOUNT_RE.test(accountName);
+}
+
+function isDefaultAzureBlobOrigin(urlObj) {
+    return (
+        urlObj.protocol === "https:" &&
+        !urlObj.port &&
+        isDefaultAzureBlobHostname(urlObj.hostname)
+    );
+}
+
 /**
  * Check if a hostname is from an allowed blob storage domain.
- * Uses exact hostname matches only; proxy fetches are restricted to known storage origins.
+ * Uses exact configured hostnames plus validated Azure Blob account hostnames.
  * @param {string} hostname - The hostname to check
  * @returns {boolean}
  */
 export function isAllowedBlobDomain(hostname) {
+    const normalizedHostname = String(hostname || "").toLowerCase();
+    if (isDefaultAzureBlobHostname(normalizedHostname)) {
+        return true;
+    }
+
     const allowedDomains = [...ALLOWED_BLOB_DOMAINS];
     if (process.env.NODE_ENV !== "production") {
         allowedDomains.push(...LOCAL_BLOB_DOMAINS);
     }
 
-    return allowedDomains.includes(hostname);
+    return allowedDomains.includes(normalizedHostname);
 }
 
 function isLocalBlobDomain(hostname) {
@@ -89,6 +117,10 @@ function blobUrlValidationError(message, status) {
 function getAllowedBlobOrigin(urlObj) {
     const normalizedOrigin = urlObj.origin.toLowerCase();
     if (ALLOWED_BLOB_ORIGINS.includes(normalizedOrigin)) {
+        return normalizedOrigin;
+    }
+
+    if (isDefaultAzureBlobOrigin(urlObj)) {
         return normalizedOrigin;
     }
 

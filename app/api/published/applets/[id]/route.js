@@ -67,6 +67,7 @@ export async function GET(request, { params }) {
         const appListing = await App.findOne({
             appletId: id,
             status: APP_STATUS.ACTIVE,
+            listedInStore: { $ne: false },
         })
             .select("_id")
             .lean();

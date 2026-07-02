@@ -86,6 +86,51 @@ describe("GET /api/published/applets/[id]", () => {
         expect(body.meta).toBeNull();
     });
 
+    it("does not treat private active app records as public listings", async () => {
+        Applet.findOne.mockReturnValue({
+            select: jest.fn(() => ({
+                lean: jest.fn(async () => ({
+                    _id: "507f1f77bcf86cd799439011",
+                    owner: "owner-1",
+                    name: "Budget tracker",
+                    publishedVersionIndex: 0,
+                    htmlVersions: [{ contentBlobPath: "blob/path" }],
+                })),
+            })),
+        });
+        App.findOne.mockImplementation((query) => ({
+            select: jest.fn(() => ({
+                lean: jest.fn(async () =>
+                    query.listedInStore?.$ne === false
+                        ? null
+                        : { _id: "private-app", listedInStore: false },
+                ),
+            })),
+        }));
+        getCurrentUser.mockResolvedValue(null);
+        resolveShareAccess.mockResolvedValue({
+            canAccess: false,
+            isOwner: false,
+            role: null,
+        });
+
+        const response = await GET(new Request("http://localhost"), {
+            params: Promise.resolve({
+                id: "507f1f77bcf86cd799439011",
+            }),
+        });
+
+        expect(response.status).toBe(401);
+        expect(App.findOne).toHaveBeenCalledWith(
+            expect.objectContaining({
+                appletId: "507f1f77bcf86cd799439011",
+                status: "active",
+                listedInStore: { $ne: false },
+            }),
+        );
+        expect(resolveShareAccess).toHaveBeenCalled();
+    });
+
     it("allows link-shared published applets without auth", async () => {
         Applet.findOne.mockReturnValue({
             select: jest.fn(() => ({

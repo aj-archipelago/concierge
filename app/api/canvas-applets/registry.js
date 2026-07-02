@@ -1309,8 +1309,11 @@ async function updateAppletRegistryUnlocked(user, id, body = {}) {
 
     if (didPublish && body.publishToAppStore !== true) {
         const targetApplet = savedApplet || applet;
+        const publishSharingModeProvided =
+            body.publishViaLink !== undefined ||
+            body.publishRecipients !== undefined;
 
-        if (body.publishViaLink === true) {
+        if (body.publishViaLink === true || !publishSharingModeProvided) {
             try {
                 await upsertEntityShare({
                     entityType: "applet",

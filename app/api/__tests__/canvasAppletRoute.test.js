@@ -882,6 +882,70 @@ describe("canvas applets route", () => {
         );
     });
 
+    test("defaults direct non-store publishes to link sharing", async () => {
+        const { getCurrentUser } = require("../utils/auth");
+        const Applet = require("../models/applet").default;
+        const App = require("../models/app").default;
+        const { upsertEntityShare } = require("../utils/shareHelpers.js");
+        const {
+            getCanvasAppletEditableFileInfo,
+        } = require("../canvas-applets/files");
+        const {
+            resolveAppletVersionContent,
+        } = require("../canvas-applets/versioning");
+
+        const appletId = "69f68d347999b2bbd8ffb91a";
+        const applet = {
+            _id: appletId,
+            owner: "user-123",
+            name: "Weather",
+            filePath: "https://draft.example/weather.html",
+            version: 2,
+            htmlVersions: [{ content: "<html>v1</html>" }],
+            publishedVersionIndex: null,
+        };
+        getCurrentUser.mockResolvedValue({
+            _id: "user-123",
+            contextId: "ctx",
+        });
+        Applet.findById.mockResolvedValue(applet);
+        Applet.findByIdAndUpdate.mockResolvedValue({
+            ...applet,
+            publishedVersionIndex: 0,
+        });
+        App.find.mockReturnValue({
+            lean: jest.fn().mockResolvedValue([]),
+        });
+        App.findOne.mockResolvedValue(null);
+        App.findOneAndUpdate.mockResolvedValue({});
+        getCanvasAppletEditableFileInfo.mockResolvedValue({
+            workspacePath: "/workspace/files/applets/weather.html",
+        });
+        resolveAppletVersionContent.mockResolvedValue("<html>v1</html>");
+
+        const response = await PUT(
+            {
+                json: async () => ({
+                    publishVersion: 1,
+                }),
+            },
+            { params: { id: appletId } },
+        );
+        const body = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(body.publishedVersionIndex).toBe(0);
+        expect(upsertEntityShare).toHaveBeenCalledWith(
+            expect.objectContaining({
+                entityType: "applet",
+                entityId: appletId,
+                ownerId: "user-123",
+                recipients: [],
+                link: { enabled: true, role: "viewer" },
+            }),
+        );
+    });
+
     test("backfills canonical published content when updating app-store metadata for a v2 applet", async () => {
         const { getCurrentUser } = require("../utils/auth");
         const Applet = require("../models/applet").default;
