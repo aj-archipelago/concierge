@@ -1,25 +1,35 @@
 "use client";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { useEffect, useState, useContext } from "react";
-import { useCurrentUser, useUpdateCurrentUser } from "../../app/queries/users";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useDispatch } from "react-redux";
+import { useAddChat } from "../../app/queries/chats";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
-import { Plus, Check } from "lucide-react";
+import { Loader2, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { openCanvasAppletInChat } from "@/src/utils/openCanvasApplet";
+import { isAppletEmbedMode } from "@/src/utils/appletChrome";
+import { cn } from "@/lib/utils";
 
 export default function PublishedAppletView({
     applet,
     app,
+    meta = null,
     isLoading,
     error: appletError,
 }) {
     const { theme } = useContext(ThemeContext);
     const { t } = useTranslation();
-    const { data: currentUser } = useCurrentUser();
-    const updateUser = useUpdateCurrentUser();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const dispatch = useDispatch();
+    const addChat = useAddChat();
     const [error, setError] = useState(null);
     const [publishedHtml, setPublishedHtml] = useState(null);
-    const [isAdding, setIsAdding] = useState(false);
-    const [showSuccess, setShowSuccess] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
+    const [copyError, setCopyError] = useState(null);
+    const canAdminCopy = meta?.canAdminCopy === true;
+    const renderWithoutChrome = isAppletEmbedMode(searchParams);
 
     useEffect(() => {
         if (isLoading) return;
@@ -33,93 +43,115 @@ export default function PublishedAppletView({
 
         if (!applet) return;
 
-        const { publishedHtml: apiPublishedHtml } = applet;
+        const apiRunnableHtml = applet.publishedHtml || applet.runtimeHtml;
 
-        if (!apiPublishedHtml) {
-            setError("This applet is not published.");
+        if (!apiRunnableHtml) {
+            setError(t("This applet has no runnable version."));
             setPublishedHtml(null);
             return;
         }
 
         setError(null);
-        setPublishedHtml(apiPublishedHtml);
-    }, [applet, isLoading, appletError]);
+        setPublishedHtml(apiRunnableHtml);
+    }, [applet, isLoading, appletError, t]);
 
-    // Check if app is installed
-    const isAppInstalled = currentUser?.apps?.some(
-        (userApp) =>
-            userApp.appId === app?._id ||
-            (typeof userApp.appId === "object" &&
-                userApp.appId &&
-                userApp.appId._id === app?._id),
-    );
+    const handleCopyToAccount = async () => {
+        if (!applet?._id || isCopying) return;
 
-    const handleAddApp = async () => {
-        if (!app || isAdding) return;
-
-        setIsAdding(true);
+        setIsCopying(true);
+        setCopyError(null);
         try {
-            const newApp = {
-                appId: app._id,
-                order: currentUser?.apps?.length || 0,
-                addedAt: new Date(),
-            };
+            const response = await fetch(
+                `/api/canvas-applets/${applet._id}/copy`,
+                { method: "POST" },
+            );
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || t("Failed to copy applet"));
+            }
 
-            const updatedApps = [...(currentUser?.apps || []), newApp];
-            await updateUser.mutateAsync({
-                data: { apps: updatedApps },
+            await openCanvasAppletInChat({
+                appletId: payload._id,
+                fallbackApplet: payload,
+                addChat,
+                dispatch,
+                router,
+                t,
             });
-
-            // Show success indicator for 3 seconds then fade out
-            setShowSuccess(true);
-            setTimeout(() => {
-                setShowSuccess(false);
-            }, 3000);
-        } catch (error) {
-            console.error("Error adding app:", error);
+        } catch (copyErr) {
+            console.error("Error copying applet:", copyErr);
+            setCopyError(copyErr?.message || t("Failed to copy applet"));
         } finally {
-            setIsAdding(false);
+            setIsCopying(false);
         }
     };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-screen">
-                <span>Loading...</span>
+            <div
+                className="flex h-screen items-center justify-center"
+                role="status"
+                aria-label={t("Loading applet...")}
+            >
+                <Loader2
+                    className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500"
+                    aria-hidden="true"
+                />
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex items-center justify-center h-full text-red-600">
+            <div className="flex items-center justify-center h-full text-red-600 dark:text-red-400">
                 <span>{error}</span>
             </div>
         );
     }
 
     return (
-        <div className="w-full h-full relative">
-            {/* Add App Button */}
-            {app && app._id && !isAppInstalled && (
-                <button
-                    onClick={handleAddApp}
-                    disabled={isAdding}
-                    className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-sky-500 hover:bg-sky-600 text-white shadow-lg transition-colors disabled:opacity-50"
-                    title={t("Add to my apps")}
-                >
-                    {isAdding ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        <Plus className="w-5 h-5" />
-                    )}
-                </button>
+        <div
+            className={cn(
+                "relative h-full w-full",
+                renderWithoutChrome &&
+                    "h-screen min-h-screen bg-white dark:bg-gray-900",
+            )}
+        >
+            {!renderWithoutChrome && canAdminCopy && (
+                <div className="absolute top-4 end-4 z-10 flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleCopyToAccount}
+                        disabled={isCopying}
+                        aria-label={t("Copy to my account")}
+                        aria-busy={isCopying}
+                        className="inline-flex h-10 items-center gap-2 rounded-full bg-violet-600 px-4 text-sm font-medium text-white shadow-lg transition-colors hover:bg-violet-700 disabled:opacity-50"
+                        title={t("Copy to my account")}
+                    >
+                        {isCopying ? (
+                            <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                            />
+                        ) : (
+                            <Copy className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        <span className="hidden sm:inline">
+                            {isCopying
+                                ? t("Copying applet...")
+                                : t("Copy to my account")}
+                        </span>
+                    </button>
+                </div>
             )}
 
-            {/* Success indicator */}
-            {app && app._id && isAppInstalled && showSuccess && (
-                <div className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-green-500 text-white shadow-lg transition-opacity duration-500">
-                    <Check className="w-5 h-5" />
+            {!renderWithoutChrome && copyError && (
+                <div
+                    role="alert"
+                    aria-live="polite"
+                    className="absolute top-16 end-4 z-10 max-w-xs rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-lg dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+                >
+                    {copyError}
                 </div>
             )}
 
@@ -128,6 +160,7 @@ export default function PublishedAppletView({
                 content={publishedHtml}
                 height="100%"
                 theme={theme}
+                autoResize={false}
             />
         </div>
     );

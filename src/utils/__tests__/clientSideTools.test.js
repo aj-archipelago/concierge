@@ -3,10 +3,12 @@
  */
 
 import { registerCanvasAppletFromWorkspaceFile } from "../appletGeneration";
+import { kickoffAppletAssetGeneration } from "../appletAssetGeneration";
 import { uploadFileToMediaHelper } from "../fileUploadUtils";
 import {
     CLIENT_SIDE_TOOLS,
     CLIENT_SIDE_TOOL_HANDLERS,
+    getClientSideToolFocusError,
     resolveCanvasAppletForFile,
 } from "../clientSideTools";
 
@@ -16,6 +18,10 @@ const VALID_PNG_DATA_URL =
 jest.mock("../appletGeneration", () => ({
     launchAppletGeneration: jest.fn(),
     registerCanvasAppletFromWorkspaceFile: jest.fn(),
+}));
+
+jest.mock("../appletAssetGeneration", () => ({
+    kickoffAppletAssetGeneration: jest.fn(),
 }));
 
 jest.mock("../fileUploadUtils", () => ({
@@ -33,6 +39,63 @@ const {
     requireActiveAppletDocument: mockRequireActiveAppletDocument,
     inspectApplet: mockInspectApplet,
 } = jest.requireMock("../activeAppletSandbox");
+
+describe("clientSideTools background focus policy", () => {
+    test("declines navigation tools for inactive chat streams", () => {
+        expect(
+            getClientSideToolFocusError("navigate", {
+                chatId: "chat-background",
+                isActiveChat: false,
+            }),
+        ).toContain("chat is running in the background");
+        expect(
+            getClientSideToolFocusError("ViewAutomationHtml", {
+                chatId: "chat-background",
+                isActiveChat: false,
+            }),
+        ).toContain("chat is running in the background");
+    });
+
+    test("declines applet iframe driver tools for inactive chat streams", () => {
+        expect(
+            getClientSideToolFocusError("ClickAppletElement", {
+                chatId: "chat-background",
+                isActiveChat: false,
+            }),
+        ).toContain("currently mounted canvas");
+    });
+
+    test("driver handlers enforce inactive-chat focus policy", async () => {
+        await expect(
+            CLIENT_SIDE_TOOL_HANDLERS.clickappletelement(
+                {
+                    toolArgs: {
+                        selector: "button",
+                    },
+                },
+                {
+                    chatId: "chat-background",
+                    isActiveChat: false,
+                },
+            ),
+        ).rejects.toThrow("chat is running in the background");
+    });
+
+    test("allows canvas mutation tools to run for inactive chat streams", () => {
+        expect(
+            getClientSideToolFocusError("OpenCanvasFile", {
+                chatId: "chat-background",
+                isActiveChat: false,
+            }),
+        ).toBeNull();
+        expect(
+            getClientSideToolFocusError("CreateApplet", {
+                chatId: "chat-background",
+                isActiveChat: false,
+            }),
+        ).toBeNull();
+    });
+});
 
 describe("clientSideTools SubmitFeedback", () => {
     beforeEach(() => {
@@ -473,6 +536,45 @@ describe("clientSideTools CreateApplet", () => {
         expect(
             generateApplet.function.parameters.properties.createNew.description,
         ).toContain("separate new applet");
+        expect(generateApplet.function.description).toContain(
+            "automatically starts applet-specific metadata and card-image generation",
+        );
+        expect(
+            generateApplet.function.parameters.properties.prompt.description,
+        ).toContain("metadata and card-image generation start automatically");
+    });
+
+    test("starts applet asset generation after registering an existing workspace file", async () => {
+        const dispatch = jest.fn();
+        registerCanvasAppletFromWorkspaceFile.mockResolvedValue({
+            appletId: "applet-new",
+            appletName: "Storm Desk",
+            filename: "storm-desk.html",
+            workspacePath: "/workspace/files/applets/storm-desk.html",
+            html: "<html>storm</html>",
+            applet: {
+                filePath: "https://files.example/applets/storm-desk.html",
+            },
+        });
+
+        const result = await CLIENT_SIDE_TOOL_HANDLERS.createapplet(
+            {
+                toolArgs: {
+                    workspacePath: "/workspace/files/applets/storm-desk.html",
+                    userMessage: "Register applet",
+                },
+            },
+            {
+                dispatch,
+                user: { contextId: "ctx" },
+            },
+        );
+
+        expect(result.success).toBe(true);
+        expect(kickoffAppletAssetGeneration).toHaveBeenCalledWith({
+            appletId: "applet-new",
+            metadata: { name: "Storm Desk" },
+        });
     });
 });
 

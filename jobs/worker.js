@@ -1,5 +1,5 @@
 import { Queue, Worker } from "bullmq";
-import "dotenv/config";
+import "./load-env.js";
 import Redis from "ioredis";
 import automationScheduler from "./automation-scheduler.js";
 import cortexRequestWorker from "./cortex-request-worker.js";

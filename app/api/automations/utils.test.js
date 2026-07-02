@@ -20,10 +20,15 @@ jest.mock("../utils/media-service-utils.js", () => ({
     uploadBufferToMediaService: jest.fn(),
 }));
 
+jest.mock("../utils/shareAccess.js", () => ({
+    resolveShareAccess: jest.fn(),
+}));
+
 describe("automation utils", () => {
     const {
         automationEffectiveEnabled,
         calculateNextRunAt,
+        listAutomationSupportingFiles,
         normalizeAutomationSlug,
         normalizeSchedule,
         parseAutomationTaskOutput,
@@ -193,5 +198,34 @@ describe("automation utils", () => {
         expect(parsed.html).toBe(
             '<!doctype html>\n<html lang="en" data-theme="light"><body><main>Front Page</main></body></html>',
         );
+    });
+
+    test("lists supporting files without automation instructions or generated outputs", async () => {
+        const {
+            listAutomationFiles,
+        } = require("../utils/media-service-utils.js");
+        listAutomationFiles.mockResolvedValue([
+            {
+                name: "automations/daily/AUTOMATION.md",
+                filename: "AUTOMATION.md",
+            },
+            {
+                name: "automations/daily/references.pdf",
+                filename: "references.pdf",
+            },
+            {
+                name: "automations/daily/outputs/task-1/index.html",
+                filename: "index.html",
+            },
+        ]);
+
+        await expect(
+            listAutomationSupportingFiles("user-context", "daily"),
+        ).resolves.toEqual([
+            {
+                name: "automations/daily/references.pdf",
+                filename: "references.pdf",
+            },
+        ]);
     });
 });

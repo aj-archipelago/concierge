@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { getClient } from "../../../../src/graphql";
 import { getCurrentUser } from "../../utils/auth.js";
 import { validateAppletAccess } from "../access.js";
-import { fetchAppletModelMetadata } from "../model-utils.js";
+import {
+    fetchAppletMediaModelMetadata,
+    fetchAppletModelMetadata,
+} from "../model-utils.js";
 import { APPLET_SDK_LIMITS, withAppletSdkGuard } from "../sdk-guard.js";
 
 export async function GET(request) {
@@ -26,10 +29,18 @@ export async function GET(request) {
         return await withAppletSdkGuard({
             appletId,
             userId: user._id,
-            api: "models.list",
+            api:
+                searchParams.get("kind") === "media" ||
+                searchParams.get("category") === "media"
+                    ? "media.models"
+                    : "models.list",
             limits: APPLET_SDK_LIMITS.read,
             run: async () => {
-                const metadata = await fetchAppletModelMetadata(getClient());
+                const metadata =
+                    searchParams.get("kind") === "media" ||
+                    searchParams.get("category") === "media"
+                        ? await fetchAppletMediaModelMetadata(getClient())
+                        : await fetchAppletModelMetadata(getClient());
                 return NextResponse.json(metadata);
             },
         });

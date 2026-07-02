@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getClient, SUBSCRIPTIONS } from "../../../src/graphql";
+import { getClient } from "../../../src/graphql";
 import { getCurrentUser } from "../utils/auth";
 import config from "../../../config";
 import { ensureAppletSdkScript } from "../../../src/utils/appletSdkUtils.js";
@@ -12,6 +12,10 @@ import {
     executeRunWorkspacePrompt,
     RUN_WORKSPACE_PROMPT_PATHWAY,
 } from "../utils/run-workspace-prompt.js";
+import {
+    createGraphqlProgressSseResponse,
+    extractTextFromProgressData,
+} from "../utils/graphql-progress-sse.js";
 
 export const dynamic = "force-dynamic";
 
@@ -32,21 +36,6 @@ function postProcessHtml(html) {
     return ensureAppletSdkScript(result);
 }
 
-function extractTextFromProgressData(resultData) {
-    if (!resultData) return "";
-
-    try {
-        const parsed = JSON.parse(resultData);
-        if (typeof parsed === "string") {
-            return parsed;
-        }
-
-        return parsed?.choices?.[0]?.delta?.content ?? "";
-    } catch {
-        return resultData;
-    }
-}
-
 function getAppletGenerationAttempts(models) {
     if (models.length > 1) {
         return models;
@@ -63,6 +52,8 @@ Return only a single complete HTML document with inline CSS/JS as needed.
 OUTPUT RULES:
 - Return ONLY the HTML code. No markdown fences or explanations.
 - Prefer semantic HTML, accessible controls, and clear visual hierarchy.
+- For media-generation applets, generated JavaScript must call ConciergeSDK.media.models plus ConciergeSDK.media.create/createImage/createVideo/createMusic/createSpeech and monitor with ConciergeSDK.tasks.wait or ConciergeSDK.tasks.get; do not invent completed media URLs or build a separate media pipeline.
+- For transcription applets, generated JavaScript must call ConciergeSDK.media.transcribe and poll ConciergeSDK.tasks.get; include local file upload, media URL/YouTube input, media preview, progress/status, and final output; never invent/sample transcript text, use Web Speech, or add fallback transcript paths.
 - Keep the code readable and maintainable.
 
 ${BUILT_IN_SKILLS.find((skill) => skill.name === "applets")?.content || ""}`;
@@ -120,58 +111,15 @@ export async function POST(req) {
 
         const graphqlClient = getClient();
         const modelAttempts = getAppletGenerationAttempts(modelFallbacks);
-        const encoder = new TextEncoder();
-        let clientConnected = true;
-        let graphqlSubscription = null;
 
-        const unsubscribe = () => {
-            if (!graphqlSubscription) return;
-
-            try {
-                if (typeof graphqlSubscription.unsubscribe === "function") {
-                    graphqlSubscription.unsubscribe();
-                }
-            } catch (error) {
-                console.error("[generate-applet] Error unsubscribing:", error);
-            }
-
-            graphqlSubscription = null;
-        };
-
-        const stream = new ReadableStream({
-            async start(controller) {
-                const sendEvent = (event, data) => {
-                    if (!clientConnected) return;
-
-                    try {
-                        controller.enqueue(
-                            encoder.encode(
-                                `data: ${JSON.stringify({ event, data })}\n\n`,
-                            ),
-                        );
-                    } catch (error) {
-                        if (error.code === "ERR_INVALID_STATE") {
-                            clientConnected = false;
-                        }
-                    }
-                };
-
-                const closeStream = () => {
-                    if (!clientConnected) return;
-
-                    try {
-                        controller.close();
-                        clientConnected = false;
-                    } catch (error) {
-                        if (error.code !== "ERR_INVALID_STATE") {
-                            console.error(
-                                "[generate-applet] Error closing stream:",
-                                error,
-                            );
-                        }
-                    }
-                };
-
+        return createGraphqlProgressSseResponse({
+            logPrefix: "generate-applet",
+            run: async ({
+                sendEvent,
+                closeStream,
+                unsubscribe,
+                subscribeToRequestProgress,
+            }) => {
                 const runAttempt = async (model) => {
                     const { response } = await executeRunWorkspacePrompt({
                         graphqlClient,
@@ -202,20 +150,16 @@ export async function POST(req) {
                             resolve({ ok: false, error: message });
                         };
 
-                        graphqlSubscription = graphqlClient
-                            .subscribe({
-                                query: SUBSCRIPTIONS.REQUEST_PROGRESS,
-                                variables: { requestIds: [subscriptionId] },
-                            })
-                            .subscribe({
+                        subscribeToRequestProgress(
+                            graphqlClient,
+                            subscriptionId,
+                            {
                                 next: (result) => {
-                                    if (!result?.data?.requestProgress) return;
-
                                     const {
                                         progress,
                                         data: resultData,
                                         error,
-                                    } = result.data.requestProgress;
+                                    } = result;
 
                                     if (error) {
                                         finishFailure(error);
@@ -261,7 +205,8 @@ export async function POST(req) {
                                         "Applet generation stream ended before HTML was produced",
                                     );
                                 },
-                            });
+                            },
+                        );
                     });
                 };
 
@@ -305,18 +250,6 @@ export async function POST(req) {
                     unsubscribe();
                     closeStream();
                 }
-            },
-            cancel() {
-                clientConnected = false;
-                unsubscribe();
-            },
-        });
-
-        return new Response(stream, {
-            headers: {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache, no-transform",
-                Connection: "keep-alive",
             },
         });
     } catch (error) {

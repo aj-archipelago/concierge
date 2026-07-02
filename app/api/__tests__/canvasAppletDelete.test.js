@@ -11,6 +11,13 @@ jest.mock("../models/applet-data", () => ({
     },
 }));
 
+jest.mock("../models/applet-user-data", () => ({
+    __esModule: true,
+    default: {
+        deleteMany: jest.fn(),
+    },
+}));
+
 jest.mock("../models/applet-file", () => ({
     __esModule: true,
     default: {
@@ -83,6 +90,7 @@ describe("deleteCanvasAppletArtifacts", () => {
 
     test("deletes owner-scoped applet data, linked files, and the primary html file", async () => {
         const AppletData = require("../models/applet-data").default;
+        const AppletUserData = require("../models/applet-user-data").default;
         const AppletFile = require("../models/applet-file").default;
         const AppletSharedData =
             require("../models/applet-shared-data").default;
@@ -122,6 +130,7 @@ describe("deleteCanvasAppletArtifacts", () => {
             }),
         });
         AppletData.deleteMany.mockResolvedValue({ acknowledged: true });
+        AppletUserData.deleteMany.mockResolvedValue({ acknowledged: true });
         AppletFile.deleteMany.mockResolvedValue({ acknowledged: true });
         File.deleteMany.mockResolvedValue({ acknowledged: true });
         deleteMediaFile.mockResolvedValue({});
@@ -147,6 +156,10 @@ describe("deleteCanvasAppletArtifacts", () => {
             "applet123",
         );
         expect(AppletData.deleteMany).toHaveBeenCalledWith({
+            appletId: "applet123",
+            userId: "user123",
+        });
+        expect(AppletUserData.deleteMany).toHaveBeenCalledWith({
             appletId: "applet123",
             userId: "user123",
         });

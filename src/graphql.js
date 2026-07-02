@@ -270,6 +270,56 @@ const SYS_ENTITY_AGENT = gql`
     }
 `;
 
+const SOURCE_QA = gql`
+    query SourceQa(
+        $text: String!
+        $contextInfo: String
+        $language: String
+        $maxSearchResults: Int
+        $maxRefinementRounds: Int
+        $searchInternet: Boolean
+        $maxInternetResults: Int
+        $followUpQuestionCount: Int
+        $skipAnswerSynthesis: Boolean
+        $stream: Boolean
+    ) {
+        ask_aj(
+            text: $text
+            contextInfo: $contextInfo
+            language: $language
+            maxSearchResults: $maxSearchResults
+            maxRefinementRounds: $maxRefinementRounds
+            searchInternet: $searchInternet
+            maxInternetResults: $maxInternetResults
+            followUpQuestionCount: $followUpQuestionCount
+            skipAnswerSynthesis: $skipAnswerSynthesis
+            stream: $stream
+        ) {
+            result
+            resultData
+            tool
+            warnings
+            errors
+        }
+    }
+`;
+
+const SOURCE_QA_INITIAL_QUESTIONS = gql`
+    query SourceQaInitialQuestions(
+        $language: String
+        $prewarmAnswers: Boolean
+    ) {
+        ask_aj_initial_questions(
+            language: $language
+            prewarmAnswers: $prewarmAnswers
+        ) {
+            result
+            warnings
+            errors
+        }
+    }
+`;
+
 const SYS_ENTITY_UPDATE = gql`
     query Sys_entity_update(
         $entityId: String!
@@ -523,6 +573,38 @@ const TRANSCRIBE_GEMINI = gql`
     }
 `;
 
+const TRANSCRIBE_MAI_15 = gql`
+    query TranscribeMai15(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_mai_15(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSCRIBE_XAI_GEMINI = gql`
     query TranscribeXaiGemini(
         $file: String!
@@ -659,6 +741,15 @@ const TRANSLATE_AZURE = gql`
     }
 `;
 
+const TRANSLATE_GOOGLE_LLM = gql`
+    query TranslateGoogleLlm($text: String!, $to: String!) {
+        translate_google_llm(text: $text, to: $to) {
+            result
+            errors
+        }
+    }
+`;
+
 const ENTITIES = gql`
     query Entities($text: String!, $async: Boolean) {
         entities(text: $text, async: $async) {
@@ -699,6 +790,18 @@ const SUBMIT_CLIENT_TOOL_RESULT = gql`
             toolCallbackId: $toolCallbackId
             result: $result
             success: $success
+        )
+    }
+`;
+
+const CLIENT_TOOL_HEARTBEAT = gql`
+    mutation ClientToolHeartbeat(
+        $requestId: String!
+        $toolCallbackId: String!
+    ) {
+        clientToolHeartbeat(
+            requestId: $requestId
+            toolCallbackId: $toolCallbackId
         )
     }
 `;
@@ -899,20 +1002,34 @@ const MEDIA_PROMPT_ASSISTANT = gql`
     query MediaPromptAssistant(
         $prompt: String
         $mediaType: String
+        $outputType: String
         $model: String
+        $modelDisplayName: String
         $references: [String]
         $referenceRoles: [String]
+        $referenceDescriptions: [String]
         $hasInputImages: Boolean
         $referenceCount: Int
+        $selectedInputMode: String
+        $settingsSummary: [String]
+        $workflowContext: [String]
+        $suggestionSeed: Int
     ) {
         media_prompt_assistant(
             prompt: $prompt
             mediaType: $mediaType
+            outputType: $outputType
             model: $model
+            modelDisplayName: $modelDisplayName
             references: $references
             referenceRoles: $referenceRoles
+            referenceDescriptions: $referenceDescriptions
             hasInputImages: $hasInputImages
             referenceCount: $referenceCount
+            selectedInputMode: $selectedInputMode
+            settingsSummary: $settingsSummary
+            workflowContext: $workflowContext
+            suggestionSeed: $suggestionSeed
         ) {
             result
         }
@@ -1151,6 +1268,18 @@ const MEDIA_GENERATE = gql`
         $optimizePrompt: Boolean
         $generateAudio: Boolean
         $forceInstrumental: Boolean
+        $processingType: String
+        $scene: String
+        $targetResolution: String
+        $targetFps: Int
+        $enhanceModel: String
+        $upscaleFactor: String
+        $subjectDetection: String
+        $faceEnhancement: Boolean
+        $faceEnhancementCreativity: Int
+        $faceEnhancementStrength: Float
+        $cutFirstSecond: Boolean
+        $noOp: Boolean
         $resolution: String
         $cameraFixed: Boolean
         $enhancePrompt: Boolean
@@ -1178,6 +1307,13 @@ const MEDIA_GENERATE = gql`
         $styleInstruction: String
         $voiceDescription: String
         $voice: String
+        $voiceScript: String
+        $voiceLanguage: String
+        $voicePrompt: String
+        $videoPrompt: String
+        $strengthNegativePrompt: Float
+        $disableSafetyFilter: Boolean
+        $disablePromptUpsampling: Boolean
         $stability: Float
         $similarityBoost: Float
         $style: Float
@@ -1214,6 +1350,18 @@ const MEDIA_GENERATE = gql`
             optimizePrompt: $optimizePrompt
             generateAudio: $generateAudio
             forceInstrumental: $forceInstrumental
+            processingType: $processingType
+            scene: $scene
+            targetResolution: $targetResolution
+            targetFps: $targetFps
+            enhanceModel: $enhanceModel
+            upscaleFactor: $upscaleFactor
+            subjectDetection: $subjectDetection
+            faceEnhancement: $faceEnhancement
+            faceEnhancementCreativity: $faceEnhancementCreativity
+            faceEnhancementStrength: $faceEnhancementStrength
+            cutFirstSecond: $cutFirstSecond
+            noOp: $noOp
             resolution: $resolution
             cameraFixed: $cameraFixed
             enhancePrompt: $enhancePrompt
@@ -1241,6 +1389,13 @@ const MEDIA_GENERATE = gql`
             styleInstruction: $styleInstruction
             voiceDescription: $voiceDescription
             voice: $voice
+            voiceScript: $voiceScript
+            voiceLanguage: $voiceLanguage
+            voicePrompt: $voicePrompt
+            videoPrompt: $videoPrompt
+            strengthNegativePrompt: $strengthNegativePrompt
+            disableSafetyFilter: $disableSafetyFilter
+            disablePromptUpsampling: $disablePromptUpsampling
             stability: $stability
             similarityBoost: $similarityBoost
             style: $style
@@ -1428,6 +1583,8 @@ const QUERIES = {
     MEDIA_PROMPT_TAGS,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SOURCE_QA,
+    SOURCE_QA_INITIAL_QUESTIONS,
     SYS_ENTITY_AGENT,
     SYS_ENTITY_UPDATE,
     SYS_GET_ENTITIES,
@@ -1458,10 +1615,12 @@ const QUERIES = {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_MAI_15,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     TRANSLATE,
     TRANSLATE_AZURE,
+    TRANSLATE_GOOGLE_LLM,
     TRANSLATE_CONTEXT,
     TIMELINE,
     TRANSLATE_SUBTITLE,
@@ -1521,6 +1680,7 @@ const SYS_MODEL_METADATA = gql`
 
 const MUTATIONS = {
     CANCEL_REQUEST,
+    CLIENT_TOOL_HEARTBEAT,
     INJECT_AGENT_MESSAGE,
     SUBMIT_CLIENT_TOOL_RESULT,
     PUT_PATHWAY,
@@ -1536,6 +1696,8 @@ export {
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
+    SOURCE_QA,
+    SOURCE_QA_INITIAL_QUESTIONS,
     SYS_ENTITY_AGENT,
     SYS_ENTITY_UPDATE,
     SYS_GET_ENTITIES,
@@ -1570,12 +1732,14 @@ export {
     SUMMARIZE_TURBO,
     TRANSLATE,
     TRANSLATE_AZURE,
+    TRANSLATE_GOOGLE_LLM,
     TRANSLATE_CONTEXT,
     TIMELINE,
     TRANSLATE_SUBTITLE,
     HIGHLIGHTS,
     REMOVE_CONTENT,
     JIRA_STORY,
+    TRANSCRIBE_MAI_15,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     VISION,

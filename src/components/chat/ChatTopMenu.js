@@ -16,6 +16,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import UserFileCollection from "../../../app/workspaces/[id]/components/UserFileCollection";
+import { dispatchChatFileAttach } from "./fileCollectionAttachments";
 
 const CHAT_STORAGE_WARNING_BYTES = 1_800_000;
 
@@ -38,6 +39,14 @@ function ChatTopMenu({
     const showStorageWarning =
         Number(chat?.messageStorageBytes || 0) >= CHAT_STORAGE_WARNING_BYTES;
     const tooltipDirection = i18n.dir?.() || "auto";
+    const handleAttachFiles = (selectedObjects) => {
+        if (!activeChatId || readOnly) return;
+        dispatchChatFileAttach({
+            chatId: String(activeChatId),
+            files: selectedObjects,
+        });
+        setShowFileCollectionDialog(false);
+    };
 
     return (
         <>
@@ -106,6 +115,7 @@ function ChatTopMenu({
                                 messages={chat?.messages || []}
                                 updateChatHook={updateChatHook}
                                 containerHeight="100%"
+                                onAttach={handleAttachFiles}
                             />
                         )}
                     </div>

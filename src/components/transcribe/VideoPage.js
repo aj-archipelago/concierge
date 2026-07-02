@@ -30,6 +30,7 @@ import {
     ChevronDown,
     CopyIcon,
     DownloadIcon,
+    Edit,
     InfoIcon,
     MoreVertical,
     PlusCircleIcon,
@@ -39,19 +40,22 @@ import {
     TrashIcon,
     VideoIcon,
     Volume2Icon,
+    Youtube,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit, Youtube } from "lucide-react";
+import { toast } from "react-toastify";
 import ReactTimeAgo from "react-time-ago";
 import classNames from "../../../app/utils/class-names";
 import { AuthContext, ServerContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { useNotificationsContext } from "../../contexts/NotificationContext";
 import {
     getYoutubeEmbedUrl,
     getYoutubeVideoId,
     isYoutubeUrl,
 } from "../../utils/urlUtils";
+import { getYouTubeTranscriptionAccessErrorMessage } from "../../utils/transcriptionErrors";
 import LoadingButton from "../editor/LoadingButton";
 import AzureVideoTranslate from "./AzureVideoTranslate";
 import TranscribeErrorBoundary from "./ErrorBoundary";
@@ -61,16 +65,22 @@ import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
 import VideoInput from "./VideoInput";
 import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
-import { QUERIES } from "../../graphql";
-import { useProgress } from "../../contexts/ProgressContext";
 import Loader from "../../../app/components/loader";
+import { useRunTask, useTask } from "../../../app/queries/notifications";
 import { isAudioUrl } from "../../utils/mediaUtils";
 import {
     getAlternateTranscribeModelOption,
     getDefaultTranscribeModelOption,
-    getTranscribeQuery,
-    getTranscribeResult,
 } from "./transcribeQueries";
+
+const TERMINAL_TASK_STATUSES = new Set([
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+]);
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const isValidUrl = (url) => {
     try {
@@ -80,6 +90,43 @@ const isValidUrl = (url) => {
         return false;
     }
 };
+
+const getNormalizedVideoLanguages = (videoInformation, videoLanguages, t) => {
+    const languages = Array.isArray(videoLanguages) ? videoLanguages : [];
+    const videoUrl = videoInformation?.videoUrl;
+    if (!videoUrl || languages.some((lang) => lang?.url === videoUrl)) {
+        return languages;
+    }
+
+    return [
+        {
+            code: "original",
+            label: t("Original"),
+            url: videoUrl,
+        },
+        ...languages,
+    ];
+};
+
+const getVideoLanguagesForVideo = (videoInformation, videoLanguages) => {
+    if (Array.isArray(videoInformation?.videoLanguages)) {
+        return videoInformation.videoLanguages;
+    }
+
+    const languages = Array.isArray(videoLanguages) ? videoLanguages : [];
+    return languages.some((lang) => lang?.url === videoInformation?.videoUrl)
+        ? languages
+        : [];
+};
+
+const areVideoLanguagesEqual = (first = [], second = []) =>
+    first.length === second.length &&
+    first.every(
+        (language, index) =>
+            language?.code === second[index]?.code &&
+            language?.label === second[index]?.label &&
+            language?.url === second[index]?.url,
+    );
 
 // New DownloadButton component
 function DownloadButton({ format, name, text }) {
@@ -160,6 +207,7 @@ function EditableTranscriptSelect({
     setActiveTranscript,
     onNameChange,
     url,
+    videoInformation,
     onAdd,
     apolloClient,
     addTrackDialogOpen,
@@ -221,6 +269,7 @@ function EditableTranscriptSelect({
                 <AddTrackButton
                     transcripts={transcripts}
                     url={url}
+                    videoInformation={videoInformation}
                     onAdd={onAdd}
                     activeTranscript={activeTranscript}
                     trigger={
@@ -369,6 +418,7 @@ function EditableTranscriptSelect({
                                 <AddTrackButton
                                     transcripts={transcripts}
                                     url={url}
+                                    videoInformation={videoInformation}
                                     onAdd={onAdd}
                                     activeTranscript={activeTranscript}
                                     disabled={isEditing}
@@ -997,7 +1047,7 @@ function VideoPage() {
     const [isEditing, setIsEditing] = useState(false);
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
-    const { user, userState, debouncedUpdateUserState } =
+    const { userState, debouncedUpdateUserState, updateUserStateNow } =
         useContext(AuthContext);
     const {
         xaiTranscribeEnabled,
@@ -1014,6 +1064,7 @@ function VideoPage() {
     const [showVideoInput, setShowVideoInput] = useState(false);
     const [showTranslateDialog, setShowTranslateDialog] = useState(false);
     const [videoLanguages, setVideoLanguages] = useState([]);
+    const videoLanguagesRef = useRef(videoLanguages);
     const [activeLanguage, setActiveLanguage] = useState(0);
     const [copied, setCopied] = useState(false);
     const [vttUrl, setVttUrl] = useState(null);
@@ -1022,7 +1073,91 @@ function VideoPage() {
     const [youtubePlayer, setYoutubePlayer] = useState(null);
     const [isYTPlaying, setIsYTPlaying] = useState(false);
     const [isRetranscribing, setIsRetranscribing] = useState(false);
-    const { addProgressToast } = useProgress();
+    const [autoTranscriptionTaskId, setAutoTranscriptionTaskId] =
+        useState(null);
+    const [retranscriptionTaskId, setRetranscriptionTaskId] = useState(null);
+    const previousTranscriptCountRef = useRef(transcripts.length);
+    const runTask = useRunTask();
+    const { openNotifications } = useNotificationsContext();
+    const { data: autoTranscriptionTask } = useTask(autoTranscriptionTaskId);
+    const { data: retranscriptionTask } = useTask(retranscriptionTaskId);
+
+    const showTranscriptionTaskError = useCallback(
+        (task) => {
+            const errorText = task?.statusText || task?.error;
+            toast.error(
+                getYouTubeTranscriptionAccessErrorMessage(errorText, t, {
+                    url: task?.metadata?.url,
+                }) ||
+                    errorText ||
+                    t("An error occurred. Please try again."),
+            );
+        },
+        [t],
+    );
+
+    useEffect(() => {
+        if (
+            !autoTranscriptionTaskId ||
+            !autoTranscriptionTask ||
+            !TERMINAL_TASK_STATUSES.has(autoTranscriptionTask.status)
+        ) {
+            return;
+        }
+
+        if (autoTranscriptionTask.status === "completed") {
+            setAutoTranscriptionTaskId(null);
+            return;
+        } else if (autoTranscriptionTask.status !== "cancelled") {
+            setIsAutoTranscribing(false);
+            showTranscriptionTaskError(autoTranscriptionTask);
+        } else {
+            setIsAutoTranscribing(false);
+        }
+
+        setAutoTranscriptionTaskId(null);
+    }, [
+        autoTranscriptionTask,
+        autoTranscriptionTaskId,
+        setIsAutoTranscribing,
+        showTranscriptionTaskError,
+    ]);
+
+    useEffect(() => {
+        if (
+            !retranscriptionTaskId ||
+            !retranscriptionTask ||
+            !TERMINAL_TASK_STATUSES.has(retranscriptionTask.status)
+        ) {
+            return;
+        }
+
+        if (retranscriptionTask.status === "completed") {
+            setRetranscriptionTaskId(null);
+            return;
+        } else if (retranscriptionTask.status !== "cancelled") {
+            setIsRetranscribing(false);
+            showTranscriptionTaskError(retranscriptionTask);
+        } else {
+            setIsRetranscribing(false);
+        }
+
+        setRetranscriptionTaskId(null);
+    }, [
+        retranscriptionTask,
+        retranscriptionTaskId,
+        showTranscriptionTaskError,
+    ]);
+
+    useEffect(() => {
+        const previousCount = previousTranscriptCountRef.current;
+        previousTranscriptCountRef.current = transcripts.length;
+
+        if (transcripts.length > previousCount) {
+            setIsAutoTranscribing(false);
+            setIsRetranscribing(false);
+        }
+    }, [setIsAutoTranscribing, transcripts.length]);
 
     // Update the ref whenever transcripts changes
     useEffect(() => {
@@ -1032,6 +1167,10 @@ function VideoPage() {
     useEffect(() => {
         videoInformationRef.current = userState?.transcribe?.videoInformation;
     }, [userState?.transcribe?.videoInformation]);
+
+    useEffect(() => {
+        videoLanguagesRef.current = videoLanguages;
+    }, [videoLanguages]);
 
     // Handle VTT URL creation and cleanup
     useEffect(() => {
@@ -1061,17 +1200,19 @@ function VideoPage() {
     };
 
     const updateUserState = useCallback(
-        (updates) => {
-            setTimeout(() => {
-                debouncedUpdateUserState({
-                    transcribe: {
-                        ...userState?.transcribe,
-                        ...updates,
-                    },
-                });
-            }, 0);
+        (updates, { immediate = false } = {}) => {
+            const nextState = {
+                transcribe: {
+                    ...userState?.transcribe,
+                    ...updates,
+                },
+            };
+            const update = immediate
+                ? updateUserStateNow || debouncedUpdateUserState
+                : debouncedUpdateUserState;
+            return update(nextState);
         },
-        [userState?.transcribe, debouncedUpdateUserState],
+        [userState?.transcribe, debouncedUpdateUserState, updateUserStateNow],
     );
 
     const clearVideoInformation = () => {
@@ -1081,6 +1222,7 @@ function VideoPage() {
         setVideoLanguages([]);
         setActiveLanguage(0);
         updateUserState({
+            url: "",
             videoInformation: null,
             transcripts: [],
             videoLanguages: [],
@@ -1089,6 +1231,7 @@ function VideoPage() {
 
     useEffect(() => {
         if (userState) {
+            const nextVideoInformation = userState.transcribe?.videoInformation;
             if (
                 userState.transcribe?.url !==
                 prevUserStateRef.current?.transcribe?.url
@@ -1096,20 +1239,30 @@ function VideoPage() {
                 setUrl(userState.transcribe?.url);
             }
             if (
-                videoInformationRef.current?.videoUrl !==
+                nextVideoInformation?.videoUrl !==
                 prevUserStateRef.current?.transcribe?.videoInformation?.videoUrl
             ) {
-                setVideoInformation(videoInformationRef.current);
+                setVideoInformation(nextVideoInformation);
             }
 
+            const nextVideoLanguages = getNormalizedVideoLanguages(
+                nextVideoInformation,
+                nextVideoInformation?.videoLanguages,
+                t,
+            );
             if (
-                videoInformationRef.current?.videoLanguages?.length !==
+                !areVideoLanguagesEqual(
+                    nextVideoLanguages,
+                    videoLanguagesRef.current,
+                )
+            ) {
+                setVideoLanguages(nextVideoLanguages);
+            } else if (
+                nextVideoInformation?.videoLanguages?.length !==
                 prevUserStateRef.current?.transcribe?.videoInformation
                     ?.videoLanguages?.length
             ) {
-                setVideoLanguages(
-                    videoInformationRef.current?.videoLanguages || [],
-                );
+                videoLanguagesRef.current = nextVideoLanguages;
             }
 
             if (
@@ -1150,27 +1303,29 @@ function VideoPage() {
     }, [userState]);
 
     useEffect(() => {
+        const nextVideoLanguages = getNormalizedVideoLanguages(
+            videoInformation,
+            getVideoLanguagesForVideo(
+                videoInformation,
+                videoLanguagesRef.current,
+            ),
+            t,
+        );
+
         if (
             videoInformation?.videoUrl &&
-            (!videoLanguages?.length ||
-                !videoLanguages.find(
-                    (lang) => lang.url === videoInformation.videoUrl,
-                ))
+            !areVideoLanguagesEqual(
+                nextVideoLanguages,
+                videoLanguagesRef.current,
+            )
         ) {
-            const initialLanguages = [
-                {
-                    code: "original",
-                    label: t("Original"),
-                    url: videoInformation.videoUrl,
-                },
-            ];
-            setVideoLanguages(initialLanguages);
+            setVideoLanguages(nextVideoLanguages);
             setActiveLanguage(0);
 
             updateUserState({
                 videoInformation: {
-                    ...videoInformationRef.current,
-                    videoLanguages: initialLanguages,
+                    ...videoInformation,
+                    videoLanguages: nextVideoLanguages,
                 },
             });
         }
@@ -1192,10 +1347,20 @@ function VideoPage() {
 
     useEffect(() => {
         if (videoInformation) {
+            const nextVideoLanguages = getNormalizedVideoLanguages(
+                videoInformation,
+                getVideoLanguagesForVideo(videoInformation, videoLanguages),
+                t,
+            );
+            if (!areVideoLanguagesEqual(nextVideoLanguages, videoLanguages)) {
+                setVideoLanguages(nextVideoLanguages);
+                return;
+            }
+
             updateUserState({
                 videoInformation: {
                     ...videoInformation,
-                    videoLanguages,
+                    videoLanguages: nextVideoLanguages,
                 },
             });
         }
@@ -1213,11 +1378,14 @@ function VideoPage() {
                     // Find existing tracks with the same name and get the highest number
                     const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
                     const baseName = baseNameMatch[1];
+                    const escapedBaseName = escapeRegExp(baseName);
                     const existingNumbers = prevTranscripts
                         .filter((t) => t.name && t.name.startsWith(baseName))
                         .map((t) => {
                             const match = t.name.match(
-                                new RegExp(`${baseName}\\s+\\((\\d+)\\)$`),
+                                new RegExp(
+                                    `${escapedBaseName}\\s+\\((\\d+)\\)$`,
+                                ),
                             );
                             return match ? parseInt(match[1]) : 0;
                         });
@@ -1350,7 +1518,7 @@ function VideoPage() {
     const startTranscription = useCallback(async () => {
         const videoUrl =
             videoInformation?.transcriptionUrl || videoInformation?.videoUrl;
-        if (!videoUrl || !apolloClient) return;
+        if (!videoUrl) return;
 
         try {
             setIsAutoTranscribing(true);
@@ -1360,60 +1528,47 @@ function VideoPage() {
                 xaiTranscribeDefaultEnabled,
                 transcribeDefaultModelOption,
             );
-            const query = getTranscribeQuery(modelOption);
-
-            const { data } = await apolloClient.query({
-                query,
-                variables: {
-                    file: videoUrl,
-                    language: "", // Auto-detect
-                    wordTimestamped: false,
-                    responseFormat: "vtt", // Default to VTT format
-                    async: true,
-                    contextId: user?.contextId,
+            await updateUserState(
+                {
+                    url: videoInformation?.videoUrl || videoUrl,
+                    videoInformation:
+                        videoInformationRef.current || videoInformation,
+                    transcripts,
                 },
-                fetchPolicy: "network-only",
+                { immediate: true },
+            );
+
+            const { taskId } = await runTask.mutateAsync({
+                type: "transcribe",
+                url: videoUrl,
+                language: "",
+                wordTimestamped: false,
+                responseFormat: "vtt",
+                modelOption,
+                source: "video_page",
             });
 
-            const dataResult = getTranscribeResult(data);
-
-            if (dataResult) {
-                addProgressToast(
-                    dataResult,
-                    t("Auto-transcribing") + "...",
-                    async (finalData) => {
-                        setIsAutoTranscribing(false);
-                        addSubtitleTrack({
-                            text: finalData,
-                            format: "vtt",
-                            name: t("Subtitles"),
-                        });
-                    },
-                    (error) => {
-                        // Add this error handler to reset the auto-transcribing state when cancelled
-                        console.error(
-                            "Transcription error or cancelled:",
-                            error,
-                        );
-                        setIsAutoTranscribing(false);
-                    },
-                );
+            if (taskId) {
+                setAutoTranscriptionTaskId(taskId);
             } else {
                 setIsAutoTranscribing(false);
             }
         } catch (error) {
             console.error("Auto-transcription error:", error);
+            toast.error(
+                getYouTubeTranscriptionAccessErrorMessage(error, t, {
+                    url: videoUrl,
+                }) || t("An error occurred. Please try again."),
+            );
             setIsAutoTranscribing(false);
         }
     }, [
-        videoInformation?.videoUrl,
-        videoInformation?.transcriptionUrl,
-        apolloClient,
-        addSubtitleTrack,
+        videoInformation,
         t,
-        addProgressToast,
         setIsAutoTranscribing,
-        user?.contextId,
+        runTask,
+        updateUserState,
+        transcripts,
         xaiTranscribeEnabled,
         xaiTranscribeDefaultEnabled,
         transcribeDefaultModelOption,
@@ -1447,83 +1602,64 @@ function VideoPage() {
                 videoUrl,
                 transcribeAlternateModelOption,
             );
-            const queryToUse = getTranscribeQuery(modelOption);
 
             // Get current transcript format
             const currentTranscript = transcripts[activeTranscript];
+            if (!currentTranscript) {
+                setIsRetranscribing(false);
+                return;
+            }
+
             const isFormatted =
                 currentTranscript.format !== "vtt" &&
                 currentTranscript.format !== "";
             const isWordTimestamped =
-                currentTranscript.text.includes("<c.") ||
+                currentTranscript.text?.includes("<c.") ||
                 (currentTranscript.format === "vtt" &&
-                    currentTranscript.text.includes("<c "));
-
-            const { data } = await apolloClient.query({
-                query: queryToUse,
-                variables: {
-                    file: videoUrl,
-                    language: "", // Auto-detect
-                    wordTimestamped: isWordTimestamped,
-                    responseFormat: isFormatted
-                        ? "formatted"
-                        : currentTranscript.format === ""
-                          ? "text"
-                          : currentTranscript.format,
-                    async: true,
-                    contextId: user?.contextId,
+                    currentTranscript.text?.includes("<c "));
+            const responseFormat = isFormatted
+                ? "formatted"
+                : currentTranscript.format === ""
+                  ? "text"
+                  : currentTranscript.format;
+            const currentName =
+                currentTranscript.name || `Transcript ${activeTranscript + 1}`;
+            await updateUserState(
+                {
+                    url: videoInformation?.videoUrl || videoUrl,
+                    videoInformation:
+                        videoInformationRef.current || videoInformation,
+                    transcripts,
+                    activeTranscript,
                 },
-                fetchPolicy: "network-only",
+                { immediate: true },
+            );
+
+            const { taskId } = await runTask.mutateAsync({
+                type: "transcribe",
+                url: videoUrl,
+                language: "",
+                wordTimestamped: isWordTimestamped,
+                responseFormat,
+                modelOption,
+                trackName: `${currentName} (alternative)`,
+                isAlternative: true,
+                source: "video_page",
             });
 
-            const requestId = getTranscribeResult(data);
-
-            if (requestId) {
-                addProgressToast(
-                    requestId,
-                    t("Re-transcribing") + "...",
-                    async (finalData) => {
-                        if (isFormatted) {
-                            const response = await apolloClient.query({
-                                query: QUERIES.FORMAT_PARAGRAPH_TURBO,
-                                variables: {
-                                    text: finalData,
-                                    async: false,
-                                },
-                            });
-
-                            finalData =
-                                response.data?.format_paragraph_turbo?.result;
-                        }
-
-                        // Create a new transcript instead of updating the existing one
-                        const currentName =
-                            currentTranscript.name ||
-                            `Transcript ${activeTranscript + 1}`;
-                        const newName = `${currentName} (alternative)`;
-
-                        setTranscripts((prev) => [
-                            ...prev,
-                            {
-                                text: finalData,
-                                format: currentTranscript.format,
-                                name: newName,
-                                timestamp: new Date().toISOString(),
-                                isAlternative: true, // Mark as an alternative generated transcript
-                            },
-                        ]);
-
-                        // Set the active transcript to the newly created one
-                        setActiveTranscript(transcripts.length);
-                        setIsRetranscribing(false);
-                    },
-                    () => setIsRetranscribing(false),
-                );
+            if (taskId) {
+                setRetranscriptionTaskId(taskId);
+                openNotifications();
             } else {
                 setIsRetranscribing(false);
             }
         } catch (error) {
             console.error("Re-transcription error:", error);
+            toast.error(
+                getYouTubeTranscriptionAccessErrorMessage(error, t, {
+                    url: videoUrl,
+                }) || t("An error occurred. Please try again."),
+            );
             setIsRetranscribing(false);
         }
     }, [
@@ -1531,11 +1667,11 @@ function VideoPage() {
         isRetranscribing,
         transcripts,
         activeTranscript,
-        apolloClient,
         t,
-        addProgressToast,
-        user?.contextId,
         transcribeAlternateModelOption,
+        runTask,
+        openNotifications,
+        updateUserState,
     ]);
 
     if (!videoInformation && !transcripts?.length) {
@@ -1982,6 +2118,7 @@ function VideoPage() {
                         videoInformation?.transcriptionUrl ||
                         videoInformation?.videoUrl
                     }
+                    videoInformation={videoInformation}
                     onAdd={addSubtitleTrack}
                     apolloClient={apolloClient}
                     addTrackDialogOpen={addTrackDialogOpen}

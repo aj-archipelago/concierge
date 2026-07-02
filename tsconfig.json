@@ -20,6 +20,8 @@
         ],
         "baseUrl": ".",
         "paths": {
+            "@/components/*": ["./@/components/*"],
+            "@/lib/*": ["./@/lib/*"],
             "@/*": ["./*"]
         },
         "strictNullChecks": true,

@@ -1,11 +1,14 @@
 import chatReducer, {
     openCanvas,
+    openCanvasForChat,
     closeCanvas,
     setCanvasVisibility,
+    setCanvasVisibilityForChat,
     setActiveCanvasChat,
-    promoteCanvasChatId,
-    clearCanvasForChat,
+    updateCanvasTab,
+    updateCanvasTabForChat,
     restoreCanvasState,
+    stripCanvasPersistContent,
 } from "../chatSlice";
 
 function emptyChatState() {
@@ -16,6 +19,35 @@ function emptyChatState() {
 }
 
 describe("chatSlice — per-chat canvas state", () => {
+    test("stripCanvasPersistContent preserves inline-only HTML but strips reloadable HTML bodies", () => {
+        expect(
+            stripCanvasPersistContent({
+                type: "html",
+                title: "Inline Report",
+                htmlContent: "<html>inline</html>",
+                htmlStatus: "live",
+            }),
+        ).toEqual({
+            type: "html",
+            title: "Inline Report",
+            htmlContent: "<html>inline</html>",
+        });
+
+        expect(
+            stripCanvasPersistContent({
+                type: "html",
+                title: "Reloadable Report",
+                url: "https://example.com/report.html",
+                htmlContent: "<html>reloadable</html>",
+                htmlStatus: "live",
+            }),
+        ).toEqual({
+            type: "html",
+            title: "Reloadable Report",
+            url: "https://example.com/report.html",
+        });
+    });
+
     test("setActiveCanvasChat seeds an empty bucket and remembers it across switches", () => {
         let state = emptyChatState();
 
@@ -138,99 +170,6 @@ describe("chatSlice — per-chat canvas state", () => {
         );
     });
 
-    test("restoreCanvasState skips the transient 'new' bucket", () => {
-        // /chat/new is a route, not a chat — its persisted state from prior
-        // sessions is always stale and would clobber a freshly-launched
-        // applet's canvas if rehydrated.
-        let state = emptyChatState();
-        state = chatReducer(
-            state,
-            restoreCanvasState({
-                byChatId: {
-                    new: {
-                        canvasContent: { type: "html", title: "Stale New" },
-                        canvasTabs: [],
-                        activeTabId: null,
-                        canvasVisible: true,
-                    },
-                    "chat-A": {
-                        canvasContent: { type: "html", title: "Persisted A" },
-                        canvasTabs: [],
-                        activeTabId: null,
-                        canvasVisible: true,
-                    },
-                },
-            }),
-        );
-        expect(state.canvasByChatId.new).toBeUndefined();
-        expect(state.canvasByChatId["chat-A"].canvasContent?.title).toBe(
-            "Persisted A",
-        );
-    });
-
-    test("setActiveCanvasChat does not reuse a stale transient new bucket", () => {
-        let state = {
-            ...emptyChatState(),
-            canvasByChatId: {
-                new: {
-                    canvasContent: { type: "html", title: "Stale New" },
-                    canvasTabs: [
-                        {
-                            id: "stale",
-                            content: { type: "html", title: "Stale New" },
-                            title: "Stale New",
-                        },
-                    ],
-                    activeTabId: "stale",
-                    canvasVisible: true,
-                },
-            },
-        };
-
-        state = chatReducer(state, setActiveCanvasChat("new"));
-
-        expect(state.canvasByChatId.new).toBeUndefined();
-        expect(state.canvasContent).toBeNull();
-        expect(state.canvasTabs).toHaveLength(0);
-        expect(state.activeTabId).toBeNull();
-    });
-
-    test("promoteCanvasChatId migrates the bucket from NEW_CHAT_ID to a real id", () => {
-        let state = emptyChatState();
-        state = chatReducer(state, setActiveCanvasChat("new"));
-        state = chatReducer(
-            state,
-            openCanvas({ type: "html", title: "X", filename: "x.html" }),
-        );
-        expect(state.canvasByChatId.new.canvasContent?.title).toBe("X");
-
-        state = chatReducer(
-            state,
-            promoteCanvasChatId({ fromChatId: "new", toChatId: "real-123" }),
-        );
-
-        expect(state.canvasByChatId.new).toBeUndefined();
-        expect(state.canvasByChatId["real-123"].canvasContent?.title).toBe("X");
-        expect(state.activeCanvasChatId).toBe("real-123");
-        // Top-level still reflects the same canvas — the user shouldn't see a flash
-        expect(state.canvasContent?.title).toBe("X");
-    });
-
-    test("clearCanvasForChat drops the bucket and resets top-level if it was active", () => {
-        let state = emptyChatState();
-        state = chatReducer(state, setActiveCanvasChat("new"));
-        state = chatReducer(
-            state,
-            openCanvas({ type: "html", title: "X", filename: "x.html" }),
-        );
-
-        state = chatReducer(state, clearCanvasForChat("new"));
-
-        expect(state.canvasByChatId.new).toBeUndefined();
-        expect(state.canvasContent).toBeNull();
-        expect(state.canvasTabs).toHaveLength(0);
-    });
-
     test("restoreCanvasState hydrates byChatId snapshot and refreshes top-level for active chat", () => {
         let state = emptyChatState();
         state = chatReducer(state, setActiveCanvasChat("chat-A"));
@@ -339,5 +278,92 @@ describe("chatSlice — per-chat canvas state", () => {
         expect(state.canvasByChatId["chat-B"].canvasContent).toBeNull();
         // Chat A is untouched
         expect(state.canvasByChatId["chat-A"].canvasContent?.title).toBe("A");
+    });
+
+    test("targeted canvas actions update an inactive chat without changing the active mirror", () => {
+        let state = emptyChatState();
+        state = chatReducer(state, setActiveCanvasChat("chat-A"));
+        state = chatReducer(
+            state,
+            openCanvas({ type: "html", title: "A", filename: "a.html" }),
+        );
+
+        state = chatReducer(
+            state,
+            openCanvasForChat({
+                chatId: "chat-B",
+                canvas: {
+                    tabId: "tab-B",
+                    type: "html",
+                    title: "B",
+                    filename: "b.html",
+                },
+            }),
+        );
+        state = chatReducer(
+            state,
+            updateCanvasTabForChat({
+                chatId: "chat-B",
+                tabId: "tab-B",
+                content: {
+                    htmlContent: "<html>B complete</html>",
+                    htmlStatus: "live",
+                },
+            }),
+        );
+        state = chatReducer(
+            state,
+            setCanvasVisibilityForChat({ chatId: "chat-B", visible: false }),
+        );
+
+        expect(state.canvasContent?.title).toBe("A");
+        expect(state.canvasByChatId["chat-A"].canvasContent?.title).toBe("A");
+        expect(state.canvasByChatId["chat-B"].canvasContent).toMatchObject({
+            title: "B",
+            htmlContent: "<html>B complete</html>",
+            htmlStatus: "live",
+        });
+        expect(state.canvasByChatId["chat-B"].canvasVisible).toBe(false);
+
+        state = chatReducer(state, setActiveCanvasChat("chat-B"));
+        expect(state.canvasContent).toMatchObject({
+            title: "B",
+            htmlContent: "<html>B complete</html>",
+        });
+        expect(state.canvasVisible).toBe(false);
+    });
+
+    test("updateCanvasTab is a no-op when reported tab metadata is unchanged", () => {
+        let state = emptyChatState();
+        state = chatReducer(
+            state,
+            openCanvas({
+                tabId: "tab-A",
+                type: "html",
+                title: "A",
+                filename: "a.html",
+                appletActiveVersionIndex: null,
+                appletActiveVersionNumber: null,
+                appletIsViewingDraft: true,
+            }),
+        );
+        const originalContent = state.canvasContent;
+        const originalTabContent = state.canvasTabs[0].content;
+
+        const nextState = chatReducer(
+            state,
+            updateCanvasTab({
+                tabId: "tab-A",
+                content: {
+                    appletActiveVersionIndex: null,
+                    appletActiveVersionNumber: null,
+                    appletIsViewingDraft: true,
+                },
+            }),
+        );
+
+        expect(nextState).toBe(state);
+        expect(nextState.canvasContent).toBe(originalContent);
+        expect(nextState.canvasTabs[0].content).toBe(originalTabContent);
     });
 });

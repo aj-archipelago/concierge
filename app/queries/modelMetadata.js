@@ -66,7 +66,7 @@ export function useChatModels() {
 }
 
 /**
- * Image, video, music, and speech models — for the media page.
+ * Image, video, music, speech, and upscaling models — for the media page.
  */
 export function useMediaModels() {
     const { data, ...rest } = useModelMetadata();
@@ -78,7 +78,8 @@ export function useMediaModels() {
                     (m.category === "image" ||
                         m.category === "video" ||
                         m.category === "audio" ||
-                        m.category === "tts"),
+                        m.category === "tts" ||
+                        m.category === "upscaling"),
             ) || [],
         [data],
     );

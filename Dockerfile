@@ -49,6 +49,8 @@ RUN npm run prebuild --legacy-peer-deps && npm run build --legacy-peer-deps
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV production
+ARG CORTEX_MEDIA_API_URL
+ENV CORTEX_MEDIA_API_URL=$CORTEX_MEDIA_API_URL
 
 # Install system dependencies first (cached)
 RUN apt-get update && apt-get install -y curl libssl3 && apt-get clean && rm -rf /var/lib/apt/lists/*

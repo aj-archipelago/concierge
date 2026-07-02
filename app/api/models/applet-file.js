@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import "./file";
+import "./file.js";
 
 // Define the AppletFile schema
 export const appletFileSchema = new mongoose.Schema(

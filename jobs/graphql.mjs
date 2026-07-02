@@ -424,6 +424,38 @@ const TRANSCRIBE_GEMINI = gql`
     }
 `;
 
+const TRANSCRIBE_MAI_15 = gql`
+    query TranscribeMai15(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_mai_15(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
 const TRANSCRIBE_XAI_GEMINI = gql`
     query TranscribeXaiGemini(
         $file: String!
@@ -976,6 +1008,18 @@ const MEDIA_GENERATE = gql`
         $optimizePrompt: Boolean
         $generateAudio: Boolean
         $forceInstrumental: Boolean
+        $processingType: String
+        $scene: String
+        $targetResolution: String
+        $targetFps: Int
+        $enhanceModel: String
+        $upscaleFactor: String
+        $subjectDetection: String
+        $faceEnhancement: Boolean
+        $faceEnhancementCreativity: Int
+        $faceEnhancementStrength: Float
+        $cutFirstSecond: Boolean
+        $noOp: Boolean
         $resolution: String
         $cameraFixed: Boolean
         $enhancePrompt: Boolean
@@ -1003,6 +1047,13 @@ const MEDIA_GENERATE = gql`
         $styleInstruction: String
         $voiceDescription: String
         $voice: String
+        $voiceScript: String
+        $voiceLanguage: String
+        $voicePrompt: String
+        $videoPrompt: String
+        $strengthNegativePrompt: Float
+        $disableSafetyFilter: Boolean
+        $disablePromptUpsampling: Boolean
         $stability: Float
         $similarityBoost: Float
         $style: Float
@@ -1039,6 +1090,18 @@ const MEDIA_GENERATE = gql`
             optimizePrompt: $optimizePrompt
             generateAudio: $generateAudio
             forceInstrumental: $forceInstrumental
+            processingType: $processingType
+            scene: $scene
+            targetResolution: $targetResolution
+            targetFps: $targetFps
+            enhanceModel: $enhanceModel
+            upscaleFactor: $upscaleFactor
+            subjectDetection: $subjectDetection
+            faceEnhancement: $faceEnhancement
+            faceEnhancementCreativity: $faceEnhancementCreativity
+            faceEnhancementStrength: $faceEnhancementStrength
+            cutFirstSecond: $cutFirstSecond
+            noOp: $noOp
             resolution: $resolution
             cameraFixed: $cameraFixed
             enhancePrompt: $enhancePrompt
@@ -1066,6 +1129,13 @@ const MEDIA_GENERATE = gql`
             styleInstruction: $styleInstruction
             voiceDescription: $voiceDescription
             voice: $voice
+            voiceScript: $voiceScript
+            voiceLanguage: $voiceLanguage
+            voicePrompt: $voicePrompt
+            videoPrompt: $videoPrompt
+            strengthNegativePrompt: $strengthNegativePrompt
+            disableSafetyFilter: $disableSafetyFilter
+            disablePromptUpsampling: $disablePromptUpsampling
             stability: $stability
             similarityBoost: $similarityBoost
             style: $style
@@ -1232,6 +1302,7 @@ const QUERIES = {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_MAI_15,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     TRANSLATE,
@@ -1301,6 +1372,7 @@ export {
     TRANSCRIBE,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
+    TRANSCRIBE_MAI_15,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     FORMAT_PARAGRAPH_TURBO,

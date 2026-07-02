@@ -60,7 +60,4 @@ const RequestProgress =
     mongoose.models?.RequestProgress ||
     mongoose.model("RequestProgress", requestProgressSchema);
 
-// Add a function to sync indexes when needed
-RequestProgress.syncIndexes?.();
-
 export default RequestProgress;

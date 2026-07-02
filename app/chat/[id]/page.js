@@ -6,7 +6,6 @@ import {
 import { redirect } from "next/navigation";
 import Chat from "../../../src/components/chat/Chat";
 import { getActiveChatId, getChatById } from "../../api/chats/_lib";
-import { isClientOnlyChatId } from "../../utils/chatClientIds";
 
 const DEFAULT_CHAT_MESSAGES_LIMIT = 30;
 
@@ -23,9 +22,7 @@ export default async function ChatPage({ params, searchParams }) {
 
     const forceClient = searchParams?.client === "1";
 
-    // INSTANT: /chat/new should never SSR because the stream promotes it
-    // into a persisted chat ID on the client.
-    if (forceClient || isClientOnlyChatId(id)) {
+    if (forceClient) {
         return (
             <div className="flex flex-col h-full">
                 <Chat viewingChat={null} />

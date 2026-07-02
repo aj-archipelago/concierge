@@ -3,14 +3,18 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const rawContentLoader = path.join(__dirname, "scripts/raw-content-loader.cjs");
+const rootAlias = __dirname;
+const shadcnComponentAlias = path.join(__dirname, "@", "components");
+const shadcnLibAlias = path.join(__dirname, "@", "lib");
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH;
 
 const redirects = [
     {
         source: "/",
-        destination: "/chat/new",
-        permanent: true,
+        destination: "/home",
+        permanent: false,
     },
     {
         source: "/code",
@@ -55,11 +59,6 @@ const config = {
                     process.env.CORTEX_GRAPHQL_API_URL ||
                     "http://localhost:4000/graphql",
             },
-            {
-                source: "/media-helper",
-                destination:
-                    process.env.CORTEX_MEDIA_API_URL || "http://localhost:5000",
-            },
         ];
 
         // If you have a blue/green deployment, you can use this to switch between the two
@@ -80,14 +79,30 @@ const config = {
         return rewrites;
     },
     experimental: {
+        proxyClientMaxBodySize: "2gb",
         proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
     },
-    serverExternalPackages: ["busboy"],
+    serverExternalPackages: ["busboy", "mongodb", "mongodb-client-encryption"],
     redirects: async () => {
         return redirects;
     },
     sassOptions: {
         includePaths: [path.join(__dirname, "src")],
+        // @import remains until partials share variables via @use/@forward.
+        silenceDeprecations: ["import"],
+    },
+    turbopack: {
+        resolveAlias: {
+            "@/components": shadcnComponentAlias,
+            "@/lib": shadcnLibAlias,
+            "@": rootAlias,
+        },
+        rules: {
+            "*.md": {
+                loaders: [rawContentLoader],
+                as: "*.js",
+            },
+        },
     },
     output: "standalone",
     outputFileTracingRoot: __dirname,
@@ -101,8 +116,13 @@ const config = {
             "utf-8-validate",
         );
 
-        // Add @ path alias
-        config.resolve.alias["@"] = path.join(__dirname, "@");
+        // Keep aliases aligned with turbopack.resolveAlias above.
+        config.resolve.alias = {
+            ...config.resolve.alias,
+            "@/components": shadcnComponentAlias,
+            "@/lib": shadcnLibAlias,
+            "@": rootAlias,
+        };
 
         // Allow importing .md files as raw strings for local help guides.
         config.module.rules.push({ test: /\.md$/, type: "asset/source" });

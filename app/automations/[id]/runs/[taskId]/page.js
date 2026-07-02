@@ -1,8 +1,11 @@
-import AutomationHtmlPage from "../../../../../src/components/automations/AutomationHtmlPage";
+import AutomationRunRoutePage from "../../../../../src/components/automations/AutomationRunRoutePage";
 
 export default async function Page({ params }) {
     params = await params;
     return (
-        <AutomationHtmlPage automationId={params.id} taskId={params.taskId} />
+        <AutomationRunRoutePage
+            automationId={params.id}
+            taskId={params.taskId}
+        />
     );
 }

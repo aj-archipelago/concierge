@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import "./file";
+import "./file.js";
 
 const ObjectIdType =
     mongoose?.Schema?.Types?.ObjectId || mongoose?.Types?.ObjectId || String;

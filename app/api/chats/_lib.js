@@ -1,6 +1,12 @@
 import User from "../models/user";
 import Chat from "../models/chat.mjs";
 import { getCurrentUser } from "../utils/auth";
+import { resolveShareAccess } from "../utils/shareAccess";
+import {
+    attachShareFlagsToChats,
+    computeIsShared,
+} from "../utils/shareHelpers";
+import Share from "../models/share.js";
 import mongoose from "mongoose";
 import { Types } from "mongoose";
 import { parseSearchQuery, matchesAllTerms } from "../utils/search-parser";
@@ -8,7 +14,6 @@ import {
     extractPreviewTextFromStoredPayload,
     extractSearchableText,
 } from "../../../src/utils/assistantInlinePayload";
-import { NEW_CHAT_ID } from "../../utils/chatClientIds";
 import {
     CHAT_STORAGE_WARNING_BYTES,
     prepareMessagesForPersistence,
@@ -88,8 +93,41 @@ const serializeForPersistenceComparison = (value) => {
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
+const DEFAULT_RECENT_CHAT_LIMIT = 20;
+const NEW_CHAT_TITLE = "New Chat";
 const getSimpleTitle = (message) => {
     return extractPreviewText(message).substring(0, 14);
+};
+
+const nonEmptyFieldQuery = (field) => ({
+    [field]: { $exists: true, $nin: ["", null] },
+});
+
+const buildVisibleChatQuery = (userId, activeChatId, extraQuery = {}) => {
+    const visibilityClauses = [
+        { "messages.0": { $exists: true } },
+        { titleSetByUser: true },
+        {
+            title: NEW_CHAT_TITLE,
+            titleSetByUser: { $ne: true },
+            "messages.0": { $exists: false },
+        },
+        { isPublic: true },
+        nonEmptyFieldQuery("lastMessagePreview"),
+        nonEmptyFieldQuery("lastMessageSender"),
+        nonEmptyFieldQuery("lastMessageAt"),
+        nonEmptyFieldQuery("selectedEntityId"),
+    ];
+
+    if (activeChatId) {
+        visibilityClauses.push({ _id: activeChatId });
+    }
+
+    return {
+        ...extraQuery,
+        userId,
+        $or: visibilityClauses,
+    };
 };
 
 export async function getRecentChatsOfCurrentUser() {
@@ -97,21 +135,25 @@ export async function getRecentChatsOfCurrentUser() {
     if (!currentUser?._id || currentUser.userId === "nodb") {
         return [];
     }
-    const recentChatIds = currentUser.recentChatIds || [];
-
-    const recentChatsUnordered = await Chat.find(
+    const recentChats = await Chat.find(
+        buildVisibleChatQuery(currentUser._id, currentUser.activeChatId),
         {
-            _id: { $in: recentChatIds },
-            userId: currentUser._id,
+            _id: 1,
+            title: 1,
+            titleSetByUser: 1,
+            lastMessagePreview: 1,
+            lastMessageAt: 1,
+            updatedAt: 1,
         },
-        { _id: 1, title: 1, titleSetByUser: 1, isUnused: 1 },
-    ).lean();
+    )
+        .sort({ updatedAt: -1 })
+        .limit(DEFAULT_RECENT_CHAT_LIMIT)
+        .lean();
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
-    const firstChatId =
-        recentChatIds.length > 0 ? String(recentChatIds[0]) : null;
-    const chatsNeedingFirstMessage = recentChatsUnordered.filter((chat) => {
+    const firstChatId = recentChats[0]?._id ? String(recentChats[0]._id) : null;
+    const chatsNeedingFirstMessage = recentChats.filter((chat) => {
         const isFirstChat = firstChatId && String(chat._id) === firstChatId;
         return (
             isFirstChat ||
@@ -142,15 +184,6 @@ export async function getRecentChatsOfCurrentUser() {
         }
     }
 
-    const recentChatsMap = recentChatsUnordered.reduce((acc, chat) => {
-        acc[chat._id] = chat;
-        return acc;
-    }, {});
-
-    const recentChats = recentChatIds
-        .filter((id) => recentChatsMap[id])
-        .map((id) => recentChatsMap[id]);
-
     return recentChats;
 }
 
@@ -169,15 +202,16 @@ export async function getChatsOfCurrentUser(page = 1, limit = 20) {
         createdAt: 1,
         updatedAt: 1,
         isPublic: 1,
-        isUnused: 1,
         titleSetByUser: 1,
         lastMessagePreview: 1,
         lastMessageSender: 1,
         lastMessageAt: 1,
     };
 
-    // Filter out unused chats - they shouldn't appear in the saved chats list
-    let chats = await Chat.find({ userId, isUnused: { $ne: true } }, projection)
+    let chats = await Chat.find(
+        buildVisibleChatQuery(userId, user.activeChatId),
+        projection,
+    )
         .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -192,14 +226,15 @@ export async function getChatsOfCurrentUser(page = 1, limit = 20) {
         chats = [defaultChat.toObject ? defaultChat.toObject() : defaultChat];
     }
 
-    chats = chats.map((chat) => ({
-        ...chat,
-        messagesTruncated: true,
-    }));
+    chats = await attachShareFlagsToChats(
+        chats.map((chat) => ({
+            ...chat,
+            messagesTruncated: true,
+        })),
+    );
 
     const missingPreviewIds = chats
         .filter((chat) => {
-            if (chat.isUnused) return false;
             const missingPreview =
                 !chat.lastMessagePreview || chat.lastMessagePreview === "";
             const missingSender =
@@ -263,11 +298,8 @@ export async function getChatsOfCurrentUser(page = 1, limit = 20) {
     return chats;
 }
 
-export async function createNewChat(
-    data,
-    { setActive = true, forceNew = false } = {},
-) {
-    const { messages, title, isUnused } = data;
+export async function createNewChat(data, { setActive = true } = {}) {
+    const { messages, title } = data;
     const currentUser = await getCurrentUser(false);
     const userId = currentUser._id;
 
@@ -279,39 +311,18 @@ export async function createNewChat(
 
     const prepared = prepareMessagesForPersistence(normalizedMessages);
     const messagesForPersistence = prepared.messages;
-
-    // Only look for existing unused chat if we're creating a new empty chat and not forcing new
-    if (!forceNew && messagesForPersistence.length === 0) {
-        const activeChatIdStr = currentUser.activeChatId
-            ? String(currentUser.activeChatId)
-            : null;
-        // Prefer an unused chat that isn't the current active one
-        const unusedChats = await Chat.find({
-            userId: currentUser._id,
-            isUnused: true,
-        })
-            .sort({ createdAt: -1 })
-            .limit(2);
-
-        const unusedChat = unusedChats.find(
-            (chat) => String(chat._id) !== activeChatIdStr,
-        );
-        if (unusedChat) {
-            if (setActive) {
-                await setActiveChatId(unusedChat._id);
-            }
-            return unusedChat;
-        }
-    }
+    const hasExplicitTitle =
+        typeof title === "string" ? title.trim().length > 0 : Boolean(title);
 
     const chat = new Chat({
         userId,
         messages: messagesForPersistence,
-        isUnused:
-            typeof isUnused === "boolean"
-                ? isUnused
-                : messagesForPersistence.length === 0,
-        title: title || getSimpleTitle(messagesForPersistence[0] || ""),
+        title:
+            title ||
+            (messagesForPersistence.length === 0
+                ? NEW_CHAT_TITLE
+                : getSimpleTitle(messagesForPersistence[0] || "")),
+        titleSetByUser: hasExplicitTitle,
         messageStorageBytes: prepared.messageStorageBytes,
         messagesCompacted: prepared.messagesCompacted,
         messagesCompactedAt: prepared.messagesCompacted ? new Date() : null,
@@ -325,19 +336,36 @@ export async function createNewChat(
     return chat;
 }
 
-export async function getChatById(chatId, { limit } = {}) {
-    if (chatId === NEW_CHAT_ID) {
-        return {
-            _id: NEW_CHAT_ID,
-            title: "",
-            messages: [],
-            isPublic: false,
-            readOnly: false,
-            isChatLoading: false,
-            isTemporary: true,
-        };
+export async function getChatForOwnerWrite(chatId, userId) {
+    if (!chatId || !Types.ObjectId.isValid(chatId)) {
+        return { ok: false, status: 400, error: "Invalid Chat ID" };
     }
 
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+        return { ok: false, status: 404, error: "Chat not found" };
+    }
+
+    const access = await resolveShareAccess({
+        entityType: "chat",
+        entityId: chat._id,
+        userId,
+        ownerId: chat.userId,
+        legacyPublic: Boolean(chat.isPublic),
+    });
+
+    if (!access.canAccess) {
+        return { ok: false, status: 404, error: "Chat not found" };
+    }
+
+    if (!access.isOwner) {
+        return { ok: false, status: 403, error: "Unauthorized access" };
+    }
+
+    return { ok: true, chat, access };
+}
+
+export async function getChatById(chatId, { limit } = {}) {
     if (!chatId || !Types.ObjectId.isValid(chatId)) {
         return null;
     }
@@ -371,8 +399,19 @@ export async function getChatById(chatId, { limit } = {}) {
     }
 
     const isOwner = String(chat.userId) === String(currentUser._id);
-    if (!isOwner && !chat.isPublic) {
-        throw new Error("Unauthorized access");
+    let shareRole = isOwner ? "editor" : null;
+    if (!isOwner) {
+        const access = await resolveShareAccess({
+            entityType: "chat",
+            entityId: chat._id,
+            userId: currentUser?._id,
+            ownerId: chat.userId,
+            legacyPublic: Boolean(chat.isPublic),
+        });
+        if (!access.canAccess) {
+            throw new Error("Unauthorized access");
+        }
+        shareRole = access.role === "editor" ? "viewer" : access.role;
     }
 
     if (
@@ -458,11 +497,22 @@ export async function getChatById(chatId, { limit } = {}) {
 
     const hasMoreMessages = effectiveLimit ? rawMessages.length > limit : false;
 
+    const shareDoc = await Share.findOne({
+        entityType: "chat",
+        entityId: chat._id,
+    }).lean();
+    const isShared = computeIsShared(shareDoc, {
+        legacyPublic: Boolean(isPublic),
+    });
+
     const result = {
         _id,
         title,
         messages: sanitizedMessages,
         isPublic,
+        isShared,
+        shareRole,
+        isOwner,
         readOnly: isReadOnly,
         isChatLoading,
         activeSubscriptionId: activeSubscriptionId || null,
@@ -559,21 +609,11 @@ export async function getUserChatInfo() {
     }
 
     if (!activeChatId) {
-        // Find the latest unused chat, or create a new one
-        const existingUnusedChat = await Chat.findOne({
-            userId: currentUser._id,
-            isUnused: true,
-        }).sort({ createdAt: -1 });
-
-        if (existingUnusedChat) {
-            activeChatId = existingUnusedChat._id;
-        } else {
-            const emptyChat = await createNewChat({
-                messages: [],
-                title: "",
-            });
-            activeChatId = emptyChat._id;
-        }
+        const emptyChat = await createNewChat({
+            messages: [],
+            title: "",
+        });
+        activeChatId = emptyChat._id;
 
         await User.findByIdAndUpdate(
             currentUser._id,
@@ -740,7 +780,9 @@ export async function deleteChatIdFromRecentList(chatId) {
         if (recentChatIds.length > 0) {
             activeChatId = recentChatIds[0];
         } else {
-            const userChat = await Chat.findOne({ userId });
+            const userChat = await Chat.findOne(
+                buildVisibleChatQuery(userId, user.activeChatId),
+            );
             if (userChat) {
                 activeChatId = userChat._id;
                 recentChatIds.push(activeChatId.toString());
@@ -767,7 +809,9 @@ export async function deleteChatIdFromRecentList(chatId) {
 // Returns total number of chats for current user
 export async function getTotalChatCount() {
     const currentUser = await getCurrentUser(false);
-    return await Chat.countDocuments({ userId: currentUser._id });
+    return await Chat.countDocuments(
+        buildVisibleChatQuery(currentUser._id, currentUser.activeChatId),
+    );
 }
 
 // Title search that avoids regex on encrypted fields by filtering in memory

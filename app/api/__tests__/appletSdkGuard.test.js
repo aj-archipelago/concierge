@@ -131,4 +131,63 @@ describe("applet SDK guard", () => {
             },
         );
     });
+
+    test("holds concurrency slots until streaming responses close", async () => {
+        const encoder = new TextEncoder();
+        let closeStream;
+        const limits = { concurrent: 1, maxPerWindow: 10, windowMs: 60_000 };
+        const run = jest.fn(
+            async () =>
+                new Response(
+                    new ReadableStream({
+                        start(controller) {
+                            controller.enqueue(encoder.encode("data: one\n\n"));
+                            closeStream = () => controller.close();
+                        },
+                    }),
+                    {
+                        headers: { "Content-Type": "text/event-stream" },
+                    },
+                ),
+        );
+
+        const first = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            run,
+        });
+        const second = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            run,
+        });
+
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(429);
+        expect((await second.json()).code).toBe(
+            "APPLET_SDK_CONCURRENCY_LIMITED",
+        );
+        expect(run).toHaveBeenCalledTimes(1);
+
+        const readPromise = first.text();
+        closeStream();
+        await expect(readPromise).resolves.toContain("data: one");
+
+        const third = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            run,
+        });
+
+        expect(third.status).toBe(200);
+        closeStream();
+        await third.text();
+        expect(run).toHaveBeenCalledTimes(2);
+    });
 });

@@ -16,7 +16,6 @@ import {
     createUserGlobalStorageTarget,
 } from "@/src/utils/storageTargets";
 import { toast } from "react-toastify";
-import { useGetActiveChats } from "../../../queries/chats";
 
 function normalizeFolderPath(value) {
     return String(value || "")
@@ -57,6 +56,9 @@ export default function UserFileCollection({
     messages = [],
     updateChatHook = null,
     containerHeight = "60vh",
+    scopeToStorageTarget = false,
+    persistenceKey = null,
+    onAttach = null,
 }) {
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
@@ -68,20 +70,6 @@ export default function UserFileCollection({
             ? createChatStorageTarget(contextId, chatId)
             : createUserGlobalStorageTarget(contextId);
     }, [contextId, chatId]);
-
-    // Build chatId → title map for the folder sidebar
-    const { data: activeChats } = useGetActiveChats();
-    const chatTitleMap = useMemo(() => {
-        const map = {};
-        if (activeChats) {
-            for (const chat of activeChats) {
-                if (chat._id && chat.title) {
-                    map[chat._id] = chat.title;
-                }
-            }
-        }
-        return map;
-    }, [activeChats]);
 
     // Upload handler — uses a no-op setFiles since UnifiedFileManager
     // manages its own file state via useUnifiedFileData
@@ -272,14 +260,20 @@ export default function UserFileCollection({
                 contextId={contextId}
                 chatId={chatId}
                 legacyMessages={messages}
-                chatTitleMap={chatTitleMap}
+                storageTarget={scopeToStorageTarget ? storageTarget : null}
+                rootFolderLabel={
+                    scopeToStorageTarget && chatId ? t("Chat Files") : undefined
+                }
                 onDelete={handleDelete}
                 onDownload={handleDownload}
                 onMove={handleMove}
                 onUpdateMetadata={handleUpdateMetadata}
                 onUploadClick={() => setShowUploadDialog(true)}
+                onAttach={onAttach}
+                attachLabel={onAttach ? t("Attach") : undefined}
                 isDownloading={isDownloading}
                 containerHeight={containerHeight}
+                persistenceKey={persistenceKey}
             />
 
             <FileUploadDialog

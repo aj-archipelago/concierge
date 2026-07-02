@@ -36,7 +36,7 @@ const baseURLHost = isLocalhost ? parsedBaseURL?.hostname : undefined;
 const webServerCommand = (() => {
     if (isLocalhost && baseURLHost) {
         const portArg = baseURLPort ? `-p ${baseURLPort}` : "";
-        return `npm run prebuild && next dev -H ${baseURLHost} ${portArg}`.trim();
+        return `npm run prebuild && next dev --webpack -H ${baseURLHost} ${portArg}`.trim();
     }
     return "npm run next:dev";
 })();

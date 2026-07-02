@@ -13,8 +13,11 @@ jest.mock("../utils/auth", () => ({
 global.fetch = jest.fn();
 
 describe("Text Proxy API", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
     beforeEach(() => {
         jest.clearAllMocks();
+        process.env.NODE_ENV = originalNodeEnv;
     });
 
     describe("authentication", () => {
@@ -57,7 +60,7 @@ describe("Text Proxy API", () => {
             expect(data.error).toBe("URL is not from an allowed domain");
         });
 
-        test("should accept Azure blob storage URLs", async () => {
+        test("should accept allowed blob storage URLs", async () => {
             global.fetch.mockResolvedValue({
                 ok: true,
                 text: () => Promise.resolve("col1,col2\nval1,val2"),
@@ -65,15 +68,18 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://customerstorage.blob.core.windows.net/files/data.csv",
+                "https://storage.googleapis.com/bucket/files/data.csv",
             );
             const response = await GET(req);
 
             expect(response.status).toBe(200);
-            expect(global.fetch).toHaveBeenCalledWith(
-                "https://customerstorage.blob.core.windows.net/files/data.csv",
-                { redirect: "follow" },
+            expect(global.fetch.mock.calls[0][0].toString()).toBe(
+                "https://storage.googleapis.com/bucket/files/data.csv",
             );
+            expect(global.fetch.mock.calls[0][1]).toEqual({
+                cache: "no-store",
+                redirect: "manual",
+            });
         });
 
         test("should accept GCS URLs", async () => {
@@ -89,6 +95,39 @@ describe("Text Proxy API", () => {
             const response = await GET(req);
 
             expect(response.status).toBe(200);
+        });
+
+        test("should reject local blob URLs in production", async () => {
+            process.env.NODE_ENV = "production";
+
+            const req = createMockRequest(
+                "http://localhost:10000/devstoreaccount1/file.txt",
+            );
+            const response = await GET(req);
+            const data = await response.json();
+
+            expect(response.status).toBe(403);
+            expect(data.error).toBe("URL is not from an allowed domain");
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test("should reject redirects to non-allowed domains", async () => {
+            global.fetch.mockResolvedValue({
+                status: 302,
+                headers: new Map([
+                    ["location", "http://169.254.169.254/latest/meta-data"],
+                ]),
+            });
+
+            const req = createMockRequest(
+                "https://storage.googleapis.com/bucket/files/data.csv",
+            );
+            const response = await GET(req);
+            const data = await response.json();
+
+            expect(response.status).toBe(403);
+            expect(data.error).toBe("URL is not from an allowed domain");
+            expect(global.fetch).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -107,7 +146,7 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://customerstorage.blob.core.windows.net/file.csv",
+                "https://storage.googleapis.com/bucket/file.csv",
             );
             const response = await GET(req);
             const text = await response.text();
@@ -122,7 +161,7 @@ describe("Text Proxy API", () => {
             });
 
             const req = createMockRequest(
-                "https://customerstorage.blob.core.windows.net/missing.csv",
+                "https://storage.googleapis.com/bucket/missing.csv",
             );
             const response = await GET(req);
             const data = await response.json();

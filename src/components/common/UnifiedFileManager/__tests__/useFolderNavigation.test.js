@@ -91,6 +91,25 @@ describe("useFolderNavigation", () => {
         expect(result.current.selectedPath).toBe("chats");
     });
 
+    test("restores initially expanded folders", () => {
+        const tree = {
+            children: {
+                chats: { children: {}, files: [], path: "chats" },
+                global: { children: {}, files: [], path: "global" },
+            },
+        };
+
+        const { result } = renderHook(() =>
+            useFolderNavigation({
+                tree,
+                initialExpandedPaths: ["chats"],
+            }),
+        );
+
+        expect(result.current.isExpanded("chats")).toBe(true);
+        expect(result.current.isExpanded("global")).toBe(false);
+    });
+
     test("can label the real root separately from recursive All Files", () => {
         const tree = {
             children: {

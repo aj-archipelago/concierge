@@ -11,6 +11,7 @@ import {
     Send,
     Mic,
     MicOff,
+    Copy,
 } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,10 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import SlashCommandMenu from "./SlashCommandMenu";
+import {
+    buildFileCollectionAttachments,
+    CHAT_FILE_ATTACH_EVENT,
+} from "./fileCollectionAttachments";
 
 const DynamicFileUploader = dynamic(() => import("./FileUploader"), {
     ssr: false,
@@ -92,7 +97,8 @@ const MessageInput = React.memo(
             onInjectMessage,
             initialShowFileUpload = false,
             chatId: chatIdProp,
-            onPromoteChat,
+            onCopyAndContinue,
+            copyInProgress = false,
         },
         ref,
     ) {
@@ -110,19 +116,6 @@ const MessageInput = React.memo(
             });
         }, []);
 
-        // Expose focus method to parent via ref
-        React.useImperativeHandle(
-            ref,
-            () => ({
-                focus: () => {
-                    if (textareaRef.current) {
-                        textareaRef.current.focus();
-                    }
-                },
-            }),
-            [],
-        );
-
         const [isUploadingMedia, setIsUploadingMedia] = useState(false);
         const MAX_INPUT_LENGTH = 100000;
         const [inputValue, setInputValue] = useState("");
@@ -138,7 +131,6 @@ const MessageInput = React.memo(
             !!(window.SpeechRecognition || window.webkitSpeechRecognition);
         const [initializedForChat, setInitializedForChat] = useState(null);
         const prevChatIdRef = useRef(null);
-        const isPromotionRef = useRef(false);
         const [lengthLimitAlert, setLengthLimitAlert] = useState({
             show: false,
             actualLength: 0,
@@ -146,17 +138,6 @@ const MessageInput = React.memo(
         });
         const { openPortal } = usePortal();
         const router = useRouter();
-
-        // Listen for chat promotion (new → real ID) so we can preserve
-        // the current input instead of wiping it with an empty draft.
-        useEffect(() => {
-            const onPromotion = () => {
-                isPromotionRef.current = true;
-            };
-            window.addEventListener("chatIdUpdate", onPromotion);
-            return () =>
-                window.removeEventListener("chatIdUpdate", onPromotion);
-        }, []);
 
         // Reset initialization when chat changes to a different chat
         useEffect(() => {
@@ -175,13 +156,6 @@ const MessageInput = React.memo(
                 return;
             }
             if (initializedForChat === activeChatId) return;
-
-            if (isPromotionRef.current) {
-                // Promotion: keep current input, just update the draft key
-                isPromotionRef.current = false;
-                setInitializedForChat(activeChatId);
-                return;
-            }
 
             setInputValue(readStoredDraft(activeChatId));
             setInitializedForChat(activeChatId);
@@ -436,28 +410,86 @@ const MessageInput = React.memo(
             }
         };
 
-        const addUrl = (urlData) => {
+        const addUrl = React.useCallback((urlData) => {
             const { url } = urlData;
 
             // Media urls, will be sent with active message
             if (isSupportedFileUrl(url)) {
-                const currentUrlsData = urlsData;
-                const isDuplicate = currentUrlsData.some(
-                    (existingUrl) => existingUrl.hash === urlData.hash,
-                );
-                if (!isDuplicate) {
-                    console.log("Adding new URL data:", urlData);
-                    setUrlsData((prevUrlsData) => [...prevUrlsData, urlData]);
-                } else {
-                    console.log(
-                        "Skipping duplicate URL with hash:",
-                        urlData.hash,
+                setUrlsData((currentUrlsData) => {
+                    const isDuplicate = currentUrlsData.some(
+                        (existingUrl) => existingUrl.hash === urlData.hash,
                     );
-                }
+                    if (isDuplicate) {
+                        console.log(
+                            "Skipping duplicate URL with hash:",
+                            urlData.hash,
+                        );
+                        return currentUrlsData;
+                    }
+
+                    console.log("Adding new URL data:", urlData);
+                    return [...currentUrlsData, urlData];
+                });
             } else {
                 console.log("URL is not supported:", url);
             }
-        };
+        }, []);
+
+        const attachFileCollectionObjects = React.useCallback(
+            (selectedObjects) => {
+                if (!selectedObjects || selectedObjects.length === 0) return;
+
+                const attachments =
+                    buildFileCollectionAttachments(selectedObjects);
+                attachments.forEach(({ urlData }) => addUrl(urlData));
+                setFiles((prevFiles) => [
+                    ...prevFiles,
+                    ...attachments.map((attachment) => attachment.file),
+                ]);
+                setShowFileUpload(true);
+                requestFocus();
+            },
+            [addUrl, requestFocus],
+        );
+
+        // Expose focus and file attachment methods to parent components.
+        React.useImperativeHandle(
+            ref,
+            () => ({
+                focus: () => {
+                    if (textareaRef.current) {
+                        textareaRef.current.focus();
+                    }
+                },
+                attachFiles: attachFileCollectionObjects,
+            }),
+            [attachFileCollectionObjects],
+        );
+
+        useEffect(() => {
+            if (typeof window === "undefined" || !activeChatId) {
+                return undefined;
+            }
+
+            const handleChatFileAttach = (event) => {
+                const detail = event.detail || {};
+                if (String(detail.chatId || "") !== String(activeChatId)) {
+                    return;
+                }
+                attachFileCollectionObjects(detail.files || []);
+            };
+
+            window.addEventListener(
+                CHAT_FILE_ATTACH_EVENT,
+                handleChatFileAttach,
+            );
+            return () => {
+                window.removeEventListener(
+                    CHAT_FILE_ATTACH_EVENT,
+                    handleChatFileAttach,
+                );
+            };
+        }, [activeChatId, attachFileCollectionObjects]);
 
         const handleDragOver = (e) => {
             e.preventDefault();
@@ -522,6 +554,27 @@ const MessageInput = React.memo(
 
         return (
             <div>
+                {viewingReadOnlyChat && onCopyAndContinue ? (
+                    <div className="mx-1 mb-2 flex flex-col gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm dark:border-sky-800 dark:bg-sky-900/20 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="text-sky-900 dark:text-sky-100">
+                            {t(
+                                "This shared chat is read-only. Copy it to continue in your own chat.",
+                            )}
+                        </span>
+                        <button
+                            type="button"
+                            data-testid="copy-and-continue-button"
+                            onClick={onCopyAndContinue}
+                            disabled={copyInProgress}
+                            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-500 dark:hover:bg-sky-600"
+                        >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copyInProgress
+                                ? t("Copying...")
+                                : t("Copy and continue")}
+                        </button>
+                    </div>
+                ) : null}
                 <div
                     className={classNames(
                         "rounded-md border-2 mt-1",
@@ -544,7 +597,6 @@ const MessageInput = React.memo(
                                 setIsUploadingMedia={setIsUploadingMedia}
                                 setUrlsData={setUrlsData}
                                 chatId={activeChatId}
-                                promoteChat={onPromoteChat}
                             />
                         </div>
                     )}

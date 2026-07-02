@@ -32,10 +32,11 @@ export async function GET(request, { params }) {
             );
         }
 
+        let syncedTask = task;
         if (!TERMINAL_TASK_STATUSES.has(task.status)) {
-            await syncTaskWithBullMQJob(task);
+            syncedTask = await syncTaskWithBullMQJob(task);
         }
-        const updatedTask = await checkAndUpdateAbandonedTask(task);
+        const updatedTask = await checkAndUpdateAbandonedTask(syncedTask);
         return NextResponse.json(updatedTask);
     } catch (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

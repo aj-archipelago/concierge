@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import "./file";
+import "./file.js";
 
 // Define the Workspace schema
 export const workspaceSchema = new mongoose.Schema(

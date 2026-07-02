@@ -79,6 +79,38 @@ describe("admin usage route", () => {
         expect(pipeline[0]).not.toHaveProperty("$addFields");
     });
 
+    it("uses Cosmos-compatible operators for 15-minute buckets", async () => {
+        const { GET } = await import("./route");
+
+        await GET(createRequest("?groupBy=15m"));
+
+        const pipeline = mockAggregate.mock.calls[0][0];
+        const firstGroup = pipeline.find((stage) => stage.$group?._id?.group);
+        const bucket = firstGroup.$group._id.group;
+
+        expect(JSON.stringify(bucket)).not.toContain("$dateTrunc");
+        expect(bucket).toEqual({
+            $dateToString: {
+                format: "%Y-%m-%d %H:%M",
+                date: {
+                    $dateFromParts: {
+                        year: { $year: "$timestamp" },
+                        month: { $month: "$timestamp" },
+                        day: { $dayOfMonth: "$timestamp" },
+                        hour: { $hour: "$timestamp" },
+                        minute: {
+                            $subtract: [
+                                { $minute: "$timestamp" },
+                                { $mod: [{ $minute: "$timestamp" }, 15] },
+                            ],
+                        },
+                    },
+                },
+                timezone: "UTC",
+            },
+        });
+    });
+
     it("keeps provider total tokens separate from billable metered tokens", async () => {
         const { GET } = await import("./route");
 

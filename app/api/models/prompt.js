@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import "./file";
+import "./file.js";
 
 // Define the Prompt schema
 const promptSchema = new mongoose.Schema({

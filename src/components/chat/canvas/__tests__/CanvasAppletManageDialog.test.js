@@ -52,7 +52,7 @@ describe("CanvasAppletManageDialog", () => {
         jest.restoreAllMocks();
     });
 
-    it("publishes an already published direct-link applet to the app store without unpublishing", async () => {
+    it("publishes an already published direct-link applet to the Applet Store without unpublishing", async () => {
         const onAppUpdated = jest.fn();
         global.fetch.mockResolvedValueOnce({
             ok: true,
@@ -77,7 +77,7 @@ describe("CanvasAppletManageDialog", () => {
         expect(screen.queryByLabelText("App Name")).not.toBeInTheDocument();
 
         await userEvent.click(
-            screen.getByRole("button", { name: "Add to App Store" }),
+            screen.getByRole("button", { name: "Add to Applet Store" }),
         );
 
         expect(screen.getByLabelText("App Name")).toHaveValue("Weather Applet");
@@ -88,7 +88,7 @@ describe("CanvasAppletManageDialog", () => {
             "Weather tools for the newsroom",
         );
         await userEvent.click(
-            screen.getByRole("button", { name: "Publish to App Store" }),
+            screen.getByRole("button", { name: "Publish to Applet Store" }),
         );
 
         await waitFor(() => {

@@ -1,39 +1,87 @@
 import mongoose from "mongoose";
 import LLM from "./app/api/models/llm";
 import config from "./config/index";
-import { connectToDatabase } from "./src/db.mjs";
 import Prompt from "./app/api/models/prompt";
-import App, { APP_STATUS, APP_TYPES } from "./app/api/models/app";
+import App, { APP_TYPES } from "./app/api/models/app";
 import User from "./app/api/models/user.mjs";
 import { migrateStyleGuideFiles } from "./app/api/utils/style-guide-migration";
+import {
+    ensureUniqueActiveAppletAppIndex,
+    repairDuplicateAppletApps,
+} from "./app/api/canvas-applets/app-records";
+import {
+    BUILT_IN_NATIVE_APPS,
+    ensureBuiltInNativeApps,
+} from "./app/api/apps/native-apps";
+import { runStartupMigrations } from "./app/api/utils/startup-migrations.mjs";
+
+// Add a new id when a bootstrap task must run again for a later release.
+const STARTUP_MIGRATIONS = [
+    {
+        id: "20240601_migrate_llms_to_model_ids",
+        name: "Migrate prompt LLM references to model IDs",
+        run: migrateLLMsToModelIds,
+    },
+    {
+        id: "20260614_repair_applet_app_records",
+        name: "Repair applet app records and active index",
+        run: repairAppletAppRecords,
+    },
+    {
+        id: "20260618_seed_builtin_native_apps",
+        name: "Seed built-in native apps",
+        run: seedNativeApps,
+    },
+    {
+        id: "20240601_migrate_style_guide_files",
+        name: "Migrate style guide files",
+        run: migrateStyleGuideFilesForStartup,
+    },
+];
 
 export async function register() {
     if (!mongoose?.connect) return;
     if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+    const { connectToDatabase } = await import("./src/db.mjs");
     await connectToDatabase();
 
     console.log("Connected to MongoDB");
-    console.log("Running migrations");
-    await migrateLLMsToModelIds();
-
-    // Seed native apps
-    await seedNativeApps();
-
-    // Ensure style guide files are available in the correct context
-    migrateStyleGuideFiles()
-        .then((result) => {
-            if (result.migrated > 0 || result.errors > 0) {
-                console.log(
-                    `Style guide migration: ${result.migrated} migrated, ${result.errors} errors`,
-                );
-            }
-        })
-        .catch((error) => {
-            console.error("Style guide migration error:", error);
-        });
-
     config.global.initialize();
+    await runCriticalStartupMigrations();
+    runNonCriticalStartupMigrations();
+}
+
+async function runCriticalStartupMigrations() {
+    const criticalMigrations = STARTUP_MIGRATIONS.filter(
+        (migration) => migration.critical,
+    );
+    if (criticalMigrations.length === 0) return;
+
+    console.log("Running critical startup bootstrap");
+    await runStartupMigrations(criticalMigrations);
+}
+
+function runNonCriticalStartupMigrations() {
+    const nonCriticalMigrations = STARTUP_MIGRATIONS.filter(
+        (migration) => !migration.critical,
+    );
+    if (nonCriticalMigrations.length === 0) return;
+
+    console.log("Starting background startup bootstrap");
+    runStartupMigrations(nonCriticalMigrations).catch((error) => {
+        console.error("Background startup bootstrap error:", error);
+    });
+}
+
+export async function repairAppletAppRecords() {
+    const result = await repairDuplicateAppletApps();
+    if (result.duplicateAppletCount > 0) {
+        console.log(
+            `Repaired ${result.duplicateAppletCount} duplicate applet app group(s); deactivated ${result.deactivatedAppCount} duplicate app record(s)`,
+        );
+    }
+    await ensureUniqueActiveAppletAppIndex();
 }
 
 /**
@@ -107,75 +155,7 @@ export async function seedNativeApps() {
         console.log("Created system user for native apps");
     }
 
-    // Define the main native apps based on navigation
-    const nativeApps = [
-        {
-            name: "Translate",
-            slug: "translate",
-            type: APP_TYPES.NATIVE,
-            icon: "Globe",
-            description:
-                "Translate text between multiple languages with AI-powered accuracy",
-        },
-        {
-            name: "Transcribe",
-            slug: "video",
-            type: APP_TYPES.NATIVE,
-            icon: "Video",
-            description:
-                "Transcribe and translate video and audio files with AI-powered accuracy",
-        },
-        {
-            name: "Write",
-            slug: "write",
-            type: APP_TYPES.NATIVE,
-            icon: "Pencil",
-            description:
-                "Write and edit content with AI-powered writing assistance",
-        },
-        {
-            name: "Workspaces",
-            slug: "workspaces",
-            type: APP_TYPES.NATIVE,
-            icon: "AppWindow",
-            description:
-                "Manage your AI workspaces and collaborate on projects",
-        },
-        {
-            name: "Media",
-            slug: "media",
-            type: APP_TYPES.NATIVE,
-            icon: "Image",
-            description: "Generate and manage images and media content",
-        },
-        {
-            name: "Jira",
-            slug: "jira",
-            type: APP_TYPES.NATIVE,
-            icon: "Bug",
-            description:
-                "Integrate with Jira for issue tracking and project management",
-        },
-    ];
-
-    // Upsert each native app
-    for (const appData of nativeApps) {
-        await App.findOneAndUpdate(
-            {
-                slug: appData.slug,
-                type: APP_TYPES.NATIVE,
-            },
-            {
-                ...appData,
-                status: APP_STATUS.ACTIVE,
-                author: systemUser._id,
-            },
-            {
-                upsert: true,
-                new: true,
-            },
-        );
-    }
+    await ensureBuiltInNativeApps({ author: systemUser._id });
 
     // Remove retired native apps and clean up user references
     const retiredSlugs = ["applets-v2"];
@@ -193,5 +173,23 @@ export async function seedNativeApps() {
         console.log(`Removed ${retired.length} retired native apps`);
     }
 
-    console.log(`Seeded ${nativeApps.length} native apps`);
+    console.log(`Seeded ${BUILT_IN_NATIVE_APPS.length} native apps`);
+}
+
+export async function migrateStyleGuideFilesForStartup() {
+    const result = await migrateStyleGuideFiles();
+
+    if (result.migrated > 0 || result.errors > 0) {
+        console.log(
+            `Style guide migration: ${result.migrated} migrated, ${result.errors} errors`,
+        );
+    }
+
+    if (result.errors > 0) {
+        throw new Error(
+            `Style guide migration completed with ${result.errors} error(s)`,
+        );
+    }
+
+    return result;
 }

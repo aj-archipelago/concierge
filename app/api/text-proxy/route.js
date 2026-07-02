@@ -3,7 +3,8 @@ import {
     fetchShortLivedUrl,
     extractBlobPathFromUrl,
     extractHashFromBlobUrl,
-    isAllowedBlobDomain,
+    fetchAllowedBlobUrl,
+    validateAllowedBlobUrl,
 } from "../utils/llm-file-utils.js";
 
 /**
@@ -33,17 +34,12 @@ export async function GET(req) {
             );
         }
 
-        // Validate URL is from allowed domains
-        const urlObj = new URL(url);
-        if (!isAllowedBlobDomain(urlObj.hostname)) {
-            return Response.json(
-                { error: "URL is not from an allowed domain" },
-                { status: 403 },
-            );
-        }
+        validateAllowedBlobUrl(url);
 
         // Fetch the file content
-        let response = await fetch(url, { redirect: "follow" });
+        let response = await fetchAllowedBlobUrl(url, {
+            cache: "no-store",
+        });
 
         // If SAS token expired (403), try to refresh via media-helper
         if (response.status === 403) {
@@ -58,8 +54,8 @@ export async function GET(req) {
                     contextId,
                 });
                 if (refreshed?.url) {
-                    response = await fetch(refreshed.url, {
-                        redirect: "follow",
+                    response = await fetchAllowedBlobUrl(refreshed.url, {
+                        cache: "no-store",
                     });
                 }
             }
@@ -86,6 +82,12 @@ export async function GET(req) {
             },
         });
     } catch (error) {
+        if (error.status) {
+            return Response.json(
+                { error: error.message },
+                { status: error.status },
+            );
+        }
         console.error("Error in text proxy:", error);
         return Response.json(
             { error: "Failed to fetch file content" },

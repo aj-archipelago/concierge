@@ -4,7 +4,13 @@ import { MinusCircle, PlusCircle } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import AIModal from "../../AIModal";
 
-function HeadlineEditor({ articleText, headline, subhead, onChange }) {
+function HeadlineEditor({
+    articleText,
+    headline,
+    subhead,
+    onChange,
+    readOnly = false,
+}) {
     const { t } = useTranslation();
     const [expanded, setExpanded] = useState(false);
 
@@ -32,11 +38,15 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                             }}
                             placeholder={t("Headline")}
                             value={headline}
-                            onChange={(e) =>
-                                onChange({
-                                    headline: e.target.value,
-                                    subhead,
-                                })
+                            readOnly={readOnly}
+                            onChange={
+                                readOnly
+                                    ? undefined
+                                    : (e) =>
+                                          onChange({
+                                              headline: e.target.value,
+                                              subhead,
+                                          })
                             }
                         />
                     </div>
@@ -57,11 +67,15 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                             }}
                             placeholder={t("Subhead")}
                             value={subhead}
-                            onChange={(e) =>
-                                onChange({
-                                    headline,
-                                    subhead: e.target.value,
-                                })
+                            readOnly={readOnly}
+                            onChange={
+                                readOnly
+                                    ? undefined
+                                    : (e) =>
+                                          onChange({
+                                              headline,
+                                              subhead: e.target.value,
+                                          })
                             }
                         />
                     </div>
@@ -112,7 +126,7 @@ function HeadlineEditor({ articleText, headline, subhead, onChange }) {
                 )}
             </div>
 
-            {true && (
+            {!readOnly && (
                 <button
                     className="absolute top-0 end-0 refresh-button p-2 text-gray-500 dark:text-gray-400 hover:text-sky-500 dark:hover:text-sky-400 transition-colors duration-200 bg-white dark:bg-gray-800 rounded-md shadow-sm hover:shadow-md z-10"
                     disabled={!articleText}

@@ -3,7 +3,8 @@ import {
     fetchShortLivedUrl,
     extractBlobPathFromUrl,
     extractHashFromBlobUrl,
-    isAllowedBlobDomain,
+    fetchAllowedBlobUrl,
+    validateAllowedBlobUrl,
 } from "../utils/llm-file-utils.js";
 import { checkMediaFile } from "../utils/media-service-utils.js";
 import { resolveStorageTarget } from "../../../src/utils/storageTargets.js";
@@ -68,24 +69,16 @@ export async function GET(req) {
             );
         }
 
-        // Validate URL is from allowed domains
-        const urlObj = new URL(resolvedUrl);
-        if (!isAllowedBlobDomain(urlObj.hostname)) {
-            return Response.json(
-                { error: "URL is not from an allowed domain" },
-                { status: 403 },
-            );
-        }
+        validateAllowedBlobUrl(resolvedUrl);
 
         const range = req.headers.get("range");
         const fetchOptions = {
-            redirect: "follow",
             ...(range ? { headers: { Range: range } } : {}),
         };
 
         // Fetch the media content. Images usually return 200; video/audio
         // previews commonly request ranges and should preserve 206 metadata.
-        let response = await fetch(resolvedUrl, fetchOptions);
+        let response = await fetchAllowedBlobUrl(resolvedUrl, fetchOptions);
 
         // If SAS token expired (403), try to refresh via media-helper
         if (response.status === 403 && contextId) {
@@ -102,7 +95,10 @@ export async function GET(req) {
                     fileScope,
                 });
                 if (resolvedUrl) {
-                    response = await fetch(resolvedUrl, fetchOptions);
+                    response = await fetchAllowedBlobUrl(
+                        resolvedUrl,
+                        fetchOptions,
+                    );
                 }
             } else {
                 const hash = extractHashFromBlobUrl(resolvedUrl || url);
@@ -113,7 +109,10 @@ export async function GET(req) {
                         contextId,
                     });
                     if (refreshed?.url) {
-                        response = await fetch(refreshed.url, fetchOptions);
+                        response = await fetchAllowedBlobUrl(
+                            refreshed.url,
+                            fetchOptions,
+                        );
                     }
                 }
             }
@@ -147,6 +146,12 @@ export async function GET(req) {
             headers: responseHeaders,
         });
     } catch (error) {
+        if (error.status) {
+            return Response.json(
+                { error: error.message },
+                { status: error.status },
+            );
+        }
         console.error("Error in image proxy:", error);
         return Response.json(
             { error: "Failed to fetch image content" },

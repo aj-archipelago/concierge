@@ -72,15 +72,47 @@ describe("registerCanvasAppletAfterUpload", () => {
         expect(global.fetch).toHaveBeenCalledTimes(2);
         const [postUrl, postOpts] = global.fetch.mock.calls[0];
         expect(postUrl).toBe("/api/canvas-applets");
-        expect(JSON.parse(postOpts.body).filePath).toBe("https://blob/first");
+        expect(JSON.parse(postOpts.body)).toEqual({
+            name: "My App",
+            filePath: "https://blob/first",
+        });
 
         const [putUrl, putOpts] = global.fetch.mock.calls[1];
         expect(putUrl).toBe("/api/canvas-applets/applet-abc");
         expect(JSON.parse(putOpts.body)).toMatchObject({
             filePath: "https://blob/second",
+            saveVersion: true,
         });
         expect(JSON.parse(putOpts.body).html).toContain("applet-abc");
 
         expect(uploadFileToMediaHelper).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects when the registered applet HTML cannot be saved", async () => {
+        const errorSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ _id: "applet-abc" }),
+            })
+            .mockResolvedValueOnce({ ok: false });
+
+        uploadFileToMediaHelper.mockResolvedValueOnce({
+            hash: "h2",
+            url: "https://blob/second",
+        });
+
+        await expect(
+            registerCanvasAppletAfterUpload({
+                taggedHtml,
+                filename: "app.html",
+                appletName: "My App",
+                contextId: "ctx",
+                initialUploadResult: initialUpload,
+            }),
+        ).rejects.toThrow("Failed to save registered applet HTML");
+        expect(errorSpy).toHaveBeenCalled();
     });
 });

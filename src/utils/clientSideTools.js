@@ -9,6 +9,7 @@ import {
     launchAppletGeneration,
     registerCanvasAppletFromWorkspaceFile,
 } from "./appletGeneration";
+import { kickoffAppletAssetGeneration } from "./appletAssetGeneration";
 import {
     getActiveAppletSandbox,
     inspectApplet,
@@ -22,6 +23,16 @@ import {
     SKILL_DESCRIPTION_MAX_LENGTH,
     splitSkillSummaryDescription,
 } from "./skillDescriptionLimits";
+import {
+    closeCanvas,
+    closeCanvasForChat,
+    openCanvas,
+    openCanvasForChat,
+    setCanvasVisibility,
+    setCanvasVisibilityForChat,
+    updateCanvasTab,
+    updateCanvasTabForChat,
+} from "../stores/chatSlice";
 
 // Route-based tool exclusions
 // Maps route patterns to arrays of tool names that should be excluded on those routes
@@ -41,6 +52,61 @@ const APPLET_DRIVER_TOOL_NAMES = new Set([
     "ReadAppletConsole",
     "GetAppletPageSnapshot",
 ]);
+
+const UX_FOCUS_TOOL_NAMES = new Set([
+    "navigate",
+    "viewautomationhtml",
+    ...[...APPLET_DRIVER_TOOL_NAMES].map((name) => name.toLowerCase()),
+]);
+
+export function getClientSideToolFocusError(toolName, context = {}) {
+    const normalizedToolName = String(toolName || "").toLowerCase();
+    if (!UX_FOCUS_TOOL_NAMES.has(normalizedToolName)) {
+        return null;
+    }
+    if (context?.isActiveChat !== false) {
+        return null;
+    }
+
+    return `Cannot run ${toolName || "this client-side tool"} because this chat is running in the background. Tools that navigate the app or inspect/control the currently mounted canvas require the chat to be open and focused. Continue without that action, or ask the user to switch back to this chat before trying again.`;
+}
+
+function assertClientSideToolHasFocus(toolName, context) {
+    const focusError = getClientSideToolFocusError(toolName, context);
+    if (focusError) {
+        throw new Error(focusError);
+    }
+}
+
+function dispatchOpenCanvas(context, canvas) {
+    const chatId = context?.chatId ? String(context.chatId) : null;
+    context.dispatch(
+        chatId ? openCanvasForChat({ chatId, canvas }) : openCanvas(canvas),
+    );
+}
+
+function dispatchSetCanvasVisibility(context, visible) {
+    const chatId = context?.chatId ? String(context.chatId) : null;
+    context.dispatch(
+        chatId
+            ? setCanvasVisibilityForChat({ chatId, visible })
+            : setCanvasVisibility(visible),
+    );
+}
+
+function dispatchUpdateCanvasTab(context, { tabId, content }) {
+    const chatId = context?.chatId ? String(context.chatId) : null;
+    context.dispatch(
+        chatId
+            ? updateCanvasTabForChat({ chatId, tabId, content })
+            : updateCanvasTab({ tabId, content }),
+    );
+}
+
+function dispatchCloseCanvas(context) {
+    const chatId = context?.chatId ? String(context.chatId) : null;
+    context.dispatch(chatId ? closeCanvasForChat({ chatId }) : closeCanvas());
+}
 
 /**
  * Filters client-side tools based on the current route and canvas state
@@ -95,9 +161,9 @@ export function filterToolsByRoute(pathname, tools, canvasContent = null) {
     });
 }
 
-const NAVIGATE_FOOTER_EN = `For dynamic pages with IDs (like specific chats, prompt collections/workspaces, or published apps), provide the full path with the actual ID/slug. Note: Applets are workspaces, so use /workspaces/:id instead of /applets/:id.`;
+const NAVIGATE_FOOTER_EN = `For dynamic pages with IDs (like specific chats, prompt collections/workspaces, or published apps), provide the full path with the actual ID/slug. Use /applets to browse applets and /apps/:slug for published applet entries.`;
 
-const NAVIGATE_FOOTER_AR = `للصفحات الديناميكية (محادثات، مساحات عمل، تطبيقات منشورة)، أرسل المسار كاملاً مع المعرّف أو الـ slug الفعلي. ملاحظة: التطبيقات المصغّرة مرتبطة بمساحات العمل، فاستخدم /workspaces/:id بدلاً من /applets/:id.`;
+const NAVIGATE_FOOTER_AR = `للصفحات الديناميكية (محادثات، مساحات عمل، تطبيقات منشورة)، أرسل المسار كاملاً مع المعرّف أو الـ slug الفعلي. استخدم /applets لاستعراض التطبيقات المصغّرة و /apps/:slug للتطبيقات المنشورة.`;
 
 const NAVIGATE_INTRO_EN = `Navigate the user to any page in Concierge. Use this tool when the user asks to go to a specific page or section of the app (e.g., 'take me to the media page', 'go to my notifications', 'show me the home page').`;
 
@@ -155,7 +221,7 @@ ${NAVIGATE_FOOTER_AR}`,
                     path: {
                         type: "string",
                         description:
-                            "The path to navigate to. Must start with '/'. Examples: '/home', '/chat', '/media', '/workspaces/507f1f77bcf86cd799439011', '/apps/my-app-slug'. Do NOT include the domain. Note: Applets are workspaces, so use /workspaces/:id instead of /applets/:id.",
+                            "The path to navigate to. Must start with '/'. Examples: '/home', '/chat', '/media', '/workspaces/507f1f77bcf86cd799439011', '/applets', '/apps/my-app-slug'. Do NOT include the domain.",
                     },
                     userMessage: {
                         type: "string",
@@ -348,16 +414,16 @@ export const CLIENT_SIDE_TOOLS = [
         function: {
             name: "CreateApplet",
             description:
-                "Create a new file-backed applet. For a brand new applet request, strongly prefer prompt to generate a new interactive HTML applet with a live streaming preview. Use workspacePath only to import/register an existing complete HTML workspace file as a new applet. Use exactly one of prompt or workspacePath. You may also provide name to control the applet name. Do not use this tool to edit an already-registered applet; edit its Draft workspace file with the workspace shell, then call SaveAppletDraftAsVersion when the user wants a version checkpoint. If an applet is already active and you intentionally want a separate new applet, pass createNew: true.",
+                "Create a new file-backed applet. For a brand new applet request, strongly prefer prompt to generate a new interactive HTML applet with a live streaming preview. CreateApplet also automatically starts applet-specific metadata and card-image generation after the applet record exists, so do not call GenerateAppletMetadata or GenerateAppletImage just to finish initial creation. Use workspacePath only to import/register an existing complete HTML workspace file as a new applet. Use exactly one of prompt or workspacePath. You may also provide name to control the applet name. Do not use this tool to edit an already-registered applet; edit its Draft workspace file with the workspace shell, then call SaveAppletDraftAsVersion only when the user wants a checkpoint. If an applet is already active and you intentionally want a separate new applet, pass createNew: true. If the user asks for a homepage/launchpad/launcher applet that opens other applets, build launch actions with ConciergeSDK.navigation.open(path) or ConciergeSDK.navigation.navigate(path) to /apps/[slug] or the canonical app route before any browser fallback; after creation, save Draft as a version, publish that saved version locally, and set it as Home.",
             descriptionAr:
-                "أنشئ تطبيقاً مصغّراً مرتبطاً بملف. إمّا عبر prompt لتوليد HTML تفاعلي جديد مع معاينة مباشرة، أو عبر workspacePath لتسجيل ملف HTML موجود في المساحة. استخدم prompt أو workspacePath (واحد فقط). يمكن name للاسم. لا تُحدّث تطبيقاً مسجّلاً مسبقاً — لذلك لديك أدوات التحديث.",
+                "أنشئ تطبيقاً مصغّراً مرتبطاً بملف. إمّا عبر prompt لتوليد HTML تفاعلي جديد مع معاينة مباشرة، أو عبر workspacePath لتسجيل ملف HTML موجود في المساحة. استخدم prompt أو workspacePath (واحد فقط). يمكن name للاسم. لا تُحدّث تطبيقاً مسجّلاً مسبقاً — لذلك لديك أدوات التحديث. عند إنشاء صفحة رئيسية أو لوحة تشغيل لتطبيقات أخرى، استخدم ConciergeSDK.navigation.open أو ConciergeSDK.navigation.navigate للانتقال، ثم احفظ إصداراً وانشره محلياً وعيّنه كصفحة رئيسية.",
             parameters: {
                 type: "object",
                 properties: {
                     prompt: {
                         type: "string",
                         description:
-                            "Use this to generate a brand new applet from scratch. Provide a detailed description of the applet's features, layout, functionality, and design requirements.",
+                            "Use this to generate a brand new applet from scratch. Provide a detailed description of the applet's features, layout, functionality, and design requirements. Initial applet metadata and card-image generation start automatically after creation.",
                     },
                     workspacePath: {
                         type: "string",
@@ -1110,6 +1176,10 @@ export async function resolveCanvasAppletForFile({
 function waitForStreamingCompletion(context) {
     const { isStreaming, queryClient, chatId } = context || {};
 
+    if (context?.isActiveChat === false) {
+        return Promise.resolve();
+    }
+
     // If we don't have the necessary context, return a promise that resolves quickly
     if (!queryClient || !chatId) {
         console.log(
@@ -1383,6 +1453,7 @@ export const CLIENT_SIDE_TOOL_HANDLERS = {
     },
 
     navigate: async (toolInfo, context) => {
+        assertClientSideToolHasFocus("navigate", context);
         const { router, dispatch } = context || {};
 
         if (!router) {
@@ -1399,7 +1470,7 @@ export const CLIENT_SIDE_TOOL_HANDLERS = {
         if (!path) {
             console.error("Missing path in toolInfo:", toolInfo);
             throw new Error(
-                "Navigation path is required. Please provide a valid path starting with '/' (e.g., '/home', '/chat', '/workspaces'). Note: Applets are workspaces, so use /workspaces/:id instead of /applets/:id.",
+                "Navigation path is required. Please provide a valid path starting with '/' (e.g., '/home', '/chat', '/workspaces', '/applets').",
             );
         }
 
@@ -1408,12 +1479,6 @@ export const CLIENT_SIDE_TOOL_HANDLERS = {
             throw new Error(
                 `Invalid path format: "${path}". Path must start with '/' (e.g., '/home', '/chat').`,
             );
-        }
-
-        // Convert /applets/:id paths to /workspaces/:id (applets are workspaces)
-        if (path.startsWith("/applets/")) {
-            path = path.replace(/^\/applets\//, "/workspaces/");
-            console.log(`[Navigate Tool] Converted /applets/ path to: ${path}`);
         }
 
         // Validate the path using the page routes utility
@@ -1631,17 +1696,8 @@ export const CLIENT_SIDE_TOOL_HANDLERS = {
         // Wait for streaming to complete before opening canvas to prevent message loss
         // This ensures the response message is fully streamed before tab switching occurs
         waitForStreamingCompletion(context).then(() => {
-            // Open the canvas after streaming completes
-            dispatch({
-                type: "chat/openCanvas",
-                payload: canvasPayload,
-            });
-
-            // Ensure canvas is visible (triggers tab switch on mobile)
-            dispatch({
-                type: "chat/setCanvasVisibility",
-                payload: true,
-            });
+            dispatchOpenCanvas(context, canvasPayload);
+            dispatchSetCanvasVisibility(context, true);
         });
 
         // Return success immediately (canvas will open after streaming completes)
@@ -1679,22 +1735,16 @@ export const CLIENT_SIDE_TOOL_HANDLERS = {
             // Use type "article" (not "empty") so the Write component renders
             // fileHash: null indicates it's a new article, not loading an existing one
             // workspacePath links the canvas to the workspace file for live updates
-            dispatch({
-                type: "chat/openCanvas",
-                payload: {
-                    type: "article",
-                    fileHash: null,
-                    filename: null,
-                    title: "Canvas",
-                    workspacePath,
-                },
+            dispatchOpenCanvas(context, {
+                type: "article",
+                fileHash: null,
+                filename: null,
+                title: "Canvas",
+                workspacePath,
             });
 
             // Ensure canvas is visible (triggers tab switch on mobile)
-            dispatch({
-                type: "chat/setCanvasVisibility",
-                payload: true,
-            });
+            dispatchSetCanvasVisibility(context, true);
         });
 
         // Return success immediately (canvas will open after streaming completes)
@@ -1732,14 +1782,8 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
 
         // Close the canvas: clear content and hide it
         // This matches the pattern used in Canvas.js handleClose
-        dispatch({
-            type: "chat/closeCanvas",
-        });
-
-        dispatch({
-            type: "chat/setCanvasVisibility",
-            payload: false,
-        });
+        dispatchCloseCanvas(context);
+        dispatchSetCanvasVisibility(context, false);
 
         return {
             success: true,
@@ -2286,6 +2330,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
         };
     },
     viewautomationhtml: async (toolInfo, context) => {
+        assertClientSideToolHasFocus("viewautomationhtml", context);
         const { router, dispatch } = context || {};
         const idOrSlug = getToolArg(toolInfo, "idOrSlug");
         const taskId = getToolArg(toolInfo, "taskId", "latest");
@@ -2357,7 +2402,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
                     requiresConfirmation: true,
                     appletId: activeAppletId,
                     workspacePath: activeHtmlContent?.workspacePath || null,
-                    description: `CreateApplet creates a separate new applet; it does not edit the active applet.${workspacePathHint} To edit the current applet, read and modify the Draft workspace HTML file with the workspace shell, then call SaveAppletDraftAsVersion only when the user wants a saved version checkpoint. If the user explicitly wants a new applet instead, call CreateApplet again with createNew: true.`,
+                    description: `CreateApplet creates a separate new applet; it does not edit the active applet.${workspacePathHint} To edit the current applet, read and modify the Draft workspace HTML file with the workspace shell, then call SaveAppletDraftAsVersion only when the user wants a checkpoint. If the user explicitly wants a new applet instead, call CreateApplet again with createNew: true.`,
                 },
             };
         }
@@ -2386,23 +2431,19 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
                 activeTabId &&
                 activeHtmlContent?.workspacePath === registration.workspacePath
             ) {
-                dispatch({
-                    type: "chat/updateCanvasTab",
-                    payload: {
-                        tabId: activeTabId,
-                        content: nextContent,
-                    },
+                dispatchUpdateCanvasTab(context, {
+                    tabId: activeTabId,
+                    content: nextContent,
                 });
             } else {
-                dispatch({
-                    type: "chat/openCanvas",
-                    payload: nextContent,
-                });
-                dispatch({
-                    type: "chat/setCanvasVisibility",
-                    payload: true,
-                });
+                dispatchOpenCanvas(context, nextContent);
+                dispatchSetCanvasVisibility(context, true);
             }
+
+            kickoffAppletAssetGeneration({
+                appletId: registration.appletId,
+                metadata: { name: registration.appletName },
+            });
 
             return {
                 success: true,
@@ -2418,6 +2459,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
         const { tabId, completion } = launchAppletGeneration({
             prompt,
             dispatch,
+            chatId: context?.chatId || null,
             userContextId: user?.contextId || null,
             tabId: uuidv4(),
             appletName: requestedName,
@@ -2642,7 +2684,8 @@ function setAppletFieldValue(el, value) {
     );
 }
 
-CLIENT_SIDE_TOOL_HANDLERS.clickappletelement = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.clickappletelement = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("ClickAppletElement", context);
     const selector = getToolArg(toolInfo, "selector");
     const text = getToolArg(toolInfo, "text");
     const nth = getToolArg(toolInfo, "nth");
@@ -2666,7 +2709,8 @@ CLIENT_SIDE_TOOL_HANDLERS.clickappletelement = async (toolInfo) => {
     };
 };
 
-CLIENT_SIDE_TOOL_HANDLERS.fillappletfield = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.fillappletfield = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("FillAppletField", context);
     const selector = getToolArg(toolInfo, "selector");
     const value = getToolArg(toolInfo, "value");
     const nth = getToolArg(toolInfo, "nth");
@@ -2696,7 +2740,8 @@ CLIENT_SIDE_TOOL_HANDLERS.fillappletfield = async (toolInfo) => {
     };
 };
 
-CLIENT_SIDE_TOOL_HANDLERS.queryappletdom = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.queryappletdom = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("QueryAppletDom", context);
     const selector = getToolArg(toolInfo, "selector");
     const requestedLimit = getToolArg(toolInfo, "limit");
     const limit = Math.min(
@@ -2720,7 +2765,8 @@ CLIENT_SIDE_TOOL_HANDLERS.queryappletdom = async (toolInfo) => {
     };
 };
 
-CLIENT_SIDE_TOOL_HANDLERS.waitforappletelement = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.waitforappletelement = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("WaitForAppletElement", context);
     const selector = getToolArg(toolInfo, "selector");
     const gone = getToolArg(toolInfo, "gone") === true;
     const requestedTimeout = getToolArg(toolInfo, "timeoutMs");
@@ -2759,7 +2805,8 @@ CLIENT_SIDE_TOOL_HANDLERS.waitforappletelement = async (toolInfo) => {
     );
 };
 
-CLIENT_SIDE_TOOL_HANDLERS.readappletconsole = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.readappletconsole = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("ReadAppletConsole", context);
     const clear = getToolArg(toolInfo, "clear") === true;
     const levelsArg = getToolArg(toolInfo, "levels");
     const requestedLimit = getToolArg(toolInfo, "limit");
@@ -2796,7 +2843,8 @@ CLIENT_SIDE_TOOL_HANDLERS.readappletconsole = async (toolInfo) => {
     };
 };
 
-CLIENT_SIDE_TOOL_HANDLERS.getappletpagesnapshot = async (toolInfo) => {
+CLIENT_SIDE_TOOL_HANDLERS.getappletpagesnapshot = async (toolInfo, context) => {
+    assertClientSideToolHasFocus("GetAppletPageSnapshot", context);
     const includeText = getToolArg(toolInfo, "includeText") === true;
     const entry = getActiveAppletSandbox();
     if (!entry) {

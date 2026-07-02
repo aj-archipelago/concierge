@@ -1,5 +1,6 @@
 import gettingStarted from "./help-guides/getting-started.md";
 import usingChat from "./help-guides/using-chat.md";
+import sharingCollaboration from "./help-guides/sharing-collaboration.md";
 import translatingContent from "./help-guides/translating-content.md";
 import transcribingAudioVideo from "./help-guides/transcribing-audio-video.md";
 import writingWithAi from "./help-guides/writing-with-ai.md";
@@ -15,6 +16,7 @@ import keyboardShortcuts from "./help-guides/keyboard-shortcuts.md";
 
 import gettingStartedAr from "./help-guides/getting-started.ar.md";
 import usingChatAr from "./help-guides/using-chat.ar.md";
+import sharingCollaborationAr from "./help-guides/sharing-collaboration.ar.md";
 import translatingContentAr from "./help-guides/translating-content.ar.md";
 import transcribingAudioVideoAr from "./help-guides/transcribing-audio-video.ar.md";
 import writingWithAiAr from "./help-guides/writing-with-ai.ar.md";
@@ -45,6 +47,7 @@ const guidesByLang = {
     en: [
         gettingStarted,
         usingChat,
+        sharingCollaboration,
         translatingContent,
         transcribingAudioVideo,
         writingWithAi,
@@ -61,6 +64,7 @@ const guidesByLang = {
     ar: [
         gettingStartedAr,
         usingChatAr,
+        sharingCollaborationAr,
         translatingContentAr,
         transcribingAudioVideoAr,
         writingWithAiAr,

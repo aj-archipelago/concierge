@@ -21,6 +21,7 @@ export default function OverviewTab({
     runsQuery,
     onRunNow,
     isRunning,
+    readOnly = false,
 }) {
     const { t } = useTranslation();
 
@@ -44,6 +45,7 @@ export default function OverviewTab({
                         <Input
                             id="overview-name"
                             value={form.name}
+                            disabled={readOnly}
                             onChange={(e) =>
                                 onFieldChange("name", e.target.value)
                             }
@@ -59,6 +61,7 @@ export default function OverviewTab({
                         <Textarea
                             id="overview-description"
                             value={form.description}
+                            disabled={readOnly}
                             onChange={(e) =>
                                 onFieldChange("description", e.target.value)
                             }
@@ -87,10 +90,13 @@ export default function OverviewTab({
                             <Checkbox
                                 id="overview-enabled"
                                 checked={form.enabled}
+                                disabled={
+                                    readOnly ||
+                                    form.schedule?.frequency === "manual"
+                                }
                                 onCheckedChange={(checked) =>
                                     onFieldChange("enabled", Boolean(checked))
                                 }
-                                disabled={form.schedule?.frequency === "manual"}
                             />
                             <Label
                                 htmlFor="overview-enabled"
@@ -105,7 +111,7 @@ export default function OverviewTab({
                                 variant="default"
                                 size="sm"
                                 onClick={onRunNow}
-                                disabled={isRunning}
+                                disabled={readOnly || isRunning}
                                 className="min-h-10 bg-sky-600 text-white shadow-sm shadow-sky-900/10 hover:bg-sky-700 focus-visible:ring-sky-500 disabled:bg-sky-500 disabled:text-white disabled:opacity-90 dark:bg-sky-500 dark:hover:bg-sky-400 dark:disabled:bg-sky-600"
                             >
                                 {isRunning ? (

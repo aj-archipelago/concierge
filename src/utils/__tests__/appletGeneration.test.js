@@ -6,8 +6,13 @@ import {
     launchAppletGeneration,
     registerCanvasAppletFromWorkspaceFile,
 } from "../appletGeneration";
+import { kickoffAppletAssetGeneration } from "../appletAssetGeneration";
 import { uploadFileToMediaHelper } from "../fileUploadUtils";
 import { createAppletGlobalStorageTarget } from "../storageTargets";
+
+jest.mock("../appletAssetGeneration", () => ({
+    kickoffAppletAssetGeneration: jest.fn(),
+}));
 
 jest.mock("../fileUploadUtils", () => ({
     uploadFileToMediaHelper: jest.fn(),
@@ -21,6 +26,10 @@ jest.mock("../storageTargets", () => ({
 }));
 
 describe("appletGeneration helpers", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
     test("derives a concise applet name from the prompt subject", () => {
         expect(
             deriveAppletName(
@@ -165,5 +174,54 @@ describe("appletGeneration helpers", () => {
                 }),
             }),
         );
+    });
+
+    test("starts applet asset generation after prompt generation saves an applet", async () => {
+        const encoder = new TextEncoder();
+        const dispatch = jest.fn();
+        const stream = {
+            getReader() {
+                return {
+                    read: jest
+                        .fn()
+                        .mockResolvedValueOnce({
+                            done: false,
+                            value: encoder.encode(
+                                'data: {"event":"complete","data":{"html":"<html><head></head><body>Timer</body></html>"}}\n\n',
+                            ),
+                        })
+                        .mockResolvedValueOnce({ done: true }),
+                };
+            },
+        };
+        uploadFileToMediaHelper.mockResolvedValue({
+            url: "https://files.example/applets/timer.html",
+            hash: "hash-timer",
+            displayFilename: "timer.html",
+            name: "applets/timer.html",
+        });
+        global.fetch = jest
+            .fn()
+            .mockResolvedValueOnce({ ok: true, body: stream })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ _id: "applet-123" }),
+            })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+        const { completion } = launchAppletGeneration({
+            prompt: "Build a timer",
+            dispatch,
+            tabId: "tab-1",
+            userContextId: "ctx",
+        });
+
+        const result = await completion;
+
+        expect(result.appletId).toBe("applet-123");
+        expect(kickoffAppletAssetGeneration).toHaveBeenCalledWith({
+            appletId: "applet-123",
+            metadata: { name: "Timer" },
+        });
     });
 });

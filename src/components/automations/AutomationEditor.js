@@ -20,11 +20,20 @@ import {
     useUploadAutomationFile,
 } from "../../hooks/useAutomations";
 import { hasHtmlOutput } from "./runUtils";
+import ShareButton from "@/components/share/ShareButton";
 
 const EMPTY_CONTENT = `# Automation\n\nDescribe what Concierge should do when this automation runs.\n`;
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ACTIVE_RUN_STATUSES = new Set(["pending", "in_progress"]);
+
+function getMutationErrorMessage(err, fallback) {
+    const data = err?.response?.data;
+    if (Array.isArray(data?.details) && data.details.length > 0) {
+        return `${data.error || fallback}: ${data.details.join("; ")}`;
+    }
+    return data?.error || err?.message || fallback;
+}
 
 const DEFAULT_FORM = {
     name: "",
@@ -116,6 +125,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     const [form, setForm] = useState(DEFAULT_FORM);
     const [baseline, setBaseline] = useState(buildPayload(DEFAULT_FORM));
     const [error, setError] = useState("");
+    const [uploadError, setUploadError] = useState("");
     const [activeTab, setActiveTab] = useState("overview");
     const hydratedIdRef = useRef(null);
 
@@ -143,6 +153,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
             setBaseline(buildPayload(loaded));
             hydratedIdRef.current = automation._id;
             setActiveTab("overview");
+            setUploadError("");
         }
     }, [automation]);
 
@@ -155,11 +166,16 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
         [runs],
     );
 
+    const readOnly = Boolean(automation?.readOnly);
+    const isOwner = automation?.isOwner === true;
+
     const updateField = (key, value) => {
+        if (readOnly) return;
         setForm((prev) => ({ ...prev, [key]: value }));
     };
 
     const replaceSchedule = (schedule) => {
+        if (readOnly) return;
         setForm((prev) => ({
             ...prev,
             schedule: normalizeFormSchedule(schedule),
@@ -167,6 +183,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const updateScheduleField = (key, value) => {
+        if (readOnly) return;
         setForm((prev) => ({
             ...prev,
             schedule: normalizeFormSchedule({
@@ -177,6 +194,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const updateScheduleTime = (index, value) => {
+        if (readOnly) return;
         setForm((prev) => {
             const times = [...(prev.schedule.times || ["09:00"])];
             times[index] = value;
@@ -188,6 +206,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const addScheduleTime = () => {
+        if (readOnly) return;
         setForm((prev) => ({
             ...prev,
             schedule: normalizeFormSchedule({
@@ -198,6 +217,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const removeScheduleTime = (index) => {
+        if (readOnly) return;
         setForm((prev) => ({
             ...prev,
             schedule: normalizeFormSchedule({
@@ -210,6 +230,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const toggleScheduleDay = (day) => {
+        if (readOnly) return;
         setForm((prev) => {
             const days = prev.schedule.daysOfWeek || [1];
             const next = days.includes(day)
@@ -233,7 +254,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     const isSaving = updateAutomation.isPending;
 
     const handleSave = async () => {
-        if (!isDirty || isSaving) return;
+        if (readOnly || !isDirty || isSaving) return;
         setError("");
         try {
             await updateAutomation.mutateAsync(currentPayload);
@@ -244,10 +265,35 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
     };
 
     const handleDelete = async () => {
-        if (!selectedId) return;
+        if (!selectedId || !isOwner) return;
         if (!window.confirm(t("Delete this automation?"))) return;
-        await deleteAutomation.mutateAsync(selectedId);
-        onDeleted();
+        setError("");
+        try {
+            await deleteAutomation.mutateAsync(selectedId);
+            onDeleted();
+        } catch (err) {
+            setError(getMutationErrorMessage(err, t("Failed")));
+        }
+    };
+
+    const handleUploadFile = async (file) => {
+        if (!file) return;
+        setUploadError("");
+        try {
+            await uploadFile.mutateAsync(file);
+        } catch (err) {
+            setUploadError(getMutationErrorMessage(err, t("Upload failed")));
+        }
+    };
+
+    const handleDeleteFile = async (filename) => {
+        if (!filename) return;
+        setError("");
+        try {
+            await deleteFile.mutateAsync(filename);
+        } catch (err) {
+            setError(getMutationErrorMessage(err, t("Failed")));
+        }
     };
 
     if (isLoading || !automation) {
@@ -283,19 +329,29 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
                             </p>
                         )}
                     </div>
-                    <Button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={!isDirty || isSaving}
-                        variant={isDirty ? "default" : "secondary"}
-                    >
-                        {isSaving ? (
-                            <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
-                        ) : (
-                            <Save className="me-1.5 h-4 w-4" />
+                    <div className="flex items-center gap-2">
+                        {isOwner && automation?._id && (
+                            <ShareButton
+                                entityType="automation"
+                                entityId={automation._id}
+                            />
                         )}
-                        {t("Save changes")}
-                    </Button>
+                        {!readOnly && (
+                            <Button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving}
+                                variant={isDirty ? "default" : "secondary"}
+                            >
+                                {isSaving ? (
+                                    <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Save className="me-1.5 h-4 w-4" />
+                                )}
+                                {t("Save changes")}
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {error && (
@@ -331,6 +387,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
                         runsQuery={runsQuery}
                         onRunNow={() => runAutomation.mutate()}
                         isRunning={runAutomation.isPending || hasActiveRun}
+                        readOnly={readOnly}
                     />
                 </TabsContent>
                 <TabsContent value="schedule">
@@ -346,6 +403,7 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
                             updateField("timezone", value)
                         }
                         nextRunAt={automation?.nextRunAt}
+                        readOnly={readOnly}
                     />
                 </TabsContent>
                 <TabsContent value="advanced">
@@ -355,10 +413,14 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
                         automationId={selectedId}
                         onFieldChange={updateField}
                         latestHtmlRunId={latestHtmlRun?._id}
-                        onUploadFile={(file) => uploadFile.mutate(file)}
-                        onDeleteFile={(filename) => deleteFile.mutate(filename)}
+                        onUploadFile={handleUploadFile}
+                        isUploading={uploadFile.isPending}
+                        uploadError={uploadError}
+                        onDeleteFile={handleDeleteFile}
                         onDelete={handleDelete}
                         isDeleting={deleteAutomation.isPending}
+                        readOnly={readOnly}
+                        canManage={isOwner}
                     />
                 </TabsContent>
             </Tabs>

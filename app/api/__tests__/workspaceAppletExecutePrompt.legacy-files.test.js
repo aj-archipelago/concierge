@@ -90,11 +90,16 @@ function buildUser() {
     };
 }
 
+const LEGACY_SHARED_BLOB_URL =
+    "http://127.0.0.1:10000/devstoreaccount1/workspace/files/employee-handbook.pdf";
+const LEGACY_PRIVATE_BLOB_URL =
+    "http://127.0.0.1:10000/devstoreaccount1/workspace/private/private-notes.pdf";
+
 function buildLegacySharedFile() {
     return {
         _id: "shared-file-1",
         hash: "shared-hash",
-        url: "https://legacy.example.com/shared.pdf",
+        url: LEGACY_SHARED_BLOB_URL,
         originalName: "employee-handbook.pdf",
         filename: "employee-handbook.pdf",
         mimeType: "application/pdf",
@@ -105,7 +110,7 @@ function buildLegacySharedFile() {
 function buildLegacyUserFile() {
     return {
         hash: "user-hash",
-        url: "https://legacy.example.com/private.pdf",
+        url: LEGACY_PRIVATE_BLOB_URL,
         originalName: "private-notes.pdf",
         filename: "private-notes.pdf",
         mimeType: "application/pdf",
@@ -162,7 +167,7 @@ function installLegacyStorageMocks() {
             hash === "shared-hash"
         ) {
             return {
-                url: "https://legacy.example.com/shared.pdf",
+                url: LEGACY_SHARED_BLOB_URL,
                 gcs: "gs://legacy/workspace/employee-handbook.pdf",
                 hash: "shared-hash",
                 blobPath: "workspace/files/employee-handbook.pdf",
@@ -174,7 +179,7 @@ function installLegacyStorageMocks() {
             hash === "user-hash"
         ) {
             return {
-                url: "https://legacy.example.com/private.pdf",
+                url: LEGACY_PRIVATE_BLOB_URL,
                 gcs: "gs://legacy/workspace/private-notes.pdf",
                 hash: "user-hash",
                 blobPath: "workspace/private/private-notes.pdf",
@@ -261,7 +266,10 @@ describe("workspace applet execute_prompt legacy file compatibility", () => {
             data: {
                 run_workspace_agent: {
                     result: "agent output",
-                    tool: JSON.stringify({ citations: [] }),
+                    tool: JSON.stringify({
+                        citations: [{ title: "Source" }],
+                        custom: { confidence: 0.9 },
+                    }),
                 },
             },
         });
@@ -280,7 +288,11 @@ describe("workspace applet execute_prompt legacy file compatibility", () => {
 
         expect(response).toEqual({
             output: "agent output",
-            citations: [],
+            citations: [{ title: "Source" }],
+            metadata: {
+                citations: [{ title: "Source" }],
+                custom: { confidence: 0.9 },
+            },
             status: 200,
         });
 
@@ -320,12 +332,20 @@ describe("workspace applet execute_prompt legacy file compatibility", () => {
         const fileEntries = getUserFileEntries(variables.chatHistory);
         expectLegacyFilesMigrated(fileEntries);
         expect(global.fetch).toHaveBeenCalledWith(
-            "https://legacy.example.com/shared.pdf",
-            { redirect: "follow" },
+            expect.objectContaining({
+                href: LEGACY_SHARED_BLOB_URL,
+            }),
+            expect.objectContaining({
+                redirect: "manual",
+            }),
         );
         expect(global.fetch).toHaveBeenCalledWith(
-            "https://legacy.example.com/private.pdf",
-            { redirect: "follow" },
+            expect.objectContaining({
+                href: LEGACY_PRIVATE_BLOB_URL,
+            }),
+            expect.objectContaining({
+                redirect: "manual",
+            }),
         );
         expect(uploadBufferToMediaService).toHaveBeenNthCalledWith(
             1,
@@ -393,6 +413,7 @@ describe("workspace applet execute_prompt legacy file compatibility", () => {
         expect(response).toEqual({
             output: "prompt output",
             citations: [],
+            metadata: { citations: [] },
             status: 200,
         });
 

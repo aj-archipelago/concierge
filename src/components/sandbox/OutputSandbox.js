@@ -9,7 +9,7 @@ import React, {
     useMemo,
 } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { convertMessageToMarkdown } from "../chat/ChatMessage";
@@ -29,10 +29,13 @@ const OutputSandbox = forwardRef(
             autoResize = true,
             language: languageProp,
             direction: directionProp,
+            baseHref = null,
+            documentUrl = null,
         },
         ref,
     ) => {
         const { t } = useTranslation();
+        const router = useRouter();
         const languageContext = useContext(LanguageContext) || {};
         const locale = useMemo(() => {
             const normalized = normalizeAppletLocale(
@@ -82,24 +85,26 @@ const OutputSandbox = forwardRef(
         const cleanupOldPortals = useCallback((frameDoc) => {
             setPortalContainers((prev) => {
                 const newMap = new Map();
+                let changed = false;
                 prev.forEach((value, key) => {
                     // Check if the container still exists in the document
                     if (frameDoc.contains(value.container)) {
                         newMap.set(key, value);
                     } else {
+                        changed = true;
                         console.log(
                             "Removing old portal container from state:",
                             key,
                         );
                     }
                 });
-                return newMap;
+                return changed ? newMap : prev;
             });
         }, []);
 
         // Function to clear all portal containers (used when iframe is recreated)
         const clearAllPortals = useCallback(() => {
-            setPortalContainers(new Map());
+            setPortalContainers((prev) => (prev.size === 0 ? prev : new Map()));
         }, []);
 
         // Function to remove old portal containers from DOM
@@ -312,6 +317,62 @@ const OutputSandbox = forwardRef(
             [cleanupOldPortals, removeOldPortalContainers],
         );
 
+        const getCurrentOrigin = useCallback(() => {
+            if (window.location.origin) {
+                return window.location.origin;
+            }
+            try {
+                return new URL(window.location.href).origin;
+            } catch (error) {
+                return "";
+            }
+        }, []);
+
+        const sendIframeMessage = useCallback(
+            (message) => {
+                try {
+                    iframeRef.current?.contentWindow?.postMessage(
+                        message,
+                        getCurrentOrigin(),
+                    );
+                } catch (error) {
+                    console.warn("Failed to send message to sandbox:", error);
+                }
+            },
+            [getCurrentOrigin],
+        );
+
+        const normalizeNavigationPath = useCallback(
+            (path) => {
+                if (typeof path !== "string") {
+                    throw new Error("Navigation path must be a string.");
+                }
+
+                const trimmedPath = path.trim();
+                if (
+                    !trimmedPath ||
+                    !trimmedPath.startsWith("/") ||
+                    trimmedPath.startsWith("//") ||
+                    trimmedPath.includes("\\")
+                ) {
+                    throw new Error(
+                        "Navigation path must be an internal path starting with '/'.",
+                    );
+                }
+
+                const currentOrigin = getCurrentOrigin();
+                const url = new URL(trimmedPath, currentOrigin);
+                if (url.origin !== currentOrigin) {
+                    throw new Error(
+                        "Navigation path must stay within Concierge.",
+                    );
+                }
+
+                return `${url.pathname}${url.search}${url.hash}`;
+            },
+            [getCurrentOrigin],
+        );
+
         // Setup message handling for iframe->parent communication (outside useEffect so it's always ready)
         useEffect(() => {
             const handleMessage = async (event) => {
@@ -323,7 +384,39 @@ const OutputSandbox = forwardRef(
                     return;
                 }
 
-                if (event.origin !== window.location.origin) {
+                if (event.origin !== getCurrentOrigin()) {
+                    return;
+                }
+
+                if (
+                    event.data &&
+                    event.data.type === "__LABEEB_NAVIGATION_REQUEST__"
+                ) {
+                    const { requestId } = event.data;
+                    try {
+                        const path = normalizeNavigationPath(event.data.path);
+                        const replace = !!event.data.replace;
+                        if (replace && typeof router.replace === "function") {
+                            router.replace(path);
+                        } else {
+                            router.push(path);
+                        }
+                        sendIframeMessage({
+                            type: "__LABEEB_NAVIGATION_RESPONSE__",
+                            requestId,
+                            success: true,
+                            path,
+                            replace,
+                        });
+                    } catch (error) {
+                        sendIframeMessage({
+                            type: "__LABEEB_NAVIGATION_RESPONSE__",
+                            requestId,
+                            success: false,
+                            error:
+                                error?.message || "Navigation request failed.",
+                        });
+                    }
                     return;
                 }
 
@@ -357,51 +450,26 @@ const OutputSandbox = forwardRef(
                             responseHeaders[key] = value;
                         });
 
-                        // Send response back to iframe
-                        try {
-                            iframeRef.current.contentWindow.postMessage(
-                                {
-                                    type: "__FETCH_PROXY_RESPONSE__",
-                                    requestId: requestId,
-                                    status: response.status,
-                                    statusText: response.statusText,
-                                    headers: responseHeaders,
-                                    body: responseText,
-                                },
-                                window.location.origin,
-                            );
-                            console.log(
-                                "[Fetch Proxy] Response sent to iframe",
-                            );
-                        } catch (postError) {
-                            // Iframe may have been closed/unmounted
-                            console.warn(
-                                "[Fetch Proxy] Failed to send response to iframe:",
-                                postError,
-                            );
-                        }
+                        sendIframeMessage({
+                            type: "__FETCH_PROXY_RESPONSE__",
+                            requestId: requestId,
+                            status: response.status,
+                            statusText: response.statusText,
+                            headers: responseHeaders,
+                            body: responseText,
+                        });
+                        console.log("[Fetch Proxy] Response sent to iframe");
                     } catch (error) {
                         console.error(
                             "[Fetch Proxy] Error making request:",
                             error,
                         );
                         // Send error back to iframe
-                        try {
-                            iframeRef.current.contentWindow.postMessage(
-                                {
-                                    type: "__FETCH_PROXY_RESPONSE__",
-                                    requestId: event.data.requestId,
-                                    error: error.message || "Fetch proxy error",
-                                },
-                                window.location.origin,
-                            );
-                        } catch (postError) {
-                            // Iframe may have been closed/unmounted
-                            console.warn(
-                                "[Fetch Proxy] Failed to send error to iframe:",
-                                postError,
-                            );
-                        }
+                        sendIframeMessage({
+                            type: "__FETCH_PROXY_RESPONSE__",
+                            requestId: event.data.requestId,
+                            error: error.message || "Fetch proxy error",
+                        });
                     }
                     return;
                 }
@@ -453,7 +521,12 @@ const OutputSandbox = forwardRef(
             return () => {
                 window.removeEventListener("message", handleMessage);
             };
-        }, []);
+        }, [
+            getCurrentOrigin,
+            normalizeNavigationPath,
+            router,
+            sendIframeMessage,
+        ]);
 
         useEffect(() => {
             if (!iframeRef.current) {
@@ -595,6 +668,7 @@ const OutputSandbox = forwardRef(
                         language: locale.language,
                         direction: locale.direction,
                         params: appletParams,
+                        baseHref,
                     });
 
                     // Update references
@@ -818,7 +892,8 @@ const OutputSandbox = forwardRef(
                             iframe.contentWindow.history.replaceState(
                                 null,
                                 "",
-                                window.location.pathname + iframeSearch,
+                                (documentUrl || window.location.pathname) +
+                                    iframeSearch,
                             );
                         } catch (e) {}
                         // document.close() doesn't reliably fire onload in all
@@ -880,6 +955,8 @@ const OutputSandbox = forwardRef(
             content,
             theme,
             autoResize,
+            baseHref,
+            documentUrl,
             appletParams,
             appletParamsKey,
             search,

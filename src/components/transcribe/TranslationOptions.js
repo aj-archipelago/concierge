@@ -13,6 +13,29 @@ import { useRunTask } from "../../../app/queries/notifications";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import LoadingButton from "../editor/LoadingButton";
 
+const TRANSLATION_LANGUAGE_OPTIONS = [
+    "Arabic",
+    "English (UK)",
+    "English (US)",
+    "French",
+    "Spanish",
+    "German",
+    "Hebrew",
+    "Italian",
+    "Portuguese",
+    "Chinese",
+    "Japanese",
+    "Korean",
+    "Bosnian",
+    "Croatian",
+    "Serbian",
+    "Russian",
+    "Turkish",
+    "Roman Urdu",
+    "Punjabi",
+    "Hindi",
+];
+
 function TranslationOptions({
     transcripts = [],
     onAdd,
@@ -44,7 +67,7 @@ function TranslationOptions({
                     format: selectedTranscript?.format,
                     name: t("{{name}}: {{language}} Translation", {
                         name: selectedTranscript?.name,
-                        language: transcriptionTranslationLanguage,
+                        language: t(language),
                     }),
                     source: "video_page",
                 };
@@ -64,14 +87,7 @@ function TranslationOptions({
                 setLoading(false);
             }
         },
-        [
-            selectedTranscript,
-            transcriptionTranslationLanguage,
-            t,
-            onClose,
-            openNotifications,
-            runTask,
-        ],
+        [selectedTranscript, t, onClose, openNotifications, runTask],
     );
 
     return (
@@ -146,29 +162,11 @@ function TranslationOptions({
                         }
                         value={transcriptionTranslationLanguage}
                     >
-                        <option value={t("Arabic")}>{t("Arabic")}</option>
-                        <option value={t("English (UK)")}>
-                            {t("English (UK)")}
-                        </option>
-                        <option value={t("English (US)")}>
-                            {t("English (US)")}
-                        </option>
-                        <option value={t("French")}>{t("French")}</option>
-                        <option value={t("Spanish")}>{t("Spanish")}</option>
-                        <option value={t("German")}>{t("German")}</option>
-                        <option value={t("Hebrew")}>{t("Hebrew")}</option>
-                        <option value={t("Italian")}>{t("Italian")}</option>
-                        <option value={t("Portuguese")}>
-                            {t("Portuguese")}
-                        </option>
-                        <option value={t("Chinese")}>{t("Chinese")}</option>
-                        <option value={t("Japanese")}>{t("Japanese")}</option>
-                        <option value={t("Korean")}>{t("Korean")}</option>
-                        <option value={t("Bosnian")}>{t("Bosnian")}</option>
-                        <option value={t("Croatian")}>{t("Croatian")}</option>
-                        <option value={t("Serbian")}>{t("Serbian")}</option>
-                        <option value={t("Russian")}>{t("Russian")}</option>
-                        <option value={t("Turkish")}>{t("Turkish")}</option>
+                        {TRANSLATION_LANGUAGE_OPTIONS.map((language) => (
+                            <option key={language} value={language}>
+                                {t(language)}
+                            </option>
+                        ))}
                     </select>
                 </div>
             </div>

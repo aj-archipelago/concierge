@@ -4,6 +4,7 @@ import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { ThemeContext } from "@/src/contexts/ThemeProvider";
 import FileManager from "@/src/components/common/FileManager";
 import MonacoEditor from "@monaco-editor/react";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -199,7 +200,10 @@ function CreatingAppletDialog({ isVisible, containerRef: parentContainerRef }) {
         >
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 p-6 max-w-sm mx-4 pointer-events-auto border dark:border-gray-700">
                 <div className="flex items-center gap-3 mb-3">
-                    <div className="w-5 h-5 border-2 border-r-emerald-600 dark:border-r-emerald-500 border-b-emerald-600 dark:border-b-emerald-500 border-l-emerald-600 dark:border-l-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <Loader2
+                        className="h-5 w-5 animate-spin text-emerald-600 dark:text-emerald-500"
+                        aria-hidden="true"
+                    />
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {t("Creating Applet...")}
                     </h3>
@@ -252,16 +256,15 @@ function LoadingStatePlaceholder() {
     const { t } = useTranslation();
 
     return (
-        <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                <div className="w-8 h-8 border-2 border-gray-300 dark:border-gray-600 border-t-sky-600 rounded-full animate-spin" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                {t("Loading applet...")}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                {t("Please wait while we load your applet data.")}
-            </p>
+        <div
+            className="flex h-full items-center justify-center p-8"
+            role="status"
+            aria-label={t("Loading applet...")}
+        >
+            <Loader2
+                className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500"
+                aria-hidden="true"
+            />
         </div>
     );
 }
@@ -576,7 +579,10 @@ function DataTab({ workspaceId, isOwner }) {
                     </div>
                     {isSaving && (
                         <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400">
-                            <div className="w-3 h-3 border border-sky-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
+                            <Loader2
+                                className="h-3 w-3 animate-spin"
+                                aria-hidden="true"
+                            />
                             <span className="text-xs">{t("Saving...")}</span>
                         </div>
                     )}

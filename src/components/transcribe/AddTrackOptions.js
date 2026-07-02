@@ -20,15 +20,40 @@ import TranslationOptions from "./TranslationOptions";
 import { useRunTask } from "../../../app/queries/notifications";
 import {
     getDefaultTranscribeModelOption,
+    isMaiTranscribeModelOption,
     isXaiTranscribeModelOption,
+    supportsSubtitleLayoutTranscribeOption,
     supportsWordTimestampedTranscribeOption,
 } from "./transcribeQueries";
+
+const TRANSCRIPTION_LANGUAGE_OPTIONS = [
+    { value: "en", label: "English" },
+    { value: "ar", label: "Arabic" },
+    { value: "fr", label: "French" },
+    { value: "es", label: "Spanish" },
+    { value: "de", label: "German" },
+    { value: "he", label: "Hebrew" },
+    { value: "it", label: "Italian" },
+    { value: "pt", label: "Portuguese" },
+    { value: "zh", label: "Chinese" },
+    { value: "ja", label: "Japanese" },
+    { value: "ko", label: "Korean" },
+    { value: "bs", label: "Bosnian" },
+    { value: "hr", label: "Croatian" },
+    { value: "sr", label: "Serbian" },
+    { value: "ru", label: "Russian" },
+    { value: "tr", label: "Turkish" },
+    { value: "ur", label: "Urdu" },
+    { value: "pa", label: "Punjabi" },
+    { value: "hi", label: "Hindi" },
+];
 
 export function AddTrackOptions({
     url,
     onAdd,
     async = true,
     apolloClient,
+    videoInformation,
     transcripts = [],
     activeTranscript,
     options = ["transcribe", "translate", "upload", "clipboard"],
@@ -93,6 +118,9 @@ export function AddTrackOptions({
                         onAdd={onAdd}
                         async={async}
                         apolloClient={apolloClient}
+                        videoInformation={videoInformation}
+                        transcripts={transcripts}
+                        activeTranscript={activeTranscript}
                         onClose={onClose}
                     />
                 </TabsContent>
@@ -293,15 +321,20 @@ export default function TranscribeVideo({
     onAdd,
     async = true,
     apolloClient,
+    videoInformation,
+    transcripts,
+    activeTranscript,
     onClose,
 }) {
     const { t } = useTranslation();
     const isYouTubeVideo = url ? isYoutubeUrl(url) : false;
-    const { debouncedUpdateUserState } = useContext(AuthContext);
+    const { debouncedUpdateUserState, updateUserStateNow } =
+        useContext(AuthContext);
     const {
         neuralspaceEnabled,
         xaiTranscribeEnabled,
         xaiTranscribeDefaultEnabled,
+        maiTranscribeEnabled,
         transcribeDefaultModelOption,
     } = useContext(ServerContext);
     const defaultModelOption = getDefaultTranscribeModelOption(
@@ -334,6 +367,8 @@ export default function TranscribeVideo({
     } = transcriptionOption ?? {};
     const selectedModelSupportsWordTimestamps =
         supportsWordTimestampedTranscribeOption(selectedModelOption);
+    const selectedModelSupportsSubtitleLayout =
+        supportsSubtitleLayoutTranscribeOption(selectedModelOption);
 
     // Keep defaults aligned with URL capability without wiping a manual choice.
     useEffect(() => {
@@ -345,6 +380,9 @@ export default function TranscribeVideo({
         if (isYouTubeVideo && isXaiTranscribeModelOption(selectedModelOption)) {
             setSelectedModelOption(defaultModelOption);
         }
+        if (isYouTubeVideo && isMaiTranscribeModelOption(selectedModelOption)) {
+            setSelectedModelOption(defaultModelOption);
+        }
     }, [defaultModelOption, isYouTubeVideo, selectedModelOption]);
 
     useEffect(() => {
@@ -354,7 +392,18 @@ export default function TranscribeVideo({
         ) {
             setSelectedModelOption(defaultModelOption);
         }
-    }, [defaultModelOption, selectedModelOption, xaiTranscribeEnabled]);
+        if (
+            !maiTranscribeEnabled &&
+            isMaiTranscribeModelOption(selectedModelOption)
+        ) {
+            setSelectedModelOption(defaultModelOption);
+        }
+    }, [
+        defaultModelOption,
+        selectedModelOption,
+        xaiTranscribeEnabled,
+        maiTranscribeEnabled,
+    ]);
 
     const handleModelOptionChange = useCallback((value) => {
         userSelectedModelRef.current = true;
@@ -410,6 +459,52 @@ export default function TranscribeVideo({
         debouncedUpdateUserState,
     ]);
 
+    useEffect(() => {
+        if (selectedModelSupportsSubtitleLayout) {
+            return;
+        }
+
+        const unsupportedLayoutMode =
+            selectedTranscriptionType &&
+            selectedTranscriptionType !== "phraseLevel";
+
+        if (
+            !unsupportedLayoutMode &&
+            !wordTimestamped &&
+            !maxLineCount &&
+            !maxLineWidth &&
+            !maxWordsPerLine
+        ) {
+            return;
+        }
+
+        setSelectedTranscriptionType("phraseLevel");
+        setTranscriptionOption((prev) => ({
+            ...prev,
+            wordTimestamped: false,
+            transcriptionType: "",
+            maxWordsPerLine: undefined,
+            maxLineWidth: undefined,
+            maxLineCount: undefined,
+        }));
+        debouncedUpdateUserState((prev) => ({
+            ...prev,
+            transcriptionType: "",
+            wordTimestamped: false,
+            maxWordsPerLine: undefined,
+            maxLineWidth: undefined,
+            maxLineCount: undefined,
+        }));
+    }, [
+        selectedModelSupportsSubtitleLayout,
+        selectedTranscriptionType,
+        wordTimestamped,
+        maxLineCount,
+        maxLineWidth,
+        maxWordsPerLine,
+        debouncedUpdateUserState,
+    ]);
+
     const handleSubmit = useCallback(async () => {
         if (!url || loading) return;
 
@@ -417,7 +512,23 @@ export default function TranscribeVideo({
         try {
             setLoading(true);
 
-            // Fix: Use mutateAsync on the runTask object
+            if (updateUserStateNow) {
+                await updateUserStateNow((prev) => ({
+                    transcribe: {
+                        ...prev?.transcribe,
+                        url: videoInformation?.videoUrl || url,
+                        videoInformation:
+                            videoInformation ||
+                            prev?.transcribe?.videoInformation,
+                        transcripts:
+                            transcripts ?? prev?.transcribe?.transcripts ?? [],
+                        activeTranscript:
+                            activeTranscript ??
+                            prev?.transcribe?.activeTranscript,
+                    },
+                }));
+            }
+
             const { taskId } = await runTask.mutateAsync({
                 type: "transcribe",
                 url,
@@ -462,6 +573,10 @@ export default function TranscribeVideo({
         selectedModelOption,
         runTask,
         openNotifications,
+        updateUserStateNow,
+        videoInformation,
+        transcripts,
+        activeTranscript,
     ]);
 
     // Add logging for select changes
@@ -479,12 +594,19 @@ export default function TranscribeVideo({
     };
 
     const handleTranscriptionTypeChange = (e) => {
-        const selectedValue =
+        let selectedValue = e.target.value;
+        if (
+            !selectedModelSupportsSubtitleLayout &&
+            selectedValue !== "phraseLevel"
+        ) {
+            selectedValue = "phraseLevel";
+        } else if (
             !selectedModelSupportsWordTimestamps &&
-            (e.target.value === "wordLevel" ||
-                e.target.value === "wordsPerLine")
-                ? "phraseLevel"
-                : e.target.value;
+            (selectedValue === "wordLevel" || selectedValue === "wordsPerLine")
+        ) {
+            selectedValue = "phraseLevel";
+        }
+
         let newOptions = {
             responseFormat,
             wordTimestamped: false,
@@ -535,6 +657,7 @@ export default function TranscribeVideo({
                     setSelectedModelOption={handleModelOptionChange}
                     neuralspaceEnabled={neuralspaceEnabled}
                     xaiTranscribeEnabled={xaiTranscribeEnabled}
+                    maiTranscribeEnabled={maiTranscribeEnabled}
                     disabled={isYouTubeVideo}
                 />
             </div>
@@ -677,6 +800,8 @@ function TranscriptionTypeSelector({
     // them; xAI+Gemini hybrid can (xAI supplies the timestamps).
     const supportsWordTimestamps =
         supportsWordTimestampedTranscribeOption(selectedModelOption);
+    const supportsSubtitleLayout =
+        supportsSubtitleLayoutTranscribeOption(selectedModelOption);
 
     return (
         <select
@@ -702,8 +827,12 @@ function TranscriptionTypeSelector({
             {supportsWordTimestamps && (
                 <option value="wordLevel">{t("Word level")}</option>
             )}
-            <option value="horizontal">{t("Horizontal")}</option>
-            <option value="vertical">{t("Vertical")}</option>
+            {supportsSubtitleLayout && (
+                <option value="horizontal">{t("Horizontal")}</option>
+            )}
+            {supportsSubtitleLayout && (
+                <option value="vertical">{t("Vertical")}</option>
+            )}
             {supportsWordTimestamps && (
                 <option value="wordsPerLine">{t("Words per line")}</option>
             )}
@@ -717,6 +846,7 @@ function ModelSelector({
     setSelectedModelOption,
     neuralspaceEnabled,
     xaiTranscribeEnabled,
+    maiTranscribeEnabled,
     disabled,
 }) {
     const { t } = useTranslation();
@@ -733,6 +863,11 @@ function ModelSelector({
                 <option value="NeuralSpace">{t("NeuralSpace")}</option>
             )}
             <option value="Gemini">{t("Gemini")}</option>
+            {maiTranscribeEnabled && (
+                <option value="MAI-Transcribe-1.5">
+                    {t("MAI-Transcribe-1.5")}
+                </option>
+            )}
             {xaiTranscribeEnabled && <option value="xAI">{t("xAI")}</option>}
             {xaiTranscribeEnabled && (
                 <option value="xAI + Gemini">{t("xAI + Gemini")}</option>
@@ -763,22 +898,11 @@ function LanguageSelector({
             value={language}
         >
             <option value="">{t("Auto-detect video language")}</option>
-            <option value="en">{t("English")}</option>
-            <option value="ar">{t("Arabic")}</option>
-            <option value="fr">{t("French")}</option>
-            <option value="es">{t("Spanish")}</option>
-            <option value="de">{t("German")}</option>
-            <option value="he">{t("Hebrew")}</option>
-            <option value="it">{t("Italian")}</option>
-            <option value="pt">{t("Portuguese")}</option>
-            <option value="zh">{t("Chinese")}</option>
-            <option value="ja">{t("Japanese")}</option>
-            <option value="ko">{t("Korean")}</option>
-            <option value="bs">{t("Bosnian")}</option>
-            <option value="hr">{t("Croatian")}</option>
-            <option value="sr">{t("Serbian")}</option>
-            <option value="ru">{t("Russian")}</option>
-            <option value="tr">{t("Turkish")}</option>
+            {TRANSCRIPTION_LANGUAGE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                    {t(label)}
+                </option>
+            ))}
         </select>
     );
 }

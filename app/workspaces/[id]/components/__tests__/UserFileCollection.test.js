@@ -124,6 +124,80 @@ describe("UserFileCollection", () => {
         );
     });
 
+    it("focuses chat file manager on the current chat without hiding broader file navigation", async () => {
+        render(
+            <UserFileCollection
+                contextId="ctx-1"
+                contextKey="chat-ctx"
+                chatId="chat-1"
+                messages={[]}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(unifiedFileManagerProps).not.toBeNull();
+        });
+        expect(unifiedFileManagerProps?.chatId).toBe("chat-1");
+        expect(unifiedFileManagerProps?.storageTarget).toBeNull();
+        expect(unifiedFileManagerProps?.rootFolderLabel).toBeUndefined();
+    });
+
+    it("can explicitly scope chat file manager to the chat storage target", async () => {
+        render(
+            <UserFileCollection
+                contextId="ctx-1"
+                contextKey="chat-ctx"
+                chatId="chat-1"
+                messages={[]}
+                scopeToStorageTarget
+            />,
+        );
+
+        await waitFor(() => {
+            expect(unifiedFileManagerProps?.storageTarget).toEqual({
+                kind: "chat",
+                contextId: "ctx-1",
+                chatId: "chat-1",
+            });
+        });
+        expect(unifiedFileManagerProps?.rootFolderLabel).toBe("Chat Files");
+    });
+
+    it("leaves the general file manager unscoped by default", async () => {
+        render(
+            <UserFileCollection
+                contextId="ctx-1"
+                contextKey="global-ctx"
+                messages={[]}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(unifiedFileManagerProps).not.toBeNull();
+        });
+        expect(unifiedFileManagerProps?.storageTarget).toBeNull();
+        expect(unifiedFileManagerProps?.rootFolderLabel).toBeUndefined();
+    });
+
+    it("passes attach handling into the unified file manager when provided", async () => {
+        const onAttach = jest.fn();
+
+        render(
+            <UserFileCollection
+                contextId="ctx-1"
+                contextKey="chat-ctx"
+                chatId="chat-1"
+                messages={[]}
+                onAttach={onAttach}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(unifiedFileManagerProps?.onAttach).toBe(onAttach);
+        });
+        expect(unifiedFileManagerProps?.attachLabel).toBe("Attach");
+    });
+
     it("moves relative blob paths from the storage root instead of the current folder", async () => {
         render(
             <UserFileCollection

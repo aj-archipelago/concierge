@@ -3,6 +3,7 @@ import AppletFile from "../models/applet-file";
 import AppletSharedData from "../models/applet-shared-data";
 import AppletSharedDataRevision from "../models/applet-shared-data-revision";
 import AppletSharedFile from "../models/applet-shared-file";
+import AppletUserData from "../models/applet-user-data";
 import File from "../models/file";
 import { deleteMediaFile } from "../utils/media-service-utils";
 import {
@@ -122,6 +123,7 @@ export async function deleteCanvasAppletArtifacts(applet, user) {
 
     await Promise.all([
         AppletData.deleteMany({ appletId: applet._id, userId: user._id }),
+        AppletUserData.deleteMany({ appletId: applet._id, userId: user._id }),
         AppletFile.deleteMany({ appletId: applet._id, userId: user._id }),
         AppletSharedData.deleteMany({ appletId: applet._id }),
         AppletSharedDataRevision.deleteMany({ appletId: applet._id }),

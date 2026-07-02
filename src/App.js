@@ -60,6 +60,29 @@ export const CurrentUserContext = React.createContext(null);
 
 const STATE_DEBOUNCE_TIME = 1000;
 
+const serializeUserState = (state) =>
+    state === undefined ? undefined : JSON.stringify(state);
+
+const normalizeServerUserState = (state) => (state == null ? {} : state);
+
+function mergeUserStateUpdate(previousState, value) {
+    if (typeof value === "function") {
+        return {
+            ...previousState,
+            ...value(previousState),
+        };
+    }
+
+    return {
+        ...previousState,
+        ...value,
+    };
+}
+
+function getUserStateSignature(value) {
+    return JSON.stringify(value);
+}
+
 const App = ({
     children,
     language,
@@ -69,6 +92,7 @@ const App = ({
     neuralspaceEnabled,
     xaiTranscribeEnabled,
     xaiTranscribeDefaultEnabled,
+    maiTranscribeEnabled,
     transcribeDefaultModelOption,
     transcribeAlternateModelOption,
     useBlueGraphQL,
@@ -81,7 +105,10 @@ const App = ({
 
     const [userState, setUserState] = useState(null);
     const debouncedUserState = useDebounce(userState, STATE_DEBOUNCE_TIME);
+    const userStateRef = useRef(null);
+    const skippedDebouncedUserStateRef = useRef(null);
     const refetchCalledRef = useRef(false);
+    const lastPersistedUserStateRef = useRef(null);
 
     const refetchUserState = useCallback(() => {
         refetchCalledRef.current = true;
@@ -89,14 +116,31 @@ const App = ({
     }, [refetchServerUserState]);
 
     useEffect(() => {
+        const normalizedServerUserState =
+            serverUserState === undefined
+                ? undefined
+                : normalizeServerUserState(serverUserState);
+        const serializedServerUserState = serializeUserState(
+            normalizedServerUserState,
+        );
+        const serializedUserState = serializeUserState(userState);
+
+        if (serverUserState !== undefined) {
+            lastPersistedUserStateRef.current = serializedServerUserState;
+        }
+
         // set user state from server if it exists, but only if there's no client
         // state yet
         if (
             (!userState || refetchCalledRef.current) &&
             serverUserState !== undefined &&
-            JSON.stringify(serverUserState) !== JSON.stringify(userState)
+            serializedServerUserState !== serializedUserState
         ) {
-            setUserState(serverUserState);
+            userStateRef.current = normalizedServerUserState;
+            setUserState(normalizedServerUserState);
+        }
+
+        if (serverUserState !== undefined && refetchCalledRef.current) {
             refetchCalledRef.current = false;
         }
     }, [userState, serverUserState]);
@@ -109,25 +153,62 @@ const App = ({
     }, [language]);
 
     useEffect(() => {
+        if (debouncedUserState == null) return;
+
+        const debouncedUserStateSignature =
+            getUserStateSignature(debouncedUserState);
+        if (
+            skippedDebouncedUserStateRef.current === debouncedUserStateSignature
+        ) {
+            skippedDebouncedUserStateRef.current = null;
+            return;
+        }
+
+        if (debouncedUserStateSignature === lastPersistedUserStateRef.current) {
+            return;
+        }
+
+        lastPersistedUserStateRef.current = debouncedUserStateSignature;
         updateUserState.mutate(debouncedUserState);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [debouncedUserState]);
 
     const debouncedUpdateUserState = useCallback((value) => {
-        if (typeof value === "function") {
-            setUserState((prev) => {
-                return {
-                    ...prev,
-                    ...value(prev),
-                };
-            });
-        } else {
-            setUserState((prev) => ({
-                ...prev,
-                ...value,
-            }));
-        }
+        setUserState((prev) => {
+            const nextState = mergeUserStateUpdate(prev, value);
+            userStateRef.current = nextState;
+            return nextState;
+        });
     }, []);
+
+    const updateUserStateNow = useCallback(
+        async (value) => {
+            const nextState = mergeUserStateUpdate(userStateRef.current, value);
+            userStateRef.current = nextState;
+            skippedDebouncedUserStateRef.current =
+                getUserStateSignature(nextState);
+            setUserState(nextState);
+            try {
+                await updateUserState.mutateAsync(nextState);
+                lastPersistedUserStateRef.current =
+                    getUserStateSignature(nextState);
+                return nextState;
+            } catch (error) {
+                if (
+                    skippedDebouncedUserStateRef.current ===
+                    getUserStateSignature(nextState)
+                ) {
+                    skippedDebouncedUserStateRef.current = null;
+                }
+                throw error;
+            }
+        },
+        [updateUserState],
+    );
+
+    useEffect(() => {
+        userStateRef.current = userState;
+    }, [userState]);
 
     const authContextValue = useMemo(
         () => ({
@@ -135,8 +216,15 @@ const App = ({
             userState,
             refetchUserState,
             debouncedUpdateUserState,
+            updateUserStateNow,
         }),
-        [currentUser, userState, refetchUserState, debouncedUpdateUserState],
+        [
+            currentUser,
+            userState,
+            refetchUserState,
+            debouncedUpdateUserState,
+            updateUserStateNow,
+        ],
     );
 
     const serverContextValue = useMemo(
@@ -146,6 +234,7 @@ const App = ({
             neuralspaceEnabled,
             xaiTranscribeEnabled,
             xaiTranscribeDefaultEnabled,
+            maiTranscribeEnabled,
             transcribeDefaultModelOption,
             transcribeAlternateModelOption,
         }),
@@ -155,6 +244,7 @@ const App = ({
             neuralspaceEnabled,
             xaiTranscribeEnabled,
             xaiTranscribeDefaultEnabled,
+            maiTranscribeEnabled,
             transcribeDefaultModelOption,
             transcribeAlternateModelOption,
         ],

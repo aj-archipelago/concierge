@@ -124,6 +124,7 @@ describe("POST /api/applet/agent-chat", () => {
             data: {
                 sys_entity_agent: {
                     result: "Hello from the agent",
+                    tool: JSON.stringify({ citations: [] }),
                     warnings: [],
                     errors: [],
                 },
@@ -288,6 +289,43 @@ describe("POST /api/applet/agent-chat", () => {
             expect(res.status).toBe(200);
             expect(data).toEqual({
                 result: "Hello from the agent",
+                citations: [],
+                metadata: { citations: [] },
+                warnings: [],
+                errors: [],
+            });
+        });
+
+        test("returns citations and parsed tool metadata on success", async () => {
+            mockQuery.mockResolvedValueOnce({
+                data: {
+                    sys_entity_agent: {
+                        result: "Hello from the agent",
+                        tool: JSON.stringify({
+                            citations: [{ title: "Source", url: "https://x" }],
+                            custom: { confidence: 0.9 },
+                        }),
+                        warnings: [],
+                        errors: [],
+                    },
+                },
+            });
+
+            const res = await POST(
+                createRequest({
+                    messages: [{ role: "user", content: "What is 2+2?" }],
+                }),
+            );
+            const data = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(data).toMatchObject({
+                result: "Hello from the agent",
+                citations: [{ title: "Source", url: "https://x" }],
+                metadata: {
+                    citations: [{ title: "Source", url: "https://x" }],
+                    custom: { confidence: 0.9 },
+                },
                 warnings: [],
                 errors: [],
             });
@@ -360,7 +398,13 @@ describe("POST /api/applet/agent-chat", () => {
             const data = await res.json();
 
             expect(res.status).toBe(200);
-            expect(data).toEqual({ result: "", warnings: [], errors: [] });
+            expect(data).toEqual({
+                result: "",
+                citations: [],
+                metadata: {},
+                warnings: [],
+                errors: [],
+            });
         });
 
         test("passes user.personalEntityId and aiName when present", async () => {

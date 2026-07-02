@@ -1,33 +1,108 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, handleError } from "../../../utils/auth";
 import { parseStreamingMultipart } from "../../../utils/upload-utils";
+import { FILE_VALIDATION_CONFIG } from "../../../utils/fileValidation";
 import {
     deleteMediaFile,
-    listAutomationFiles,
     uploadBufferToMediaService,
 } from "../../../utils/media-service-utils";
 import { createAutomationStorageTarget } from "../../../../../src/utils/storageTargets";
 import {
     AUTOMATION_MD,
-    findAutomationForUser,
+    findAutomationForEditor,
+    findAutomationForViewer,
+    listAutomationSupportingFiles,
+    resolveAutomationStorageContextId,
     sanitizeAutomationFilename,
 } from "../../utils";
+
+const AUTOMATION_REFERENCE_FILE_EXTENSIONS = [
+    ".pdf",
+    ".txt",
+    ".csv",
+    ".tsv",
+    ".json",
+    ".md",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".js",
+    ".mjs",
+    ".ts",
+    ".py",
+    ".html",
+    ".css",
+    ".doc",
+    ".docx",
+    ".xlsx",
+    ".xls",
+    ".ppt",
+    ".pptx",
+    ".pptm",
+    ".heic",
+    ".heif",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".webp",
+    ".gif",
+    ".bmp",
+    ".tiff",
+    ".mp4",
+    ".mpeg",
+    ".mov",
+    ".avi",
+    ".flv",
+    ".mpg",
+    ".webm",
+    ".wmv",
+    ".3gp",
+    ".wav",
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".flac",
+];
+
+const AUTOMATION_UPLOAD_VALIDATION_CONFIG = {
+    ...FILE_VALIDATION_CONFIG,
+    MAX_FILE_SIZE: Math.max(
+        FILE_VALIDATION_CONFIG.MAX_FILE_SIZE,
+        50 * 1024 * 1024,
+    ),
+    ALLOWED_EXTENSIONS: AUTOMATION_REFERENCE_FILE_EXTENSIONS,
+    BLOCKED_EXTENSIONS: FILE_VALIDATION_CONFIG.BLOCKED_EXTENSIONS.filter(
+        (extension) =>
+            !AUTOMATION_REFERENCE_FILE_EXTENSIONS.includes(extension),
+    ),
+};
 
 export async function GET(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForViewer(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
 
-        const files = await listAutomationFiles(
-            user.contextId,
+        const { automation, isOwner } = found;
+        const storageContextId = await resolveAutomationStorageContextId(
+            automation,
+            user,
+            isOwner,
+        );
+        if (!storageContextId) {
+            return NextResponse.json({ files: [] });
+        }
+
+        const files = await listAutomationSupportingFiles(
+            storageContextId,
             automation.slug,
         );
         return NextResponse.json({ files });
@@ -40,16 +115,31 @@ export async function POST(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForEditor(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
 
-        const result = await parseStreamingMultipart(request, user);
+        const { automation, isOwner } = found;
+        const storageContextId = await resolveAutomationStorageContextId(
+            automation,
+            user,
+            isOwner,
+        );
+        if (!storageContextId) {
+            return NextResponse.json(
+                { error: "Automation storage is unavailable" },
+                { status: 500 },
+            );
+        }
+
+        const result = await parseStreamingMultipart(request, user, {
+            validationConfig: AUTOMATION_UPLOAD_VALIDATION_CONFIG,
+        });
         if (result.error) {
             return result.error;
         }
@@ -72,7 +162,7 @@ export async function POST(request, { params }) {
         }
 
         metadata.filename = safeName;
-        const storageTarget = createAutomationStorageTarget(user.contextId);
+        const storageTarget = createAutomationStorageTarget(storageContextId);
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
             metadata,
@@ -83,8 +173,8 @@ export async function POST(request, { params }) {
             return uploadResult.error;
         }
 
-        const files = await listAutomationFiles(
-            user.contextId,
+        const files = await listAutomationSupportingFiles(
+            storageContextId,
             automation.slug,
         );
         return NextResponse.json({ success: true, files });
@@ -97,12 +187,25 @@ export async function DELETE(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForEditor(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
+            );
+        }
+
+        const { automation, isOwner } = found;
+        const storageContextId = await resolveAutomationStorageContextId(
+            automation,
+            user,
+            isOwner,
+        );
+        if (!storageContextId) {
+            return NextResponse.json(
+                { error: "Automation storage is unavailable" },
+                { status: 500 },
             );
         }
 
@@ -125,14 +228,14 @@ export async function DELETE(request, { params }) {
             );
         }
 
-        const storageTarget = createAutomationStorageTarget(user.contextId);
+        const storageTarget = createAutomationStorageTarget(storageContextId);
         await deleteMediaFile({
             blobPath: `automations/${automation.slug}/${safeName}`,
             storageTarget,
         });
 
-        const files = await listAutomationFiles(
-            user.contextId,
+        const files = await listAutomationSupportingFiles(
+            storageContextId,
             automation.slug,
         );
         return NextResponse.json({ success: true, files });

@@ -313,13 +313,11 @@ describe("mergeFetchedChatResponse", () => {
             _id: chatId,
             messages: [{ sender: "user", payload: "hello" }],
             isChatLoading: true,
-            isUnused: false,
         };
         const serverChat = {
             _id: chatId,
             messages: [],
             isChatLoading: false,
-            isUnused: true,
         };
 
         queryClient.setQueryData(["chatSending", chatId], Date.now());
@@ -333,7 +331,6 @@ describe("mergeFetchedChatResponse", () => {
 
         expect(merged.messages).toEqual(cachedChat.messages);
         expect(merged.isChatLoading).toBe(true);
-        expect(merged.isUnused).toBe(false);
     });
 
     it("preserves already-visible history when a truncated fetch returns a newer tail", () => {
@@ -638,6 +635,61 @@ describe("mergeFetchedChatResponse", () => {
             "m2",
         ]);
     });
+
+    it("accepts server completion state after local-only messages are reconciled", () => {
+        const chatId = "507f1f77bcf86cd799439091";
+        const userPayload = [JSON.stringify({ type: "text", text: "hello" })];
+        const cachedChat = {
+            _id: chatId,
+            messages: [
+                {
+                    _id: null,
+                    _clientId: "draft-user:507f1f77bcf86cd799439091:1",
+                    sender: "user",
+                    direction: "outgoing",
+                    position: "single",
+                    payload: userPayload,
+                },
+            ],
+            isChatLoading: true,
+        };
+        const serverChat = {
+            _id: chatId,
+            messages: [
+                {
+                    _id: "m1",
+                    sender: "user",
+                    direction: "outgoing",
+                    position: "single",
+                    payload: userPayload,
+                },
+                {
+                    _id: "m2",
+                    sender: "assistant",
+                    direction: "incoming",
+                    position: "single",
+                    payload: "reply",
+                    isServerGenerated: true,
+                },
+            ],
+            isChatLoading: false,
+        };
+
+        queryClient.setQueryData(["chatSending", chatId], null);
+
+        const merged = mergeFetchedChatResponse(
+            queryClient,
+            chatId,
+            cachedChat,
+            serverChat,
+        );
+
+        expect(merged.messages.map((message) => message._id)).toEqual([
+            "m1",
+            "m2",
+        ]);
+        expect(merged.isChatLoading).toBe(false);
+    });
 });
 
 describe("syncInFlightChatCache", () => {
@@ -664,7 +716,6 @@ describe("syncInFlightChatCache", () => {
             messages: [{ _id: "m1", sender: "user", payload: "hello" }],
             isChatLoading: false,
             activeSubscriptionId: null,
-            isUnused: true,
         };
 
         queryClient.setQueryData(["chat", chatId], cachedChat);
@@ -678,7 +729,6 @@ describe("syncInFlightChatCache", () => {
             _id: chatId,
             isChatLoading: true,
             activeSubscriptionId: "sub_123",
-            isUnused: false,
         });
         expect(nextChat.messages).toHaveLength(1);
         expect(nextChat.messages[0]).toMatchObject(cachedChat.messages[0]);
@@ -687,7 +737,6 @@ describe("syncInFlightChatCache", () => {
             _id: chatId,
             isChatLoading: true,
             activeSubscriptionId: "sub_123",
-            isUnused: false,
         });
     });
 
@@ -723,7 +772,6 @@ describe("syncInFlightChatCache", () => {
                 },
             ],
             isChatLoading: true,
-            isUnused: false,
         };
 
         queryClient.setQueryData(["chat", chatId], cachedChat);
@@ -936,7 +984,7 @@ describe("useSetActiveChatId", () => {
         jest.clearAllMocks();
     });
 
-    it("moves an activated chat to the front of the MRU list", async () => {
+    it("updates active chat info without reordering the activity-sorted chat list", async () => {
         const ids = [
             "507f1f77bcf86cd799439031",
             "507f1f77bcf86cd799439032",
@@ -975,12 +1023,11 @@ describe("useSetActiveChatId", () => {
                 queryClient.getQueryData(["userChatInfo"]).activeChatId,
             ).toBe(ids[2]),
         );
-        // Optimistic update moves ids[2] to front
         expect(
             queryClient
                 .getQueryData(["activeChats"])
                 .map((chat) => String(chat?._id)),
-        ).toEqual([ids[2], ids[0], ids[1]]);
+        ).toEqual(ids.slice(0, 3));
 
         await act(async () => {
             await pendingMutation;
@@ -991,7 +1038,7 @@ describe("useSetActiveChatId", () => {
         );
     });
 
-    it("moves chats outside the top three to the front", async () => {
+    it("leaves activeChats ordering to the refetched activity-sorted endpoint", async () => {
         const ids = [
             "507f1f77bcf86cd799439041",
             "507f1f77bcf86cd799439042",
@@ -1032,7 +1079,7 @@ describe("useSetActiveChatId", () => {
             queryClient
                 .getQueryData(["activeChats"])
                 .map((chat) => String(chat?._id)),
-        ).toEqual([ids[3], ...ids.slice(0, 3)]);
+        ).toEqual(ids.slice(0, 3));
         expect(queryClient.getQueryData(["userChatInfo"])).toEqual({
             activeChatId: ids[3],
             recentChatIds: [ids[3], ...ids.slice(0, 3)],

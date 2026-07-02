@@ -63,6 +63,13 @@ export const AVAILABLE_PAGES = [
         example: "/workspaces/507f1f77bcf86cd799439011",
     },
     {
+        path: "/applets",
+        name: "Applets",
+        description: "Browse and create applets",
+        descriptionAr: "استعراض وإنشاء التطبيقات المصغّرة",
+        dynamic: false,
+    },
+    {
         path: "/apps/[slug]",
         name: "Published App",
         description: "Published applet by slug (requires app slug)",

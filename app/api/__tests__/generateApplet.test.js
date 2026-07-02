@@ -167,6 +167,35 @@ describe("generate-applet API", () => {
         expect(data.html).toBeDefined();
     });
 
+    test("keeps real transcription requirements in the applet generation prompt", async () => {
+        const res = await POST(
+            createRequest({ prompt: "Create a transcription applet" }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const systemMessage = JSON.parse(chatHistory[0].content[0]).text;
+        expect(systemMessage).toContain("ConciergeSDK.media.transcribe");
+        expect(systemMessage).toContain("ConciergeSDK.tasks.get");
+        expect(systemMessage).toContain("never invent/sample transcript text");
+        expect(systemMessage).toContain("media preview");
+        expect(systemMessage).toContain("progress/status");
+    });
+
+    test("keeps real media generation requirements in the applet generation prompt", async () => {
+        const res = await POST(
+            createRequest({ prompt: "Create an image generation applet" }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const systemMessage = JSON.parse(chatHistory[0].content[0]).text;
+        expect(systemMessage).toContain("ConciergeSDK.media.models");
+        expect(systemMessage).toContain("ConciergeSDK.media.create");
+        expect(systemMessage).toContain("ConciergeSDK.tasks.wait");
+        expect(systemMessage).toContain("do not invent completed media URLs");
+    });
+
     test("falls back to config.cortex.defaultChatModel if the preferred model fails", async () => {
         mockQuery
             .mockRejectedValueOnce(new Error("unknown model"))

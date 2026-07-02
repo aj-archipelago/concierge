@@ -25,7 +25,14 @@ import {
     XIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useContext, useMemo, useState } from "react";
+import {
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
@@ -33,13 +40,21 @@ import Loader from "../../../app/components/loader";
 import { useJob } from "../../../app/queries/jobs";
 import {
     useCancelTask,
-    useDismissTask,
+    useDismissInboxItem,
     useRetryTask,
-    useTasks,
+    useInbox,
+    useMarkNotificationsRead,
 } from "../../../app/queries/notifications";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { TASK_INFO } from "../../utils/task-info";
+import { getYouTubeTranscriptionAccessErrorMessage } from "../../utils/transcriptionErrors";
+import {
+    getShareNotificationSubtitle,
+    getShareNotificationTitle,
+    getNotificationNavigationPath,
+    isShareNotification,
+} from "../../utils/shareNotificationUtils";
 const getLocaleShortName = (locale, usersLanguage) => {
     try {
         return new Intl.DisplayNames([usersLanguage], { type: "language" }).of(
@@ -88,6 +103,10 @@ export const getStatusColorClass = (status) => {
 };
 
 function getNotificationDisplayTitle(notification, handlerDisplayNames, t) {
+    if (isShareNotification(notification)) {
+        return getShareNotificationTitle(notification, t);
+    }
+
     if (notification.type === "automation-run") {
         const automationName =
             notification.automation?.name ||
@@ -103,6 +122,29 @@ function getNotificationDisplayTitle(notification, handlerDisplayNames, t) {
     return t(handlerDisplayNames[notification.type] || notification.type);
 }
 
+function handleNotificationNavigation({
+    notification,
+    router,
+    setIsNotificationOpen,
+    onMarkRead,
+}) {
+    const path = getNotificationNavigationPath(notification);
+    if (!path) {
+        return;
+    }
+
+    if (
+        notification.inboxKind === "notification" &&
+        !notification.read &&
+        onMarkRead
+    ) {
+        onMarkRead(notification._id);
+    }
+
+    router.push(path);
+    setIsNotificationOpen(false);
+}
+
 const NotificationItem = ({
     notification,
     handlerDisplayNames,
@@ -115,45 +157,57 @@ const NotificationItem = ({
     dismissingIds,
     t,
     handleRetry,
+    onMarkRead,
 }) => {
     const { data: job } = useJob(notification.jobId);
+    const accessErrorMessage =
+        notification.type === "transcribe"
+            ? getYouTubeTranscriptionAccessErrorMessage(
+                  notification.statusText,
+                  t,
+                  {
+                      url: notification.metadata?.url,
+                  },
+              )
+            : null;
+    const statusText = accessErrorMessage || notification.statusText;
+    const isClickable = Boolean(getNotificationNavigationPath(notification));
+    const isUnreadNotification =
+        notification.inboxKind === "notification" && !notification.read;
 
     return (
         <div
             key={notification._id}
             data-request-id={notification._id}
             className={`
-            space-y-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-md mb-2 
+            space-y-2 p-2 rounded-md mb-2
             transform transition-all duration-300 ease-in-out
+            ${isUnreadNotification ? "bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800" : "bg-gray-100 dark:bg-gray-700"}
             ${dismissingIds.has(notification._id) ? "opacity-0 -translate-y-2" : "opacity-100 translate-y-0"}
         `}
         >
             <div className="flex text-sm gap-3">
                 <div className="ps-1 pt-1 basis-5">
-                    <StatusIndicator status={notification.status} />
+                    {isUnreadNotification ? (
+                        <span
+                            className="mt-1 block h-2 w-2 rounded-full bg-sky-500"
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <StatusIndicator status={notification.status} />
+                    )}
                 </div>
                 <div className="flex flex-col overflow-hidden grow">
                     <span
-                        className={`font-semibold text-gray-800 dark:text-gray-200 ${notification.invokedFrom?.source ? "cursor-pointer hover:text-sky-600" : ""}`}
+                        className={`font-semibold text-gray-800 dark:text-gray-200 ${isClickable ? "cursor-pointer hover:text-sky-600 dark:hover:text-sky-400" : ""}`}
                         onClick={() => {
-                            if (notification.invokedFrom?.source === "chat") {
-                                // Navigate immediately for snappy UX
-                                router.push(
-                                    `/chat/${notification.invokedFrom.chatId}`,
-                                );
-                                setIsNotificationOpen(false);
-                                // Active chat ID will be updated asynchronously by Chat.js component
-                            } else if (
-                                notification.invokedFrom?.source ===
-                                "video_page"
-                            ) {
-                                router.push("/video");
-                            } else if (
-                                notification.invokedFrom?.source ===
-                                "media_page"
-                            ) {
-                                router.push("/media");
-                            }
+                            if (!isClickable) return;
+                            handleNotificationNavigation({
+                                notification,
+                                router,
+                                setIsNotificationOpen,
+                                onMarkRead,
+                            });
                         }}
                     >
                         {getNotificationDisplayTitle(
@@ -162,10 +216,16 @@ const NotificationItem = ({
                             t,
                         )}
                     </span>
-                    {notification.metadata && (
+                    {isShareNotification(notification) ? (
+                        <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                            {getShareNotificationSubtitle(notification, t)}
+                        </div>
+                    ) : null}
+                    {notification.metadata &&
+                    !isShareNotification(notification) ? (
                         <div
                             className="text-xs text-gray-600 dark:text-gray-400 truncate"
-                            title={notification.statusText}
+                            title={statusText}
                         >
                             {notification.type === "video-translate" && (
                                 <>
@@ -230,19 +290,21 @@ const NotificationItem = ({
                                 </span>
                             )}
                         </div>
-                    )}
-                    <span
-                        className={`flex items-center gap-1 text-xs font-semibold ${getStatusColorClass(notification.status)}`}
-                    >
-                        {t(stringcase.sentencecase(notification.status))}
-                    </span>
+                    ) : null}
+                    {!isShareNotification(notification) ? (
+                        <span
+                            className={`flex items-center gap-1 text-xs font-semibold ${getStatusColorClass(notification.status)}`}
+                        >
+                            {t(stringcase.sentencecase(notification.status))}
+                        </span>
+                    ) : null}
 
-                    {notification.statusText && (
+                    {statusText && (
                         <div
                             className="text-xs text-gray-600 dark:text-gray-400 truncate"
-                            title={notification.statusText}
+                            title={statusText}
                         >
-                            {notification.statusText}
+                            {statusText}
                         </div>
                     )}
                     {(notification.status === "in_progress" ||
@@ -288,7 +350,12 @@ const NotificationItem = ({
                         notification.status === "cancelled" ||
                         notification.status === "abandoned") && (
                         <button
-                            onClick={() => handleDismiss(notification._id)}
+                            onClick={() =>
+                                handleDismiss(
+                                    notification._id,
+                                    notification.inboxKind || "task",
+                                )
+                            }
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
                             title={t("Hide")}
                         >
@@ -318,23 +385,30 @@ export default function NotificationButton() {
     const { t } = useTranslation();
     const { isNotificationOpen, setIsNotificationOpen } =
         useNotificationsContext();
-    const { data: notificationsData } = useTasks();
+    const { data: notificationsData } = useInbox();
     const notifications = useMemo(
         () => notificationsData?.requests || [],
         [notificationsData],
     );
-    const dismissNotification = useDismissTask();
+    const dismissNotification = useDismissInboxItem();
+    const markNotificationsRead = useMarkNotificationsRead();
     const [dismissingIds, setDismissingIds] = useState(new Set());
     const [cancelRequestId, setCancelRequestId] = useState(null);
     const { language } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
     const retryTask = useRetryTask();
+    const markNotificationsReadRef = useRef(markNotificationsRead.mutate);
+    const attemptedMarkAllReadForOpenRef = useRef(false);
 
-    const handleDismiss = (_id) => {
+    useEffect(() => {
+        markNotificationsReadRef.current = markNotificationsRead.mutate;
+    }, [markNotificationsRead.mutate]);
+
+    const handleDismiss = (_id, inboxKind = "task") => {
         setDismissingIds((prev) => new Set([...prev, _id]));
         setTimeout(() => {
-            dismissNotification.mutate(_id);
+            dismissNotification.mutate({ id: _id, inboxKind });
             setDismissingIds((prev) => {
                 const next = new Set(prev);
                 next.delete(_id);
@@ -358,6 +432,35 @@ export default function NotificationButton() {
         }
     }, [cancelRequestId, cancelRequest]);
 
+    const badgeCount =
+        (notificationsData?.activeTaskCount ?? 0) +
+        (notificationsData?.unreadNotificationCount ?? 0);
+    const hasActiveTasks = (notificationsData?.activeTaskCount ?? 0) > 0;
+
+    const handleMarkRead = useCallback(
+        (id) => {
+            markNotificationsRead.mutate({ ids: [id] });
+        },
+        [markNotificationsRead],
+    );
+
+    useEffect(() => {
+        if (!isNotificationOpen) {
+            attemptedMarkAllReadForOpenRef.current = false;
+            return;
+        }
+
+        if (
+            attemptedMarkAllReadForOpenRef.current ||
+            (notificationsData?.unreadNotificationCount ?? 0) <= 0
+        ) {
+            return;
+        }
+
+        attemptedMarkAllReadForOpenRef.current = true;
+        markNotificationsReadRef.current({ all: true });
+    }, [isNotificationOpen, notificationsData?.unreadNotificationCount]);
+
     return (
         <>
             <Popover
@@ -370,21 +473,13 @@ export default function NotificationButton() {
                         stroke="#0284c7"
                         fill={isNotificationOpen ? "#0284c7" : "none"}
                     />
-                    {notifications.filter(
-                        (n) =>
-                            n.status === "in_progress" ||
-                            n.status === "pending",
-                    ).length > 0 && (
+                    {badgeCount > 0 && (
                         <>
-                            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-75" />
+                            {hasActiveTasks ? (
+                                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-75" />
+                            ) : null}
                             <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-                                {
-                                    notifications.filter(
-                                        (n) =>
-                                            n.status === "in_progress" ||
-                                            n.status === "pending",
-                                    ).length
-                                }
+                                {badgeCount}
                             </span>
                         </>
                     )}
@@ -430,6 +525,7 @@ export default function NotificationButton() {
                                             dismissingIds={dismissingIds}
                                             t={t}
                                             handleRetry={handleRetry}
+                                            onMarkRead={handleMarkRead}
                                         />
                                     ))}
                                 </div>

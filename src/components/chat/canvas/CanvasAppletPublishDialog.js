@@ -8,15 +8,23 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import * as Icons from "lucide-react";
 import { getUniqueLucideIcons } from "@/lib/utils";
+import UserAvatar from "@/src/components/UserAvatar";
+import UserPicker from "@/components/share/UserPicker";
+import { useShareSettings } from "@/components/share/useShareSettings";
+
+const PUBLISH_MODES = {
+    LINK: "link",
+    RECIPIENTS: "recipients",
+    APP_STORE: "app_store",
+};
 
 export default function CanvasAppletPublishDialog({
     isOpen,
@@ -28,23 +36,40 @@ export default function CanvasAppletPublishDialog({
 }) {
     const { t } = useTranslation();
     const [appletName, setAppletName] = useState("");
-    const [publishToAppStore, setPublishToAppStore] = useState(false);
+    const [publishMode, setPublishMode] = useState(PUBLISH_MODES.LINK);
     const [appName, setAppName] = useState("");
     const [appSlug, setAppSlug] = useState("");
     const [appDescription, setAppDescription] = useState("");
     const [selectedIcon, setSelectedIcon] = useState("AppWindow");
     const [iconSearch, setIconSearch] = useState("");
     const [showIconSelector, setShowIconSelector] = useState(false);
+    const [recipients, setRecipients] = useState([]);
     const [error, setError] = useState("");
     const searchInputRef = useRef(null);
 
     const existingApp = appletRecord?.app;
+    const appletId = appletRecord?._id ? String(appletRecord._id) : null;
+    const { data: shareData } = useShareSettings("applet", appletId, {
+        enabled: isOpen && Boolean(appletId),
+    });
+
+    const publishToAppStore = publishMode === PUBLISH_MODES.APP_STORE;
 
     // Prefill form when dialog opens
     useEffect(() => {
         if (isOpen) {
-            const isCurrentlyPublished = existingApp?.status === "active";
-            setPublishToAppStore(isCurrentlyPublished || false);
+            const isAppStorePublished =
+                existingApp?.status === "active" &&
+                existingApp?.listedInStore !== false;
+            if (isAppStorePublished) {
+                setPublishMode(PUBLISH_MODES.APP_STORE);
+            } else if (shareData?.link?.enabled) {
+                setPublishMode(PUBLISH_MODES.LINK);
+            } else if ((shareData?.recipients || []).length > 0) {
+                setPublishMode(PUBLISH_MODES.RECIPIENTS);
+            } else {
+                setPublishMode(PUBLISH_MODES.LINK);
+            }
 
             setAppletName(appletRecord?.name || "");
 
@@ -70,7 +95,18 @@ export default function CanvasAppletPublishDialog({
                 setAppDescription(existingApp.description);
             }
         }
-    }, [isOpen, appletRecord, existingApp]);
+    }, [isOpen, appletRecord, existingApp, shareData]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setRecipients(
+            (shareData?.recipients || []).map((recipient) => ({
+                userId: String(recipient.userId),
+                role: recipient.role || "viewer",
+                user: recipient.user || null,
+            })),
+        );
+    }, [isOpen, shareData]);
 
     // Reset form when dialog closes
     useEffect(() => {
@@ -80,9 +116,10 @@ export default function CanvasAppletPublishDialog({
             setAppSlug("");
             setAppDescription("");
             setSelectedIcon("AppWindow");
-            setPublishToAppStore(false);
+            setPublishMode(PUBLISH_MODES.LINK);
             setIconSearch("");
             setShowIconSelector(false);
+            setRecipients([]);
             setError("");
         }
     }, [isOpen]);
@@ -94,6 +131,35 @@ export default function CanvasAppletPublishDialog({
         }
     }, [showIconSelector]);
 
+    const handleAddRecipient = (user) => {
+        setRecipients((prev) => {
+            if (
+                prev.some((entry) => String(entry.userId) === String(user._id))
+            ) {
+                return prev;
+            }
+            return [
+                ...prev,
+                {
+                    userId: String(user._id),
+                    role: "viewer",
+                    user: {
+                        _id: user._id,
+                        name: user.name,
+                        username: user.username,
+                        profilePicture: user.profilePicture,
+                    },
+                },
+            ];
+        });
+    };
+
+    const handleRemoveRecipient = (userId) => {
+        setRecipients((prev) =>
+            prev.filter((entry) => String(entry.userId) !== String(userId)),
+        );
+    };
+
     const handleConfirm = async () => {
         if (
             publishToAppStore &&
@@ -102,22 +168,41 @@ export default function CanvasAppletPublishDialog({
             return;
         }
 
+        if (
+            publishMode === PUBLISH_MODES.RECIPIENTS &&
+            recipients.length === 0
+        ) {
+            setError(
+                t("Select at least one person to publish this applet to."),
+            );
+            return;
+        }
+
         setError("");
 
         try {
             await onConfirm({
                 appletName: appletName.trim(),
+                publishMode,
                 publishToAppStore,
+                publishViaLink: publishMode === PUBLISH_MODES.LINK,
                 appName: appName.trim(),
                 appIcon: selectedIcon,
                 appSlug: appSlug.trim(),
                 appDescription: appDescription.trim(),
+                publishRecipients:
+                    publishMode === PUBLISH_MODES.RECIPIENTS
+                        ? recipients.map(({ userId, role }) => ({
+                              userId,
+                              role,
+                          }))
+                        : undefined,
             });
-        } catch (error) {
+        } catch (confirmError) {
             const errorMessage =
-                error?.response?.data?.error ||
-                error?.data?.error ||
-                error?.message ||
+                confirmError?.response?.data?.error ||
+                confirmError?.data?.error ||
+                confirmError?.message ||
                 "An error occurred while publishing";
             setError(errorMessage);
         }
@@ -125,10 +210,12 @@ export default function CanvasAppletPublishDialog({
 
     const isFormValid =
         appletName.trim().length > 0 &&
-        (!publishToAppStore ||
+        (publishMode === PUBLISH_MODES.LINK ||
+            publishMode === PUBLISH_MODES.RECIPIENTS ||
             (appName.trim().length > 0 &&
                 appSlug.trim().length > 0 &&
-                appDescription.trim().length > 0));
+                appDescription.trim().length > 0)) &&
+        (publishMode !== PUBLISH_MODES.RECIPIENTS || recipients.length > 0);
 
     const uniqueIcons = getUniqueLucideIcons(Icons);
 
@@ -139,6 +226,19 @@ export default function CanvasAppletPublishDialog({
         .slice(0, 50);
 
     const SelectedIconComponent = Icons[selectedIcon] || Icons.AppWindow;
+
+    const footerHint =
+        publishMode === PUBLISH_MODES.APP_STORE
+            ? t(
+                  "Your app will be publicly available to all users of this platform.",
+              )
+            : publishMode === PUBLISH_MODES.LINK
+              ? t(
+                    "Anyone with the link can open the published applet. It will not appear in the Applet Store.",
+                )
+              : t(
+                    "Only the people you add above can open the published applet.",
+                );
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -178,24 +278,160 @@ export default function CanvasAppletPublishDialog({
                         />
                     </div>
 
-                    {/* Publish to app store */}
-                    <div className="flex items-start space-x-2">
-                        <Checkbox
-                            id="publish-to-app-store"
-                            checked={publishToAppStore}
-                            onCheckedChange={(checked) =>
-                                setPublishToAppStore(checked === true)
-                            }
-                        />
-                        <label
-                            htmlFor="publish-to-app-store"
-                            className="text-sm leading-relaxed cursor-pointer"
-                        >
-                            {t(
-                                "Publish to app store (everyone using this site will be able to access the app)",
-                            )}
-                        </label>
-                    </div>
+                    {/* Publish visibility */}
+                    <fieldset className="space-y-2">
+                        <legend className="text-sm font-medium">
+                            {t("Who can access the published applet?")}
+                        </legend>
+                        <div className="space-y-2">
+                            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-200 p-3 has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50 dark:border-gray-700 dark:has-[:checked]:border-sky-600 dark:has-[:checked]:bg-sky-950/30">
+                                <input
+                                    type="radio"
+                                    name="publish-mode"
+                                    value={PUBLISH_MODES.LINK}
+                                    checked={publishMode === PUBLISH_MODES.LINK}
+                                    onChange={() =>
+                                        setPublishMode(PUBLISH_MODES.LINK)
+                                    }
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm leading-relaxed">
+                                    <span className="font-medium">
+                                        {t("Anyone with the link")}
+                                    </span>
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        {t(
+                                            "Public via a direct link, but not listed in the Applet Store.",
+                                        )}
+                                    </span>
+                                </span>
+                            </label>
+                            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-200 p-3 has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50 dark:border-gray-700 dark:has-[:checked]:border-sky-600 dark:has-[:checked]:bg-sky-950/30">
+                                <input
+                                    type="radio"
+                                    name="publish-mode"
+                                    value={PUBLISH_MODES.RECIPIENTS}
+                                    checked={
+                                        publishMode === PUBLISH_MODES.RECIPIENTS
+                                    }
+                                    onChange={() =>
+                                        setPublishMode(PUBLISH_MODES.RECIPIENTS)
+                                    }
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm leading-relaxed">
+                                    <span className="font-medium">
+                                        {t("Specific people")}
+                                    </span>
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        {t(
+                                            "Only selected Concierge users can open the published applet.",
+                                        )}
+                                    </span>
+                                </span>
+                            </label>
+                            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-gray-200 p-3 has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50 dark:border-gray-700 dark:has-[:checked]:border-sky-600 dark:has-[:checked]:bg-sky-950/30">
+                                <input
+                                    type="radio"
+                                    name="publish-mode"
+                                    value={PUBLISH_MODES.APP_STORE}
+                                    checked={
+                                        publishMode === PUBLISH_MODES.APP_STORE
+                                    }
+                                    onChange={() =>
+                                        setPublishMode(PUBLISH_MODES.APP_STORE)
+                                    }
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm leading-relaxed">
+                                    <span className="font-medium">
+                                        {t("Applet Store")}
+                                    </span>
+                                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                                        {t(
+                                            "Listed for everyone using this site in Applet Library → Discover.",
+                                        )}
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    {publishMode === PUBLISH_MODES.RECIPIENTS ? (
+                        <div className="space-y-3 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                            <div>
+                                <Label className="text-sm font-medium">
+                                    {t("Share with specific people")}
+                                </Label>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {t(
+                                        "Your app will be available only to the people you select below. They will receive a notification.",
+                                    )}
+                                </p>
+                            </div>
+                            <UserPicker
+                                onSelect={handleAddRecipient}
+                                excludeIds={recipients.map(
+                                    (recipient) => recipient.userId,
+                                )}
+                                placeholder={t(
+                                    "Search people to share with...",
+                                )}
+                            />
+                            <div className="max-h-40 space-y-1 overflow-auto">
+                                {recipients.length === 0 ? (
+                                    <p className="py-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                                        {t("No one added yet.")}
+                                    </p>
+                                ) : (
+                                    recipients.map((recipient) => (
+                                        <div
+                                            key={recipient.userId}
+                                            className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                        >
+                                            <UserAvatar
+                                                src={
+                                                    recipient.user
+                                                        ?.profilePicture
+                                                }
+                                                name={recipient.user?.name}
+                                                className="h-7 w-7 flex-shrink-0 overflow-hidden rounded-full bg-gray-200 text-xs dark:bg-gray-700"
+                                            />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate text-sm font-medium">
+                                                    {recipient.user?.name ||
+                                                        recipient.user
+                                                            ?.username ||
+                                                        t("Unknown user")}
+                                                </div>
+                                                {recipient.user?.username ? (
+                                                    <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                        {
+                                                            recipient.user
+                                                                .username
+                                                        }
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleRemoveRecipient(
+                                                        recipient.userId,
+                                                    )
+                                                }
+                                                aria-label={t("Remove")}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                            </Button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    ) : null}
 
                     {publishToAppStore && (
                         <div className="space-y-4">
@@ -287,7 +523,7 @@ export default function CanvasAppletPublishDialog({
                                 {showIconSelector && (
                                     <div className="space-y-2">
                                         <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                            <Search className="absolute start-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                             <Input
                                                 ref={searchInputRef}
                                                 placeholder={t(
@@ -366,13 +602,7 @@ export default function CanvasAppletPublishDialog({
                     )}
 
                     <p className="text-xs text-muted-foreground">
-                        {publishToAppStore
-                            ? t(
-                                  "Your app will be publicly available to all users of this platform.",
-                              )
-                            : t(
-                                  "Your app will only be accessible to people you share the link with.",
-                              )}
+                        {footerHint}
                     </p>
                 </div>
 

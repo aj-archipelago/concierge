@@ -128,6 +128,13 @@ async function getInheritedTags(userId, inputImageUrls, inputTags = []) {
     return [];
 }
 
+const REFERENCE_MEDIA_PROMPT = "Media generation from references";
+
+function getMediaItemPrompt(body = {}) {
+    const prompt = body.displayPrompt || body.prompt;
+    return String(prompt || "").trim() ? prompt : REFERENCE_MEDIA_PROMPT;
+}
+
 export async function POST(req) {
     const user = await getCurrentUser();
     const body = await req.json();
@@ -148,6 +155,7 @@ export async function POST(req) {
         const mediaItem = new MediaItem({
             ...body,
             user: user._id,
+            prompt: getMediaItemPrompt(body),
             // Inherit tags from input images (only if no tags are explicitly provided)
             tags: body.tags && body.tags.length > 0 ? body.tags : inheritedTags,
         });

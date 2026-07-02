@@ -4,6 +4,7 @@ import React, {
     useContext,
     useState,
     useEffect,
+    useLayoutEffect,
     useRef,
     useMemo,
     useCallback,
@@ -19,7 +20,6 @@ import {
     GlobeLock,
     Loader2,
     Pencil,
-    Puzzle,
     Settings,
     Trash2,
     X,
@@ -47,7 +47,11 @@ import {
     clearActiveAppletSandbox,
 } from "@/src/utils/activeAppletSandbox";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
+import ShareButton from "@/components/share/ShareButton";
+import AppletMetadataDialog from "@/src/components/apps/AppletMetadataDialog";
 import {
+    extractHtmlStructure,
+    filterDarkClasses,
     generateFilteredSandboxHtml,
     normalizeAppletLocale,
     parseAppletParams,
@@ -55,37 +59,23 @@ import {
 import CanvasAppletPublishDialog from "./CanvasAppletPublishDialog";
 import CanvasAppletManageDialog from "./CanvasAppletManageDialog";
 
-/**
- * SdkStatusBadge - Shows whether the Concierge Applet SDK script tag is present in the HTML.
- */
-function SdkStatusBadge({ htmlContent }) {
-    const { t } = useTranslation();
-    const hasSDK = useMemo(
-        () => htmlContent?.includes("applet-sdk.js") ?? false,
-        [htmlContent],
-    );
-
-    if (!htmlContent) return null;
-
-    return (
-        <div className="flex items-center gap-2 px-4 py-1.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-            <Puzzle className="w-3.5 h-3.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-            {hasSDK ? (
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {t("Concierge SDK loaded") || "Concierge SDK loaded"}
-                </span>
-            ) : (
-                <span className="text-xs font-medium text-gray-400 dark:text-gray-500">
-                    {t("No SDK") || "No SDK"}
-                </span>
-            )}
-        </div>
-    );
-}
-
 const STREAMING_PREVIEW_IDLE_MS = 2500;
 const STREAMING_PREVIEW_MAX_WAIT_MS = 5000;
+const useClientLayoutEffect =
+    typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function getPreviewableStreamingContent(content) {
+    const text = String(content || "");
+    const isStructuralHtml = /^\s*(?:<!doctype|<html|<head)/i.test(text);
+    if (
+        isStructuralHtml &&
+        /<head(?:\s|>)/i.test(text) &&
+        !/<body(?:\s|>)/i.test(text)
+    ) {
+        return "";
+    }
+    return content;
+}
 
 function getLatestSavedVersionHtml(appletRecord) {
     const versions = Array.isArray(appletRecord?.htmlVersions)
@@ -97,10 +87,47 @@ function getLatestSavedVersionHtml(appletRecord) {
         : null;
 }
 
+function getInitialSelectedVersionIndex({
+    activeVersionIndex,
+    activeVersionNumber,
+    isViewingDraft,
+    versionCount,
+}) {
+    if (isViewingDraft !== false) return null;
+    if (Number.isInteger(activeVersionIndex)) {
+        return clampVersionIndex(activeVersionIndex, versionCount);
+    }
+    if (Number.isInteger(activeVersionNumber)) {
+        return clampVersionIndex(activeVersionNumber - 1, versionCount);
+    }
+    return versionCount > 0 ? versionCount - 1 : null;
+}
+
+function clampVersionIndex(index, versionCount) {
+    if (!Number.isInteger(index) || versionCount <= 0) return null;
+    return Math.min(Math.max(0, index), versionCount - 1);
+}
+
+function getWorkspaceDocumentUrl(workspacePath) {
+    if (
+        typeof workspacePath !== "string" ||
+        !workspacePath.startsWith("/workspace/files/")
+    ) {
+        return null;
+    }
+    return workspacePath.split(/[?#]/)[0] || null;
+}
+
+function getWorkspaceBaseHref(workspacePath) {
+    const documentUrl = getWorkspaceDocumentUrl(workspacePath);
+    return documentUrl || null;
+}
+
 function useCommittedPreviewContent(content, { idleMs, maxWaitMs }) {
-    const [displayContent, setDisplayContent] = useState(content);
-    const committedContentRef = useRef(content);
-    const pendingContentRef = useRef(content);
+    const initialContent = getPreviewableStreamingContent(content);
+    const [displayContent, setDisplayContent] = useState(initialContent);
+    const committedContentRef = useRef(initialContent);
+    const pendingContentRef = useRef(initialContent);
     const idleTimeoutRef = useRef(null);
     const maxTimeoutRef = useRef(null);
     const lastCommitRef = useRef(Date.now());
@@ -134,17 +161,19 @@ function useCommittedPreviewContent(content, { idleMs, maxWaitMs }) {
     }, [clearIdleTimeout, clearMaxTimeout]);
 
     useEffect(() => {
+        const previewableContent = getPreviewableStreamingContent(content);
+
         if (idleMs <= 0 || maxWaitMs <= 0) {
             clearIdleTimeout();
             clearMaxTimeout();
-            committedContentRef.current = content;
-            setDisplayContent(content);
+            committedContentRef.current = previewableContent;
+            setDisplayContent(previewableContent);
             lastCommitRef.current = Date.now();
             return;
         }
 
-        pendingContentRef.current = content;
-        if (content === committedContentRef.current) {
+        pendingContentRef.current = previewableContent;
+        if (previewableContent === committedContentRef.current) {
             clearIdleTimeout();
             clearMaxTimeout();
             return;
@@ -193,13 +222,18 @@ function useCommittedPreviewContent(content, { idleMs, maxWaitMs }) {
 }
 
 /**
- * ThrottledPreview - Renders an iframe with buffered, deferred updates during streaming.
- * New HTML loads into a hidden iframe first, then swaps into view on load so the
- * preview does not flash blank while the browser reparses `srcDoc`.
+ * ThrottledPreview - Renders one stable iframe with buffered updates during streaming.
+ * After the first document load, streamed HTML patches the body in place so the
+ * preview does not flash blank or reset its scrollbars on every chunk.
  * Preview refreshes are committed after a short idle period or a max wait,
  * which avoids pulsing the canvas on every streamed chunk.
  */
-function ThrottledPreview({ content, title, theme = "light" }) {
+function ThrottledPreview({
+    content,
+    title,
+    theme = "light",
+    baseHref = null,
+}) {
     const { language, direction } = useContext(LanguageContext) || {};
     const locale = useMemo(() => {
         const normalized = normalizeAppletLocale(language);
@@ -218,28 +252,21 @@ function ThrottledPreview({ content, title, theme = "light" }) {
         idleMs: STREAMING_PREVIEW_IDLE_MS,
         maxWaitMs: STREAMING_PREVIEW_MAX_WAIT_MS,
     });
-    const [frameContents, setFrameContents] = useState([
-        displayContent || "",
-        "",
-    ]);
-    const [visibleFrameIndex, setVisibleFrameIndex] = useState(0);
-    const [loadingFrameIndex, setLoadingFrameIndex] = useState(null);
-    const committedContentRef = useRef(displayContent || "");
-    const frameContentsRef = useRef([displayContent || "", ""]);
-    const visibleFrameIndexRef = useRef(0);
-    const loadingFrameIndexRef = useRef(null);
-
-    useEffect(() => {
-        frameContentsRef.current = frameContents;
-    }, [frameContents]);
-
-    useEffect(() => {
-        visibleFrameIndexRef.current = visibleFrameIndex;
-    }, [visibleFrameIndex]);
-
-    useEffect(() => {
-        loadingFrameIndexRef.current = loadingFrameIndex;
-    }, [loadingFrameIndex]);
+    const iframeRef = useRef(null);
+    const committedContentRef = useRef("");
+    const committedHeadContentRef = useRef("");
+    const committedPreviewKeyRef = useRef("");
+    const hasLoadedFrameRef = useRef(false);
+    const previewKey = useMemo(
+        () =>
+            JSON.stringify({
+                theme,
+                language: locale.language,
+                direction: locale.direction,
+                params: appletParams,
+            }),
+        [theme, locale.language, locale.direction, appletParams],
+    );
 
     const wrapPreviewHtml = useCallback(
         (html) =>
@@ -248,80 +275,102 @@ function ThrottledPreview({ content, title, theme = "light" }) {
                       language: locale.language,
                       direction: locale.direction,
                       params: appletParams,
+                      baseHref,
                   })
                 : "",
-        [theme, locale.language, locale.direction, appletParams],
+        [theme, locale.language, locale.direction, appletParams, baseHref],
     );
 
     useEffect(() => {
+        const iframe = iframeRef.current;
+        if (!iframe) return;
+
         const nextContent = displayContent || "";
-        if (nextContent === committedContentRef.current) {
+        const frameWindow = iframe.contentWindow;
+        const frameDoc = iframe.contentDocument || frameWindow?.document;
+        if (!nextContent) {
+            if (hasLoadedFrameRef.current && frameDoc?.body) {
+                frameDoc.body.innerHTML = "";
+                committedContentRef.current = "";
+            }
             return;
         }
 
-        const nextFrameIndex = 1 - visibleFrameIndexRef.current;
-        if (
-            loadingFrameIndexRef.current === nextFrameIndex &&
-            frameContentsRef.current[nextFrameIndex] === nextContent
-        ) {
+        const previewChanged = previewKey !== committedPreviewKeyRef.current;
+        if (nextContent === committedContentRef.current && !previewChanged) {
             return;
         }
 
-        setLoadingFrameIndex(nextFrameIndex);
-        setFrameContents((prev) => {
-            const next = [...prev];
-            next[nextFrameIndex] = nextContent;
-            return next;
-        });
-    }, [displayContent]);
+        const { headContent, bodyContent } = extractHtmlStructure(nextContent);
+        const shouldPatchBody =
+            hasLoadedFrameRef.current &&
+            !previewChanged &&
+            headContent === committedHeadContentRef.current;
+        const scrollTop =
+            frameWindow?.scrollY ??
+            frameDoc?.documentElement?.scrollTop ??
+            frameDoc?.body?.scrollTop ??
+            0;
 
-    const handleFrameLoad = useCallback((frameIndex) => {
-        if (loadingFrameIndexRef.current !== frameIndex) {
+        if (shouldPatchBody && frameDoc?.body) {
+            frameDoc.body.innerHTML = filterDarkClasses(bodyContent, theme);
+            committedContentRef.current = nextContent;
+
+            requestAnimationFrame(() => {
+                try {
+                    frameWindow?.scrollTo(0, scrollTop);
+                } catch {
+                    // Ignore inaccessible frame scroll state.
+                }
+            });
             return;
         }
 
-        const loadedContent = frameContentsRef.current[frameIndex] || "";
-        committedContentRef.current = loadedContent;
-        visibleFrameIndexRef.current = frameIndex;
-        loadingFrameIndexRef.current = null;
+        const wrappedHtml = wrapPreviewHtml(nextContent);
+        const markLoaded = () => {
+            hasLoadedFrameRef.current = true;
+            committedContentRef.current = nextContent;
+            committedHeadContentRef.current = headContent;
+            committedPreviewKeyRef.current = previewKey;
+        };
 
-        setVisibleFrameIndex(frameIndex);
-        setLoadingFrameIndex(null);
-        setFrameContents((prev) => {
-            const next = [...prev];
-            next[1 - frameIndex] = "";
-            return next;
-        });
-    }, []);
+        iframe.onload = markLoaded;
+        if (frameDoc) {
+            frameDoc.open();
+            frameDoc.write(wrappedHtml);
+            frameDoc.close();
+            markLoaded();
+        } else {
+            iframe.srcdoc = wrappedHtml;
+        }
+    }, [displayContent, previewKey, theme, wrapPreviewHtml]);
 
     return (
         <div className="relative w-full h-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950">
-            {[0, 1].map((frameIndex) => {
-                const frameContent = frameContents[frameIndex] || "";
-                const isVisible = frameIndex === visibleFrameIndex;
-                const isLoading = frameIndex === loadingFrameIndex;
+            <iframe
+                ref={iframeRef}
+                title={title}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                className="absolute inset-0 w-full h-full border-0 bg-white"
+                scrolling="auto"
+            />
+        </div>
+    );
+}
 
-                if (!frameContent && !isVisible && !isLoading) {
-                    return null;
-                }
-
-                return (
-                    <iframe
-                        key={frameIndex}
-                        title={isVisible ? title : `${title} buffered preview`}
-                        srcDoc={wrapPreviewHtml(frameContent)}
-                        onLoad={() => handleFrameLoad(frameIndex)}
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                        className={`absolute inset-0 w-full h-full border-0 bg-white transition-opacity duration-200 ${
-                            isVisible
-                                ? "opacity-100"
-                                : "opacity-0 pointer-events-none"
-                        }`}
-                        aria-hidden={isVisible ? undefined : true}
-                        scrolling="auto"
-                    />
-                );
-            })}
+function GeneratingAppletOverlay() {
+    const { t } = useTranslation();
+    return (
+        <div
+            className="pointer-events-auto absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/60 backdrop-blur-[1px] dark:bg-gray-900/60"
+            data-testid="generating-applet-overlay"
+        >
+            <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-sky-600 dark:text-sky-400" />
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    {t("Generating applet...")}
+                </span>
+            </div>
         </div>
     );
 }
@@ -333,14 +382,23 @@ const PreviewFrame = React.forwardRef(function PreviewFrame(
         isGenerating,
         frameKey,
         theme,
+        workspacePath = null,
         fullscreen = false,
         frameless = false,
     },
     ref,
 ) {
+    const baseHref = getWorkspaceBaseHref(workspacePath);
+    const documentUrl = getWorkspaceDocumentUrl(workspacePath);
+
     if (isGenerating) {
         return (
-            <ThrottledPreview content={content} title={title} theme={theme} />
+            <ThrottledPreview
+                content={content}
+                title={title}
+                theme={theme}
+                baseHref={baseHref}
+            />
         );
     }
 
@@ -362,6 +420,9 @@ const PreviewFrame = React.forwardRef(function PreviewFrame(
                 content={content}
                 theme={theme}
                 height="100%"
+                autoResize={false}
+                baseHref={baseHref}
+                documentUrl={documentUrl}
             />
         </div>
     );
@@ -391,6 +452,27 @@ export default function HtmlPreviewTabContent({
         initialContent?.title || initialContent?.filename || t("HTML Preview");
 
     const isGenerating = htmlStatus === "generating";
+    const shouldLoadDraftFromUrl = !!(
+        initialContent?.appletId &&
+        url &&
+        !inlineHtml
+    );
+    const fetchOptions = useMemo(
+        () => (initialContent?.appletId ? { cache: "no-store" } : undefined),
+        [initialContent?.appletId],
+    );
+
+    // After a page refresh, the blob URL is stripped from persisted canvas state
+    // (see stripCanvasPersistContent in chatSlice.js). When we see an appletId
+    // but no url or inlineHtml, re-validate access via the API before loading.
+    const [isRevalidating, setIsRevalidating] = useState(
+        !!(
+            initialContent?.appletId &&
+            !initialContent?.url &&
+            !initialContent?.htmlContent &&
+            initialContent?.htmlStatus !== "error"
+        ),
+    );
 
     const { theme } = useContext(ThemeContext);
     const { direction: layoutDirection = "ltr" } =
@@ -405,10 +487,59 @@ export default function HtmlPreviewTabContent({
         retry: loadHtml,
     } = useContentLoader({
         url,
-        inlineContent: inlineHtml ?? undefined,
+        inlineContent: shouldLoadDraftFromUrl ? undefined : inlineHtml,
         isActive,
-        emptyError: t("No URL provided") || "No URL provided",
+        emptyError: isRevalidating
+            ? null
+            : t("No URL provided") || "No URL provided",
+        fetchOptions,
+        reloadKey: shouldLoadDraftFromUrl ? inlineHtml : undefined,
     });
+    const loadError = isGenerating || isRevalidating ? null : error;
+
+    useEffect(() => {
+        const appletId = initialContent?.appletId;
+        if (
+            !appletId ||
+            initialContent?.url ||
+            initialContent?.htmlContent ||
+            initialContent?.htmlStatus === "error"
+        ) {
+            return;
+        }
+        fetch(`/api/canvas-applets/${appletId}`)
+            .then(async (res) => {
+                if (!res.ok) {
+                    onContentChange?.(tabId, {
+                        htmlStatus: "error",
+                        htmlError:
+                            t("This applet is no longer shared with you.") ||
+                            "This applet is no longer shared with you.",
+                    });
+                    return;
+                }
+                const applet = await res.json();
+                if (applet.filePath) {
+                    onContentChange?.(tabId, { url: applet.filePath });
+                } else {
+                    onContentChange?.(tabId, {
+                        htmlStatus: "error",
+                        htmlError:
+                            t("This applet could not be loaded.") ||
+                            "This applet could not be loaded.",
+                    });
+                }
+            })
+            .catch(() => {
+                onContentChange?.(tabId, {
+                    htmlStatus: "error",
+                    htmlError:
+                        t("Failed to load applet.") || "Failed to load applet.",
+                });
+            })
+            .finally(() => setIsRevalidating(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run once on mount — re-validation is a one-shot check
 
     // Stamp the applet-id meta tag so the iframe knows its identity. The SDK
     // script and full sandbox wrapper come from OutputSandbox (same path the
@@ -432,7 +563,19 @@ export default function HtmlPreviewTabContent({
 
     // Pin to a specific htmlVersions[i] when set; null = follow the freshest
     // content that came down through `htmlContent`.
-    const [selectedVersionIndex, setSelectedVersionIndex] = useState(null);
+    const [selectedVersionIndex, setSelectedVersionIndexState] = useState(null);
+    const selectedVersionIndexRef = useRef(null);
+    const localViewChangeRef = useRef(false);
+    const setSelectedVersionIndex = useCallback((nextIndexOrUpdater) => {
+        const nextIndex =
+            typeof nextIndexOrUpdater === "function"
+                ? nextIndexOrUpdater(selectedVersionIndexRef.current)
+                : nextIndexOrUpdater;
+        if (selectedVersionIndexRef.current === nextIndex) return;
+        selectedVersionIndexRef.current = nextIndex;
+        setSelectedVersionIndexState(nextIndex);
+    }, []);
+    const setSelectedVersionIndexIfChanged = setSelectedVersionIndex;
 
     // Reset edits when new content loads (e.g., different applet or regeneration)
     useEffect(() => {
@@ -475,6 +618,7 @@ export default function HtmlPreviewTabContent({
     const [isPublishing, setIsPublishing] = useState(false);
     const [showPublishDialog, setShowPublishDialog] = useState(false);
     const [showManageDialog, setShowManageDialog] = useState(false);
+    const [showMetadataDialog, setShowMetadataDialog] = useState(false);
     const [showFullscreenPreview, setShowFullscreenPreview] = useState(false);
     const [pendingDeleteTarget, setPendingDeleteTarget] = useState(null);
     const [isDeletingVersion, setIsDeletingVersion] = useState(false);
@@ -553,6 +697,25 @@ export default function HtmlPreviewTabContent({
     ]);
 
     useEffect(() => {
+        if (!resolvedAppletId || !isActive) return undefined;
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                refetchAppletRecord();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener(
+                "visibilitychange",
+                handleVisibilityChange,
+            );
+        };
+    }, [isActive, resolvedAppletId, refetchAppletRecord]);
+
+    useEffect(() => {
         if (!showFullscreenPreview) return;
 
         const previousOverflow = document.body.style.overflow;
@@ -574,6 +737,7 @@ export default function HtmlPreviewTabContent({
     useEffect(() => {
         if (!isActive) {
             setShowFullscreenPreview(false);
+            setShowMetadataDialog(false);
         }
     }, [isActive]);
 
@@ -585,37 +749,79 @@ export default function HtmlPreviewTabContent({
             ? initialContent.appletVersionCount
             : 0;
     const versionCount = Math.max(savedVersionCount, pendingVersionCount);
+    const externalSelectedVersionIndex = useMemo(
+        () =>
+            getInitialSelectedVersionIndex({
+                activeVersionIndex: initialContent?.appletActiveVersionIndex,
+                activeVersionNumber: initialContent?.appletActiveVersionNumber,
+                isViewingDraft: initialContent?.appletIsViewingDraft,
+                versionCount,
+            }),
+        [
+            initialContent?.appletActiveVersionIndex,
+            initialContent?.appletActiveVersionNumber,
+            initialContent?.appletIsViewingDraft,
+            versionCount,
+        ],
+    );
 
     // Reset version pin when the applet itself changes — a stale pin into a
     // different version array would silently render the wrong content.
-    useEffect(() => {
-        setSelectedVersionIndex(null);
+    useClientLayoutEffect(() => {
+        localViewChangeRef.current = false;
+        setSelectedVersionIndexIfChanged(null);
         setPendingSavedDraftHtml(null);
-    }, [resolvedAppletId]);
+        setShowMetadataDialog(false);
+    }, [resolvedAppletId, setSelectedVersionIndexIfChanged]);
+
+    const prevVersionCountRef = useRef(versionCount);
+    const keepSavedVersionPinOnNextGrowRef = useRef(false);
 
     // Applet management tools can copy a saved version into Draft while the
-    // user is still viewing that saved version. When Canvas receives that
-    // Draft signal, follow Draft immediately instead of staying pinned.
-    useEffect(() => {
+    // user is still viewing that saved version. When Canvas receives a fresh
+    // Draft body, follow Draft immediately instead of staying pinned.
+    useClientLayoutEffect(() => {
         if (initialContent?.appletIsViewingDraft === true) {
-            setSelectedVersionIndex(null);
+            localViewChangeRef.current = false;
+            if (keepSavedVersionPinOnNextGrowRef.current) return;
+            setSelectedVersionIndexIfChanged(null);
         }
-    }, [initialContent?.appletIsViewingDraft, initialContent?.htmlContent]);
+    }, [
+        initialContent?.appletIsViewingDraft,
+        initialContent?.htmlContent,
+        setSelectedVersionIndexIfChanged,
+    ]);
+
+    useClientLayoutEffect(() => {
+        if (initialContent?.appletIsViewingDraft !== false) return;
+        localViewChangeRef.current = false;
+        if (externalSelectedVersionIndex != null) {
+            setSelectedVersionIndexIfChanged(externalSelectedVersionIndex);
+        }
+    }, [
+        initialContent?.appletIsViewingDraft,
+        externalSelectedVersionIndex,
+        setSelectedVersionIndexIfChanged,
+    ]);
 
     // If the applet record grows (new version saved), unpin so the canvas
     // snaps to the freshest content like it always has.
-    const prevVersionCountRef = useRef(versionCount);
-    const keepSavedVersionPinOnNextGrowRef = useRef(false);
-    useEffect(() => {
+    useClientLayoutEffect(() => {
         if (versionCount > prevVersionCountRef.current) {
-            if (keepSavedVersionPinOnNextGrowRef.current) {
+            if (initialContent?.appletIsViewingDraft === false) {
+                // The canvas was opened on an explicit saved-version view.
+            } else if (keepSavedVersionPinOnNextGrowRef.current) {
                 keepSavedVersionPinOnNextGrowRef.current = false;
             } else {
-                setSelectedVersionIndex(null);
+                setSelectedVersionIndexIfChanged(null);
             }
         }
         prevVersionCountRef.current = versionCount;
-    }, [versionCount]);
+    }, [
+        initialContent?.appletIsViewingDraft,
+        setSelectedVersionIndexIfChanged,
+        versionCount,
+    ]);
 
     const selectedVersionContent = useMemo(() => {
         if (selectedVersionIndex == null) return null;
@@ -678,6 +884,8 @@ export default function HtmlPreviewTabContent({
         selectedVersionIndex != null
             ? displaySelectedVersionContent
             : draftDisplayHtml;
+    const previewWorkspacePath =
+        appletRecord?.workspacePath || initialContent?.workspacePath || null;
     const hasEditedDraft = !!draftDisplayHtml && editedHtml != null;
     const hasGeneratedDraft =
         savedVersionCount === versionCount &&
@@ -703,7 +911,7 @@ export default function HtmlPreviewTabContent({
         publishedVersionIndex != null &&
         activeVersionIndex === publishedVersionIndex;
     const hasUnpublishedChanges = isPublished && !isViewingPublishedVersion;
-    const isViewingDraft = activeVersionIndex == null;
+    const isViewingDraft = selectedVersionIndex == null;
 
     const handlePublish = useCallback(
         async (publishData) => {
@@ -712,8 +920,15 @@ export default function HtmlPreviewTabContent({
             try {
                 const body = {
                     name: publishData.appletName,
-                    publishToAppStore: publishData.publishToAppStore,
+                    publishToAppStore: publishData.publishToAppStore === true,
                 };
+                if (!publishData.publishToAppStore) {
+                    if (publishData.publishViaLink === true) {
+                        body.publishViaLink = true;
+                    } else if (Array.isArray(publishData.publishRecipients)) {
+                        body.publishRecipients = publishData.publishRecipients;
+                    }
+                }
                 if (activeVersionIndex != null) {
                     body.publishVersion = activeVersionIndex + 1;
                 } else {
@@ -802,6 +1017,7 @@ export default function HtmlPreviewTabContent({
         initialContent?.workspacePath,
         onContentChange,
         resolvedAppletId,
+        setSelectedVersionIndex,
         tabId,
     ]);
 
@@ -825,6 +1041,22 @@ export default function HtmlPreviewTabContent({
         }
     }, [resolvedAppletId, refetchAppletRecord]);
 
+    const handleMetadataSaved = useCallback(
+        async (updatedApplet) => {
+            if (updatedApplet?._id) {
+                setAppletRecord(updatedApplet);
+                const nextTitle =
+                    updatedApplet.app?.name || updatedApplet.name || null;
+                if (nextTitle) {
+                    onContentChange?.(tabId, { title: nextTitle });
+                }
+            } else {
+                await refetchAppletRecord();
+            }
+        },
+        [onContentChange, refetchAppletRecord, tabId],
+    );
+
     const handleSaveDraftVersion = useCallback(async () => {
         if (!resolvedAppletId || !displayHtml) return;
         setIsPublishing(true);
@@ -847,6 +1079,7 @@ export default function HtmlPreviewTabContent({
                 }
                 throw new Error(message);
             }
+            keepSavedVersionPinOnNextGrowRef.current = true;
             setPendingSavedDraftHtml(displayHtml);
             const nextAppletRecord = await refetchAppletRecord();
             const nextSavedVersionCount =
@@ -855,9 +1088,9 @@ export default function HtmlPreviewTabContent({
                 nextSavedVersionCount > 0 &&
                 getLatestSavedVersionHtml(nextAppletRecord) === displayHtml
             ) {
-                keepSavedVersionPinOnNextGrowRef.current = true;
                 setSelectedVersionIndex(nextSavedVersionCount - 1);
             } else {
+                keepSavedVersionPinOnNextGrowRef.current = false;
                 setSelectedVersionIndex(null);
             }
             setEditedHtml(null);
@@ -866,7 +1099,12 @@ export default function HtmlPreviewTabContent({
         } finally {
             setIsPublishing(false);
         }
-    }, [resolvedAppletId, displayHtml, refetchAppletRecord]);
+    }, [
+        displayHtml,
+        refetchAppletRecord,
+        resolvedAppletId,
+        setSelectedVersionIndex,
+    ]);
 
     const handleRequestDeleteCurrentVersion = useCallback(() => {
         if (!resolvedAppletId) return;
@@ -939,8 +1177,22 @@ export default function HtmlPreviewTabContent({
                           )
                         : nextSavedVersionCount - 1;
                 setSelectedVersionIndex(nextVersionIndex);
+                if (pendingDeleteTarget.type === "version") {
+                    onContentChange?.(tabId, {
+                        appletActiveVersionIndex: nextVersionIndex,
+                        appletActiveVersionNumber: nextVersionIndex + 1,
+                        appletIsViewingDraft: false,
+                    });
+                }
             } else {
                 setSelectedVersionIndex(null);
+                if (pendingDeleteTarget.type === "version") {
+                    onContentChange?.(tabId, {
+                        appletActiveVersionIndex: null,
+                        appletActiveVersionNumber: null,
+                        appletIsViewingDraft: true,
+                    });
+                }
             }
             setPendingDeleteTarget(null);
         } catch (err) {
@@ -953,20 +1205,36 @@ export default function HtmlPreviewTabContent({
         onContentChange,
         pendingDeleteTarget,
         resolvedAppletId,
+        setSelectedVersionIndex,
         tabId,
     ]);
 
     const canFullScreen = !isGenerating && !!displayHtml;
     const isChromeHidden =
         initialContent?.canvasChrome === "hidden" && !resolvedAppletId;
-    const canPublish = !!resolvedAppletId && !isGenerating && !!displayHtml;
     const isAppletRecordPending =
         !!resolvedAppletId && !appletRecord && appletRecordStatus !== "settled";
     const canShowHeaderControls =
         !loading && !isGenerating && !!displayHtml && !isAppletRecordPending;
-    const navigateToSavedVersion = useCallback((versionIndex) => {
-        setSelectedVersionIndex(versionIndex);
-    }, []);
+    const canEditAppletMetadata =
+        !!appletRecord &&
+        (appletRecord.isOwner === true || appletRecord.shareRole === "editor");
+    const canPublish =
+        !!resolvedAppletId &&
+        !isGenerating &&
+        !!displayHtml &&
+        canEditAppletMetadata;
+    const navigateToSavedVersion = useCallback(
+        (versionIndex) => {
+            localViewChangeRef.current = true;
+            setSelectedVersionIndex(versionIndex);
+        },
+        [setSelectedVersionIndex],
+    );
+    const navigateToDraft = useCallback(() => {
+        localViewChangeRef.current = true;
+        setSelectedVersionIndex(null);
+    }, [setSelectedVersionIndex]);
 
     const versionBrowser = useMemo(() => {
         if (!resolvedAppletId) return null;
@@ -991,16 +1259,16 @@ export default function HtmlPreviewTabContent({
                 activeVersionIndex != null &&
                 hasLiveDraft &&
                 activeVersionIndex === savedVersionCount - 1
-                    ? () => setSelectedVersionIndex(null)
+                    ? navigateToDraft
                     : activeVersionIndex != null &&
                         activeVersionIndex < versionCount - 1
-                      ? () => setSelectedVersionIndex(activeVersionIndex + 1)
+                      ? () => navigateToSavedVersion(activeVersionIndex + 1)
                       : null,
             onJumpToPublished:
                 activeVersionIndex != null &&
                 publishedVersionIndex != null &&
                 publishedVersionIndex !== activeVersionIndex
-                    ? () => setSelectedVersionIndex(publishedVersionIndex)
+                    ? () => navigateToSavedVersion(publishedVersionIndex)
                     : null,
         };
     }, [
@@ -1012,19 +1280,22 @@ export default function HtmlPreviewTabContent({
         savedVersionCount,
         selectedVersionIndex,
         navigateToSavedVersion,
+        navigateToDraft,
     ]);
     const shouldSaveDraftBeforePublish = isViewingDraft && hasLiveDraft;
     const canEditVersion =
         !!displayHtml &&
         !isGenerating &&
         !isRestoringVersion &&
-        !isViewingDraft;
+        !isViewingDraft &&
+        canEditAppletMetadata;
     const canDeleteCurrentVersion =
         !!resolvedAppletId &&
         !!displayHtml &&
         !isGenerating &&
         !isDeletingVersion &&
-        (isViewingDraft || activeVersionIndex != null);
+        (isViewingDraft || activeVersionIndex != null) &&
+        canEditAppletMetadata;
     const deleteDialogTitle =
         pendingDeleteTarget?.type === "version"
             ? t("Delete version?") || "Delete version?"
@@ -1047,6 +1318,13 @@ export default function HtmlPreviewTabContent({
     const lastReportedAppletViewRef = useRef(null);
     useEffect(() => {
         if (!isActive || !resolvedAppletId || !onContentChange) return;
+        const waitingForIncomingSavedVersion =
+            !localViewChangeRef.current &&
+            initialContent?.appletIsViewingDraft === false &&
+            externalSelectedVersionIndex != null &&
+            selectedVersionIndex !== externalSelectedVersionIndex;
+        if (waitingForIncomingSavedVersion) return;
+
         const reportKey = JSON.stringify({
             activeVersionIndex,
             isViewingDraft,
@@ -1054,29 +1332,41 @@ export default function HtmlPreviewTabContent({
         if (lastReportedAppletViewRef.current === reportKey) return;
         lastReportedAppletViewRef.current = reportKey;
         onContentChange(tabId, {
-            appletActiveVersionIndex: activeVersionIndex,
+            appletActiveVersionIndex: isViewingDraft
+                ? null
+                : activeVersionIndex,
             appletActiveVersionNumber:
-                activeVersionIndex == null ? null : activeVersionIndex + 1,
+                isViewingDraft || activeVersionIndex == null
+                    ? null
+                    : activeVersionIndex + 1,
             appletIsViewingDraft: isViewingDraft,
         });
     }, [
         activeVersionIndex,
+        externalSelectedVersionIndex,
+        initialContent?.appletIsViewingDraft,
         isActive,
         isViewingDraft,
         onContentChange,
         resolvedAppletId,
+        selectedVersionIndex,
         tabId,
     ]);
 
-    if ((loading && !isGenerating) || error || htmlStatus === "error") {
+    if (
+        isRevalidating ||
+        (loading && !isGenerating) ||
+        loadError ||
+        htmlStatus === "error"
+    ) {
         return (
             <TabContentLoader
-                loading={loading && htmlStatus !== "error"}
+                loading={isRevalidating || (loading && htmlStatus !== "error")}
                 error={
                     htmlStatus === "error"
                         ? htmlError ||
                           t("Failed to generate applet. Please try again.")
-                        : error
+                        : loadError
                 }
                 onRetry={htmlStatus === "error" ? undefined : loadHtml}
                 loadingLabel={t("Loading...") || "Loading..."}
@@ -1099,8 +1389,10 @@ export default function HtmlPreviewTabContent({
                     isGenerating={isGenerating}
                     frameKey={editedHtml ? undefined : contentKey}
                     theme={theme}
+                    workspacePath={previewWorkspacePath}
                     frameless={true}
                 />
+                {isGenerating && <GeneratingAppletOverlay />}
                 <div className="pointer-events-none absolute end-3 top-3 z-20 flex items-center gap-2 opacity-0 transition-opacity group-hover/html-preview:opacity-100 group-focus-within/html-preview:opacity-100">
                     <Button
                         type="button"
@@ -1158,6 +1450,7 @@ export default function HtmlPreviewTabContent({
                                     title={`${title} fullscreen`}
                                     isGenerating={isGenerating}
                                     theme={theme}
+                                    workspacePath={previewWorkspacePath}
                                     fullscreen={true}
                                 />
                             </div>
@@ -1252,6 +1545,33 @@ export default function HtmlPreviewTabContent({
                                 </Button>
                             </div>
                         )}
+                        {canShowHeaderControls &&
+                            resolvedAppletId &&
+                            appletRecord?.isOwner === true && (
+                                <ShareButton
+                                    entityType="applet"
+                                    entityId={resolvedAppletId}
+                                    variant="ghost"
+                                    size="icon"
+                                    showLabel={false}
+                                    className="h-8 w-8"
+                                    label={t("Share") || "Share"}
+                                />
+                            )}
+                        {canShowHeaderControls && canEditAppletMetadata && (
+                            <Button
+                                onClick={() => setShowMetadataDialog(true)}
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-gray-700 hover:bg-sky-50 hover:text-sky-700 dark:text-gray-200 dark:hover:bg-sky-950/40 dark:hover:text-sky-300"
+                                title={t("Edit metadata") || "Edit metadata"}
+                                aria-label={
+                                    t("Edit metadata") || "Edit metadata"
+                                }
+                            >
+                                <Settings className="w-4 h-4" />
+                            </Button>
+                        )}
                         {canShowHeaderControls && canFullScreen && (
                             <Button
                                 onClick={() => setShowFullscreenPreview(true)}
@@ -1264,56 +1584,60 @@ export default function HtmlPreviewTabContent({
                                 <Expand className="w-4 h-4" />
                             </Button>
                         )}
-                        {canShowHeaderControls && resolvedAppletId && (
-                            <Button
-                                onClick={handleEditVersion}
-                                disabled={!canEditVersion}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-gray-700 hover:bg-sky-50 hover:text-sky-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-sky-950/40 dark:hover:text-sky-300 dark:disabled:text-gray-500"
-                                title={
-                                    t("Edit this version") ||
-                                    "Edit this version"
-                                }
-                                aria-label={
-                                    t("Edit this version") ||
-                                    "Edit this version"
-                                }
-                            >
-                                {isRestoringVersion ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Pencil className="w-4 h-4" />
-                                )}
-                            </Button>
-                        )}
-                        {canShowHeaderControls && resolvedAppletId && (
-                            <Button
-                                onClick={handleRequestDeleteCurrentVersion}
-                                disabled={!canDeleteCurrentVersion}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-gray-700 hover:bg-red-50 hover:text-red-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:disabled:text-gray-500"
-                                title={
-                                    isViewingDraft
-                                        ? t("Clear Draft") || "Clear Draft"
-                                        : t("Delete version") ||
-                                          "Delete version"
-                                }
-                                aria-label={
-                                    isViewingDraft
-                                        ? t("Clear Draft") || "Clear Draft"
-                                        : t("Delete version") ||
-                                          "Delete version"
-                                }
-                            >
-                                {isDeletingVersion ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Trash2 className="w-4 h-4" />
-                                )}
-                            </Button>
-                        )}
+                        {canShowHeaderControls &&
+                            resolvedAppletId &&
+                            canEditAppletMetadata && (
+                                <Button
+                                    onClick={handleEditVersion}
+                                    disabled={!canEditVersion}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-700 hover:bg-sky-50 hover:text-sky-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-sky-950/40 dark:hover:text-sky-300 dark:disabled:text-gray-500"
+                                    title={
+                                        t("Edit this version") ||
+                                        "Edit this version"
+                                    }
+                                    aria-label={
+                                        t("Edit this version") ||
+                                        "Edit this version"
+                                    }
+                                >
+                                    {isRestoringVersion ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Pencil className="w-4 h-4" />
+                                    )}
+                                </Button>
+                            )}
+                        {canShowHeaderControls &&
+                            resolvedAppletId &&
+                            canEditAppletMetadata && (
+                                <Button
+                                    onClick={handleRequestDeleteCurrentVersion}
+                                    disabled={!canDeleteCurrentVersion}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-700 hover:bg-red-50 hover:text-red-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:disabled:text-gray-500"
+                                    title={
+                                        isViewingDraft
+                                            ? t("Clear Draft") || "Clear Draft"
+                                            : t("Delete version") ||
+                                              "Delete version"
+                                    }
+                                    aria-label={
+                                        isViewingDraft
+                                            ? t("Clear Draft") || "Clear Draft"
+                                            : t("Delete version") ||
+                                              "Delete version"
+                                    }
+                                >
+                                    {isDeletingVersion ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                    )}
+                                </Button>
+                            )}
                         {canShowHeaderControls &&
                             canPublish &&
                             (shouldSaveDraftBeforePublish ? (
@@ -1404,24 +1728,15 @@ export default function HtmlPreviewTabContent({
                                 isGenerating={isGenerating}
                                 frameKey={editedHtml ? undefined : contentKey}
                                 theme={theme}
+                                workspacePath={previewWorkspacePath}
                             />
-                            {isGenerating && (
-                                <div className="absolute inset-0 bg-white/60 dark:bg-gray-900/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center z-10">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <Loader2 className="w-8 h-8 animate-spin text-sky-600 dark:text-sky-400" />
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                                            {t("Generating applet...")}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
+                            {isGenerating && <GeneratingAppletOverlay />}
                         </div>
                     </TabsContent>
                     <TabsContent
                         value="code"
                         className="flex-1 m-0 min-h-0 overflow-hidden"
                     >
-                        <SdkStatusBadge htmlContent={displayHtml} />
                         <div className="h-full min-h-[300px]">
                             <MonacoEditor
                                 height="100%"
@@ -1430,13 +1745,16 @@ export default function HtmlPreviewTabContent({
                                 theme={monacoTheme}
                                 options={{
                                     fontSize: 12,
-                                    readOnly: isGenerating || !isViewingDraft,
+                                    readOnly:
+                                        isGenerating ||
+                                        !isViewingDraft ||
+                                        !canEditAppletMetadata,
                                     wordWrap: "on",
                                     minimap: { enabled: false },
                                 }}
                                 value={displayHtml || ""}
                                 onChange={
-                                    isViewingDraft
+                                    isViewingDraft && canEditAppletMetadata
                                         ? handleCodeChange
                                         : undefined
                                 }
@@ -1478,6 +1796,7 @@ export default function HtmlPreviewTabContent({
                                 title={`${title} fullscreen`}
                                 isGenerating={isGenerating}
                                 theme={theme}
+                                workspacePath={previewWorkspacePath}
                                 fullscreen={true}
                             />
                         </div>
@@ -1535,6 +1854,13 @@ export default function HtmlPreviewTabContent({
                 appletRecord={appletRecord}
                 onAppUpdated={refetchAppletRecord}
                 isPending={isPublishing}
+            />
+
+            <AppletMetadataDialog
+                applet={appletRecord}
+                isOpen={showMetadataDialog}
+                onClose={() => setShowMetadataDialog(false)}
+                onSaved={handleMetadataSaved}
             />
         </div>
     );

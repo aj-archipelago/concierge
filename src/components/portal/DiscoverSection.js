@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import { SLASH_COMMANDS, getCommandLabel } from "../../utils/slashCommands";
 import { PortalContext } from "../../contexts/PortalContext";
-import { Bot, Brain, User, Zap } from "lucide-react";
+import { Bot, Brain, User, Zap, Users } from "lucide-react";
 
 const QUICK_ACTIONS = [
     {
@@ -13,6 +13,12 @@ const QUICK_ACTIONS = [
         icon: User,
         labelKey: "portal_tab_profile",
         descKey: "portal_discover_profile_desc",
+    },
+    {
+        tab: "sharing",
+        icon: Users,
+        labelKey: "portal_tab_sharing",
+        descKey: "portal_discover_sharing_desc",
     },
     {
         tab: "ai-assistant",

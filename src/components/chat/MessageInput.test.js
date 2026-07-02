@@ -158,6 +158,13 @@ jest.mock("lucide-react", () => ({
             Stop Icon
         </div>
     ),
+    Copy: () => (
+        <div data-testid="copy-icon" aria-label="copy">
+            Copy Icon
+        </div>
+    ),
+    Mic: () => null,
+    MicOff: () => null,
 }));
 
 // Mock the graphql queries
@@ -876,6 +883,48 @@ describe("MessageInput", () => {
             // React.useState = jest.fn().mockReturnValueOnce([[], setFilesMock]);
             // fireEvent(...) on the mock fileuploader that calls props.setFiles
         });
+
+        it("should attach selected Chat Files through the shared event", async () => {
+            jest.spyOn(
+                require("../../utils/mediaUtils"),
+                "isSupportedFileUrl",
+            ).mockImplementation(() => true);
+            const consoleLog = jest
+                .spyOn(console, "log")
+                .mockImplementation(() => {});
+
+            try {
+                renderMessageInput({
+                    chatId: "chat-1",
+                    enableRag: true,
+                });
+
+                act(() => {
+                    window.dispatchEvent(
+                        new CustomEvent("concierge:chat-files-attach", {
+                            detail: {
+                                chatId: "chat-1",
+                                files: [
+                                    {
+                                        url: "https://files.example.com/report.pdf",
+                                        filename: "report.pdf",
+                                        hash: "hash-1",
+                                        mimeType: "application/pdf",
+                                    },
+                                ],
+                            },
+                        }),
+                    );
+                });
+
+                expect(
+                    await screen.findByTestId("fileuploader-mock"),
+                ).toBeInTheDocument();
+                expect(screen.getByText("report.pdf")).toBeInTheDocument();
+            } finally {
+                consoleLog.mockRestore();
+            }
+        });
     });
 
     describe("Input state management", () => {
@@ -1162,6 +1211,20 @@ describe("MessageInput", () => {
             fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
             expect(mockOnSend).not.toHaveBeenCalled();
+        });
+
+        it("shows copy and continue banner in read-only mode", () => {
+            const onCopyAndContinue = jest.fn();
+            renderMessageInput({
+                viewingReadOnlyChat: true,
+                onCopyAndContinue,
+            });
+
+            expect(
+                screen.getByTestId("copy-and-continue-button"),
+            ).toBeInTheDocument();
+            fireEvent.click(screen.getByTestId("copy-and-continue-button"));
+            expect(onCopyAndContinue).toHaveBeenCalledTimes(1);
         });
     });
 

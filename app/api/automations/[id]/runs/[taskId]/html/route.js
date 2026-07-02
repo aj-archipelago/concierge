@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getCurrentUser, handleError } from "../../../../../utils/auth";
 import Task from "../../../../../models/task.mjs";
+import User from "../../../../../models/user.mjs";
 import {
     applyAutomationHtmlTheme,
     AUTOMATION_TASK_TYPE,
-    findAutomationForUser,
+    findAutomationForViewer,
     parseAutomationTaskOutput,
     sanitizeGeneratedHtml,
     scheduleAutomationRefIdBackfill,
@@ -17,25 +18,36 @@ export async function GET(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForViewer(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
 
+        const { automation, isOwner } = found;
+        const ownerId = automation.owner;
+
+        let ownerContextId = user.contextId;
+        if (!isOwner) {
+            const owner = await User.findById(ownerId)
+                .select("contextId")
+                .lean();
+            ownerContextId = owner?.contextId || null;
+        }
+
         let task = null;
         if (params.taskId === "latest" && !automation.latestRunTaskId) {
             let candidates = await Task.find({
-                owner: user._id,
+                owner: ownerId,
                 type: AUTOMATION_TASK_TYPE,
                 automationRefId: automation._id,
             });
             if (!candidates.length) {
                 const recent = await Task.find({
-                    owner: user._id,
+                    owner: ownerId,
                     type: AUTOMATION_TASK_TYPE,
                 })
                     .sort({ createdAt: -1 })
@@ -75,13 +87,13 @@ export async function GET(request, { params }) {
 
             task = await Task.findOne({
                 _id: taskId,
-                owner: user._id,
+                owner: ownerId,
                 automationRefId: automation._id,
             });
             if (!task) {
                 const loose = await Task.findOne({
                     _id: taskId,
-                    owner: user._id,
+                    owner: ownerId,
                 });
                 if (
                     loose &&
@@ -99,7 +111,7 @@ export async function GET(request, { params }) {
 
         let html = "";
         if (task?.automation?.htmlOutputPath) {
-            const storageTarget = createAutomationStorageTarget(user.contextId);
+            const storageTarget = createAutomationStorageTarget(ownerContextId);
             html = await readBlobContent(
                 task.automation.htmlOutputPath,
                 storageTarget,

@@ -11,7 +11,6 @@ import {
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import HtmlPreviewTabContent from "../HtmlPreviewTabContent";
-import { generateFilteredSandboxHtml } from "@/src/utils/themeUtils";
 
 jest.mock("react-i18next", () => ({
     __esModule: true,
@@ -121,14 +120,32 @@ jest.mock("@/src/components/sandbox/OutputSandbox", () => {
     };
 });
 
+const mockUseContentLoader = jest.fn(({ inlineContent, url }) => ({
+    loading: false,
+    error: null,
+    content: inlineContent || (url ? "<html>loaded from url</html>" : null),
+    contentKey: "key-1",
+    retry: jest.fn(),
+}));
+
 jest.mock("../useContentLoader", () => ({
-    useContentLoader: ({ inlineContent }) => ({
-        loading: false,
-        error: null,
-        content: inlineContent || null,
-        contentKey: "key-1",
-        retry: jest.fn(),
-    }),
+    useContentLoader: (args) => mockUseContentLoader(args),
+}));
+
+jest.mock("@/components/share/ShareButton", () => ({
+    __esModule: true,
+    default: function MockShareButton({ entityType, entityId }) {
+        return (
+            <button
+                type="button"
+                data-testid="share-button"
+                data-entity-type={entityType}
+                data-entity-id={entityId}
+            >
+                Share
+            </button>
+        );
+    },
 }));
 
 jest.mock("../TabContentLoader", () => ({
@@ -224,14 +241,42 @@ jest.mock("../CanvasAppletManageDialog", () => ({
         ) : null,
 }));
 
+jest.mock("@/src/components/apps/AppletMetadataDialog", () => ({
+    __esModule: true,
+    default: function MockAppletMetadataDialog({
+        applet,
+        isOpen,
+        onClose,
+        onSaved,
+    }) {
+        if (!isOpen) return null;
+        return (
+            <div data-testid="metadata-dialog" data-applet-id={applet?._id}>
+                <button
+                    type="button"
+                    data-testid="metadata-dialog-save"
+                    onClick={() =>
+                        onSaved?.({
+                            ...applet,
+                            app: {
+                                ...(applet?.app || {}),
+                                name: "Renamed Applet",
+                            },
+                        })
+                    }
+                >
+                    Save metadata
+                </button>
+                <button type="button" onClick={onClose}>
+                    Close metadata
+                </button>
+            </div>
+        );
+    },
+}));
+
 const HTML_CONTENT =
     '<html><head></head><body><div class="flex">Test</div></body></html>';
-
-const previewSrcDoc = (html) =>
-    generateFilteredSandboxHtml(html, "light", {
-        language: "en",
-        params: {},
-    });
 
 const APPLET_ID = "507f1f77bcf86cd799439011";
 
@@ -239,6 +284,7 @@ const makeAppletRecord = (publishedVersionIndex = null) => ({
     _id: APPLET_ID,
     name: "Test Applet",
     version: 2,
+    isOwner: true,
     publishedVersionIndex,
     htmlVersions:
         publishedVersionIndex != null ? [{ content: HTML_CONTENT }] : [],
@@ -277,10 +323,64 @@ const findManageButton = () =>
     screen.findByRole("button", { name: /(published|update)/i });
 const findEditVersionButton = () =>
     screen.findByRole("button", { name: /edit this version/i });
+const findEditMetadataButton = () =>
+    screen.findByRole("button", { name: /edit metadata/i });
+
+function StatefulCanvasPreview({ initialContent, records }) {
+    const [content, setContent] = React.useState({
+        htmlContent: HTML_CONTENT,
+        title: "Preview",
+        appletId: APPLET_ID,
+        ...initialContent,
+    });
+    const recordQueueRef = React.useRef(records || []);
+
+    global.fetch.mockImplementation(async (url, options) => {
+        if (options?.method === "PUT") {
+            return {
+                ok: true,
+                json: async () => ({}),
+            };
+        }
+        if (String(url).includes(`/api/canvas-applets/${APPLET_ID}`)) {
+            const nextRecord =
+                recordQueueRef.current.length > 1
+                    ? recordQueueRef.current.shift()
+                    : recordQueueRef.current[0];
+            return {
+                ok: true,
+                json: async () => nextRecord,
+            };
+        }
+        return {
+            ok: false,
+            json: async () => ({}),
+        };
+    });
+
+    return (
+        <HtmlPreviewTabContent
+            tabId="tab-1"
+            initialContent={content}
+            isActive={true}
+            onContentChange={(_tabId, patch) =>
+                setContent((current) => ({ ...current, ...patch }))
+            }
+        />
+    );
+}
 
 describe("HtmlPreviewTabContent", () => {
     beforeEach(() => {
         global.fetch = jest.fn();
+        mockUseContentLoader.mockImplementation(({ inlineContent, url }) => ({
+            loading: false,
+            error: null,
+            content:
+                inlineContent || (url ? "<html>loaded from url</html>" : null),
+            contentKey: "key-1",
+            retry: jest.fn(),
+        }));
     });
 
     afterEach(() => {
@@ -300,13 +400,32 @@ describe("HtmlPreviewTabContent", () => {
         // ThemeContext default in this suite is "light"
         expect(sandbox).toHaveAttribute("data-theme", "light");
         expect(sandbox).toHaveAttribute("data-height", "100%");
-        expect(sandbox).toHaveAttribute("data-auto-resize", "true");
+        expect(sandbox).toHaveAttribute("data-auto-resize", "false");
         expect(screen.getByTestId("tab-content-preview")).toHaveClass(
             "overflow-auto",
         );
     });
 
-    it("defers streaming preview updates until the preview has been idle", async () => {
+    it("uses registered inline applet HTML without immediately refetching the draft URL", () => {
+        global.fetch.mockResolvedValue({ ok: false });
+
+        renderComponent({
+            initialContent: {
+                appletId: APPLET_ID,
+                url: "https://files.example/applet.html",
+                htmlContent: HTML_CONTENT,
+            },
+        });
+
+        expect(mockUseContentLoader).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                inlineContent: HTML_CONTENT,
+                reloadKey: undefined,
+            }),
+        );
+    });
+
+    it("defers streaming preview updates and patches the stable iframe after idle", async () => {
         jest.useFakeTimers();
         global.fetch.mockResolvedValue({ ok: false });
 
@@ -323,10 +442,7 @@ describe("HtmlPreviewTabContent", () => {
         );
 
         const visibleFrame = screen.getByTitle("Preview");
-        expect(visibleFrame).toHaveAttribute(
-            "srcDoc",
-            previewSrcDoc(HTML_CONTENT),
-        );
+        expect(visibleFrame.contentDocument.body.innerHTML).toContain("Test");
         expect(visibleFrame).toHaveAttribute("scrolling", "auto");
 
         const updatedHtml =
@@ -344,18 +460,20 @@ describe("HtmlPreviewTabContent", () => {
             />,
         );
 
-        expect(screen.getByTitle("Preview")).toHaveAttribute(
-            "srcDoc",
-            previewSrcDoc(HTML_CONTENT),
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+        expect(visibleFrame.contentDocument.body.innerHTML).toContain("Test");
+        expect(visibleFrame.contentDocument.body.innerHTML).not.toContain(
+            "Updated preview",
         );
 
         await act(async () => {
             jest.advanceTimersByTime(1000);
         });
 
-        expect(screen.getByTitle("Preview")).toHaveAttribute(
-            "srcDoc",
-            previewSrcDoc(HTML_CONTENT),
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+        expect(visibleFrame.contentDocument.body.innerHTML).toContain("Test");
+        expect(visibleFrame.contentDocument.body.innerHTML).not.toContain(
+            "Updated preview",
         );
 
         await act(async () => {
@@ -363,11 +481,230 @@ describe("HtmlPreviewTabContent", () => {
         });
 
         await waitFor(() => {
-            expect(screen.getByTitle("Preview")).toHaveAttribute(
-                "srcDoc",
-                previewSrcDoc(updatedHtml),
+            expect(visibleFrame.contentDocument.body.innerHTML).toContain(
+                "Updated preview",
             );
         });
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+    });
+
+    it("patches streamed applet bodies with scripts without rewriting the iframe", async () => {
+        jest.useFakeTimers();
+        global.fetch.mockResolvedValue({ ok: false });
+
+        const { rerender } = render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: HTML_CONTENT,
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        const visibleFrame = screen.getByTitle("Preview");
+        const openSpy = jest.spyOn(visibleFrame.contentDocument, "open");
+        const updatedHtml =
+            "<html><head></head><body><main>Updated preview</main><script>window.ready = true;</script></body></html>";
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: updatedHtml,
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(2500);
+        });
+
+        await waitFor(() => {
+            expect(visibleFrame.contentDocument.body.innerHTML).toContain(
+                "Updated preview",
+            );
+        });
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+        expect(openSpy).not.toHaveBeenCalled();
+    });
+
+    it("wraps the first streamed HTML in the sandbox when generation starts empty", async () => {
+        jest.useFakeTimers();
+        global.fetch.mockResolvedValue({ ok: false });
+
+        const { rerender } = render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: "",
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        const visibleFrame = screen.getByTitle("Preview");
+        expect(visibleFrame.contentDocument.body.innerHTML).toBe("");
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: HTML_CONTENT,
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(2500);
+        });
+
+        await waitFor(() => {
+            expect(visibleFrame.contentDocument.body.innerHTML).toContain(
+                "Test",
+            );
+        });
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+        expect(visibleFrame.contentDocument.head.innerHTML).toContain(
+            "/applet-sdk.js",
+        );
+    });
+
+    it("waits for body content before rendering head-only streaming chunks", async () => {
+        jest.useFakeTimers();
+        global.fetch.mockResolvedValue({ ok: false });
+
+        const { rerender } = render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: "",
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        const visibleFrame = screen.getByTitle("Preview");
+        const openSpy = jest.spyOn(visibleFrame.contentDocument, "open");
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent:
+                        "<!DOCTYPE html><html><head><style>body{color:red}",
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(5000);
+        });
+
+        expect(openSpy).not.toHaveBeenCalled();
+        expect(visibleFrame.contentDocument.body.innerHTML).toBe("");
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent:
+                        "<!DOCTYPE html><html><head><style>body{color:red}</style></head><body><main>Ready preview</main></body></html>",
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(2500);
+        });
+
+        await waitFor(() => {
+            expect(visibleFrame.contentDocument.body.innerHTML).toContain(
+                "Ready preview",
+            );
+        });
+    });
+
+    it("clears the stable streaming iframe when generated HTML resets to empty", async () => {
+        jest.useFakeTimers();
+        global.fetch.mockResolvedValue({ ok: false });
+
+        const { rerender } = render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: HTML_CONTENT,
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        const visibleFrame = screen.getByTitle("Preview");
+        expect(visibleFrame.contentDocument.body.innerHTML).toContain("Test");
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: "",
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        await act(async () => {
+            jest.advanceTimersByTime(2500);
+        });
+
+        await waitFor(() => {
+            expect(visibleFrame.contentDocument.body.innerHTML).toBe("");
+        });
+        expect(screen.getByTitle("Preview")).toBe(visibleFrame);
+    });
+
+    it("keeps a blocking blurred generation overlay over streamed generated HTML", () => {
+        global.fetch.mockResolvedValue({ ok: false });
+
+        render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: HTML_CONTENT,
+                    htmlStatus: "generating",
+                    title: "Preview",
+                }}
+                isActive={true}
+            />,
+        );
+
+        expect(screen.getByTitle("Preview")).toBeInTheDocument();
+        const overlay = screen.getByTestId("generating-applet-overlay");
+        expect(overlay).toHaveClass(
+            "pointer-events-auto",
+            "backdrop-blur-[1px]",
+        );
     });
 
     it("shows an error state when applet generation fails", () => {
@@ -396,6 +733,35 @@ describe("HtmlPreviewTabContent", () => {
         ).not.toBeInTheDocument();
     });
 
+    it("keeps the generating overlay instead of showing an empty URL error while HTML is pending", () => {
+        mockUseContentLoader.mockReturnValue({
+            loading: false,
+            error: "No URL provided",
+            content: null,
+            contentKey: "empty",
+            retry: jest.fn(),
+        });
+
+        render(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: "",
+                    htmlStatus: "generating",
+                    title: "Generating applet...",
+                }}
+                isActive={true}
+            />,
+        );
+
+        expect(
+            screen.queryByTestId("tab-content-loader"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getAllByText("Generating applet...").length,
+        ).toBeGreaterThan(0);
+    });
+
     it("opens and closes a full screen preview overlay", async () => {
         global.fetch.mockResolvedValue({ ok: false });
 
@@ -413,7 +779,7 @@ describe("HtmlPreviewTabContent", () => {
         expect(sandboxes.length).toBeGreaterThanOrEqual(2);
         expect(sandboxes[sandboxes.length - 1]).toHaveAttribute(
             "data-auto-resize",
-            "true",
+            "false",
         );
 
         await userEvent.click(
@@ -464,6 +830,287 @@ describe("HtmlPreviewTabContent", () => {
 
         expect(await findFullScreenButton()).toBeInTheDocument();
         expect(await findPublishButton()).toBeInTheDocument();
+    });
+
+    it("does not refetch applet metadata when the window receives focus", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => makeAppletRecordWithVersions([HTML_CONTENT]),
+        });
+
+        renderComponent({
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Preview",
+                appletId: APPLET_ID,
+            },
+        });
+
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+        });
+
+        fireEvent.focus(window);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports Draft as editable when no saved version is explicitly selected", async () => {
+        const onContentChange = jest.fn();
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => makeAppletRecordWithVersions([HTML_CONTENT]),
+        });
+
+        renderComponent({
+            onContentChange,
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Preview",
+                appletId: APPLET_ID,
+            },
+        });
+
+        await waitFor(() =>
+            expect(onContentChange).toHaveBeenCalledWith(
+                "tab-1",
+                expect.objectContaining({
+                    appletActiveVersionIndex: null,
+                    appletActiveVersionNumber: null,
+                    appletIsViewingDraft: true,
+                }),
+            ),
+        );
+    });
+
+    it("does not loop when a saved-version transition is reflected back through canvas state", async () => {
+        const draftHtml = "<html>draft-v2</html>";
+        const consoleErrorSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
+
+        render(
+            <StatefulCanvasPreview
+                initialContent={{
+                    htmlContent: draftHtml,
+                    title: "Preview",
+                    appletId: APPLET_ID,
+                }}
+                records={[
+                    makeAppletRecordWithVersions(["<html>saved-v1</html>"]),
+                    makeAppletRecordWithVersions([
+                        "<html>saved-v1</html>",
+                        draftHtml,
+                    ]),
+                ]}
+            />,
+        );
+
+        await userEvent.click(await findSaveButton());
+
+        await waitFor(() =>
+            expect(
+                global.fetch.mock.calls.some(
+                    (call) => call[1]?.method === "PUT",
+                ),
+            ).toBe(true),
+        );
+        expect(await screen.findByText("v2/2")).toBeInTheDocument();
+        expect(
+            consoleErrorSpy.mock.calls.some((call) =>
+                String(call[0]).includes("Maximum update depth"),
+            ),
+        ).toBe(false);
+    });
+
+    it("keeps an agent-saved pending version selected while metadata refetch is stale", async () => {
+        const draftHtml = "<html>draft-v4</html>";
+        const onContentChange = jest.fn();
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () =>
+                makeAppletRecordWithVersions([
+                    "<html>saved-v1</html>",
+                    "<html>saved-v2</html>",
+                    "<html>saved-v3</html>",
+                ]),
+        });
+
+        const { rerender } = renderComponent({
+            onContentChange,
+            initialContent: {
+                htmlContent: draftHtml,
+                title: "Preview",
+                appletId: APPLET_ID,
+                appletVersionCount: 3,
+                appletIsViewingDraft: true,
+            },
+        });
+
+        expect(await screen.findByText("Draft")).toBeInTheDocument();
+
+        rerender(
+            <HtmlPreviewTabContent
+                tabId="tab-1"
+                initialContent={{
+                    htmlContent: draftHtml,
+                    title: "Preview",
+                    appletId: APPLET_ID,
+                    appletVersionKey: 2,
+                    appletVersionCount: 4,
+                    appletActiveVersionIndex: 3,
+                    appletActiveVersionNumber: 4,
+                    appletIsViewingDraft: false,
+                }}
+                isActive={true}
+                onContentChange={onContentChange}
+            />,
+        );
+
+        expect(await screen.findByText("v4/4")).toBeInTheDocument();
+        expect(screen.getByTestId("output-sandbox")).toHaveAttribute(
+            "data-content",
+            draftHtml,
+        );
+        expect(onContentChange).toHaveBeenCalledWith(
+            "tab-1",
+            expect.objectContaining({
+                appletActiveVersionIndex: 3,
+                appletActiveVersionNumber: 4,
+                appletIsViewingDraft: false,
+            }),
+        );
+        expect(onContentChange).not.toHaveBeenCalledWith(
+            "tab-1",
+            expect.objectContaining({
+                appletActiveVersionIndex: 2,
+                appletActiveVersionNumber: 3,
+            }),
+        );
+    });
+
+    it("does not report Draft during an incoming agent-saved version sync", async () => {
+        const draftHtml = "<html>draft-v4</html>";
+        const onContentChange = jest.fn();
+
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () =>
+                makeAppletRecordWithVersions([
+                    "<html>saved-v1</html>",
+                    "<html>saved-v2</html>",
+                    "<html>saved-v3</html>",
+                ]),
+        });
+
+        renderComponent({
+            onContentChange,
+            initialContent: {
+                htmlContent: draftHtml,
+                title: "Preview",
+                appletId: APPLET_ID,
+                appletVersionKey: 2,
+                appletVersionCount: 4,
+                appletActiveVersionIndex: 3,
+                appletActiveVersionNumber: 4,
+                appletIsViewingDraft: false,
+            },
+        });
+
+        expect(await screen.findByText("v4/4")).toBeInTheDocument();
+        expect(onContentChange).toHaveBeenCalledWith(
+            "tab-1",
+            expect.objectContaining({
+                appletActiveVersionIndex: 3,
+                appletActiveVersionNumber: 4,
+                appletIsViewingDraft: false,
+            }),
+        );
+        expect(onContentChange).not.toHaveBeenCalledWith(
+            "tab-1",
+            expect.objectContaining({
+                appletActiveVersionIndex: null,
+                appletActiveVersionNumber: null,
+                appletIsViewingDraft: true,
+            }),
+        );
+    });
+
+    it("shows Share button for applet owners after metadata loads", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                isOwner: true,
+            }),
+        });
+
+        renderComponent({
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Preview",
+                appletId: APPLET_ID,
+            },
+        });
+
+        const shareButton = await screen.findByTestId("share-button");
+        expect(shareButton).toHaveAttribute("data-entity-type", "applet");
+        expect(shareButton).toHaveAttribute("data-entity-id", APPLET_ID);
+    });
+
+    it("hides Share button for shared non-owner applets", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                isOwner: false,
+                shareRole: "editor",
+            }),
+        });
+
+        renderComponent({
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Preview",
+                appletId: APPLET_ID,
+            },
+        });
+
+        await findPublishButton();
+        expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();
+    });
+
+    it("opens the applet metadata dialog from the canvas toolbar", async () => {
+        const onContentChange = jest.fn();
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                isOwner: true,
+            }),
+        });
+
+        renderComponent({
+            onContentChange,
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Preview",
+                appletId: APPLET_ID,
+            },
+        });
+
+        await userEvent.click(await findEditMetadataButton());
+
+        expect(screen.getByTestId("metadata-dialog")).toHaveAttribute(
+            "data-applet-id",
+            APPLET_ID,
+        );
+
+        await userEvent.click(screen.getByTestId("metadata-dialog-save"));
+
+        expect(onContentChange).toHaveBeenCalledWith("tab-1", {
+            title: "Renamed Applet",
+        });
     });
 
     it("closes the full screen preview when Escape is pressed", async () => {
@@ -872,6 +1519,7 @@ describe("HtmlPreviewTabContent", () => {
                     htmlContent: HTML_CONTENT,
                     title: "Preview",
                     appletId: APPLET_ID,
+                    appletIsViewingDraft: false,
                 },
             });
 
@@ -979,6 +1627,57 @@ describe("HtmlPreviewTabContent", () => {
                 screen.getByRole("button", { name: /^republish$/i }),
             ).toBeInTheDocument();
         });
+
+        it("refreshes publish state when an applet tool updates the active canvas tab", async () => {
+            global.fetch
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () =>
+                        makeAppletRecordWithVersions([
+                            "<html>saved-v1</html>",
+                            HTML_CONTENT,
+                        ]),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        ...makeAppletRecord(null),
+                        publishedVersionIndex: 1,
+                        htmlVersions: [
+                            { content: "<html>saved-v1</html>" },
+                            { content: HTML_CONTENT },
+                        ],
+                    }),
+                });
+
+            const { rerender } = renderComponent({
+                initialContent: {
+                    htmlContent: HTML_CONTENT,
+                    title: "Preview",
+                    appletId: APPLET_ID,
+                },
+            });
+
+            expect(await findPublishButton()).toBeInTheDocument();
+
+            rerender(
+                <HtmlPreviewTabContent
+                    tabId="tab-1"
+                    initialContent={{
+                        htmlContent: HTML_CONTENT,
+                        title: "Preview",
+                        appletId: APPLET_ID,
+                        appletVersionKey: 2,
+                    }}
+                    isActive={true}
+                />,
+            );
+
+            expect(
+                await screen.findByRole("button", { name: /^published$/i }),
+            ).toBeInTheDocument();
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+        });
     });
 
     describe("handlePublish", () => {
@@ -1074,13 +1773,16 @@ describe("HtmlPreviewTabContent", () => {
                     htmlContent: HTML_CONTENT,
                     title: "Preview",
                     appletId: APPLET_ID,
+                    appletIsViewingDraft: false,
                 },
             });
 
             expect(await findPublishButton()).toBeInTheDocument();
-            expect(screen.getByTestId("monaco-editor")).toHaveAttribute(
-                "data-readonly",
-                "true",
+            await waitFor(() =>
+                expect(screen.getByTestId("monaco-editor")).toHaveAttribute(
+                    "data-readonly",
+                    "true",
+                ),
             );
 
             await userEvent.click(await findEditVersionButton());
@@ -1135,7 +1837,8 @@ describe("HtmlPreviewTabContent", () => {
             expect(await findEditVersionButton()).toBeDisabled();
         });
 
-        it("confirms before deleting a saved version", async () => {
+        it("confirms before deleting a saved version and persists the next valid version", async () => {
+            const onContentChange = jest.fn();
             global.fetch
                 .mockResolvedValueOnce({
                     ok: true,
@@ -1152,14 +1855,21 @@ describe("HtmlPreviewTabContent", () => {
                 });
 
             renderComponent({
+                onContentChange,
                 initialContent: {
                     htmlContent: "<html>saved-v2</html>",
                     title: "Preview",
                     appletId: APPLET_ID,
+                    appletIsViewingDraft: false,
                 },
             });
 
             expect(await screen.findByText("v2/2")).toBeInTheDocument();
+            expect(
+                await screen.findByRole("button", {
+                    name: "Delete version",
+                }),
+            ).toBeInTheDocument();
             await userEvent.click(
                 screen.getByRole("button", { name: "Delete version" }),
             );
@@ -1179,6 +1889,56 @@ describe("HtmlPreviewTabContent", () => {
                     call[1]?.method === "PUT" && call[0].includes(APPLET_ID),
             );
             expect(JSON.parse(putCall[1].body)).toEqual({ deleteVersion: 2 });
+            await waitFor(() =>
+                expect(onContentChange).toHaveBeenCalledWith(
+                    "tab-1",
+                    expect.objectContaining({
+                        appletActiveVersionIndex: 0,
+                        appletActiveVersionNumber: 1,
+                        appletIsViewingDraft: false,
+                    }),
+                ),
+            );
+        });
+
+        it("clamps a restored saved-version pointer after that version was deleted", async () => {
+            const onContentChange = jest.fn();
+            global.fetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () =>
+                    makeAppletRecordWithVersions(["<html>saved-v1</html>"]),
+            });
+
+            renderComponent({
+                onContentChange,
+                initialContent: {
+                    htmlContent: "<html>deleted-saved-v2</html>",
+                    title: "Preview",
+                    appletId: APPLET_ID,
+                    appletActiveVersionIndex: 1,
+                    appletActiveVersionNumber: 2,
+                    appletIsViewingDraft: false,
+                },
+            });
+
+            expect(await screen.findByText("v1/1")).toBeInTheDocument();
+            await waitFor(() =>
+                expect(onContentChange).toHaveBeenCalledWith(
+                    "tab-1",
+                    expect.objectContaining({
+                        appletActiveVersionIndex: 0,
+                        appletActiveVersionNumber: 1,
+                        appletIsViewingDraft: false,
+                    }),
+                ),
+            );
+            expect(onContentChange).not.toHaveBeenCalledWith(
+                "tab-1",
+                expect.objectContaining({
+                    appletActiveVersionIndex: 1,
+                    appletActiveVersionNumber: 2,
+                }),
+            );
         });
 
         it("confirms before clearing Draft and refreshes the tab HTML", async () => {
@@ -1471,6 +2231,98 @@ describe("HtmlPreviewTabContent", () => {
             expect(
                 await screen.findByTestId("publish-dialog"),
             ).toBeInTheDocument();
+        });
+    });
+
+    describe("Applet revalidation", () => {
+        it("fetches the applet URL via API and patches canvas state on success", async () => {
+            const onContentChange = jest.fn();
+            const FILE_PATH = "https://cdn.example.com/applet.html";
+            global.fetch
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({ filePath: FILE_PATH }),
+                })
+                .mockResolvedValue({
+                    ok: true,
+                    json: async () => makeAppletRecord(null),
+                });
+
+            render(
+                <HtmlPreviewTabContent
+                    tabId="tab-1"
+                    initialContent={{ appletId: APPLET_ID }}
+                    isActive={true}
+                    onContentChange={onContentChange}
+                />,
+            );
+
+            await waitFor(() =>
+                expect(onContentChange).toHaveBeenCalledWith("tab-1", {
+                    url: FILE_PATH,
+                }),
+            );
+            expect(onContentChange).not.toHaveBeenCalledWith(
+                "tab-1",
+                expect.objectContaining({ htmlStatus: "error" }),
+            );
+        });
+
+        it("sets an error state when the revalidation API responds with a non-OK status", async () => {
+            const onContentChange = jest.fn();
+            global.fetch
+                .mockResolvedValueOnce({ ok: false, json: async () => ({}) })
+                .mockResolvedValue({
+                    ok: true,
+                    json: async () => makeAppletRecord(null),
+                });
+
+            render(
+                <HtmlPreviewTabContent
+                    tabId="tab-1"
+                    initialContent={{ appletId: APPLET_ID }}
+                    isActive={true}
+                    onContentChange={onContentChange}
+                />,
+            );
+
+            await waitFor(() =>
+                expect(onContentChange).toHaveBeenCalledWith(
+                    "tab-1",
+                    expect.objectContaining({ htmlStatus: "error" }),
+                ),
+            );
+            expect(onContentChange).not.toHaveBeenCalledWith(
+                "tab-1",
+                expect.objectContaining({ url: expect.anything() }),
+            );
+        });
+
+        it("does not run revalidation when url is already present in canvas state", async () => {
+            const onContentChange = jest.fn();
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: async () => makeAppletRecord(null),
+            });
+
+            render(
+                <HtmlPreviewTabContent
+                    tabId="tab-1"
+                    initialContent={{
+                        appletId: APPLET_ID,
+                        url: "https://cdn.example.com/existing.html",
+                    }}
+                    isActive={true}
+                    onContentChange={onContentChange}
+                />,
+            );
+
+            // Only the metadata fetch fires; revalidation is skipped (url present)
+            await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+            expect(onContentChange).not.toHaveBeenCalledWith(
+                "tab-1",
+                expect.objectContaining({ url: expect.anything() }),
+            );
         });
     });
 

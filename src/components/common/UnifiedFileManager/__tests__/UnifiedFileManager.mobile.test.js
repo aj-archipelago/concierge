@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom";
 
 import UnifiedFileManager from "../UnifiedFileManager";
@@ -193,16 +194,41 @@ jest.mock("../FileContentArea", () => ({
     default: () => <div data-testid="file-content-area" />,
 }));
 
+function renderWithQueryClient(ui) {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
+
+    const view = render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    );
+
+    return {
+        ...view,
+        unmount: () => {
+            view.unmount();
+            queryClient.clear();
+        },
+    };
+}
+
 describe("UnifiedFileManager mobile layout", () => {
     beforeEach(() => {
         window.localStorage.clear();
         window.innerWidth = 375;
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ folders: {}, files: {} }),
+        });
     });
 
     it("forces list view on mobile and keeps folders behind a toggle", () => {
         window.localStorage.setItem("unified-file-manager-view-mode", "grid");
 
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager contextId="ctx-1" containerHeight="400px" />,
         );
 

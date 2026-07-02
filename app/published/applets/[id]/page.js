@@ -2,8 +2,11 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import PublishedAppletView from "@/src/components/PublishedAppletView";
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function PublishedCanvasAppletPage() {
+    const { t } = useTranslation();
     const { id } = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -14,7 +17,12 @@ export default function PublishedCanvasAppletPage() {
     useEffect(() => {
         const fetchApplet = async () => {
             try {
-                const res = await fetch(`/api/published/applets/${id}`);
+                const res = await fetch(`/api/published/applets/${id}`, {
+                    credentials: "include",
+                });
+                if (res.status === 401) {
+                    throw new Error("Unauthorized");
+                }
                 if (!res.ok) throw new Error("Failed to fetch");
                 const json = await res.json();
 
@@ -41,8 +49,15 @@ export default function PublishedCanvasAppletPage() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-screen">
-                <span>Loading...</span>
+            <div
+                className="flex h-screen items-center justify-center"
+                role="status"
+                aria-label={t("Loading applet...")}
+            >
+                <Loader2
+                    className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500"
+                    aria-hidden="true"
+                />
             </div>
         );
     }
@@ -60,6 +75,7 @@ export default function PublishedCanvasAppletPage() {
             key={data?.applet?._id || id}
             applet={data?.applet}
             app={data?.app}
+            meta={data?.meta}
             isLoading={false}
             error={error}
         />

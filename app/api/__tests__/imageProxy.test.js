@@ -18,7 +18,10 @@ jest.mock("../utils/llm-file-utils.js", () => ({
     fetchShortLivedUrl: jest.fn(),
     extractBlobPathFromUrl: jest.fn(() => "media/video.mp4"),
     extractHashFromBlobUrl: jest.fn(() => "hash-1"),
-    isAllowedBlobDomain: jest.fn(() => true),
+    fetchAllowedBlobUrl: jest.fn((url, init = {}) =>
+        fetch(url, { ...init, redirect: "manual" }),
+    ),
+    validateAllowedBlobUrl: jest.fn(),
 }));
 
 jest.mock("../utils/media-service-utils.js", () => ({
@@ -66,8 +69,8 @@ describe("image proxy media responses", () => {
         expect(global.fetch).toHaveBeenCalledWith(
             "https://storage.example/video.mp4",
             {
-                redirect: "follow",
                 headers: { Range: "bytes=0-0" },
+                redirect: "manual",
             },
         );
         expect(res.status).toBe(206);
@@ -112,8 +115,8 @@ describe("image proxy media responses", () => {
         expect(global.fetch).toHaveBeenLastCalledWith(
             "https://storage.example/video.mp4?fresh=sas",
             {
-                redirect: "follow",
                 headers: { Range: "bytes=0-0" },
+                redirect: "manual",
             },
         );
         expect(res.status).toBe(206);

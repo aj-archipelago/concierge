@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * Concierge Applet SDK v1.8.0
+ * Concierge Applet SDK v1.12.0
  * =============================================================================
  *
  * This SDK provides applets with access to Concierge platform capabilities.
@@ -15,7 +15,7 @@
  * -----------------------------------------------------------------------------
  *
  *   // Verify the SDK is loaded
- *   console.log(ConciergeSDK.version); // "1.8.0"
+ *   console.log(ConciergeSDK.version); // "1.12.0"
  *
  *   // Call the AI agent
  *   var response = await ConciergeSDK.agent.chat({
@@ -25,7 +25,7 @@
  *   console.log(response.result);
  *
  *   // Make a direct model call without agent tools/connectors
- *   var translation = await ConciergeSDK.models.generate({
+ *   var translation = await ConciergeSDK.models.executePrompt({
  *       prompt: "Translate 'hello' to Arabic. Return only the translation.",
  *       reasoningEffort: "low",
  *   });
@@ -54,15 +54,35 @@
  *     - param  {Array}    options.messages       Array of {role, content} objects (required)
  *     - param  {string}   [options.systemPrompt] Optional system prompt
  *     - param  {string}   [options.model]        Optional model override
- *     - returns {Promise<{result: string, warnings: Array, errors: Array}>}
- *     - NOTE: `result` is Markdown-formatted. Render it with a Markdown
- *       library (e.g. marked, markdown-it) rather than inserting as plain text.
+ *     - returns {Promise<{result: string, citations: Array, metadata: Object, warnings: Array, errors: Array}>}
+ *     - NOTE: `result` is Markdown-formatted. In Concierge applets, prefer the
+ *       native renderer bridge: write JSON to <pre class="llm-output"> with
+ *       { markdown: result, citations: citations || [] }. The host renders it
+ *       with Concierge's Markdown and citation UI. Use a third-party Markdown
+ *       library only when the applet must also run outside Concierge.
+ *
+ *   ConciergeSDK.sourceQa.query(options)
+ *     - Ask the source Q&A retrieval pathway.
+ *     - param  {Object}   options
+ *     - param  {string}   options.text       Question to answer
+ *     - param  {string|Object} [options.contextInfo] Prior context for follow-up resolution
+ *     - param  {string}   [options.language] Response language label; omit to let source Q&A infer it
+ *     - param  {boolean}  [options.searchInternet] Include internet news fallback
+ *     - param  {number}   [options.maxInternetResults] Internet fallback result count
+ *     - param  {number}   [options.followUpQuestionCount] Suggested next-question count
+ *     - param  {boolean}  [options.stream] Stream chunks before resolving the complete response
+ *     - returns {Promise<{result: string, citations: Array, confidence: string|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, followUpQuestions: Array, warnings: Array, errors: Array}>}
+ *
+ *   ConciergeSDK.sourceQa.stream(options)
+ *     - Stream source Q&A answer chunks with onChunk/onUpdate callbacks.
+ *     - returns the same final response shape as sourceQa.query().
  *
  *   ConciergeSDK.models.list()
  *     - List applet-available chat models and supported reasoning efforts.
  *     - returns {Promise<{models: Array, defaultModel: string, reasoningEfforts: Array}>}
  *
- *   ConciergeSDK.models.generate(options)
+ *   ConciergeSDK.models.executePrompt(options)
+ *   ConciergeSDK.models.generate(options) // backward-compatible alias
  *     - Make a stateless direct model call without agent tools/connectors.
  *     - param  {Object}   options
  *     - param  {string}   [options.prompt]          Prompt text
@@ -70,7 +90,30 @@
  *     - param  {string}   [options.systemPrompt]    Optional system prompt
  *     - param  {string}   [options.model]           Optional model ID from models.list()
  *     - param  {string}   [options.reasoningEffort] Optional: "none", "low", "medium", or "high"
- *     - returns {Promise<{result: string}>}
+ *     - returns {Promise<{result: string, citations: Array, metadata: Object}>}
+ *
+ *   ConciergeSDK.media.models()                  - List available media models.
+ *   ConciergeSDK.media.create(options)           - Start generic media generation.
+ *   ConciergeSDK.media.createImage(options)      - Start image generation.
+ *   ConciergeSDK.media.createVideo(options)      - Start video generation.
+ *   ConciergeSDK.media.createMusic(options)      - Start music/audio generation.
+ *   ConciergeSDK.media.createSpeech(options)     - Start speech/TTS generation.
+ *   ConciergeSDK.media.transcribe(options)       - Start transcription.
+ *   ConciergeSDK.media.translateSubtitles(options) - Start subtitle translation.
+ *   ConciergeSDK.tasks.get(taskId)               - Fetch task status/result.
+ *   ConciergeSDK.tasks.wait(taskId, options)     - Poll until task completion.
+ *
+ *   ConciergeSDK.workspace.prompts.list()
+ *     - List legacy workspace prompts linked to this applet, if any.
+ *     - returns {Promise<{workspaceId: string, prompts: Array}>}
+ *
+ *   ConciergeSDK.workspace.prompts.run(options)
+ *     - Run a linked workspace prompt by promptId.
+ *     - param  {Object} options
+ *     - param  {string} options.promptId Prompt ID from list()
+ *     - param  {string} [options.input] User input for the prompt
+ *     - param  {Array}  [options.files] Files to include
+ *     - returns {Promise<{output: string, citations: Array, metadata: Object}>}
  *
  *   ConciergeSDK.services.getAccessToken(options)
  *     - Get an OAuth access token for a connected external service.
@@ -91,14 +134,25 @@
  *     - Read all URL query parameters as a plain object.
  *     - returns {Object<string, string>}
  *
- *   ConciergeSDK.data.get()
- *     - Retrieve all stored data for this applet and user.
- *     - returns {Promise<Object>}  Key-value data object (empty {} if none)
+ *   ConciergeSDK.navigation.open(path, options)
+ *   ConciergeSDK.navigation.navigate(path, options) // alias
+ *     - Navigate the host Concierge app to another internal route.
+ *     - param  {string}  path              Internal path such as "/apps/foo"
+ *     - param  {Object}  [options]
+ *     - param  {boolean} [options.replace] Replace history entry instead of pushing
+ *     - returns {Promise<{success: true, path: string, replace: boolean}>}
+ *
+ *   ConciergeSDK.data.get([key])
+ *     - Retrieve one key or all stored data for this applet and user.
+ *     - param  {string} [key]  Optional key to load without fetching all data
+ *     - returns {Promise<*>}    Key value when key is provided, otherwise object
  *
  *   ConciergeSDK.data.set(key, value)
  *     - Store a key-value pair for this applet and user.
  *     - param  {string} key    The data key (non-empty string)
- *     - param  {*}      value  The value to store (any JSON-serializable value)
+ *     - param  {*}      value  Small JSON-serializable value to store
+ *     - note   Keep each key value under 2MB. Store large current-user
+ *              datasets with ConciergeSDK.files applet-user files instead.
  *     - returns {Promise<Object>}  The full updated data object
  *
  *   ConciergeSDK.sharedData.get(key)
@@ -110,11 +164,11 @@
  *     - returns {Promise<{success: boolean, value: *, revision: string}>}
  *
  *   ConciergeSDK.files.list()
- *     - List all files stored for this applet and user.
+ *     - List applet-user files stored for this applet and user.
  *     - returns {Promise<Array>}  Array of file objects
  *
  *   ConciergeSDK.files.upload(file)
- *     - Upload a file for this applet and user.
+ *     - Upload a file to this user's applet-user file store.
  *     - param  {File} file  A File object (from input[type=file] or new File())
  *     - returns {Promise<{file: Object, files: Array}>}
  *
@@ -467,6 +521,154 @@
         return attemptFetch(0);
     }
 
+    function _buildSourceQaRequestBody(options, appletId) {
+        var text =
+            typeof options.text === "string" ? options.text : options.question;
+
+        if (!text || typeof text !== "string") {
+            throw new Error("[ConciergeSDK] text is required");
+        }
+
+        var body = {
+            appletId: appletId,
+            text: text,
+        };
+        if (options.contextInfo !== undefined)
+            body.contextInfo = options.contextInfo;
+        if (options.language !== undefined) body.language = options.language;
+        if (options.maxSearchResults !== undefined)
+            body.maxSearchResults = options.maxSearchResults;
+        if (options.maxRefinementRounds !== undefined)
+            body.maxRefinementRounds = options.maxRefinementRounds;
+        if (options.searchInternet !== undefined)
+            body.searchInternet = options.searchInternet !== false;
+        if (options.maxInternetResults !== undefined)
+            body.maxInternetResults = options.maxInternetResults;
+        if (options.followUpQuestionCount !== undefined)
+            body.followUpQuestionCount = options.followUpQuestionCount;
+        if (options.skipAnswerSynthesis !== undefined) {
+            body.skipAnswerSynthesis = !!options.skipAnswerSynthesis;
+        }
+        if (options.stream === true) body.stream = true;
+
+        return body;
+    }
+
+    function _parseSsePayload(frame) {
+        var lines = frame.split(/\r?\n/);
+        var dataLines = [];
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].indexOf("data:") === 0) {
+                dataLines.push(lines[i].slice(5).trim());
+            }
+        }
+        if (!dataLines.length) return null;
+        return JSON.parse(dataLines.join("\n"));
+    }
+
+    function _readSourceQaSseResponse(res, options) {
+        options = options || {};
+        if (!res.body || typeof res.body.getReader !== "function") {
+            return Promise.reject(
+                new Error(
+                    "[ConciergeSDK] source Q&A streaming is not supported",
+                ),
+            );
+        }
+
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+        var accumulated = "";
+        var finalResponse = null;
+        var latestMetadata = null;
+
+        function handlePayload(payload) {
+            if (!payload) return;
+
+            var event = payload.event;
+            var data = payload.data || {};
+            if (typeof options.onUpdate === "function") {
+                options.onUpdate(event, data);
+            }
+
+            if (event === "metadata") {
+                latestMetadata = data;
+                return;
+            }
+
+            if (event === "data") {
+                var chunk = data.chunk || "";
+                if (chunk) {
+                    accumulated += chunk;
+                    if (data.metadata) {
+                        latestMetadata = data.metadata;
+                    }
+                    if (typeof options.onChunk === "function") {
+                        options.onChunk(
+                            chunk,
+                            Object.assign({}, data, {
+                                metadata: data.metadata || latestMetadata,
+                            }),
+                        );
+                    }
+                }
+                return;
+            }
+
+            if (event === "complete") {
+                finalResponse = data;
+                latestMetadata = data;
+                if (typeof options.onComplete === "function") {
+                    options.onComplete(finalResponse);
+                }
+                return;
+            }
+
+            if (event === "error") {
+                throw new Error(data.error || "source Q&A streaming failed");
+            }
+        }
+
+        function processBuffer(flush) {
+            var separatorIndex;
+            while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+                var frame = buffer.slice(0, separatorIndex).trim();
+                buffer = buffer.slice(separatorIndex + 2);
+                if (frame) handlePayload(_parseSsePayload(frame));
+            }
+            if (flush && buffer.trim()) {
+                handlePayload(_parseSsePayload(buffer.trim()));
+                buffer = "";
+            }
+        }
+
+        function readNext() {
+            return reader.read().then(function (result) {
+                if (result.done) {
+                    processBuffer(true);
+                    if (finalResponse) return finalResponse;
+                    throw new Error(
+                        "source Q&A stream ended before the final metadata was received",
+                    );
+                }
+
+                buffer += decoder
+                    .decode(result.value, { stream: true })
+                    .replace(/\r\n/g, "\n");
+                processBuffer(false);
+                return readNext();
+            });
+        }
+
+        return readNext().catch(function (error) {
+            if (typeof options.onError === "function") {
+                options.onError(error);
+            }
+            throw error;
+        });
+    }
+
     var _sharedDataRevisions = {};
 
     function _sharedDataArgs(keyOrOptions, value) {
@@ -500,12 +702,307 @@
         return value === "rtl" ? "rtl" : "ltr";
     }
 
+    function _normalizeNavigationPath(path) {
+        if (typeof path !== "string") {
+            throw new Error("[ConciergeSDK] navigation path must be a string");
+        }
+
+        var trimmedPath = path.trim();
+        if (
+            !trimmedPath ||
+            trimmedPath.charAt(0) !== "/" ||
+            trimmedPath.indexOf("//") === 0 ||
+            trimmedPath.indexOf("\\") !== -1
+        ) {
+            throw new Error(
+                "[ConciergeSDK] navigation path must be an internal path starting with '/'",
+            );
+        }
+
+        return trimmedPath;
+    }
+
+    function _navigateHost(path, options) {
+        var normalizedPath;
+        var replace = !!(options && options.replace);
+
+        try {
+            normalizedPath = _normalizeNavigationPath(path);
+        } catch (e) {
+            return Promise.reject(e);
+        }
+
+        if (window.parent && window.parent !== window) {
+            return new Promise(function (resolve, reject) {
+                var requestId =
+                    "nav_" +
+                    Date.now() +
+                    "_" +
+                    Math.random().toString(36).substr(2, 9);
+
+                var settled = false;
+                function settle(error, response) {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeout);
+                    window.removeEventListener("message", onMessage);
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                }
+
+                var timeout = setTimeout(function () {
+                    settle(
+                        new Error(
+                            "[ConciergeSDK] navigation request timed out for " +
+                                normalizedPath,
+                        ),
+                    );
+                }, 10000);
+
+                function onMessage(event) {
+                    if (
+                        !event ||
+                        !event.data ||
+                        event.data.type !== "__LABEEB_NAVIGATION_RESPONSE__" ||
+                        event.data.requestId !== requestId
+                    ) {
+                        return;
+                    }
+
+                    if (event.data.success) {
+                        settle(null, {
+                            success: true,
+                            path: event.data.path || normalizedPath,
+                            replace: !!event.data.replace,
+                        });
+                    } else {
+                        settle(
+                            new Error(
+                                event.data.error ||
+                                    "[ConciergeSDK] navigation request failed",
+                            ),
+                        );
+                    }
+                }
+
+                window.addEventListener("message", onMessage);
+                window.parent.postMessage(
+                    {
+                        type: "__LABEEB_NAVIGATION_REQUEST__",
+                        requestId: requestId,
+                        path: normalizedPath,
+                        replace: replace,
+                    },
+                    "*",
+                );
+            });
+        }
+
+        if (replace) {
+            window.location.replace(normalizedPath);
+        } else {
+            window.location.assign(normalizedPath);
+        }
+
+        return Promise.resolve({
+            success: true,
+            path: normalizedPath,
+            replace: replace,
+        });
+    }
+
+    var _MEDIA_SETTING_FIELDS = [
+        "aspectRatio",
+        "duration",
+        "outputFormat",
+        "outputQuality",
+        "quality",
+        "negativePrompt",
+        "negative_prompt",
+        "numberResults",
+        "seed",
+        "optimizePrompt",
+        "generateAudio",
+        "forceInstrumental",
+        "resolution",
+        "cameraFixed",
+        "image_size",
+        "imageSize",
+        "width",
+        "height",
+        "size",
+        "lyrics",
+        "isInstrumental",
+        "lyricsOptimizer",
+        "audioUrl",
+        "inputAudioUrl",
+        "audioFormat",
+        "sampleRate",
+        "bitrate",
+        "voiceName",
+        "speaker1Name",
+        "speaker1VoiceName",
+        "speaker2Name",
+        "speaker2VoiceName",
+        "mode",
+        "language",
+        "speaker",
+        "referenceText",
+        "styleInstruction",
+        "voiceDescription",
+        "voice",
+        "stability",
+        "similarityBoost",
+        "style",
+        "speed",
+        "previousText",
+        "nextText",
+        "languageCode",
+        "voiceId",
+        "customVoiceId",
+        "volume",
+        "pitch",
+        "emotion",
+        "channel",
+        "languageBoost",
+        "subtitleEnable",
+        "englishNormalization",
+    ];
+
+    function _normalizeMediaReference(reference) {
+        if (!reference) return null;
+        if (typeof reference === "string") return { url: reference };
+        if (reference.data && typeof reference.data === "object") {
+            reference = reference.data;
+        }
+
+        var normalized = {};
+        [
+            "url",
+            "azureUrl",
+            "gcsUrl",
+            "fileId",
+            "blobPath",
+            "hash",
+            "role",
+            "inputImageRole",
+            "inputVideoRole",
+            "inputImageBlobPath",
+            "inputVideoBlobPath",
+            "inputAudioBlobPath",
+            "inputImageHash",
+            "inputVideoHash",
+            "inputAudioHash",
+        ].forEach(function (field) {
+            if (reference[field] !== undefined) {
+                normalized[field] = reference[field];
+            }
+        });
+        return normalized.url ||
+            normalized.azureUrl ||
+            normalized.gcsUrl ||
+            normalized.fileId
+            ? normalized
+            : null;
+    }
+
+    function _normalizeMediaReferenceList(value) {
+        if (value == null) return [];
+        var list = Array.isArray(value) ? value : [value];
+        return list
+            .map(function (reference) {
+                return _normalizeMediaReference(reference);
+            })
+            .filter(Boolean);
+    }
+
+    function _buildMediaCreateBody(options, defaults) {
+        options = options || {};
+        defaults = defaults || {};
+
+        var body = {
+            appletId: _requireAppletId(),
+            operation: "create-media",
+            outputType: options.outputType || defaults.outputType || "image",
+        };
+        if (defaults.mediaKind || options.mediaKind) {
+            body.mediaKind = options.mediaKind || defaults.mediaKind;
+        }
+        if (options.prompt !== undefined) body.prompt = options.prompt;
+        if (options.displayPrompt !== undefined) {
+            body.displayPrompt = options.displayPrompt;
+        }
+        if (options.model || options.modelId) {
+            body.model = options.model || options.modelId;
+        }
+        if (options.settings !== undefined) body.settings = options.settings;
+        if (options.modelSettings !== undefined) {
+            body.modelSettings = options.modelSettings;
+        }
+        if (options.outputFolder !== undefined) {
+            body.outputFolder = options.outputFolder;
+        }
+        if (options.inputTags !== undefined) body.inputTags = options.inputTags;
+
+        _MEDIA_SETTING_FIELDS.forEach(function (field) {
+            if (options[field] !== undefined) body[field] = options[field];
+        });
+
+        var inputImages = _normalizeMediaReferenceList(
+            options.inputImages || options.images || options.references,
+        );
+        if (options.inputImage) {
+            inputImages.unshift(_normalizeMediaReference(options.inputImage));
+        }
+        inputImages = inputImages.filter(Boolean);
+        if (inputImages.length) body.inputImages = inputImages;
+
+        var inputVideos = _normalizeMediaReferenceList(
+            options.inputVideos || options.videos,
+        );
+        if (options.inputVideo) {
+            inputVideos.unshift(_normalizeMediaReference(options.inputVideo));
+        }
+        inputVideos = inputVideos.filter(Boolean);
+        if (inputVideos.length) body.inputVideos = inputVideos;
+
+        var inputAudio = _normalizeMediaReference(
+            options.inputAudio || options.audio || options.voiceReference,
+        );
+        if (inputAudio) body.inputAudio = inputAudio;
+
+        return body;
+    }
+
+    function _createMediaTask(options, defaults) {
+        var body;
+        try {
+            body = _buildMediaCreateBody(options, defaults);
+        } catch (e) {
+            return Promise.reject(e);
+        }
+
+        return _apiFetch(
+            "/api/applet/media",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(body),
+            },
+            "Media generation task request failed",
+        );
+    }
+
     var ConciergeSDK = {
         /**
          * SDK version following semver.
          * @type {string}
          */
-        version: "1.8.0",
+        version: "1.12.0",
 
         /**
          * Locale namespace — Arabic/English language and text direction.
@@ -517,27 +1014,25 @@
              */
             get: function () {
                 return {
-                    language: _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE),
-                    direction: _normalizeSdkDirection(
-                        window.CONCIERGE_DIRECTION,
-                    ),
+                    language: _normalizeSdkLanguage(window.LABEEB_LANGUAGE),
+                    direction: _normalizeSdkDirection(window.LABEEB_DIRECTION),
                 };
             },
 
             /** @returns {string} */
             getLanguage: function () {
-                return _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE);
+                return _normalizeSdkLanguage(window.LABEEB_LANGUAGE);
             },
 
             /** @returns {"ltr"|"rtl"} */
             getDirection: function () {
-                return _normalizeSdkDirection(window.CONCIERGE_DIRECTION);
+                return _normalizeSdkDirection(window.LABEEB_DIRECTION);
             },
 
             /** @returns {boolean} */
             isRtl: function () {
                 return (
-                    _normalizeSdkDirection(window.CONCIERGE_DIRECTION) === "rtl"
+                    _normalizeSdkDirection(window.LABEEB_DIRECTION) === "rtl"
                 );
             },
         },
@@ -567,6 +1062,149 @@
         },
 
         /**
+         * Navigation namespace — move the host Concierge app to another internal route.
+         */
+        navigation: {
+            /**
+             * Navigate the full Concierge page, not just the applet iframe.
+             * @param {string} path Internal path, e.g. "/apps/my-app-slug".
+             * @param {{replace?: boolean}} [options]
+             * @returns {Promise<{success: true, path: string, replace: boolean}>}
+             */
+            open: function (path, options) {
+                return _navigateHost(path, options);
+            },
+
+            /**
+             * Alias for open().
+             */
+            navigate: function (path, options) {
+                return _navigateHost(path, options);
+            },
+        },
+
+        /**
+         * Source Q&A namespace - source-grounded retrieval over configured
+         * retrieval indexes. Returns the final answer and complete retrieval
+         * diagnostics from Cortex.
+         */
+        sourceQa: {
+            /**
+             * Ask the source Q&A pathway.
+             *
+             * @param {Object} options
+             * @param {string} options.text - Question to answer.
+             * @param {string} [options.question] - Alias for text.
+             * @param {string|Object} [options.contextInfo] - Prior context for follow-up resolution. Prefer { topic, previousQuestion, previousAnswer, turns, notes }.
+             * @param {string} [options.language] - Response language label. Omit to let source Q&A infer it from the latest question.
+             * @param {number} [options.maxSearchResults=12]
+             * @param {number} [options.maxRefinementRounds]
+             * @param {boolean} [options.searchInternet=true]
+             * @param {number} [options.maxInternetResults=5]
+             * @param {number} [options.followUpQuestionCount=0]
+             * @param {boolean} [options.skipAnswerSynthesis=false]
+             * @param {boolean} [options.stream=false] - When true, stream chunks and resolve with the final complete response. The default query path uses the same streaming transport internally but does not expose chunks unless callbacks are supplied.
+             * @returns {Promise<{result: string, citations: Array, confidence: string|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, followUpQuestions: Array, rawResultData: string|null, rawTool: string|null, warnings: Array, errors: Array}>}
+             *
+             * @example
+             * var response = await ConciergeSDK.sourceQa.query({
+             *     text: "What changed in the latest policy update?",
+             * });
+             * console.log(response.result, response.citations);
+             */
+            query: function (options) {
+                options = options || {};
+                return ConciergeSDK.sourceQa.stream(
+                    Object.assign({}, options, { stream: true }),
+                );
+            },
+
+            /**
+             * Stream a source Q&A response and resolve with the final complete payload.
+             *
+             * @param {Object} options - Same options as query().
+             * @param {Function} [options.onChunk] - Called as chunks arrive: (chunk, eventData) => void.
+             * @param {Function} [options.onUpdate] - Called for every SSE event: (eventName, data) => void.
+             * @param {Function} [options.onComplete] - Called with the final complete response.
+             * @param {Function} [options.onError] - Called before the returned promise rejects.
+             * @param {AbortSignal} [options.signal] - Optional cancellation signal.
+             * @returns {Promise<{result: string, citations: Array, confidence: string|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, followUpQuestions: Array, rawResultData: string|null, rawTool: string|null, warnings: Array, errors: Array}>}
+             */
+            stream: function (options) {
+                options = options || {};
+                var appletId;
+
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+
+                var body;
+                try {
+                    body = _buildSourceQaRequestBody(
+                        Object.assign({}, options, { stream: true }),
+                        appletId,
+                    );
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+
+                return fetch("/api/applet/source-qa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    signal: options.signal,
+                    body: JSON.stringify(body),
+                }).then(function (res) {
+                    if (!res.ok)
+                        return _apiError(res, "source Q&A request failed");
+                    return _readSourceQaSseResponse(res, options);
+                });
+            },
+
+            /**
+             * Get cached live starter questions for a source Q&A home screen.
+             *
+             * The server generates one set per language, caches it for the
+             * current TTL, registers exact answer-cache keys in Cortex, and
+             * starts bounded server-side answer prewarming. Applets should call
+             * sourceQa.query()/stream() normally when a user selects one.
+             *
+             * @param {Object} [options]
+             * @param {string} [options.language="en"] - "en" or "ar".
+             * @param {boolean} [options.prewarmAnswers=true]
+             * @returns {Promise<{language: string, sets: string[][], questions: Array, generatedAt: string, expiresAt: string, cache: Object, warnings: Array, errors: Array}>}
+             */
+            initialQuestions: function (options) {
+                options = options || {};
+                var appletId;
+
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+
+                return _apiFetch(
+                    "/api/applet/source-qa/initial-questions",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({
+                            appletId: appletId,
+                            language: options.language || "en",
+                            prewarmAnswers: options.prewarmAnswers !== false,
+                        }),
+                    },
+                    "source Q&A initial questions request failed",
+                    { retries: 1 },
+                );
+            },
+        },
+
+        /**
          * Agent namespace — AI agent capabilities for applets.
          *
          * Calls are scoped to the currently logged-in user and run through
@@ -586,10 +1224,11 @@
              *   to set the agent's behavior (e.g. "You are a translator").
              * @param {string} [options.model] - Optional model override.
              *   Defaults to the platform's default model.
-             * @returns {Promise<{result: string, warnings: Array, errors: Array}>}
+             * @returns {Promise<{result: string, citations: Array, metadata: Object, warnings: Array, errors: Array}>}
              *   The `result` field contains **Markdown-formatted** text.
-             *   Render it with a Markdown library (e.g. marked, markdown-it)
-             *   rather than inserting it as plain text.
+             *   In Concierge applets, prefer writing JSON to
+             *   <pre class="llm-output"> so the host renders Markdown and
+             *   citation UI natively.
              *
              * @example
              * var response = await ConciergeSDK.agent.chat({
@@ -691,15 +1330,15 @@
              * @param {string} [options.model] - Optional model ID from list().
              * @param {("none"|"low"|"medium"|"high")} [options.reasoningEffort]
              *   Optional reasoning effort.
-             * @returns {Promise<{result: string}>}
+             * @returns {Promise<{result: string, citations: Array, metadata: Object}>}
              *
              * @example
-             * var response = await ConciergeSDK.models.generate({
+             * var response = await ConciergeSDK.models.executePrompt({
              *     prompt: "Translate 'good morning' to Arabic. Return only the translation.",
              *     reasoningEffort: "low",
              * });
              */
-            generate: function (options) {
+            executePrompt: function (options) {
                 options = options || {};
                 var appletId;
                 var body;
@@ -742,6 +1381,464 @@
                     "Model generate request failed",
                     { retries: 2 },
                 );
+            },
+
+            /**
+             * Backward-compatible alias for models.executePrompt().
+             *
+             * @param {Object} options
+             * @returns {Promise<{result: string, citations: Array, metadata: Object}>}
+             */
+            generate: function (options) {
+                return ConciergeSDK.models.executePrompt(options);
+            },
+        },
+
+        /** Media namespace — background media generation/transcription tasks. */
+        media: {
+            /**
+             * List media generation models and their media page defaults.
+             *
+             * @returns {Promise<{models: Array, defaultModel: string|null}>}
+             */
+            models: function () {
+                var appletId;
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+                return _apiFetch(
+                    "/api/applet/models?appletId=" +
+                        encodeURIComponent(appletId) +
+                        "&kind=media",
+                    {
+                        method: "GET",
+                        credentials: "include",
+                    },
+                    "Media model list request failed",
+                    { retries: 1 },
+                );
+            },
+
+            /** Backward-friendly alias for media.models(). */
+            listModels: function () {
+                return ConciergeSDK.media.models();
+            },
+
+            /**
+             * Start a generic media generation task. Accepts the same model
+             * settings object used by the Media page plus top-level setting
+             * shortcuts such as aspectRatio, duration, quality, lyrics,
+             * voiceName, voiceDescription, seed, resolution, image_size,
+             * and outputFormat.
+             *
+             * @param {Object} options
+             * @param {string} [options.prompt]
+             * @param {string} [options.model] model ID from media.models()
+             * @param {"image"|"video"|"audio"} [options.outputType]
+             * @param {Object} [options.settings]
+             * @param {Object} [options.modelSettings]
+             * @param {Array} [options.inputImages] URL/fileId/media refs
+             * @param {Array} [options.inputVideos] URL/fileId/media refs
+             * @param {Object|string} [options.inputAudio] URL/fileId/media ref
+             * @param {string} [options.outputFolder]
+             * @returns {Promise<{taskId: string, jobId?: string}>}
+             */
+            create: function (options) {
+                return _createMediaTask(options, {});
+            },
+
+            /** Backward-friendly alias for media.create(). */
+            generate: function (options) {
+                return ConciergeSDK.media.create(options);
+            },
+
+            createImage: function (options) {
+                return _createMediaTask(options, {
+                    outputType: "image",
+                    mediaKind: "image",
+                });
+            },
+
+            createVideo: function (options) {
+                return _createMediaTask(options, {
+                    outputType: "video",
+                    mediaKind: "video",
+                });
+            },
+
+            createMusic: function (options) {
+                return _createMediaTask(options, {
+                    outputType: "audio",
+                    mediaKind: "audio",
+                });
+            },
+
+            createSpeech: function (options) {
+                return _createMediaTask(options, {
+                    outputType: "audio",
+                    mediaKind: "tts",
+                });
+            },
+
+            /**
+             * Start a derivative generation from one or more references.
+             * This is the same generation pipeline as create(); it only names
+             * the intent for applet code that edits previous media results.
+             */
+            modify: function (options) {
+                return ConciergeSDK.media.create(options);
+            },
+
+            /** Start a combined generation from multiple references. */
+            combine: function (options) {
+                return ConciergeSDK.media.create(options);
+            },
+
+            /** Wait for a media/transcription task to finish. */
+            waitForResult: function (taskId, options) {
+                return ConciergeSDK.tasks.wait(taskId, options);
+            },
+
+            /**
+             * Start transcription for a URL, browser File, or uploaded file ID.
+             *
+             * @param {Object} options
+             * @param {string} [options.url]
+             * @param {File} [options.file]
+             * @param {string} [options.fileId]
+             * @param {string} [options.language]
+             * @param {string} [options.responseFormat] "vtt", "formatted", or "text"
+             * @param {string} [options.modelOption] Optional override; omit for server defaults (xAI + Gemini when enabled; Gemini for YouTube).
+             * Word timing may return per-word VTT cues or inline time tags; render them visibly when requested.
+             * @returns {Promise<{taskId: string, jobId?: string}>}
+             */
+            transcribe: function (options) {
+                options = options || {};
+                if (
+                    typeof File !== "undefined" &&
+                    options.file instanceof File
+                ) {
+                    var uploadOptions = Object.assign({}, options);
+                    delete uploadOptions.file;
+                    return ConciergeSDK.files
+                        .upload(options.file)
+                        .then(function (result) {
+                            var fileId =
+                                result &&
+                                result.file &&
+                                (result.file._id || result.file.id);
+                            if (!fileId) {
+                                throw new Error(
+                                    "[ConciergeSDK] uploaded file did not return a file ID",
+                                );
+                            }
+                            uploadOptions.fileId = fileId;
+                            return ConciergeSDK.media.transcribe(uploadOptions);
+                        });
+                }
+
+                var appletId;
+                var body;
+                var fileId =
+                    options.fileId ||
+                    (options.file &&
+                        typeof options.file === "object" &&
+                        (options.file._id || options.file.id));
+                var optionalFields = [
+                    "language",
+                    "wordTimestamped",
+                    "responseFormat",
+                    "maxLineCount",
+                    "maxLineWidth",
+                    "maxWordsPerLine",
+                    "highlightWords",
+                    "modelOption",
+                    "trackName",
+                    "isAlternative",
+                ];
+
+                if (
+                    (!options.url || typeof options.url !== "string") &&
+                    (!fileId || typeof fileId !== "string")
+                ) {
+                    return Promise.reject(
+                        new Error("[ConciergeSDK] url or fileId is required"),
+                    );
+                }
+
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+
+                body = {
+                    appletId: appletId,
+                    operation: "transcribe",
+                };
+                if (options.url) body.url = options.url;
+                if (fileId) body.fileId = fileId;
+                optionalFields.forEach(function (field) {
+                    if (options[field] !== undefined) {
+                        body[field] = options[field];
+                    }
+                });
+
+                return _apiFetch(
+                    "/api/applet/media",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify(body),
+                    },
+                    "Transcription task request failed",
+                );
+            },
+
+            /**
+             * Start a subtitle translation task for SRT or VTT text.
+             *
+             * @param {Object} options
+             * @param {string} options.text
+             * @param {string} options.to Target language label, e.g. "Arabic"
+             * @param {string} [options.format] "srt" or "vtt"
+             * @returns {Promise<{taskId: string, jobId?: string}>}
+             */
+            translateSubtitles: function (options) {
+                options = options || {};
+                var appletId;
+                var body;
+                var text = options.text;
+
+                if (!text || typeof text !== "string") {
+                    return Promise.reject(
+                        new Error("[ConciergeSDK] text is required"),
+                    );
+                }
+                if (!options.to || typeof options.to !== "string") {
+                    return Promise.reject(
+                        new Error("[ConciergeSDK] to is required"),
+                    );
+                }
+
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+
+                body = {
+                    appletId: appletId,
+                    operation: "translate-subtitles",
+                    text: text,
+                    to: options.to,
+                };
+                if (options.format !== undefined) body.format = options.format;
+                if (options.name !== undefined) body.name = options.name;
+
+                return _apiFetch(
+                    "/api/applet/media",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify(body),
+                    },
+                    "Subtitle translation task request failed",
+                );
+            },
+        },
+
+        /**
+         * Tasks namespace — status/result helpers for background tasks
+         * started through applet SDK APIs.
+         */
+        tasks: {
+            /**
+             * Fetch a task status/result.
+             *
+             * @param {string} taskId
+             * @returns {Promise<Object>}
+             */
+            get: function (taskId) {
+                var appletId;
+
+                if (!taskId || typeof taskId !== "string") {
+                    return Promise.reject(
+                        new Error(
+                            "[ConciergeSDK] taskId must be a non-empty string",
+                        ),
+                    );
+                }
+                try {
+                    appletId = _requireAppletId();
+                } catch (e) {
+                    return Promise.reject(e);
+                }
+                return _apiFetch(
+                    "/api/applet/tasks/" +
+                        encodeURIComponent(taskId) +
+                        "?appletId=" +
+                        encodeURIComponent(appletId),
+                    {
+                        method: "GET",
+                        credentials: "include",
+                    },
+                    "Task status request failed",
+                    { retries: 1 },
+                );
+            },
+
+            /**
+             * Poll a task until it reaches a terminal status.
+             *
+             * @param {string} taskId
+             * @param {Object} [options]
+             * @param {number} [options.intervalMs=2000]
+             * @param {number} [options.timeoutMs=600000]
+             * @param {Function} [options.onProgress]
+             * @returns {Promise<Object>}
+             */
+            wait: function (taskId, options) {
+                options = options || {};
+                var intervalMs = Math.max(
+                    250,
+                    Number(options.intervalMs) || 2000,
+                );
+                var timeoutMs = Math.max(
+                    intervalMs,
+                    Number(options.timeoutMs) || 600000,
+                );
+                var startedAt = Date.now();
+                var terminal = {
+                    completed: true,
+                    failed: true,
+                    cancelled: true,
+                    abandoned: true,
+                };
+
+                function poll() {
+                    return ConciergeSDK.tasks.get(taskId).then(function (task) {
+                        if (typeof options.onProgress === "function") {
+                            options.onProgress(task);
+                        }
+                        if (terminal[task.status]) {
+                            if (task.status === "completed") return task;
+                            var message =
+                                task.error ||
+                                task.statusText ||
+                                "Task ended with status " + task.status;
+                            var error = new Error(message);
+                            error.task = task;
+                            error.status = task.status;
+                            throw error;
+                        }
+                        if (Date.now() - startedAt >= timeoutMs) {
+                            var timeoutError = new Error(
+                                "[ConciergeSDK] task wait timed out",
+                            );
+                            timeoutError.task = task;
+                            throw timeoutError;
+                        }
+                        return _sleep(intervalMs).then(poll);
+                    });
+                }
+
+                return poll();
+            },
+        },
+
+        /**
+         * Workspace namespace — compatibility helpers for applets migrated
+         * from legacy workspace applets.
+         */
+        workspace: {
+            prompts: {
+                /**
+                 * List workspace prompts linked to this migrated applet.
+                 *
+                 * @returns {Promise<{workspaceId: string, prompts: Array}>}
+                 */
+                list: function () {
+                    var appletId;
+
+                    try {
+                        appletId = _requireAppletId();
+                    } catch (e) {
+                        return Promise.reject(e);
+                    }
+
+                    return _apiFetch(
+                        "/api/canvas-applets/" +
+                            appletId +
+                            "/workspace-prompts",
+                        {
+                            method: "GET",
+                            credentials: "include",
+                        },
+                        "Workspace prompt list request failed",
+                        { retries: 1 },
+                    );
+                },
+
+                /**
+                 * Run one linked workspace prompt by promptId.
+                 *
+                 * @param {Object} options
+                 * @param {string} options.promptId
+                 * @param {string} [options.input]
+                 * @param {Array} [options.files]
+                 * @param {Array} [options.chatHistory]
+                 * @returns {Promise<{output: string, citations: Array, metadata: Object}>}
+                 *   Render rich output by writing JSON to
+                 *   <pre class="llm-output">:
+                 *   { markdown: result.output, citations: result.citations || [] }
+                 */
+                run: function (options) {
+                    options = options || {};
+                    var appletId;
+
+                    if (
+                        !options.promptId ||
+                        typeof options.promptId !== "string"
+                    ) {
+                        return Promise.reject(
+                            new Error(
+                                "[ConciergeSDK] promptId must be a non-empty string",
+                            ),
+                        );
+                    }
+
+                    try {
+                        appletId = _requireAppletId();
+                    } catch (e) {
+                        return Promise.reject(e);
+                    }
+
+                    return _apiFetch(
+                        "/api/canvas-applets/" +
+                            appletId +
+                            "/workspace-prompts/" +
+                            encodeURIComponent(options.promptId) +
+                            "/run",
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({
+                                prompt: options.input || options.prompt || "",
+                                files: options.files || [],
+                                chatHistory: options.chatHistory || null,
+                                systemPrompt: options.systemPrompt || null,
+                            }),
+                        },
+                        "Workspace prompt run request failed",
+                        { retries: 2 },
+                    );
+                },
             },
         },
 
@@ -836,23 +1933,38 @@
          */
         data: {
             /**
-             * Retrieve all stored data for this applet and user.
+             * Retrieve one key or all stored data for this applet and user.
              *
-             * @returns {Promise<Object>} Key-value data object ({} if empty)
+             * @param {string} [key] Optional data key. Returns undefined if missing.
+             * @returns {Promise<*>} Key value when key is provided, otherwise object.
              *
              * @example
              * var stored = await ConciergeSDK.data.get();
              * console.log(stored.counter); // 42
+             * var settings = await ConciergeSDK.data.get("settings");
              */
-            get: function () {
+            get: function (key) {
+                if (key !== undefined && (!key || typeof key !== "string")) {
+                    return Promise.reject(
+                        new Error(
+                            "[ConciergeSDK] key must be a non-empty string",
+                        ),
+                    );
+                }
+
                 try {
                     var appletId = _requireAppletId();
                 } catch (e) {
                     return Promise.reject(e);
                 }
 
+                var url = "/api/canvas-applets/" + appletId + "/data";
+                if (key !== undefined) {
+                    url += "?key=" + encodeURIComponent(key);
+                }
+
                 return _apiFetch(
-                    "/api/canvas-applets/" + appletId + "/data",
+                    url,
                     {
                         method: "GET",
                         credentials: "include",
@@ -860,6 +1972,9 @@
                     "Failed to get applet data",
                     { retries: 1 },
                 ).then(function (body) {
+                    if (key !== undefined) {
+                        return body.found ? body.value : undefined;
+                    }
                     return body.data;
                 });
             },
@@ -868,7 +1983,8 @@
              * Store a key-value pair for this applet and user.
              *
              * @param {string} key   The data key
-             * @param {*}      value The value to store
+             * @param {*}      value Small JSON-serializable value to store.
+             *                      Values over 2MB are rejected.
              * @returns {Promise<Object>} The full updated data object
              *
              * @example
@@ -1133,12 +2249,15 @@
         /**
          * Files namespace — per-user file storage for applets.
          *
-         * Each user gets their own isolated file store within an applet.
+         * Each user gets their own isolated applet-user file store within an
+         * applet. Use this for durable current-user files and large private
+         * datasets such as uploaded transcripts, extracted segments, search
+         * indexes, and user-specific exports.
          * Requires a <meta name="applet-id"> tag in the HTML.
          */
         files: {
             /**
-             * List all files stored for this applet and user.
+             * List applet-user files stored for this applet and user.
              *
              * @returns {Promise<Array>} Array of file objects
              *

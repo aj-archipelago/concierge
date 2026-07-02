@@ -11,6 +11,7 @@ import {
     isValidReasoningEffort,
 } from "../model-utils.js";
 import { APPLET_SDK_LIMITS, withAppletSdkGuard } from "../sdk-guard.js";
+import { parseToolMetadata } from "../../utils/tool-metadata.js";
 
 function normalizeMessages(messages, systemPrompt) {
     const normalized = [];
@@ -139,9 +140,12 @@ export async function POST(request) {
                 });
 
                 const data = response.data?.run_workspace_prompt;
+                const { citations, metadata } = parseToolMetadata(data?.tool);
 
                 return NextResponse.json({
                     result: data?.result || "",
+                    citations,
+                    metadata,
                 });
             },
         });

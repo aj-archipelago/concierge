@@ -26,6 +26,7 @@ import {
 import { AuthContext } from "../../App";
 import { useFileCollection } from "../../../app/workspaces/[id]/components/useFileCollection";
 import { Button } from "@/components/ui/button";
+import ArticleShareButton from "@/components/share/ArticleShareButton";
 import {
     Dialog,
     DialogContent,
@@ -53,10 +54,7 @@ import GenerateHtmlDialog from "./canvas/GenerateHtmlDialog";
 import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
 import { createChatStorageTarget } from "../../utils/storageTargets";
 import { launchAppletGeneration } from "../../utils/appletGeneration";
-import {
-    useGetActiveChatId,
-    useGetActiveChats,
-} from "../../../app/queries/chats";
+import { useGetActiveChatId } from "../../../app/queries/chats";
 import { getDownloadUrl } from "../../utils/fileDownloadUtils";
 import { getTextProxyUrl } from "../../utils/proxyUrl";
 import axios from "../../../app/utils/axios-client";
@@ -118,18 +116,6 @@ export default function Canvas({ selectedEntityId }) {
     const dispatch = useDispatch();
     const { user } = useContext(AuthContext);
     const activeChatId = useGetActiveChatId();
-    const { data: activeChats } = useGetActiveChats();
-    const chatTitleMap = useMemo(() => {
-        const map = {};
-        if (activeChats) {
-            for (const chat of activeChats) {
-                if (chat._id && chat.title) {
-                    map[chat._id] = chat.title;
-                }
-            }
-        }
-        return map;
-    }, [activeChats]);
 
     const getCanvasTabDisplayTitle = useCallback(
         (tab) => {
@@ -398,7 +384,7 @@ export default function Canvas({ selectedEntityId }) {
         }
         context += `\nYou can edit it using bash commands (e.g. \`cat ${path}\`, \`echo '...' > ${path}\`, or use sed/awk). Use this exact workspace path; do not substitute a guessed /global/ path. The canvas preview refreshes from the workspace automatically after tool runs.`;
         if (htmlAppletIdRef.current) {
-            context += ` Because this HTML tab is linked to an applet Draft (id: ${htmlAppletIdRef.current}), use **GetAppletState** to inspect Draft/version/publish state, **SaveAppletDraftAsVersion** to checkpoint Draft as an immutable version, **CopyAppletVersionToDraft** to copy a saved version into Draft, **PublishAppletVersion** to publish a saved version, and **DeleteApplet** to remove it (the user will be asked to confirm). If the current applet view is a saved version and the user asks to edit that version, call **CopyAppletVersionToDraft**; if they only need the current Draft, call **OpenAppletDraft**. Use **InspectCanvas** only when you need a screenshot, console errors, or network failures.`;
+            context += ` Because this HTML tab is linked to an applet Draft (id: ${htmlAppletIdRef.current}), use **GetAppletState** to inspect Draft/version/publish state, **SaveAppletDraftAsVersion** to checkpoint Draft as an immutable version, **CopyAppletVersionToDraft** to copy a saved version into Draft, **PublishAppletVersion { version }** only when the user explicitly asks to promote a saved version live, and **DeleteApplet** to remove it (the user will be asked to confirm). If the current applet view is a saved version and the user asks to edit that version, call **CopyAppletVersionToDraft**; if they only need the current Draft, call **OpenAppletDraft**. Use **InspectCanvas** only when you need a screenshot, console errors, or network failures.`;
         } else {
             context += ` The user will see the changes automatically. Use **GetCanvasState** for state or **InspectCanvas** if you need a screenshot.`;
         }
@@ -1975,58 +1961,81 @@ export default function Canvas({ selectedEntityId }) {
                         </div>
 
                         <div className="flex items-center gap-2 ps-2 flex-shrink-0">
-                            {isArticleType && activeArticleEditor && (
-                                <>
-                                    {activeArticleEditor.hasChanges && (
-                                        <Button
-                                            onClick={handleRevertActive}
-                                            disabled={
-                                                !activeArticleEditor.canRevert
-                                            }
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex items-center gap-2 h-8 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                        >
-                                            <RotateCcw className="w-4 h-4" />
-                                            {activeArticleEditor.isNewStory
-                                                ? t("Discard") || "Discard"
-                                                : t("Revert") || "Revert"}
-                                        </Button>
-                                    )}
-                                    <Button
-                                        onClick={handleSaveActive}
-                                        disabled={!activeArticleEditor.canSave}
-                                        variant={
-                                            activeArticleEditor.hasChanges
-                                                ? "default"
-                                                : "ghost"
+                            {isArticleType &&
+                                displayContent?.workspacePath &&
+                                !displayContent?.readOnly && (
+                                    <ArticleShareButton
+                                        workspacePath={
+                                            displayContent.workspacePath
                                         }
-                                        size="sm"
-                                        className={`flex items-center gap-2 h-8 ${
-                                            activeArticleEditor.hasChanges
-                                                ? "bg-sky-600 hover:bg-sky-700 text-white dark:bg-sky-500 dark:hover:bg-sky-600"
-                                                : ""
-                                        }`}
-                                    >
-                                        {activeArticleEditor.isSaving ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                {t("Saving...") || "Saving..."}
-                                            </>
-                                        ) : showCheckmark ? (
-                                            <>
-                                                <Check className="w-4 h-4" />
-                                                {t("Saved") || "Saved"}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4" />
-                                                {t("Save") || "Save"}
-                                            </>
+                                        title={
+                                            displayContent.title ||
+                                            displayContent.headline ||
+                                            ""
+                                        }
+                                        fileHash={displayContent.fileHash}
+                                        blobPath={displayContent.blobPath}
+                                        filename={displayContent.filename}
+                                        className="h-8"
+                                    />
+                                )}
+                            {isArticleType &&
+                                activeArticleEditor &&
+                                !displayContent?.readOnly && (
+                                    <>
+                                        {activeArticleEditor.hasChanges && (
+                                            <Button
+                                                onClick={handleRevertActive}
+                                                disabled={
+                                                    !activeArticleEditor.canRevert
+                                                }
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex items-center gap-2 h-8 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                                {activeArticleEditor.isNewStory
+                                                    ? t("Discard") || "Discard"
+                                                    : t("Revert") || "Revert"}
+                                            </Button>
                                         )}
-                                    </Button>
-                                </>
-                            )}
+                                        <Button
+                                            onClick={handleSaveActive}
+                                            disabled={
+                                                !activeArticleEditor.canSave
+                                            }
+                                            variant={
+                                                activeArticleEditor.hasChanges
+                                                    ? "default"
+                                                    : "outline"
+                                            }
+                                            size="sm"
+                                            className={`flex items-center gap-2 h-8 ${
+                                                activeArticleEditor.hasChanges
+                                                    ? "bg-sky-600 hover:bg-sky-700 text-white dark:bg-sky-500 dark:hover:bg-sky-600"
+                                                    : ""
+                                            }`}
+                                        >
+                                            {activeArticleEditor.isSaving ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    {t("Saving...") ||
+                                                        "Saving..."}
+                                                </>
+                                            ) : showCheckmark ? (
+                                                <>
+                                                    <Check className="w-4 h-4" />
+                                                    {t("Saved") || "Saved"}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4" />
+                                                    {t("Save") || "Save"}
+                                                </>
+                                            )}
+                                        </Button>
+                                    </>
+                                )}
                         </div>
                     </div>
                 )}
@@ -2044,7 +2053,6 @@ export default function Canvas({ selectedEntityId }) {
                             onNewArticle={onNewArticleClick}
                             onCreateApplet={onCreateAppletClick}
                             isGeneratingApplet={isGeneratingApplet}
-                            chatTitleMap={chatTitleMap}
                             refreshKey={fileBrowserRefreshKey}
                             isMobile={isMobile}
                             onCloseCanvas={() => {

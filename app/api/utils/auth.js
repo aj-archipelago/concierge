@@ -360,9 +360,15 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
 
     // more than 30 mins
     if (!user.lastActiveAt || dayjs().diff(user.lastActiveAt, "minute") > 30) {
-        user.lastActiveAt = new Date();
+        const lastActiveAt = new Date();
+        user.lastActiveAt = lastActiveAt;
         try {
-            user = await user.save();
+            user =
+                (await User.findByIdAndUpdate(
+                    user._id,
+                    { $set: { lastActiveAt } },
+                    { new: true },
+                )) || user;
         } catch (err) {
             console.log("Error saving user: ", err);
         }

@@ -16,82 +16,360 @@ import {
     sanitizeGeneratedHtml,
     writeAutomationOutputFile,
 } from "../../app/api/automations/utils.js";
+import { prepareFileContentForLLM } from "../../app/api/utils/llm-file-utils.js";
 import { buildMcpAgentConfigForUser } from "../../app/api/utils/mcp-agent-config.js";
-import { readBlobContent } from "../../app/api/utils/media-service-utils.js";
-import { createAutomationStorageTarget } from "../../src/utils/storageTargets.js";
+import { checkMediaFile } from "../../app/api/utils/media-service-utils.js";
+import { StreamAccumulator } from "../../app/api/utils/stream-accumulator.mjs";
+import {
+    createAutomationStorageTarget,
+    resolveStorageTarget,
+} from "../../src/utils/storageTargets.js";
 import { BaseTask } from "./base-task.mjs";
 
-const TEXT_FILE_EXTENSIONS = new Set([
-    ".md",
-    ".txt",
-    ".json",
-    ".csv",
-    ".tsv",
-    ".yaml",
-    ".yml",
-    ".xml",
-    ".html",
-    ".css",
-    ".js",
-    ".mjs",
-    ".ts",
-    ".py",
-]);
-const MAX_SUPPORTING_FILE_CHARS = 12000;
+const MAX_PREVIOUS_RUN_CHARS = 12000;
 
 function getExtension(filename = "") {
     const index = filename.lastIndexOf(".");
     return index >= 0 ? filename.slice(index).toLowerCase() : "";
 }
 
-async function readSupportingFiles(userContextId, automation) {
-    const storageTarget = createAutomationStorageTarget(userContextId);
-    const files = await listAutomationSupportingFiles(
-        userContextId,
-        automation.slug,
+function getFilenameFromPath(path = "") {
+    return String(path || "")
+        .split("/")
+        .filter(Boolean)
+        .pop();
+}
+
+function isImageAttachment(file = {}) {
+    const mimeType = file.mimeType || file.contentType || "";
+    if (mimeType.startsWith("image/")) {
+        return true;
+    }
+    return [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"].includes(
+        getExtension(file.filename || file.name || file.url || ""),
     );
-    const readableFiles = files.filter((file) => {
-        const name = file.filename || file.name || "";
-        return (
-            !name.includes("/outputs/") &&
-            TEXT_FILE_EXTENSIONS.has(getExtension(name))
-        );
+}
+
+function normalizeAutomationFile(file, overrides = {}) {
+    const blobPath = file.blobPath || file.name || overrides.blobPath || "";
+    const filename =
+        overrides.filename ||
+        file.filename ||
+        file.originalName ||
+        getFilenameFromPath(blobPath) ||
+        "file";
+
+    return {
+        ...file,
+        ...overrides,
+        blobPath,
+        filename,
+        originalName: file.originalName || filename,
+        displayFilename:
+            overrides.displayFilename || file.displayFilename || filename,
+        mimeType:
+            overrides.mimeType ||
+            file.mimeType ||
+            file.contentType ||
+            file.type ||
+            null,
+    };
+}
+
+function formatFileList(files = []) {
+    if (!files.length) {
+        return "No supporting reference files were provided.";
+    }
+
+    return files
+        .map((file) => {
+            const details = [
+                file.mimeType,
+                Number.isFinite(file.size) ? `${file.size} bytes` : null,
+            ].filter(Boolean);
+            return `- ${file.displayFilename}${details.length ? ` (${details.join(", ")})` : ""}`;
+        })
+        .join("\n");
+}
+
+function truncateText(value, limit = MAX_PREVIOUS_RUN_CHARS) {
+    const text = coerceAutomationResultText(value);
+    if (!text) {
+        return "";
+    }
+    return text.length > limit
+        ? `${text.slice(0, limit)}\n\n[Truncated]`
+        : text;
+}
+
+function normalizePreparedAttachment(payload, sourceFile) {
+    let attachment;
+    try {
+        attachment = JSON.parse(payload);
+    } catch {
+        return payload;
+    }
+
+    const imageAttachment = isImageAttachment(sourceFile);
+    attachment.type = imageAttachment ? "image_url" : "file";
+    attachment.url =
+        attachment.url || attachment.image_url?.url || attachment.file;
+    if (imageAttachment) {
+        attachment.image_url = { url: attachment.url };
+        delete attachment.file;
+    } else {
+        attachment.file = attachment.url;
+        delete attachment.image_url;
+    }
+
+    attachment.displayFilename = sourceFile.displayFilename;
+    attachment.filename = sourceFile.filename;
+    if (sourceFile.automationFileRole) {
+        attachment.automationFileRole = sourceFile.automationFileRole;
+    }
+    if (sourceFile.automationFileNote) {
+        attachment.automationFileNote = sourceFile.automationFileNote;
+    }
+
+    return JSON.stringify(attachment);
+}
+
+async function prepareExistingAutomationFileReference(file, storageTarget) {
+    const resolvedStorageTarget = resolveStorageTarget({ storageTarget });
+    const resolved = file.blobPath
+        ? await checkMediaFile({
+              blobPath: file.blobPath,
+              storageTarget,
+          })
+        : null;
+    const fileUrl =
+        resolved?.converted?.shortLivedUrl ||
+        resolved?.converted?.url ||
+        resolved?.shortLivedUrl ||
+        resolved?.url ||
+        file.url ||
+        file.blobPath;
+    const attachment = {
+        type: isImageAttachment(file) ? "image_url" : "file",
+        url: fileUrl,
+        blobPath: file.blobPath,
+        displayFilename: file.displayFilename,
+        filename: file.filename,
+        mimeType:
+            resolved?.converted?.mimeType ||
+            resolved?.mimeType ||
+            file.mimeType ||
+            null,
+        contextId: resolvedStorageTarget.contextId,
+        fileScope: resolvedStorageTarget.fileScope,
+        userId: resolvedStorageTarget.userContextId,
+    };
+
+    if (resolved?.converted?.gcs || resolved?.gcs) {
+        attachment.gcs = resolved.converted?.gcs || resolved.gcs;
+    }
+    if (resolved?.converted?.hash || resolved?.hash) {
+        attachment.hash = resolved.converted?.hash || resolved.hash;
+    }
+    if (file.automationFileRole) {
+        attachment.automationFileRole = file.automationFileRole;
+    }
+    if (file.automationFileNote) {
+        attachment.automationFileNote = file.automationFileNote;
+    }
+
+    if (attachment.type === "image_url") {
+        attachment.image_url = { url: fileUrl };
+    } else {
+        attachment.file = fileUrl;
+    }
+
+    return JSON.stringify(attachment);
+}
+
+function coerceAutomationResultText(value) {
+    if (value === undefined || value === null || value === "") {
+        return "";
+    }
+    if (typeof value === "string") {
+        return value;
+    }
+    if (typeof value === "object") {
+        const content =
+            value.result ||
+            value.output ||
+            value.payload ||
+            value.content ||
+            value.message ||
+            value.choices?.[0]?.delta?.content ||
+            "";
+        if (content) {
+            return coerceAutomationResultText(content);
+        }
+    }
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+}
+
+function buildAutomationToolInfo(accumulatedInfo, fallbackInfo) {
+    const info =
+        accumulatedInfo && Object.keys(accumulatedInfo).length > 0
+            ? accumulatedInfo
+            : fallbackInfo;
+
+    if (!info || typeof info !== "object" || Object.keys(info).length === 0) {
+        return null;
+    }
+
+    try {
+        return JSON.stringify({
+            ...info,
+            citations: info.citations || [],
+        });
+    } catch {
+        return null;
+    }
+}
+
+async function findPreviousRun(automation, userId, currentTaskId) {
+    if (!automation?._id || !userId) {
+        return null;
+    }
+
+    const previousRun = await Task.findOne({
+        owner: userId,
+        automationRefId: automation._id,
+        status: "completed",
+        ...(currentTaskId ? { _id: { $ne: currentTaskId } } : {}),
+    })
+        .sort({ createdAt: -1 })
+        .lean();
+
+    if (previousRun) {
+        return previousRun;
+    }
+
+    if (
+        automation.latestRunTaskId &&
+        String(automation.latestRunTaskId) !== String(currentTaskId)
+    ) {
+        return Task.findOne({
+            _id: automation.latestRunTaskId,
+            owner: userId,
+            status: "completed",
+        }).lean();
+    }
+
+    return null;
+}
+
+async function buildAutomationFileContext({
+    userContextId,
+    automation,
+    userId,
+    currentTaskId,
+}) {
+    const storageTarget = createAutomationStorageTarget(userContextId);
+    const supportingFiles = (
+        await listAutomationSupportingFiles(userContextId, automation.slug)
+    ).map((file) =>
+        normalizeAutomationFile(file, {
+            automationFileRole: "supporting_file",
+        }),
+    );
+    const previousRun = await findPreviousRun(
+        automation,
+        userId,
+        currentTaskId,
+    );
+    const previousHtmlOutputPath =
+        previousRun?.automation?.htmlOutputPath ||
+        automation.latestHtmlOutputPath ||
+        "";
+    const previousOutputFiles =
+        previousRun && previousHtmlOutputPath
+            ? [
+                  normalizeAutomationFile(
+                      {
+                          blobPath: previousHtmlOutputPath,
+                          name: previousHtmlOutputPath,
+                          mimeType: "text/html",
+                      },
+                      {
+                          displayFilename: "previous-run-output.html",
+                          filename: getFilenameFromPath(previousHtmlOutputPath),
+                          automationFileRole: "previous_run_output",
+                          automationFileNote:
+                              "HTML output from the previous completed automation run.",
+                      },
+                  ),
+              ]
+            : [];
+    const preparedSupportingAttachments = await prepareFileContentForLLM(
+        supportingFiles,
+        {
+            storageTarget,
+            fetchShortLivedUrls: true,
+        },
+    );
+    const supportingFileContent = preparedSupportingAttachments.map(
+        (payload, index) =>
+            normalizePreparedAttachment(payload, supportingFiles[index]),
+    );
+    const previousOutputFileContent = await Promise.all(
+        previousOutputFiles.map((file) =>
+            prepareExistingAutomationFileReference(file, storageTarget),
+        ),
+    );
+    const previousRunText = previousRun
+        ? truncateText(previousRun.data?.summary || previousRun.data?.result)
+        : "";
+
+    return {
+        supportingFiles,
+        previousRun,
+        previousRunText,
+        previousOutputFiles,
+        fileContent: [...supportingFileContent, ...previousOutputFileContent],
+    };
+}
+
+function buildAutomationFileAccessPlan(user) {
+    const plan = buildFileAccessPlan({
+        userContextId: user.contextId,
+        userContextKey: user.contextKey,
     });
 
-    const contents = [];
-    for (const file of readableFiles.slice(0, 12)) {
-        const blobPath = file.name;
-        if (!blobPath) continue;
-        const content = await readBlobContent(blobPath, storageTarget);
-        if (!content) continue;
-        contents.push({
-            name: file.filename || blobPath,
-            content: content.slice(0, MAX_SUPPORTING_FILE_CHARS),
-            truncated: content.length > MAX_SUPPORTING_FILE_CHARS,
+    if (user.contextId) {
+        plan.push({
+            kind: "user-files",
+            userContextId: user.contextId,
+            ...(user.contextKey ? { contextKey: user.contextKey } : {}),
         });
     }
-    return contents;
+
+    return plan;
 }
 
 function buildPrompt({
     automation,
     content,
     supportingFiles,
+    previousRun,
+    previousRunText,
+    previousOutputFiles,
     inputs,
     trigger,
 }) {
-    const supportingText =
-        supportingFiles.length > 0
-            ? supportingFiles
-                  .map(
-                      (file) => `### ${file.name}
-
-\`\`\`
-${file.content}
-\`\`\`${file.truncated ? "\n\n[File truncated]" : ""}`,
-                  )
-                  .join("\n\n")
-            : "No readable supporting files were provided.";
+    const previousRunSummary = previousRun
+        ? `Previous completed run: ${previousRun._id}
+Completed at: ${previousRun.updatedAt || previousRun.createdAt || "unknown"}
+${previousRunText ? `Summary/output:\n${previousRunText}` : "No previous text summary was stored."}
+${previousOutputFiles.length ? "The previous run's HTML output is attached as previous-run-output.html. Treat it as prior automation output, not as a new user-provided reference file." : ""}`
+        : "No previous completed run was found.";
 
     const outputContract = automation.producesHtml
         ? `Return ONLY a JSON object with this shape:
@@ -120,12 +398,20 @@ ${content}
 \`\`\`
 
 Supporting files:
-${supportingText}
+${formatFileList(supportingFiles)}
+
+Previous run context:
+${previousRunSummary}
 
 ${outputContract}`;
 }
 
 class AutomationRunTask extends BaseTask {
+    constructor() {
+        super();
+        this.accumulators = new Map();
+    }
+
     get displayName() {
         return "Automation run";
     }
@@ -167,24 +453,46 @@ class AutomationRunTask extends BaseTask {
             },
         });
 
-        const [content, supportingFiles, mcpAgentConfig] = await Promise.all([
+        const [content, fileContext, mcpAgentConfig] = await Promise.all([
             readAutomationContent(user.contextId, automation.slug),
-            readSupportingFiles(user.contextId, automation),
+            buildAutomationFileContext({
+                userContextId: user.contextId,
+                automation,
+                userId,
+                currentTaskId: taskId,
+            }),
             buildMcpAgentConfigForUser(user, {
                 logPrefix: "[MCP:automation]",
                 headless: true,
             }),
         ]);
+        const supportingFiles = fileContext.supportingFiles;
+        const supportingFileNames = supportingFiles.map(
+            (file) => file.displayFilename || file.filename || file.blobPath,
+        );
+        const previousRunOutputFileNames = fileContext.previousOutputFiles.map(
+            (file) => file.displayFilename || file.filename || file.blobPath,
+        );
+        metadata.automationName = automation.name;
+        metadata.automationSlug = automation.slug;
+        metadata.supportingFileNames = supportingFileNames;
+        metadata.previousRunTaskId = fileContext.previousRun?._id || null;
+        metadata.previousRunOutputFileNames = previousRunOutputFileNames;
 
         await Task.findByIdAndUpdate(taskId, {
-            progress: 0.3,
-            statusText: `Running ${automationName}...`,
+            $set: {
+                metadata: {
+                    ...metadataForTask,
+                    supportingFileNames,
+                    previousRunTaskId: fileContext.previousRun?._id || null,
+                    previousRunOutputFileNames,
+                },
+                progress: 0.3,
+                statusText: `Running ${automationName}...`,
+            },
         });
 
-        const fileAccessPlan = buildFileAccessPlan({
-            userContextId: user.contextId,
-            userContextKey: user.contextKey,
-        });
+        const fileAccessPlan = buildAutomationFileAccessPlan(user);
         const runContext = buildRunContext({
             userContextId: user.contextId,
             userContextKey: user.contextKey,
@@ -193,6 +501,9 @@ class AutomationRunTask extends BaseTask {
             automation,
             content,
             supportingFiles,
+            previousRun: fileContext.previousRun,
+            previousRunText: fileContext.previousRunText,
+            previousOutputFiles: fileContext.previousOutputFiles,
             inputs: metadata.inputs || automation.inputs,
             trigger: metadata.trigger || "manual",
         });
@@ -218,7 +529,13 @@ class AutomationRunTask extends BaseTask {
                         role: "system",
                         content: systemContent,
                     },
-                    { role: "user", content: [prompt] },
+                    {
+                        role: "user",
+                        content: [
+                            JSON.stringify({ type: "text", text: prompt }),
+                            ...fileContext.fileContent,
+                        ],
+                    },
                 ],
                 fileAccessPlan,
                 contextId: runContext.contextId,
@@ -227,14 +544,70 @@ class AutomationRunTask extends BaseTask {
                 aiName: user.aiName,
                 aiMemorySelfModify: user.aiMemorySelfModify,
                 model: user.agentModel || DEFAULT_CHAT_MODEL,
-                stream: false,
+                stream: true,
                 mcpConfig: mcpAgentConfig.mcpConfig,
                 mcpAvailableServers: mcpAgentConfig.mcpAvailableServers,
             },
             fetchPolicy: "network-only",
         });
 
-        const rawResult = result.data?.sys_entity_agent?.result || "";
+        const subscriptionId = result.data?.sys_entity_agent?.result;
+        if (!subscriptionId) {
+            throw new Error(
+                "No request id returned from automation agent service",
+            );
+        }
+
+        return subscriptionId;
+    }
+
+    getAccumulator(taskId) {
+        if (!this.accumulators.has(taskId)) {
+            this.accumulators.set(taskId, new StreamAccumulator());
+        }
+        return this.accumulators.get(taskId);
+    }
+
+    clearAccumulator(taskId) {
+        this.accumulators.delete(taskId);
+    }
+
+    async handleProgress(taskId, rawData, dataObject, rawInfo, infoObject) {
+        const accumulator = this.getAccumulator(taskId);
+
+        if (infoObject && typeof infoObject === "object") {
+            accumulator.processInfo(infoObject);
+        } else if (rawInfo) {
+            accumulator.processInfo(rawInfo);
+        }
+
+        if (rawData) {
+            accumulator.processResult(rawData);
+            return;
+        }
+
+        const fallbackResult = coerceAutomationResultText(dataObject);
+        if (fallbackResult) {
+            accumulator.processResult(JSON.stringify(fallbackResult));
+        }
+    }
+
+    async saveAutomationResult({ taskId, userId, metadata, rawResult, tool }) {
+        const automation = await Automation.findOne({
+            _id: metadata.automationId,
+            owner: userId,
+        });
+
+        if (!automation) {
+            throw new Error("Automation not found");
+        }
+        const automationName = automation.name || automation.slug;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new Error("User not found");
+        }
+
         const parsed = parseAutomationResult(
             rawResult,
             automation.producesHtml,
@@ -245,10 +618,12 @@ class AutomationRunTask extends BaseTask {
                     parsed.summary ||
                     (parsed.html ? "Automation completed." : rawResult),
                 result: rawResult,
-                tool: result.data?.sys_entity_agent?.tool || null,
-                supportingFiles: supportingFiles.map((file) => file.name),
+                tool,
+                supportingFiles: metadata.supportingFileNames || [],
+                previousRunTaskId: metadata.previousRunTaskId || null,
+                previousRunOutputFiles:
+                    metadata.previousRunOutputFileNames || [],
             },
-            progress: 0.9,
             statusText: `Saving ${automationName} output...`,
         };
 
@@ -284,10 +659,37 @@ class AutomationRunTask extends BaseTask {
             $unset: { schedulerLockedAt: 1 },
         });
 
-        return;
+        return update.data;
+    }
+
+    async handleCompletion(taskId, dataObject, infoObject, metadata) {
+        const accumulator = this.accumulators.get(taskId);
+        const accumulatedResult = accumulator?.streamingMessage || "";
+        const rawResult =
+            accumulatedResult || coerceAutomationResultText(dataObject);
+        const tool = buildAutomationToolInfo(
+            accumulator?.getAccumulatedInfo(),
+            infoObject,
+        );
+
+        try {
+            return await this.saveAutomationResult({
+                taskId,
+                userId: metadata.userId,
+                metadata,
+                rawResult,
+                tool,
+            });
+        } catch (error) {
+            await this.handleError(taskId, error, metadata);
+            throw error;
+        } finally {
+            this.clearAccumulator(taskId);
+        }
     }
 
     async handleError(taskId, error, metadata) {
+        this.clearAccumulator(taskId);
         if (metadata?.automationId) {
             await Automation.findByIdAndUpdate(metadata.automationId, {
                 $unset: { schedulerLockedAt: 1 },

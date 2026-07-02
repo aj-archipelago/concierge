@@ -1,22 +1,36 @@
-import { createContext, useContext, useState } from "react";
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useMemo,
+    useState,
+} from "react";
 
 const NotificationContext = createContext();
 
 export function NotificationProvider({ children }) {
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
-    const openNotifications = () => setIsNotificationOpen(true);
-    const closeNotifications = () => setIsNotificationOpen(false);
+    const openNotifications = useCallback(
+        () => setIsNotificationOpen(true),
+        [],
+    );
+    const closeNotifications = useCallback(
+        () => setIsNotificationOpen(false),
+        [],
+    );
+    const value = useMemo(
+        () => ({
+            isNotificationOpen,
+            openNotifications,
+            closeNotifications,
+            setIsNotificationOpen,
+        }),
+        [closeNotifications, isNotificationOpen, openNotifications],
+    );
 
     return (
-        <NotificationContext.Provider
-            value={{
-                isNotificationOpen,
-                openNotifications,
-                closeNotifications,
-                setIsNotificationOpen,
-            }}
-        >
+        <NotificationContext.Provider value={value}>
             {children}
         </NotificationContext.Provider>
     );

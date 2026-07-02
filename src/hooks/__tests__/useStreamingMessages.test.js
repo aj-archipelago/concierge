@@ -110,6 +110,8 @@ describe("useStreamingMessages – endStream cache write", () => {
                 useStreamingMessages({
                     chat,
                     updateChatHook: { mutateAsync: jest.fn() },
+                    onClientSideToolHeartbeat:
+                        options.onClientSideToolHeartbeat || jest.fn(),
                     onClientSideToolCall:
                         options.onClientSideToolCall || jest.fn(),
                     onStreamComplete: options.onStreamComplete || jest.fn(),
@@ -341,85 +343,6 @@ describe("useStreamingMessages – endStream cache write", () => {
         expect(onStreamComplete.mock.calls.at(-1)?.[0]?.assistantMessage).toBe(
             null,
         );
-    });
-
-    // ---------------------------------------------------------------
-    // 4. New chat ID promotion: emits the resolved (real) chat ID
-    // ---------------------------------------------------------------
-    it("endStream uses resolvedChatId after new-chat promotion", async () => {
-        const pendingId = "new";
-        const realId = "real_456";
-        const onStreamComplete = jest.fn();
-
-        queryClient.setQueryData(["chat", pendingId], {
-            _id: pendingId,
-            messages: [{ _id: "m1", sender: "user", payload: "Temp msg" }],
-            isChatLoading: true,
-            isTemporary: true,
-        });
-        queryClient.setQueryData(["activeChats"], [{ _id: pendingId }]);
-        queryClient.setQueryData(["userChatInfo"], {
-            activeChatId: pendingId,
-            recentChatIds: [pendingId],
-        });
-
-        const { response, pushEvent } = createMockSSEStream();
-        const { result } = renderStreamHook(pendingId, {
-            onStreamComplete,
-        });
-
-        act(() => {
-            result.current.setSubscriptionId(response);
-        });
-
-        // Server sends real chatId and the hook promotes the pending chat.
-        pushEvent("chatId", { chatId: realId });
-        await flush();
-
-        // Push content after promotion
-        pushEvent("data", { result: "Promoted!" });
-        await waitFor(() => {
-            const s = queryClient.getQueryData(["stream", pendingId]);
-            expect(s?.streamingContent).toBe("Promoted!");
-        });
-        await waitFor(() => {
-            const s = queryClient.getQueryData(["stream", realId]);
-            expect(s?.streamingContent).toBe("Promoted!");
-        });
-
-        pushEvent("complete", {});
-        await waitFor(() => {
-            const s = queryClient.getQueryData(["stream", pendingId]);
-            expect(!s?.isStreaming).toBe(true);
-        });
-
-        await waitFor(() => {
-            expect(onStreamComplete).toHaveBeenCalled();
-        });
-        const finalChat = queryClient.getQueryData(["chat", realId]);
-        expect(finalChat).toBeDefined();
-        expect(finalChat.messages).toHaveLength(1);
-        expect(finalChat.messages[0]).toMatchObject({
-            payload: "Temp msg",
-            sender: "user",
-        });
-        expect(onStreamComplete.mock.calls.at(-1)?.[0]?.chatId).toBe(realId);
-        expect(
-            onStreamComplete.mock.calls.at(-1)?.[0]?.assistantMessage?.sender,
-        ).toBe("assistant");
-        expect(getAssistantPayload(onStreamComplete)).toEqual([
-            {
-                type: "text",
-                text: "Promoted!",
-            },
-            {
-                type: "thinking",
-                text: "",
-                duration: 0,
-            },
-        ]);
-
-        expect(queryClient.getQueryData(["chat", pendingId])).toBeUndefined();
     });
 
     // ---------------------------------------------------------------
@@ -669,6 +592,221 @@ describe("useStreamingMessages – endStream cache write", () => {
                 duration: 0,
             },
         ]);
+    });
+
+    it("acks client-side tool markers immediately from the stream reader", async () => {
+        const chatId = "chat_client_tool_heartbeat";
+        const onClientSideToolCall = jest.fn(() => Promise.resolve());
+        const onClientSideToolHeartbeat = jest.fn(() => Promise.resolve());
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Navigate" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result } = renderStreamHook(chatId, {
+            onClientSideToolCall,
+            onClientSideToolHeartbeat,
+        });
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+
+        pushEvent("info", {
+            info: JSON.stringify({
+                clientSideTool: true,
+                toolCallbackId: "cb-heartbeat",
+                toolCallbackName: "Navigate",
+            }),
+        });
+
+        await waitFor(() => {
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallbackId: "cb-heartbeat",
+                    toolCallbackName: "Navigate",
+                }),
+            );
+        });
+        await waitFor(() => {
+            expect(onClientSideToolCall).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallbackId: "cb-heartbeat",
+                    toolCallbackName: "Navigate",
+                }),
+            );
+        });
+    });
+
+    it("keeps reading a chat stream after the originating hook unmounts", async () => {
+        const chatId = "chat_background_unmount";
+        const onStreamComplete = jest.fn();
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Build" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result, unmount } = renderStreamHook(chatId, {
+            onStreamComplete,
+        });
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+        unmount();
+
+        pushEvent("data", { result: "background" });
+        await waitFor(() => {
+            const state = queryClient.getQueryData(["stream", chatId]);
+            expect(state?.streamingContent).toBe("background");
+        });
+
+        pushEvent("complete", {});
+        await waitFor(() => {
+            expect(onStreamComplete).toHaveBeenCalledWith(
+                expect.objectContaining({ chatId }),
+            );
+        });
+    });
+
+    it("uses the latest mounted callbacks for a stream session after remount", async () => {
+        const chatId = "chat_background_remount_callbacks";
+        const staleToolHandler = jest.fn(() => Promise.resolve());
+        const currentToolHandler = jest.fn(() => Promise.resolve());
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Tool" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result, unmount } = renderStreamHook(chatId, {
+            onClientSideToolCall: staleToolHandler,
+        });
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+        unmount();
+        renderStreamHook(chatId, {
+            onClientSideToolCall: currentToolHandler,
+        });
+
+        pushEvent("info", {
+            info: JSON.stringify({
+                clientSideTool: true,
+                toolCallbackId: "cb-remount",
+                toolCallbackName: "OpenCanvasFile",
+            }),
+        });
+
+        await waitFor(() => {
+            expect(currentToolHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallbackId: "cb-remount",
+                    toolCallbackName: "OpenCanvasFile",
+                }),
+            );
+        });
+        expect(staleToolHandler).not.toHaveBeenCalled();
+    });
+
+    it("keeps each reader bound to its original chat when the same hook rerenders for another chat", async () => {
+        const chatA = "chat_same_hook_a";
+        const chatB = "chat_same_hook_b";
+
+        queryClient.setQueryData(["chat", chatA], {
+            _id: chatA,
+            messages: [{ _id: "m1", sender: "user", payload: "A" }],
+            isChatLoading: true,
+        });
+        queryClient.setQueryData(["chat", chatB], {
+            _id: chatB,
+            messages: [{ _id: "m2", sender: "user", payload: "B" }],
+            isChatLoading: false,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result, rerender } = renderHook(
+            ({ activeChatId }) =>
+                useStreamingMessages({
+                    chat: {
+                        _id: activeChatId,
+                        messages: [],
+                        isChatLoading: true,
+                    },
+                    updateChatHook: { mutateAsync: jest.fn() },
+                    onClientSideToolHeartbeat: jest.fn(),
+                    onClientSideToolCall: jest.fn(),
+                    onStreamComplete: jest.fn(),
+                    onStreamDetached: jest.fn(),
+                }),
+            {
+                wrapper,
+                initialProps: { activeChatId: chatA },
+            },
+        );
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+        rerender({ activeChatId: chatB });
+
+        pushEvent("data", { result: "still A" });
+        await waitFor(() => {
+            const state = queryClient.getQueryData(["stream", chatA]);
+            expect(state?.streamingContent).toBe("still A");
+        });
+        expect(
+            queryClient.getQueryData(["stream", chatB])?.streamingContent,
+        ).toBeUndefined();
+    });
+
+    it("streams multiple chats concurrently with independent cache state", async () => {
+        const chatA = "chat_concurrent_a";
+        const chatB = "chat_concurrent_b";
+
+        queryClient.setQueryData(["chat", chatA], {
+            _id: chatA,
+            messages: [{ _id: "m1", sender: "user", payload: "A" }],
+            isChatLoading: true,
+        });
+        queryClient.setQueryData(["chat", chatB], {
+            _id: chatB,
+            messages: [{ _id: "m2", sender: "user", payload: "B" }],
+            isChatLoading: true,
+        });
+
+        const streamA = createMockSSEStream();
+        const streamB = createMockSSEStream();
+        const { result: resultA } = renderStreamHook(chatA);
+        const { result: resultB } = renderStreamHook(chatB);
+
+        act(() => {
+            resultA.current.setSubscriptionId(streamA.response);
+            resultB.current.setSubscriptionId(streamB.response);
+        });
+
+        streamA.pushEvent("data", { result: "alpha" });
+        streamB.pushEvent("data", { result: "beta" });
+
+        await waitFor(() => {
+            expect(
+                queryClient.getQueryData(["stream", chatA])?.streamingContent,
+            ).toBe("alpha");
+        });
+        await waitFor(() => {
+            expect(
+                queryClient.getQueryData(["stream", chatB])?.streamingContent,
+            ).toBe("beta");
+        });
     });
 
     it("waits for echoed finish toolMessage before completing a client-side tool row", async () => {

@@ -2,7 +2,8 @@
 
 import { Maximize2, MessageSquare, RefreshCw, Sparkles, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useContext, useState } from "react";
+import { useContext, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import ReactTimeAgo from "react-time-ago";
 import { Progress } from "../../../@/components/ui/progress";
@@ -19,7 +20,11 @@ function isAutomationBlock(block) {
     return Boolean(block?.automationId);
 }
 
-export default function DigestBlock({ block, contentClassName }) {
+function getAutomationId(block) {
+    return block?.automation?._id || block?.automationId;
+}
+
+export default function DigestBlock({ block, contentClassName, className }) {
     const regenerateDigestBlock = useRegenerateDigestBlock();
     const addChat = useAddChat();
     const router = useRouter();
@@ -46,11 +51,12 @@ export default function DigestBlock({ block, contentClassName }) {
     const handleOpenInChat = async () => {
         try {
             const blockContent = JSON.parse(block.content);
+            const openedAt = Date.now();
             const messages = [
                 {
                     payload: block.prompt,
                     sender: "user",
-                    sentTime: new Date().toISOString(),
+                    sentTime: new Date(openedAt).toISOString(),
                     direction: "outgoing",
                     position: "single",
                 },
@@ -58,7 +64,7 @@ export default function DigestBlock({ block, contentClassName }) {
                     payload: blockContent.payload,
                     tool: blockContent.tool,
                     sender: "assistant",
-                    sentTime: new Date().toISOString(),
+                    sentTime: new Date(openedAt + 1).toISOString(),
                     direction: "incoming",
                     position: "single",
                 },
@@ -78,14 +84,17 @@ export default function DigestBlock({ block, contentClassName }) {
         : null;
     const updatedAt = isAutomation ? automationUpdatedAt : block.updatedAt;
     const canFullscreen = Boolean(
-        (isAutomation && block?.automation?._id && block?.automationRun) ||
+        (isAutomation && getAutomationId(block) && block?.automationRun) ||
             (!isAutomation && block.content),
     );
 
     return (
         <div
             key={block._id}
-            className="bg-gray-50 dark:bg-gray-700 p-4 rounded-md border"
+            className={classNames(
+                "bg-gray-50 dark:bg-gray-700 p-4 rounded-md border",
+                className,
+            )}
         >
             <div className="flex justify-between gap-2 items-center mb-4">
                 <h4 className="font-semibold text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 min-w-0">
@@ -209,20 +218,28 @@ export default function DigestBlock({ block, contentClassName }) {
     );
 }
 
-function FullscreenBlock({ block, onClose }) {
+export function FullscreenBlock({ block, onClose }) {
     const { t } = useTranslation();
+    const titleId = useId();
     const isAutomation = isAutomationBlock(block);
     const run = isAutomation ? block?.automationRun : null;
-    const showHtml = Boolean(isAutomation && run?.hasHtmlOutput);
+    const automationId = getAutomationId(block);
+    const showHtml = Boolean(
+        isAutomation && automationId && run?.hasHtmlOutput,
+    );
 
-    return (
+    const dialog = (
         <div
             className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900"
             role="dialog"
             aria-modal="true"
+            aria-labelledby={titleId}
         >
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3">
-                <h2 className="truncate text-base font-semibold text-gray-900 dark:text-gray-100">
+                <h2
+                    id={titleId}
+                    className="truncate text-base font-semibold text-gray-900 dark:text-gray-100"
+                >
                     {t(block.title, { defaultValue: block.title })}
                 </h2>
                 <button
@@ -238,7 +255,7 @@ function FullscreenBlock({ block, onClose }) {
             </div>
             {showHtml ? (
                 <AutomationHtmlFrame
-                    automationId={block.automation._id}
+                    automationId={automationId}
                     taskId={run.taskId}
                     cacheVersion={
                         run.updatedAt || run.completedAt || run.createdAt
@@ -255,6 +272,12 @@ function FullscreenBlock({ block, onClose }) {
             )}
         </div>
     );
+
+    if (typeof document === "undefined") {
+        return dialog;
+    }
+
+    return createPortal(dialog, document.body);
 }
 
 function BlockContent({ block }) {
@@ -295,7 +318,7 @@ function BlockContent({ block }) {
         if (run.hasHtmlOutput) {
             return (
                 <AutomationHtmlFrame
-                    automationId={block.automation._id}
+                    automationId={getAutomationId(block)}
                     taskId={run.taskId}
                     cacheVersion={
                         run.updatedAt || run.completedAt || run.createdAt

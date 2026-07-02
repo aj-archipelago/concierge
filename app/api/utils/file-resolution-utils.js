@@ -1,4 +1,5 @@
 import { resolveStorageTarget } from "../../../src/utils/storageTargets.js";
+import { fetchAllowedBlobUrl } from "./llm-file-utils.js";
 import {
     checkMediaFile,
     hashBuffer,
@@ -124,9 +125,12 @@ async function refreshFromStoredUrl(file, storageTarget) {
         return null;
     }
 
-    const response = await fetch(file.url, {
-        redirect: "follow",
-    });
+    let response;
+    try {
+        response = await fetchAllowedBlobUrl(file.url);
+    } catch {
+        return null;
+    }
     if (!response.ok) {
         return null;
     }

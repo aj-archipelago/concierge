@@ -8,8 +8,10 @@ import {
     useRef,
     useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
+    ArrowDown,
     Download,
     Settings,
     Loader2,
@@ -26,6 +28,12 @@ import {
     StepForward,
     ZoomIn,
     ZoomOut,
+    ChevronDown,
+    ChevronRight,
+    Plus,
+    RotateCcw,
+    Video,
+    Mic,
 } from "lucide-react";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { AuthContext } from "../../App";
@@ -47,9 +55,7 @@ import {
 import {
     Select,
     SelectContent,
-    SelectGroup,
     SelectItem,
-    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
@@ -89,6 +95,7 @@ import {
 } from "./hooks/useMediaGeneration";
 import { useFileUpload } from "./hooks/useFileUpload";
 import UnifiedFileManager from "../common/UnifiedFileManager";
+import { getFilePreviewUrl } from "../common/FileManager";
 import { createFileId } from "../common/fileIdUtils";
 import { getDownloadUrl } from "../../utils/fileDownloadUtils";
 import {
@@ -105,13 +112,19 @@ import {
     sanitizeMediaModelSettings,
     sanitizeMediaSettings,
 } from "../../utils/mediaGenerationSettings";
+import { buildMediaModelControls } from "../../utils/mediaModelControls";
 import { getVideoFrameReferenceTarget } from "../../utils/mediaVideoFrameReferences";
 import {
     dedupeMediaItemsForDisplay,
     extractMediaBlobPathFromUrl,
     isLikelyRawStorageFileForProcessingMedia,
 } from "./mediaItemDeduplication";
-import { isProcessingGeneratedMediaItem } from "../../utils/mediaDuplicateSuppression";
+import {
+    isProcessingGeneratedMediaItem,
+    isStorageSyncMediaItem,
+    normalizeMediaPath,
+    storageFileMatchesExpectedGeneratedFilename,
+} from "../../utils/mediaDuplicateSuppression";
 import {
     isVideoFrameReferenceRole,
     selectImageReferencesWithinLimits,
@@ -250,16 +263,25 @@ function SettingsOptionGroup({
     value,
     options,
     onSelect,
+    required = false,
     formatOption = (option) => option.label ?? option.value,
 }) {
+    const { t } = useTranslation();
     if (!options?.length) return null;
     const handleOptionSelect = (optionValue) => {
         onSelect(optionValue);
     };
 
     return (
-        <div className="media-settings-control">
-            <div className="media-settings-control-label">{label}</div>
+        <div className={`media-settings-control ${required ? "required" : ""}`}>
+            <div className="media-settings-control-label">
+                <span>{label}</span>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
             <div className="media-settings-options">
                 {options.map((option) => {
                     const optionValue = option.value;
@@ -294,11 +316,20 @@ function TextMediaControl({
     placeholder = "",
     minHeight = 42,
     maxHeight = 180,
+    required = false,
     onChange,
 }) {
+    const { t } = useTranslation();
     return (
-        <div className="media-text-control">
-            <label className="media-text-control-label">{label}</label>
+        <div className={`media-text-control ${required ? "required" : ""}`}>
+            <label className="media-text-control-label">
+                <span>{label}</span>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </label>
             <AutosizeTextarea
                 className="media-text-control-input"
                 maxHeight={maxHeight}
@@ -311,12 +342,1212 @@ function TextMediaControl({
     );
 }
 
-function NumericSettingsControl({ label, value, control, onChange }) {
+const attachBottomScrollFadeObservers = (scrollElement, updateFade) => {
+    if (!scrollElement || typeof window === "undefined") {
+        updateFade();
+        return undefined;
+    }
+
+    let animationFrameId = null;
+    const scheduleUpdate = () => {
+        if (animationFrameId !== null) {
+            window.cancelAnimationFrame(animationFrameId);
+        }
+
+        if (typeof window.requestAnimationFrame === "function") {
+            animationFrameId = window.requestAnimationFrame(() => {
+                animationFrameId = null;
+                updateFade();
+            });
+            return;
+        }
+
+        updateFade();
+    };
+
+    scrollElement.addEventListener("scroll", updateFade, {
+        passive: true,
+    });
+    window.addEventListener("resize", scheduleUpdate);
+
+    let resizeObserver = null;
+    if (typeof window.ResizeObserver === "function") {
+        resizeObserver = new window.ResizeObserver(scheduleUpdate);
+        resizeObserver.observe(scrollElement);
+        if (scrollElement.firstElementChild) {
+            resizeObserver.observe(scrollElement.firstElementChild);
+        }
+    }
+
+    scheduleUpdate();
+
+    return () => {
+        scrollElement.removeEventListener("scroll", updateFade);
+        window.removeEventListener("resize", scheduleUpdate);
+        resizeObserver?.disconnect();
+        if (animationFrameId !== null) {
+            window.cancelAnimationFrame(animationFrameId);
+        }
+    };
+};
+
+function MediaGenerationFlow({
+    jobTypes,
+    selectedJobType,
+    selectedModel,
+    modelOptions,
+    modelMap,
+    getDisplayName,
+    getSettingValue,
+    steps,
+    stepIndex,
+    modelConfirmed,
+    prompt,
+    promptRef,
+    promptAssistLabel,
+    referenceRows = [],
+    referencesByParameterKind = {},
+    optionFields = [],
+    selectedLibraryCount = 0,
+    showLyricsInput = false,
+    currentLyrics = "",
+    loading,
+    canGenerate,
+    isPromptAssistPending = false,
+    validationMessage = "",
+    getSelectedImageRole = () => "",
+    getSelectedCompatibleReferenceCount = () => 0,
+    getSelectedReferenceRoleOptions = () => [],
+    getSelectedReferenceError = () => "",
+    onJobSelect,
+    onModelSelect,
+    onStepIndexChange,
+    onPromptChange,
+    onPromptAssist,
+    onControlChange,
+    onLyricsChange,
+    onInputModeChoice,
+    onReferenceStepAction,
+    onAddSelectedReferences,
+    onReferenceDrop,
+    onRemoveSelectedReference,
+    onSelectedReferenceRoleChange,
+    onGenerate,
+}) {
+    const { t } = useTranslation();
+    const currentIndex =
+        steps?.length > 0
+            ? Math.min(Math.max(stepIndex || 0, 0), steps.length - 1)
+            : 0;
+    const currentStep = steps[currentIndex];
+    const selectedJob = jobTypes.find((job) => job.key === selectedJobType);
+    const [hasSubmittedGeneration, setHasSubmittedGeneration] = useState(false);
+    const flowStage = hasSubmittedGeneration
+        ? "finish"
+        : !selectedJobType
+          ? "jobs"
+          : !modelConfirmed
+            ? "models"
+            : "step";
+    const wizardMetadata = [
+        selectedJob?.title,
+        selectedModel ? getDisplayName(selectedModel) : "",
+    ]
+        .filter(Boolean)
+        .join(" / ");
+    const stepCountLabel = hasSubmittedGeneration
+        ? t("Done")
+        : currentStep
+          ? t("Step {{current}} of {{total}}", {
+                current: currentIndex + 1,
+                total: steps.length,
+            })
+          : "";
+    const flowMainRef = useRef(null);
+    const modelScrollRef = useRef(null);
+    const pageScrollRef = useRef(null);
+    const [showModelScrollFade, setShowModelScrollFade] = useState(false);
+    const [showPageScrollFade, setShowPageScrollFade] = useState(false);
+    const canMoveNext =
+        currentStep?.kind === "generate" ? canGenerate : currentStep?.complete;
+    const isLastStep = currentIndex >= (steps?.length || 1) - 1;
+    const hasPageScrollBody =
+        flowStage === "jobs" || flowStage === "step" || flowStage === "finish";
+    const shouldSkipOptionalReferences =
+        currentStep?.kind === "references" &&
+        currentStep.optional &&
+        (currentStep.referenceRows || referenceRows).every(
+            (row) => (row.count || 0) === 0,
+        );
+    const shouldSkipOptionalPrompt =
+        currentStep?.kind === "prompt" &&
+        currentStep.optional &&
+        !prompt?.trim() &&
+        canMoveNext;
+
+    const handleBack = () => {
+        if (flowStage === "finish") {
+            setHasSubmittedGeneration(false);
+            return;
+        }
+        if (flowStage === "models") {
+            onJobSelect("");
+            return;
+        }
+        if (currentIndex > 0) {
+            onStepIndexChange(currentIndex - 1);
+        } else {
+            onModelSelect("");
+        }
+    };
+
+    const handleNext = () => {
+        if (!currentStep) return;
+        if (currentStep.kind === "generate") {
+            const didStart = onGenerate();
+            if (didStart !== false) {
+                setHasSubmittedGeneration(true);
+            }
+            return;
+        }
+        if (!isLastStep) onStepIndexChange(currentIndex + 1);
+    };
+
+    const handleStartOver = () => {
+        setHasSubmittedGeneration(false);
+        onJobSelect("");
+    };
+
+    useEffect(() => {
+        setHasSubmittedGeneration(false);
+    }, [modelConfirmed, selectedJobType, selectedModel]);
+
+    useEffect(() => {
+        if (flowStage !== "step" || !isLastStep) {
+            return undefined;
+        }
+
+        const scrollElement = flowMainRef.current;
+        const pageScrollElement = pageScrollRef.current;
+        if (!scrollElement && !pageScrollElement) {
+            return undefined;
+        }
+
+        const snapToTop = () => {
+            [scrollElement, pageScrollElement].forEach((element) => {
+                if (!element) return;
+                element.scrollLeft = 0;
+                element.scrollTop = 0;
+            });
+        };
+
+        snapToTop();
+
+        if (typeof window.requestAnimationFrame !== "function") {
+            return undefined;
+        }
+
+        const animationFrameId = window.requestAnimationFrame(snapToTop);
+        return () => window.cancelAnimationFrame(animationFrameId);
+    }, [currentStep?.key, flowStage, isLastStep]);
+
+    const renderStepActionButton = () => {
+        if (!currentStep) return null;
+
+        const isGenerateStep = currentStep.kind === "generate";
+        const isCompleteStep = !isGenerateStep && canMoveNext;
+        return (
+            <button
+                type="button"
+                className={`media-flow-next ${isGenerateStep ? "primary" : ""} ${
+                    isCompleteStep ? "complete" : ""
+                }`}
+                disabled={!canMoveNext || loading}
+                onClick={handleNext}
+            >
+                {isGenerateStep && loading ? (
+                    <Loader2 className="media-flow-next-icon h-4 w-4 animate-spin" />
+                ) : isGenerateStep ? (
+                    <Sparkles className="media-flow-next-icon h-4 w-4" />
+                ) : isCompleteStep ? (
+                    <Check className="media-flow-next-icon h-4 w-4" />
+                ) : (
+                    <StepForward className="media-flow-next-icon media-flow-next-icon-directional h-4 w-4" />
+                )}
+                <span className="media-flow-next-label">
+                    {isGenerateStep
+                        ? t("Generate now")
+                        : shouldSkipOptionalReferences ||
+                            shouldSkipOptionalPrompt
+                          ? t("Skip")
+                          : t("Continue")}
+                </span>
+            </button>
+        );
+    };
+
+    const updateScrollFadeState = useCallback(
+        (scrollElement, setShowFade, enabled) => {
+            if (!scrollElement || !enabled) {
+                setShowFade(false);
+                return;
+            }
+
+            const bottomTolerance = 2;
+            const canScroll =
+                scrollElement.scrollHeight - scrollElement.clientHeight >
+                bottomTolerance;
+            const isAtBottom =
+                scrollElement.scrollTop + scrollElement.clientHeight >=
+                scrollElement.scrollHeight - bottomTolerance;
+
+            setShowFade(canScroll && !isAtBottom);
+        },
+        [],
+    );
+
+    const updateModelScrollFade = useCallback(() => {
+        updateScrollFadeState(
+            modelScrollRef.current,
+            setShowModelScrollFade,
+            flowStage === "models",
+        );
+    }, [flowStage, updateScrollFadeState]);
+
+    const updatePageScrollFade = useCallback(() => {
+        updateScrollFadeState(
+            pageScrollRef.current,
+            setShowPageScrollFade,
+            hasPageScrollBody,
+        );
+    }, [hasPageScrollBody, updateScrollFadeState]);
+
+    useEffect(() => {
+        const scrollElement = modelScrollRef.current;
+        if (!scrollElement || flowStage !== "models") {
+            updateModelScrollFade();
+            return undefined;
+        }
+
+        return attachBottomScrollFadeObservers(
+            scrollElement,
+            updateModelScrollFade,
+        );
+    }, [
+        flowStage,
+        modelOptions.length,
+        selectedJobType,
+        updateModelScrollFade,
+    ]);
+
+    useEffect(() => {
+        const scrollElement = pageScrollRef.current;
+        if (!scrollElement || !hasPageScrollBody) {
+            updatePageScrollFade();
+            return undefined;
+        }
+
+        return attachBottomScrollFadeObservers(
+            scrollElement,
+            updatePageScrollFade,
+        );
+    }, [
+        currentStep?.key,
+        flowStage,
+        hasPageScrollBody,
+        jobTypes.length,
+        selectedJobType,
+        selectedLibraryCount,
+        selectedModel,
+        steps.length,
+        updatePageScrollFade,
+    ]);
+
+    const getControlValue = (control) =>
+        getSettingValue?.(
+            control.aliases ? [control.key, ...control.aliases] : control.key,
+            control.defaultValue ?? "",
+        );
+
+    const renderTextControl = (control, required = false) => (
+        <ParameterTextField
+            key={control.key}
+            label={t(control.label || control.key)}
+            value={getControlValue(control)}
+            placeholder={control.placeholder ? t(control.placeholder) : ""}
+            minHeight={58}
+            maxHeight={180}
+            required={required}
+            onChange={(nextValue) => onControlChange(control.key, nextValue)}
+        />
+    );
+
+    const pageScrollClassName = `media-flow-page-scroll ${
+        showPageScrollFade ? "has-more" : ""
+    }`;
+
+    const renderStepBody = () => {
+        if (!currentStep) return null;
+        if (currentStep.kind === "prompt") {
+            const requiredControlKeys = new Set(
+                currentStep.requiredControlKeys || [],
+            );
+            const promptAssistShortLabel = prompt?.trim()
+                ? t("Enhance")
+                : t("Suggest");
+            return (
+                <div className="media-flow-step-field">
+                    {currentStep.optional && (
+                        <span className="media-flow-step-note">
+                            {t("Prompt optional with current inputs")}
+                        </span>
+                    )}
+                    <div className="media-flow-prompt-row">
+                        <AutosizeTextarea
+                            ref={promptRef}
+                            className="media-flow-textarea"
+                            minHeight={104}
+                            maxHeight={220}
+                            value={prompt}
+                            placeholder={t("Describe what to generate")}
+                            onChange={(event) =>
+                                onPromptChange(event.target.value)
+                            }
+                        />
+                        {onPromptAssist && (
+                            <button
+                                type="button"
+                                className="media-flow-secondary-action media-flow-prompt-assist"
+                                disabled={isPromptAssistPending || loading}
+                                aria-label={
+                                    promptAssistLabel ||
+                                    t("Suggest description")
+                                }
+                                title={
+                                    promptAssistLabel ||
+                                    t("Suggest description")
+                                }
+                                onClick={onPromptAssist}
+                            >
+                                {isPromptAssistPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : prompt?.trim() ? (
+                                    <Sparkles className="h-4 w-4" />
+                                ) : (
+                                    <Lightbulb className="h-4 w-4" />
+                                )}
+                                <span>{promptAssistShortLabel}</span>
+                            </button>
+                        )}
+                    </div>
+                    {(currentStep.promptControls || []).map((control) =>
+                        renderTextControl(
+                            control,
+                            requiredControlKeys.has(control.key),
+                        ),
+                    )}
+                    {showLyricsInput && (
+                        <ParameterTextField
+                            label={t("Lyrics")}
+                            value={currentLyrics}
+                            placeholder={t("Add lyrics for the music")}
+                            minHeight={58}
+                            maxHeight={180}
+                            onChange={onLyricsChange}
+                        />
+                    )}
+                </div>
+            );
+        }
+
+        if (currentStep.kind === "input-path") {
+            return (
+                <div className="media-flow-choice-grid">
+                    {(currentStep.choices || []).map((choice) => (
+                        <button
+                            type="button"
+                            key={choice.value}
+                            className={`media-flow-choice-tile ${
+                                choice.selected ? "selected" : ""
+                            }`}
+                            onClick={() => {
+                                onInputModeChoice(choice.value);
+                                if (!isLastStep) {
+                                    onStepIndexChange(currentIndex + 1);
+                                }
+                            }}
+                        >
+                            <span className="media-flow-choice-title">
+                                {choice.label}
+                            </span>
+                            <span className="media-flow-choice-detail">
+                                {choice.detail}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            );
+        }
+
+        if (currentStep.kind === "references") {
+            const rows =
+                referenceRows.length > 0
+                    ? referenceRows
+                    : currentStep.referenceRows || [];
+            return (
+                <div className="media-flow-reference-step">
+                    <div className="media-flow-reference-instruction">
+                        <span>{t("Select item(s) below and click add")}</span>
+                        {selectedLibraryCount > 0 && (
+                            <span>
+                                {t("{{count}} selected", {
+                                    count: selectedLibraryCount,
+                                })}
+                            </span>
+                        )}
+                    </div>
+                    <div className="media-flow-reference-grid">
+                        {rows.map((row) => (
+                            <AttachmentParameterField
+                                key={row.key}
+                                row={row}
+                                references={
+                                    referencesByParameterKind[row.kind] || []
+                                }
+                                required={row.range?.min > 0}
+                                selectedLibraryCount={selectedLibraryCount}
+                                compatibleSelectedCount={getSelectedCompatibleReferenceCount(
+                                    row,
+                                )}
+                                getSelectedImageRole={getSelectedImageRole}
+                                getSelectedReferenceRoleOptions={
+                                    getSelectedReferenceRoleOptions
+                                }
+                                getSelectedReferenceError={
+                                    getSelectedReferenceError
+                                }
+                                onAddSelectedReferences={
+                                    onAddSelectedReferences
+                                }
+                                onRemoveSelectedReference={
+                                    onRemoveSelectedReference
+                                }
+                                onSelectedReferenceRoleChange={
+                                    onSelectedReferenceRoleChange
+                                }
+                                onSelectReference={(selectedRow) =>
+                                    onReferenceStepAction({
+                                        ...currentStep,
+                                        referenceRow: selectedRow,
+                                    })
+                                }
+                                onDropReference={onReferenceDrop}
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        if (currentStep.kind === "options") {
+            const hasOptions =
+                optionFields.length > 0 ||
+                (currentStep.optionControls || []).length > 0;
+
+            if (!hasOptions) {
+                return (
+                    <div className="media-flow-generate-card muted">
+                        <Settings className="h-5 w-5" />
+                        <span>{t("No options to set")}</span>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="media-flow-options-panel">
+                    {optionFields.map((field) => (
+                        <SettingsOptionGroup
+                            key={field.key}
+                            label={field.label}
+                            value={field.value}
+                            options={field.options}
+                            onSelect={field.onSelect}
+                        />
+                    ))}
+                    {(currentStep.optionControls || []).map((control) => {
+                        const value = getControlValue(control);
+                        if (isNumericMediaControl(control)) {
+                            return (
+                                <NumericSettingsControl
+                                    key={control.key}
+                                    label={t(control.label || control.key)}
+                                    value={value}
+                                    control={control}
+                                    required={
+                                        currentStep.requiredControlKeys?.includes(
+                                            control.key,
+                                        ) || false
+                                    }
+                                    onChange={(nextValue) =>
+                                        onControlChange(control.key, nextValue)
+                                    }
+                                />
+                            );
+                        }
+                        return (
+                            <SettingsOptionGroup
+                                key={control.key}
+                                label={t(control.label || control.key)}
+                                value={value}
+                                options={control.options}
+                                required={
+                                    currentStep.requiredControlKeys?.includes(
+                                        control.key,
+                                    ) || false
+                                }
+                                onSelect={(nextValue) =>
+                                    onControlChange(control.key, nextValue)
+                                }
+                            />
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        const generateMessage = canGenerate
+            ? t("Ready to generate")
+            : validationMessage || t("Complete the steps above");
+
+        return (
+            <div
+                className={`media-flow-generate-card ${
+                    canGenerate ? "ready" : "blocked"
+                }`}
+                role="status"
+            >
+                <span className="media-flow-generate-card-copy">
+                    {canGenerate ? (
+                        <Check className="h-5 w-5" />
+                    ) : (
+                        <AlertCircle className="h-5 w-5" />
+                    )}
+                    <span>{generateMessage}</span>
+                </span>
+            </div>
+        );
+    };
+
+    return (
+        <section
+            className="media-generation-flow"
+            aria-label={t("Create media")}
+        >
+            <div ref={flowMainRef} className="media-flow-main">
+                {flowStage === "jobs" && (
+                    <>
+                        <div className="media-flow-heading">
+                            <span>{t("What do you want to create?")}</span>
+                        </div>
+                        <div
+                            ref={pageScrollRef}
+                            className={pageScrollClassName}
+                        >
+                            <div className="media-flow-job-grid">
+                                {jobTypes.map((job) => (
+                                    <button
+                                        type="button"
+                                        key={job.key}
+                                        className={`media-flow-job-tile ${job.accent}`}
+                                        onClick={() => onJobSelect(job.key)}
+                                    >
+                                        <span className="media-flow-job-icon">
+                                            {job.icon}
+                                        </span>
+                                        <span className="media-flow-job-title">
+                                            {job.title}
+                                        </span>
+                                        <span className="media-flow-job-detail">
+                                            {job.detail}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {flowStage === "models" && (
+                    <>
+                        <div className="media-flow-heading">
+                            <button
+                                type="button"
+                                className="media-flow-back"
+                                onClick={handleBack}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <span className="media-flow-heading-copy">
+                                <span>
+                                    {t("Choose a model for {{job}}", {
+                                        job: selectedJob?.title || t("media"),
+                                    })}
+                                </span>
+                                <span className="media-flow-model-count">
+                                    {t("{{count}} models available", {
+                                        count: modelOptions.length,
+                                    })}
+                                </span>
+                            </span>
+                        </div>
+                        <div
+                            ref={modelScrollRef}
+                            className={`media-flow-model-scroll ${
+                                showModelScrollFade ? "has-more" : ""
+                            }`}
+                        >
+                            <div className="media-flow-model-grid">
+                                {modelOptions.map((modelName) => {
+                                    const meta = modelMap.get(modelName);
+                                    const displayName =
+                                        getDisplayName(modelName);
+                                    const providerInfo = getModelProviderInfo(
+                                        meta,
+                                        modelName,
+                                        displayName,
+                                    );
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={modelName}
+                                            className="media-flow-model-tile"
+                                            title={displayName}
+                                            onClick={() =>
+                                                onModelSelect(modelName)
+                                            }
+                                        >
+                                            <span className="media-flow-model-icon">
+                                                {getMediaTypeIcon(
+                                                    meta?.category ||
+                                                        selectedJobType,
+                                                )}
+                                            </span>
+                                            <span className="media-flow-model-copy">
+                                                <span className="media-flow-model-title">
+                                                    {displayName}
+                                                </span>
+                                                <span className="media-flow-model-detail">
+                                                    {providerInfo.label}
+                                                </span>
+                                            </span>
+                                            <MediaModelProviderIcon
+                                                providerInfo={providerInfo}
+                                                className="h-4 w-4"
+                                            />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {flowStage === "finish" && (
+                    <div ref={pageScrollRef} className={pageScrollClassName}>
+                        <div className="media-flow-finish-screen" role="status">
+                            <div className="media-flow-finish-card">
+                                <span className="media-flow-finish-icon">
+                                    <Check className="h-5 w-5" />
+                                </span>
+                                <span className="media-flow-finish-copy">
+                                    <span className="media-flow-finish-detail">
+                                        {t(
+                                            "The generated content will appear below when completed",
+                                        )}
+                                    </span>
+                                </span>
+                                <ArrowDown className="media-flow-finish-arrow h-8 w-8" />
+                                <button
+                                    type="button"
+                                    className="media-flow-start-over"
+                                    onClick={handleStartOver}
+                                >
+                                    <RotateCcw className="h-4 w-4" />
+                                    <span>{t("Start over")}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {flowStage === "step" && currentStep && (
+                    <>
+                        <div className="media-flow-heading">
+                            <button
+                                type="button"
+                                className="media-flow-back"
+                                onClick={handleBack}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <span className="media-flow-heading-copy">
+                                <span>
+                                    {wizardMetadata || currentStep.title}
+                                </span>
+                                {stepCountLabel && (
+                                    <span
+                                        className="media-flow-step-count"
+                                        title={stepCountLabel}
+                                    >
+                                        {stepCountLabel}
+                                    </span>
+                                )}
+                            </span>
+                            {renderStepActionButton()}
+                        </div>
+                        <div
+                            ref={pageScrollRef}
+                            className={pageScrollClassName}
+                        >
+                            <div
+                                className={`media-flow-step-content ${currentStep.kind}`}
+                            >
+                                <div className="media-flow-step-copy">
+                                    <span className="media-flow-step-title">
+                                        {currentStep.title}
+                                    </span>
+                                    <span className="media-flow-step-detail">
+                                        {currentStep.detail}
+                                    </span>
+                                </div>
+                                {renderStepBody()}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        </section>
+    );
+}
+
+function ParameterPromptField({
+    label,
+    value,
+    required = false,
+    placeholder = "",
+    onChange,
+    onPromptAssist,
+    isPromptAssistPending = false,
+}) {
+    const { t } = useTranslation();
+
+    return (
+        <div className={`media-form-field ${required ? "required" : ""}`}>
+            <div className="media-form-field-label-row">
+                <label className="media-form-field-label">{label}</label>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
+            <div className="media-form-textarea-wrap">
+                <AutosizeTextarea
+                    className="media-form-textarea"
+                    maxHeight={180}
+                    minHeight={74}
+                    placeholder={placeholder}
+                    value={value || ""}
+                    onChange={(event) => onChange(event.target.value)}
+                />
+                {onPromptAssist && (
+                    <button
+                        type="button"
+                        className="media-form-inline-action"
+                        disabled={isPromptAssistPending}
+                        aria-label={t("Help me write this")}
+                        onClick={onPromptAssist}
+                    >
+                        {isPromptAssistPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="h-4 w-4" />
+                        )}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ParameterTextField({
+    label,
+    value,
+    required = false,
+    placeholder = "",
+    minHeight = 64,
+    maxHeight = 220,
+    onChange,
+}) {
+    const { t } = useTranslation();
+
+    return (
+        <div className={`media-form-field ${required ? "required" : ""}`}>
+            <div className="media-form-field-label-row">
+                <label className="media-form-field-label">{label}</label>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
+            <div className="media-form-textarea-wrap">
+                <AutosizeTextarea
+                    className="media-form-textarea"
+                    maxHeight={maxHeight}
+                    minHeight={minHeight}
+                    placeholder={placeholder}
+                    value={value || ""}
+                    onChange={(event) => onChange(event.target.value)}
+                />
+            </div>
+        </div>
+    );
+}
+
+function ParameterOptionField({
+    label,
+    value,
+    options,
+    required = false,
+    onSelect,
+    formatOption = (option) => option.label ?? option.value,
+}) {
+    const { t } = useTranslation();
+    if (!options?.length) return null;
+
+    return (
+        <div className={`media-form-field ${required ? "required" : ""}`}>
+            <div className="media-form-field-label-row">
+                <span className="media-form-field-label">{label}</span>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
+            <div className="media-form-options">
+                {options.map((option) => {
+                    const optionValue = option.value;
+                    const isSelected = optionValue === value;
+                    return (
+                        <button
+                            type="button"
+                            key={String(optionValue)}
+                            className={`media-form-option ${
+                                isSelected ? "selected" : ""
+                            }`}
+                            onClick={() => onSelect(optionValue)}
+                        >
+                            <span>{formatOption(option)}</span>
+                            {isSelected && <Check className="h-3.5 w-3.5" />}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function ParameterNumberField({
+    label,
+    value,
+    control,
+    required = false,
+    onChange,
+}) {
+    const { t } = useTranslation();
     const normalizedValue = normalizeNumericMediaControlValue(value, control);
 
     return (
-        <div className="media-settings-control">
-            <div className="media-settings-control-label">{label}</div>
+        <div className={`media-form-field ${required ? "required" : ""}`}>
+            <div className="media-form-field-label-row">
+                <label className="media-form-field-label">{label}</label>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
+            <div className="media-form-number-wrap">
+                <input
+                    type="number"
+                    className="media-form-number-input"
+                    min={control.min}
+                    max={control.max}
+                    step={control.step || 1}
+                    value={normalizedValue}
+                    onChange={(event) =>
+                        onChange(
+                            normalizeNumericMediaControlValue(
+                                event.target.value,
+                                control,
+                            ),
+                        )
+                    }
+                />
+                {control.unit && (
+                    <span className="media-form-number-unit">
+                        {control.unit}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function AttachmentParameterField({
+    row,
+    references,
+    required = false,
+    selectedLibraryCount = 0,
+    compatibleSelectedCount = 0,
+    getSelectedImageRole,
+    getSelectedReferenceRoleOptions,
+    getSelectedReferenceError,
+    onAddSelectedReferences,
+    onRemoveSelectedReference,
+    onSelectedReferenceRoleChange,
+    onSelectReference,
+    onDropReference,
+}) {
+    const { t } = useTranslation();
+    const selectedCount = references.length;
+    const unusedReferenceMessage = t(
+        "This reference will not be used by the selected model.",
+    );
+    const isRequirementMet = row.complete && (required || selectedCount > 0);
+    const canAddMore =
+        row.range?.max === undefined ||
+        row.range?.max === null ||
+        selectedCount < Number(row.range.max);
+    const canAddSelected = Boolean(
+        canAddMore && compatibleSelectedCount > 0 && onAddSelectedReferences,
+    );
+    const handleDragOver = (event) => {
+        if (!onDropReference) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+    };
+    const handleSelectReference = () => onSelectReference?.(row);
+    const handleAddSelectedReferences = (event) => {
+        event?.stopPropagation();
+        onAddSelectedReferences?.(row);
+    };
+    const renderEmptyThumb = () => (
+        <button
+            type="button"
+            className="media-reference-thumb-card empty"
+            onClick={handleSelectReference}
+        >
+            <span className="media-reference-thumb-placeholder">
+                {row.kind === "audio" ? (
+                    <Music className="h-5 w-5" />
+                ) : row.kind === "video" ? (
+                    <Video className="h-5 w-5" />
+                ) : (
+                    <ImageIcon className="h-5 w-5" />
+                )}
+            </span>
+            <span className="media-reference-thumb-empty-copy">
+                {t("Drop or choose")}
+            </span>
+        </button>
+    );
+
+    return (
+        <div
+            className={`media-form-field media-attachment-field ${
+                required && !row.complete ? "required incomplete" : ""
+            } ${isRequirementMet ? "complete" : ""}`}
+        >
+            <div
+                className="media-reference-slot"
+                onDragOver={handleDragOver}
+                onDrop={(event) => onDropReference?.(event, row)}
+            >
+                <div className="media-reference-slot-copy">
+                    <div className="media-reference-slot-header">
+                        <span className="media-reference-slot-title">
+                            {row.title}
+                        </span>
+                        <span
+                            className={`media-reference-slot-badge ${
+                                isRequirementMet
+                                    ? "met"
+                                    : required
+                                      ? "required"
+                                      : "optional"
+                            }`}
+                        >
+                            {isRequirementMet && <Check className="h-3 w-3" />}
+                            <span>
+                                {isRequirementMet
+                                    ? t("Ready")
+                                    : required
+                                      ? t("Required")
+                                      : t("Optional")}
+                            </span>
+                        </span>
+                    </div>
+                    <span className="media-reference-slot-detail">
+                        {row.detail}
+                    </span>
+                    {row.purpose && (
+                        <span className="media-reference-slot-purpose">
+                            {row.purpose}
+                        </span>
+                    )}
+                    {onAddSelectedReferences && (
+                        <button
+                            type="button"
+                            className="media-reference-card-add-selected"
+                            disabled={!canAddSelected}
+                            title={
+                                selectedLibraryCount > 0
+                                    ? undefined
+                                    : t("Select item(s) below and click add")
+                            }
+                            onClick={handleAddSelectedReferences}
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>{t("Add")}</span>
+                        </button>
+                    )}
+                </div>
+
+                <div className="media-reference-slot-body">
+                    <div className="media-reference-thumb-strip">
+                        {selectedCount === 0 && renderEmptyThumb()}
+                        {references.map(({ media, index }) => {
+                            const role = getSelectedImageRole(media, index);
+                            const roleOptions =
+                                getSelectedReferenceRoleOptions?.(media) || [];
+                            const referenceError = getSelectedReferenceError(
+                                media,
+                                index,
+                            );
+                            const isUnusedReference =
+                                referenceError === unusedReferenceMessage;
+                            const displayName =
+                                getSelectedMediaDisplayName(media);
+                            const referenceTitle = isUnusedReference
+                                ? undefined
+                                : referenceError || displayName || undefined;
+                            return (
+                                <div
+                                    key={getSelectedMediaId(media) || index}
+                                    className={`media-reference-thumb-card selected ${
+                                        roleOptions.length > 0 && role
+                                            ? "has-roles"
+                                            : ""
+                                    } ${referenceError ? "invalid" : ""} ${
+                                        isUnusedReference ? "unused" : ""
+                                    }`}
+                                    title={referenceTitle}
+                                >
+                                    <span className="media-reference-card-thumb">
+                                        <SelectedReferenceThumbnail
+                                            media={media}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </span>
+                                    <span className="media-reference-card-name">
+                                        {displayName || t("Selected reference")}
+                                    </span>
+                                    {onRemoveSelectedReference && (
+                                        <button
+                                            type="button"
+                                            className="media-reference-card-remove"
+                                            aria-label={t("Remove")}
+                                            onClick={() =>
+                                                onRemoveSelectedReference(media)
+                                            }
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                    {referenceError && !isUnusedReference && (
+                                        <span className="media-reference-card-error">
+                                            {referenceError}
+                                        </span>
+                                    )}
+                                    {isUnusedReference && (
+                                        <span className="media-reference-card-hover-message">
+                                            {unusedReferenceMessage}
+                                        </span>
+                                    )}
+                                    {roleOptions.length > 0 && role && (
+                                        <Select
+                                            value={role}
+                                            onValueChange={(nextRole) =>
+                                                onSelectedReferenceRoleChange?.(
+                                                    media,
+                                                    nextRole,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className="media-reference-role-trigger"
+                                                aria-label={t("Reference role")}
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent
+                                                className="media-reference-role-content"
+                                                align="start"
+                                            >
+                                                {roleOptions.map((option) => (
+                                                    <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                    >
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function NumericSettingsControl({
+    label,
+    value,
+    control,
+    required = false,
+    onChange,
+}) {
+    const { t } = useTranslation();
+    const normalizedValue = normalizeNumericMediaControlValue(value, control);
+
+    return (
+        <div className={`media-settings-control ${required ? "required" : ""}`}>
+            <div className="media-settings-control-label">
+                <span>{label}</span>
+                {required && (
+                    <span className="media-required-indicator">
+                        {t("Required")}
+                    </span>
+                )}
+            </div>
             <div className="media-settings-number-row">
                 <input
                     type="number"
@@ -503,6 +1734,7 @@ const MEDIA_PROVIDER_ICON_FILES = [
 function MediaModelSelectContent({
     direction,
     modelGroups,
+    selectedModel,
     getDisplayName,
     getModelMeta,
     onModelSelect,
@@ -510,6 +1742,37 @@ function MediaModelSelectContent({
     emptyLabel = "No models",
 }) {
     const { t } = useTranslation();
+    const initialExpandedKey = useMemo(
+        () =>
+            modelGroups.find((group) => group.models.includes(selectedModel))
+                ?.key ||
+            modelGroups.find((group) => group.models.length > 0)?.key ||
+            modelGroups[0]?.key,
+        [modelGroups, selectedModel],
+    );
+    const [expandedCategories, setExpandedCategories] = useState(
+        () => new Set(initialExpandedKey ? [initialExpandedKey] : []),
+    );
+
+    useEffect(() => {
+        if (!initialExpandedKey) return;
+        setExpandedCategories((current) => {
+            if (current.has(initialExpandedKey)) return current;
+            return new Set([...current, initialExpandedKey]);
+        });
+    }, [initialExpandedKey]);
+
+    const toggleCategory = useCallback((key) => {
+        setExpandedCategories((current) => {
+            const next = new Set(current);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    }, []);
 
     return (
         <SelectContent
@@ -533,14 +1796,34 @@ function MediaModelSelectContent({
             >
                 <X className="h-3.5 w-3.5" />
             </button>
-            <div className="media-model-select-columns">
+            <div className="media-model-select-tree">
                 {modelGroups.map(({ key, title, symbol, models }) => (
-                    <SelectGroup
+                    <div
                         key={key}
-                        className={`media-model-select-column media-model-select-column-${key}`}
+                        className={`media-model-select-category media-model-select-category-${key}`}
                     >
-                        <SelectLabel className="media-model-select-label">
+                        <button
+                            type="button"
+                            className="media-model-select-label"
+                            aria-expanded={expandedCategories.has(key)}
+                            onMouseDown={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleCategory(key);
+                            }}
+                        >
                             <span className="media-model-select-label-main">
+                                <span className="media-model-select-disclosure">
+                                    {expandedCategories.has(key) ? (
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                    ) : (
+                                        <ChevronRight className="h-3.5 w-3.5" />
+                                    )}
+                                </span>
                                 <span
                                     className={`media-model-select-label-icon media-model-select-label-icon-${key}`}
                                 >
@@ -551,49 +1834,61 @@ function MediaModelSelectContent({
                             <span className="media-model-select-count">
                                 {models.length}
                             </span>
-                        </SelectLabel>
-                        {models.length > 0 ? (
-                            models.map((modelName) => {
-                                const displayName = getDisplayName(modelName);
-                                const providerInfo = getModelProviderInfo(
-                                    getModelMeta(modelName),
-                                    modelName,
-                                    displayName,
-                                );
-                                return (
-                                    <SelectItem
-                                        key={modelName}
-                                        value={modelName}
-                                        className="media-model-select-item"
-                                        onClick={() =>
-                                            onModelSelect?.(modelName)
-                                        }
-                                    >
-                                        <div className="media-model-select-row">
-                                            <span
-                                                className="media-model-provider-icon"
-                                                title={providerInfo.label}
-                                                aria-label={providerInfo.label}
+                        </button>
+                        {expandedCategories.has(key) && (
+                            <div className="media-model-select-children">
+                                {models.length > 0 ? (
+                                    models.map((modelName) => {
+                                        const displayName =
+                                            getDisplayName(modelName);
+                                        const providerInfo =
+                                            getModelProviderInfo(
+                                                getModelMeta(modelName),
+                                                modelName,
+                                                displayName,
+                                            );
+                                        return (
+                                            <SelectItem
+                                                key={modelName}
+                                                value={modelName}
+                                                className="media-model-select-item"
+                                                onClick={() =>
+                                                    onModelSelect?.(modelName)
+                                                }
                                             >
-                                                <MediaModelProviderIcon
-                                                    providerInfo={providerInfo}
-                                                />
-                                            </span>
-                                            <span className="media-model-select-copy">
-                                                <span className="media-model-select-name">
-                                                    {displayName}
-                                                </span>
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                );
-                            })
-                        ) : (
-                            <div className="media-model-select-empty">
-                                {emptyLabel}
+                                                <div className="media-model-select-row">
+                                                    <span
+                                                        className="media-model-provider-icon"
+                                                        title={
+                                                            providerInfo.label
+                                                        }
+                                                        aria-label={
+                                                            providerInfo.label
+                                                        }
+                                                    >
+                                                        <MediaModelProviderIcon
+                                                            providerInfo={
+                                                                providerInfo
+                                                            }
+                                                        />
+                                                    </span>
+                                                    <span className="media-model-select-copy">
+                                                        <span className="media-model-select-name">
+                                                            {displayName}
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="media-model-select-empty">
+                                        {emptyLabel}
+                                    </div>
+                                )}
                             </div>
                         )}
-                    </SelectGroup>
+                    </div>
                 ))}
             </div>
         </SelectContent>
@@ -612,6 +1907,7 @@ const buildDefaultSettings = (mediaModels) => {
 
 const MEDIA_STORAGE_SYNC_INTERVAL_MS = 60 * 1000;
 const MEDIA_STORAGE_SYNC_THROTTLE_MS = 15 * 1000;
+const MEDIA_REFERENCE_DRAG_MIME = "application/x-concierge-media-reference";
 
 // Merge user settings with API model list — add missing models, remove deprecated ones
 const mergeWithApiModels = (existingSettings, mediaModels) => {
@@ -663,10 +1959,18 @@ const getMediaTypeIcon = (type) => {
     if (type === "video") return "🎬";
     if (type === "audio") return "🎵";
     if (type === "tts") return "🗣️";
+    if (type === "upscaling") return "⬆️";
     return "🖼️";
 };
 
-const getGenerationOutputType = (type) => (type === "tts" ? "audio" : type);
+const getGenerationOutputType = (type, modelMeta = null) => {
+    if (type === "tts") return "audio";
+    if (type === "upscaling") {
+        const defaults = modelMeta?.mediaDefaults || {};
+        return defaults.inputImages ? "image" : "video";
+    }
+    return type;
+};
 
 const VIDEO_EXTEND_REFERENCE_ROLE = "extend";
 const DEDICATED_MEDIA_TOGGLE_CONTROLS = new Set([
@@ -710,23 +2014,33 @@ function matchesMediaControlCondition(
     condition,
     modelMeta,
     modelSettings = {},
+    context = {},
 ) {
     if (!condition || typeof condition !== "object") return true;
 
     return Object.entries(condition).every(([key, expected]) => {
-        const value = modelSettings[key] ?? modelMeta?.mediaDefaults?.[key];
+        const value =
+            context[key] ??
+            modelSettings[key] ??
+            modelMeta?.mediaDefaults?.[key];
         return Array.isArray(expected)
             ? expected.includes(value)
             : value === expected;
     });
 }
 
-function isMediaControlVisible(control, modelMeta, modelSettings = {}) {
+function isMediaControlVisible(
+    control,
+    modelMeta,
+    modelSettings = {},
+    context = {},
+) {
     if (
         !matchesMediaControlCondition(
             control?.showWhen,
             modelMeta,
             modelSettings,
+            context,
         )
     ) {
         return false;
@@ -736,6 +2050,7 @@ function isMediaControlVisible(control, modelMeta, modelSettings = {}) {
         control.hideWhen,
         modelMeta,
         modelSettings,
+        context,
     );
 }
 
@@ -802,58 +2117,115 @@ function getMediaControlDisplayValue(value, options, control) {
     return selected?.label ?? value;
 }
 
-function getMediaToggleLabel(toggleKey) {
-    if (toggleKey === "forceInstrumental") {
-        return {
-            label: "Instrumental",
-            trueLabel: "Instrumental",
-            falseLabel: "Vocals allowed",
-        };
-    }
-    return {
-        label: toggleKey,
-        trueLabel: "Enabled",
-        falseLabel: "Disabled",
-    };
+const PROMPT_ASSIST_MAX_SUMMARY_ITEMS = 14;
+const PROMPT_ASSIST_MAX_REFERENCE_ITEMS = 8;
+
+function hasPromptAssistValue(value) {
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string") return Boolean(value.trim());
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
 }
 
-function getAugmentedMediaControls(modelMeta, t, modelSettings = {}) {
-    const controls = Array.isArray(modelMeta?.mediaControls)
-        ? modelMeta.mediaControls.map((control) => ({ ...control }))
-        : [];
-    const keys = new Set(controls.map((control) => control.key));
+function trimPromptAssistText(value, maxLength = 180) {
+    const text = String(value || "")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength - 3).trim()}...`;
+}
 
-    if (
-        Array.isArray(modelMeta?.availableOutputFormats) &&
-        modelMeta.availableOutputFormats.length > 0 &&
-        !keys.has("outputFormat")
-    ) {
-        controls.push({
-            key: "outputFormat",
-            label: "Output Format",
-            type: "select",
-            options: modelMeta.availableOutputFormats,
-        });
-        keys.add("outputFormat");
-    }
+function mergePromptAssistSummaryItems(...groups) {
+    const seen = new Set();
+    return groups
+        .flat()
+        .map((item) => trimPromptAssistText(item))
+        .filter((item) => {
+            if (!item || seen.has(item)) return false;
+            seen.add(item);
+            return true;
+        })
+        .slice(0, PROMPT_ASSIST_MAX_SUMMARY_ITEMS);
+}
 
-    for (const toggleKey of modelMeta?.mediaToggles || []) {
-        if (DEDICATED_MEDIA_TOGGLE_CONTROLS.has(toggleKey)) continue;
-        if (keys.has(toggleKey)) continue;
-        const labels = getMediaToggleLabel(toggleKey);
-        controls.push({
-            key: toggleKey,
-            label: labels.label,
-            type: "boolean",
-            trueLabel: labels.trueLabel,
-            falseLabel: labels.falseLabel,
-        });
-        keys.add(toggleKey);
-    }
+function getPromptAssistFieldSummaries(fields = []) {
+    return fields
+        .map((field) => {
+            if (!hasPromptAssistValue(field?.value)) return "";
+            const selectedOption = (field.options || []).find(
+                (option) => option.value === field.value,
+            );
+            const value = selectedOption?.label ?? field.value;
+            return `${field.label}: ${value}`;
+        })
+        .filter(Boolean);
+}
 
+function getPromptAssistControlSummaries({
+    controls,
+    modelSettings,
+    modelMeta,
+    t,
+}) {
     return controls
+        .map((control) => {
+            const value = getModelSettingValue(
+                modelSettings,
+                modelMeta,
+                control.aliases
+                    ? [control.key, ...control.aliases]
+                    : control.key,
+            );
+            if (!hasPromptAssistValue(value)) return "";
+            const displayValue = Array.isArray(value)
+                ? value.join(", ")
+                : getMediaControlDisplayValue(
+                      value,
+                      control.options || [],
+                      control,
+                  );
+            return `${t(control.label || control.key)}: ${displayValue}`;
+        })
+        .filter(Boolean);
+}
+
+function getPromptAssistReferenceDescriptions(entries = []) {
+    return entries
+        .map(({ reference, role, kind }, index) => {
+            if (!reference) return "";
+            const referenceKind = kind || reference.type || "media";
+            const name = getSelectedMediaDisplayName(reference);
+            const sourcePrompt = trimPromptAssistText(
+                reference.displayPrompt ||
+                    reference.prompt ||
+                    reference.description ||
+                    "",
+                140,
+            );
+            const details = [
+                `${referenceKind} reference`,
+                role ? `role ${role}` : "",
+                name ? `file ${name}` : "",
+                sourcePrompt ? `source prompt: ${sourcePrompt}` : "",
+            ].filter(Boolean);
+            return `Reference ${index + 1}: ${details.join("; ")}`;
+        })
+        .filter(Boolean)
+        .slice(0, PROMPT_ASSIST_MAX_REFERENCE_ITEMS);
+}
+
+function getAugmentedMediaControls(
+    modelMeta,
+    t,
+    modelSettings = {},
+    context = {},
+) {
+    return buildMediaModelControls(modelMeta, {
+        derivedControlKeys: ["outputFormat"],
+        excludedToggleKeys: DEDICATED_MEDIA_TOGGLE_CONTROLS,
+    })
         .filter((control) =>
-            isMediaControlVisible(control, modelMeta, modelSettings),
+            isMediaControlVisible(control, modelMeta, modelSettings, context),
         )
         .map((control) => ({
             ...control,
@@ -1044,6 +2416,160 @@ function getMoveResultPayload(data) {
         gcsUrl: result.gcsUrl || result.gcs || null,
         blobPath: result.blobPath || result.name || null,
         hash: result.hash || null,
+    };
+}
+
+function getMediaUrlKeys(media) {
+    return [media?.url, media?.azureUrl, media?.gcsUrl]
+        .filter(Boolean)
+        .map((value) => String(value));
+}
+
+function getComparableMediaBlobPath(media) {
+    return normalizeMediaPath(getMediaBlobPath(media));
+}
+
+function isGeneratedMediaMoveMatch(file, media) {
+    if (!media || isStorageSyncMediaItem(media)) return false;
+
+    const fileTaskId = file?.taskId || file?.cortexRequestId;
+    const mediaTaskIds = [media?.taskId, media?.cortexRequestId].filter(
+        Boolean,
+    );
+    if (fileTaskId && mediaTaskIds.includes(fileTaskId)) return true;
+
+    const fileHash = file?.hash;
+    if (fileHash && media?.hash === fileHash) return true;
+
+    const fileBlobPath = getComparableMediaBlobPath(file);
+    if (fileBlobPath && getComparableMediaBlobPath(media) === fileBlobPath) {
+        return true;
+    }
+
+    const mediaUrls = new Set(getMediaUrlKeys(media));
+    if (getMediaUrlKeys(file).some((url) => mediaUrls.has(url))) return true;
+
+    return storageFileMatchesExpectedGeneratedFilename(file, media);
+}
+
+function findGeneratedMediaForMove(file, mediaItems = []) {
+    const media = file?._mediaItem || file;
+    if (media?.taskId && !isStorageSyncMediaItem(media)) return media;
+
+    return mediaItems.find((item) => isGeneratedMediaMoveMatch(file, item));
+}
+
+function getUsableMediaUrl(...values) {
+    return values.find((value) => {
+        const normalized = String(value || "").trim();
+        return (
+            normalized && normalized !== "null" && normalized !== "undefined"
+        );
+    });
+}
+
+function getReferenceMediaFromFile(file) {
+    if (!file?._mediaItem) return file;
+
+    const media = file._mediaItem;
+    return {
+        ...file,
+        ...media,
+        _mediaItem: media,
+        url: getUsableMediaUrl(
+            media.url,
+            media.azureUrl,
+            file.url,
+            file.converted?.url,
+            file.image_url?.url,
+            typeof file.file === "string" ? file.file : "",
+        ),
+        azureUrl: getUsableMediaUrl(media.azureUrl, media.url, file.azureUrl),
+        gcsUrl: getUsableMediaUrl(media.gcsUrl, file.gcsUrl, file.gcs),
+        blobPath:
+            media.blobPath ||
+            file.blobPath ||
+            file.converted?.blobPath ||
+            file.name,
+        hash: media.hash || file.hash || file.converted?.hash,
+        mimeType: media.mimeType || file.mimeType || file.contentType,
+        contentType: media.contentType || file.contentType || file.mimeType,
+        filename:
+            media.filename ||
+            file.filename ||
+            file.displayFilename ||
+            file.originalName,
+        displayFilename:
+            media.displayFilename ||
+            file.displayFilename ||
+            file.originalName ||
+            file.filename,
+        originalName:
+            media.originalName ||
+            file.originalName ||
+            file.displayFilename ||
+            file.filename,
+    };
+}
+
+function getReferenceDragPayload(file) {
+    const media = getReferenceMediaFromFile(file);
+    return {
+        _id: media?._id,
+        id: media?.id,
+        taskId: media?.taskId,
+        cortexRequestId: media?.cortexRequestId,
+        type: media?.type,
+        url: media?.url,
+        azureUrl: media?.azureUrl,
+        gcsUrl: media?.gcsUrl,
+        blobPath: media?.blobPath,
+        hash: media?.hash,
+        mimeType: media?.mimeType,
+        contentType: media?.contentType,
+        filename: media?.filename,
+        displayFilename: media?.displayFilename,
+        originalName: media?.originalName,
+        inputImageRole: media?.inputImageRole,
+        prompt: media?.prompt,
+        name: media?.name,
+        converted: media?.converted,
+        image_url: media?.image_url,
+        file: typeof media?.file === "string" ? media.file : undefined,
+    };
+}
+
+function getReferenceMediaForTargetKind(file, referenceKind) {
+    const media = getReferenceMediaFromFile(file);
+    if (referenceKind === "video" && media?.type === "video") {
+        return {
+            ...media,
+            inputImageRole: VIDEO_EXTEND_REFERENCE_ROLE,
+        };
+    }
+    return media;
+}
+
+function buildPreviewDialogMedia(file) {
+    if (!file?._mediaItem) return file;
+
+    const previewUrl = getFilePreviewUrl(file);
+    const media = file._mediaItem;
+    const url = getUsableMediaUrl(media.url, media.azureUrl, file.url);
+    const azureUrl = getUsableMediaUrl(
+        media.azureUrl,
+        media.url,
+        file.azureUrl,
+    );
+
+    return {
+        ...media,
+        url: url || previewUrl || media.url,
+        azureUrl: azureUrl || previewUrl || media.azureUrl,
+        gcsUrl: getUsableMediaUrl(media.gcsUrl, file.gcsUrl),
+        blobPath: media.blobPath || file.blobPath,
+        hash: media.hash || file.hash,
+        _previewUrl: previewUrl,
     };
 }
 
@@ -1267,21 +2793,41 @@ const getSelectedMediaId = (image) =>
     image?.cortexRequestId ||
     image?.taskId ||
     image?._id ||
+    image?.id ||
+    image?.blobPath ||
+    image?.hash ||
     image?.url ||
     image?.azureUrl ||
-    image?.gcsUrl;
+    image?.gcsUrl ||
+    image?.converted?.url ||
+    image?.image_url?.url ||
+    image?.file ||
+    image?.name;
 
 const getSelectedMediaTaskId = (image) =>
     image?.taskId || image?.cortexRequestId || image?._id;
 
 const getSelectedMediaUrl = (image) =>
-    image?.azureUrl || image?.gcsUrl || image?.url || "";
+    image?.azureUrl ||
+    image?.gcsUrl ||
+    image?.url ||
+    image?.converted?.url ||
+    image?.image_url?.url ||
+    (typeof image?.file === "string" ? image.file : "") ||
+    "";
 
 const isFailedMediaFile = (file) => {
     const media = file?._mediaItem || file;
     return ["failed", "error"].includes(
         String(media?.status || "").toLowerCase(),
     );
+};
+
+const isFileCompatibleWithReferenceKind = (file, kind) => {
+    const media = getReferenceMediaFromFile(file);
+    if (kind === "audio") return hasUsableInputAudioUrl(media);
+    if (kind === "video") return media?.type === "video";
+    return media?.type === "image";
 };
 
 const getImageFormatFromUrl = (url) => {
@@ -1314,14 +2860,24 @@ const isUnsupportedVeoInputImage = (image) => {
 const getSelectedMediaDisplayName = (image) => {
     const explicitName =
         image?.displayFilename || image?.displayName || image?.filename;
-    if (explicitName) return explicitName;
+    if (explicitName) return String(explicitName);
 
-    const url = getSelectedMediaUrl(image);
+    const source = getSelectedMediaUrl(image) || image?.blobPath || image?.name;
+    if (!source || typeof source === "object") return "";
+    const url = String(source);
+    const decodeFilename = (value) => {
+        try {
+            return decodeURIComponent(value);
+        } catch {
+            return value;
+        }
+    };
+
     try {
         const parsedUrl = new URL(url);
-        return decodeURIComponent(parsedUrl.pathname.split("/").pop() || "");
+        return decodeFilename(parsedUrl.pathname.split("/").pop() || "");
     } catch {
-        return decodeURIComponent(
+        return decodeFilename(
             url.split("?")[0].split("#")[0].split("/").pop() || "",
         );
     }
@@ -1356,18 +2912,32 @@ const getReferenceRange = (range, fallbackMax = 0) => {
         return {
             min,
             max: Number.isFinite(max) ? max : fallbackMax,
+            explicit: true,
         };
     }
 
     if (range === undefined || range === null) {
-        return { min: 0, max: fallbackMax };
+        return { min: 0, max: fallbackMax, explicit: false };
     }
 
     const value = Number(range);
     return {
         min: value > 0 ? value : 0,
         max: Number.isFinite(value) ? value : fallbackMax,
+        explicit: true,
     };
+};
+
+const INPUT_REQUIREMENT_KEYS = ["inputImages", "inputVideos", "inputAudio"];
+
+const pickInputRequirements = (source = {}) => {
+    const requirements = {};
+    INPUT_REQUIREMENT_KEYS.forEach((key) => {
+        if (source?.[key] !== undefined) {
+            requirements[key] = source[key];
+        }
+    });
+    return requirements;
 };
 
 const getEffectiveMediaDefaults = (modelMeta, modelSettings = {}) => {
@@ -1418,6 +2988,922 @@ const getModelInputVideosRange = (modelMeta, modelSettings = {}) =>
         0,
     );
 
+const getModeSettingPatch = (mode) =>
+    mode?.settings || mode?.set || mode?.settingPatch || {};
+
+const getModeControlInputModes = (modelMeta, controls = []) => {
+    const modeControl = controls.find(
+        (control) =>
+            ["mode", "voiceMode", "voice_mode"].includes(control?.key) &&
+            (control.options?.length || 0) > 1,
+    );
+    if (!modeControl) return [];
+
+    const overrides = Array.isArray(modelMeta?.mediaDefaultOverrides)
+        ? modelMeta.mediaDefaultOverrides
+        : [];
+
+    return modeControl.options
+        .filter((option) => option?.value !== undefined)
+        .map((option) => {
+            const matchingOverrides = overrides.filter((override) => {
+                const conditions = override?.when || {};
+                return Object.entries(conditions).every(
+                    ([key, expected]) =>
+                        key === modeControl.key && expected === option.value,
+                );
+            });
+            const overrideDefaults = matchingOverrides.reduce(
+                (mergedDefaults, override) => ({
+                    ...mergedDefaults,
+                    ...(override.mediaDefaults || {}),
+                }),
+                {},
+            );
+
+            return {
+                key: String(option.value),
+                label: option.label || option.value,
+                promptRequired: true,
+                settings: {
+                    [modeControl.key]: option.value,
+                },
+                requires: pickInputRequirements(overrideDefaults),
+            };
+        });
+};
+
+const getMediaInputModes = (modelMeta, controls = []) => {
+    if (Array.isArray(modelMeta?.mediaInputModes)) {
+        return modelMeta.mediaInputModes;
+    }
+    return getModeControlInputModes(modelMeta, controls);
+};
+
+const getMediaInputModeKey = (mode, index = 0) =>
+    mode?.key || mode?.label || `input-mode-${index}`;
+
+const getSelectedMediaInputMode = (
+    modes,
+    selectedInputModeKey,
+    modelMeta,
+    modelSettings,
+) => {
+    if (!modes?.length) return null;
+    if (selectedInputModeKey) {
+        const selectedByKey = modes.find(
+            (mode, index) =>
+                getMediaInputModeKey(mode, index) === selectedInputModeKey,
+        );
+        if (selectedByKey) return selectedByKey;
+    }
+
+    return (
+        modes.find((mode) => {
+            const settingsPatch = getModeSettingPatch(mode);
+            const entries = Object.entries(settingsPatch);
+            return (
+                entries.length > 0 &&
+                entries.every(
+                    ([key, expected]) =>
+                        getModelSettingValue(modelSettings, modelMeta, key) ===
+                        expected,
+                )
+            );
+        }) || null
+    );
+};
+
+const getCommonInputModeRequirement = (modes, key) => {
+    const requirements = modes.map((mode) => mode?.requires?.[key]);
+    if (requirements.some((requirement) => requirement === undefined)) {
+        return undefined;
+    }
+    const [firstRequirement] = requirements;
+    return requirements.every(
+        (requirement) =>
+            JSON.stringify(requirement) === JSON.stringify(firstRequirement),
+    )
+        ? firstRequirement
+        : undefined;
+};
+
+const getInputModeReferenceRange = ({
+    modes = [],
+    selectedMode = null,
+    baseRange,
+    key,
+    fallbackMax,
+}) => {
+    const hasInputModeChoice = modes.length > 1;
+    const selectedRequirement = selectedMode?.requires?.[key];
+    if (selectedMode) {
+        return selectedRequirement !== undefined
+            ? getReferenceRange(
+                  selectedRequirement,
+                  baseRange?.max || fallbackMax,
+              )
+            : null;
+    }
+
+    if (hasInputModeChoice) {
+        const commonRequirement = getCommonInputModeRequirement(modes, key);
+        return commonRequirement !== undefined
+            ? getReferenceRange(
+                  commonRequirement,
+                  baseRange?.max || fallbackMax,
+              )
+            : null;
+    }
+
+    return baseRange;
+};
+
+const countMatchesRequirement = (count, requirement, fallbackMax = 0) => {
+    if (requirement === undefined || requirement === null) return true;
+    const range = getReferenceRange(requirement, fallbackMax);
+    return count >= range.min && count <= range.max;
+};
+
+const hasInputModeTextRequirement = (
+    requirement,
+    { modelMeta, modelSettings, promptText },
+) => {
+    if (!requirement || typeof requirement !== "object") return false;
+    if (requirement.prompt === true) return Boolean(promptText);
+    if (requirement.setting) {
+        const value = getModelSettingValue(
+            modelSettings,
+            modelMeta,
+            requirement.setting,
+        );
+        return typeof value === "string"
+            ? Boolean(value.trim())
+            : Boolean(value);
+    }
+    return false;
+};
+
+const isMediaInputModeSatisfied = (mode, context) => {
+    const requires = mode?.requires || {};
+    if (
+        !countMatchesRequirement(
+            context.inputImageCount,
+            requires.inputImages,
+            3,
+        ) ||
+        !countMatchesRequirement(
+            context.inputVideoCount,
+            requires.inputVideos,
+            0,
+        ) ||
+        !countMatchesRequirement(
+            context.inputAudioCount,
+            requires.inputAudio,
+            1,
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        !Array.isArray(mode?.requiresAnyOf) ||
+        mode.requiresAnyOf.length === 0
+    ) {
+        return true;
+    }
+
+    return mode.requiresAnyOf.some((requirement) =>
+        hasInputModeTextRequirement(requirement, context),
+    );
+};
+
+const hasPromptlessMediaInputMode = (modelMeta, controls = []) =>
+    getMediaInputModes(modelMeta, controls).some(
+        (mode) => mode?.promptRequired === false,
+    );
+
+const hasSatisfiedPromptlessMediaInputMode = (modelMeta, context) =>
+    getMediaInputModes(modelMeta, context?.controls || []).some(
+        (mode) =>
+            mode?.promptRequired === false &&
+            isMediaInputModeSatisfied(mode, context),
+    );
+
+const isFilledGuidanceValue = (value) => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string") return Boolean(value.trim());
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
+};
+
+const getReferenceGuidanceLabel = (kind, count, selectedModelType, t) => {
+    const plural = count !== 1;
+    if (kind === "image") {
+        return plural ? t("image references") : t("image reference");
+    }
+    if (kind === "video") {
+        return plural ? t("video references") : t("video reference");
+    }
+    if (selectedModelType === "tts") {
+        return plural ? t("voice references") : t("voice reference");
+    }
+    if (selectedModelType === "video") {
+        return plural ? t("audio tracks") : t("audio track");
+    }
+    return plural ? t("music items") : t("music item");
+};
+
+const getReferenceGuidanceItem = ({
+    key,
+    kind,
+    count,
+    range,
+    selectedModelType,
+    t,
+}) => {
+    if (!range || (!range.explicit && range.min === 0 && count === 0)) {
+        return null;
+    }
+    if (range.max <= 0 && range.min === 0 && count === 0) return null;
+
+    const hasMaximum = Number.isFinite(range.max);
+    const isComplete =
+        count >= range.min && (!hasMaximum || count <= range.max);
+    const requiredCount =
+        range.min > 0 && range.min === range.max ? range.min : range.min;
+    const labelCount = requiredCount || Math.max(count, 1);
+    const label = getReferenceGuidanceLabel(
+        kind,
+        labelCount,
+        selectedModelType,
+        t,
+    );
+    const title =
+        range.min > 0
+            ? t("Attach {{count}} {{label}}", {
+                  count: range.min,
+                  label,
+              })
+            : label.charAt(0).toUpperCase() + label.slice(1);
+    let detail = t("{{count}} selected", { count });
+    if (count < range.min) {
+        detail = t("{{count}} of {{required}} selected", {
+            count,
+            required: range.min,
+        });
+    } else if (hasMaximum && count > range.max) {
+        detail = t("{{count}} selected, max {{max}}", {
+            count,
+            max: range.max,
+        });
+    }
+
+    return {
+        key,
+        complete: isComplete,
+        optional: range.min === 0,
+        title,
+        detail,
+    };
+};
+
+const getReferencePurposeFromMetadata = ({
+    modelMeta,
+    selectedModelType,
+    kind,
+    range,
+    selectedInputMode,
+    t,
+}) => {
+    const modeKey = selectedInputMode
+        ? getMediaInputModeKey(selectedInputMode)
+        : "";
+    const readPurpose = (source) => {
+        if (!source) return "";
+        if (typeof source === "string") return source;
+        const modePurpose = modeKey ? source[modeKey] : null;
+        if (typeof modePurpose === "string") return modePurpose;
+        if (modePurpose?.[kind]) return modePurpose[kind];
+        return source[kind] || "";
+    };
+    const metadataPurpose =
+        readPurpose(modelMeta?.referencePurposes) ||
+        readPurpose(modelMeta?.mediaReferencePurposes) ||
+        readPurpose(modelMeta?.referenceDescriptions) ||
+        readPurpose(modelMeta?.mediaReferenceDescriptions);
+    if (metadataPurpose) return t(metadataPurpose);
+
+    if (kind === "audio") {
+        if (selectedModelType === "tts") {
+            return t("Use a voice reference for cloning or speech style.");
+        }
+        if (selectedModelType === "video" || modeKey === "audioTrack") {
+            return t("Use an audio track as the generated video's voice.");
+        }
+        return t("Use an audio file as source material for this generation.");
+    }
+
+    if (kind === "video") {
+        return t("Use a video as source material to continue or transform.");
+    }
+
+    if (selectedModelType === "image" && range?.min > 0) {
+        return t(
+            "Use image references as the material to edit with your prompt.",
+        );
+    }
+    if (selectedModelType === "video") {
+        if (modelMeta?.referenceImageRoles?.includes("start_frame")) {
+            return t("Use image or video references for start and end frames.");
+        }
+        return t(
+            "Use image references for the subject, character, or visual basis.",
+        );
+    }
+
+    return t("Use references to guide what the model creates.");
+};
+
+const getGuidanceControlLabel = (controls, key, t) => {
+    const control = controls.find(
+        (item) =>
+            item.key === key ||
+            (Array.isArray(item.aliases) && item.aliases.includes(key)),
+    );
+    return t(control?.label || key);
+};
+
+const formatModeRequirement = ({
+    kind,
+    range,
+    selectedModelType,
+    controls,
+    requirement,
+    t,
+}) => {
+    if (kind === "prompt") return t("Prompt");
+    if (kind === "setting") {
+        return getGuidanceControlLabel(controls, requirement.setting, t);
+    }
+
+    const resolvedRange = getReferenceRange(range, 1);
+    const count = Math.max(resolvedRange.min, 1);
+    return `${count} ${getReferenceGuidanceLabel(
+        kind,
+        count,
+        selectedModelType,
+        t,
+    )}`;
+};
+
+const getInputModeSummary = (mode, { selectedModelType, controls, t }) => {
+    const requirements = [];
+    const requires = mode?.requires || {};
+    if (requires.inputImages !== undefined) {
+        requirements.push(
+            formatModeRequirement({
+                kind: "image",
+                range: requires.inputImages,
+                selectedModelType,
+                controls,
+                t,
+            }),
+        );
+    }
+    if (requires.inputVideos !== undefined) {
+        requirements.push(
+            formatModeRequirement({
+                kind: "video",
+                range: requires.inputVideos,
+                selectedModelType,
+                controls,
+                t,
+            }),
+        );
+    }
+    if (requires.inputAudio !== undefined) {
+        requirements.push(
+            formatModeRequirement({
+                kind: "audio",
+                range: requires.inputAudio,
+                selectedModelType,
+                controls,
+                t,
+            }),
+        );
+    }
+    if (Array.isArray(mode?.requiresAnyOf) && mode.requiresAnyOf.length > 0) {
+        requirements.push(
+            mode.requiresAnyOf
+                .map((requirement) =>
+                    formatModeRequirement({
+                        kind: requirement.prompt ? "prompt" : "setting",
+                        requirement,
+                        selectedModelType,
+                        controls,
+                        t,
+                    }),
+                )
+                .join(` ${t("or")} `),
+        );
+    }
+
+    const label = t(mode?.label || mode?.key || "Input path");
+    return requirements.length
+        ? `${label}: ${requirements.join(" + ")}`
+        : label;
+};
+
+const buildModelGuidanceItems = ({
+    modelMeta,
+    modelSettings,
+    selectedModelType,
+    promptText,
+    controls,
+    imageRange,
+    videoRange,
+    audioRange,
+    imageCount,
+    videoCount,
+    audioCount,
+    hasPromptlessInputs,
+    voiceDesignDescriptionMessage,
+    t,
+}) => {
+    if (!modelMeta) return [];
+
+    const items = [];
+    const mediaInputModes = getMediaInputModes(modelMeta, controls);
+    const satisfiedInputModes = mediaInputModes.filter((mode) =>
+        isMediaInputModeSatisfied(mode, {
+            inputImageCount: imageCount,
+            inputVideoCount: videoCount,
+            inputAudioCount: audioCount,
+            modelMeta,
+            modelSettings,
+            promptText,
+        }),
+    );
+
+    if (mediaInputModes.length > 1) {
+        items.push({
+            key: "input-mode",
+            complete: satisfiedInputModes.length > 0,
+            title: t("Choose one input path"),
+            detail: mediaInputModes
+                .map((mode) =>
+                    getInputModeSummary(mode, {
+                        selectedModelType,
+                        controls,
+                        t,
+                    }),
+                )
+                .join(" / "),
+        });
+    }
+
+    const promptCanSatisfyInputMode = mediaInputModes.some((mode) =>
+        mode?.requiresAnyOf?.some((requirement) => requirement.prompt === true),
+    );
+    const promptIsRequired =
+        !hasPromptlessInputs &&
+        (mediaInputModes.length === 0 || promptCanSatisfyInputMode);
+    if (promptIsRequired || promptText) {
+        items.push({
+            key: "prompt",
+            complete: Boolean(promptText) || hasPromptlessInputs,
+            title: hasPromptlessInputs
+                ? t("Prompt optional with current inputs")
+                : t("Describe what to generate"),
+            detail: promptText ? t("Ready") : t("Not set"),
+        });
+    }
+
+    [
+        getReferenceGuidanceItem({
+            key: "input-images",
+            kind: "image",
+            count: imageCount,
+            range: imageRange,
+            selectedModelType,
+            t,
+        }),
+        getReferenceGuidanceItem({
+            key: "input-videos",
+            kind: "video",
+            count: videoCount,
+            range: videoRange,
+            selectedModelType,
+            t,
+        }),
+        getReferenceGuidanceItem({
+            key: "input-audio",
+            kind: "audio",
+            count: audioCount,
+            range: audioRange,
+            selectedModelType,
+            t,
+        }),
+    ].forEach((item) => {
+        if (item) items.push(item);
+    });
+
+    controls
+        .filter((control) => control.required === true)
+        .forEach((control) => {
+            const value = getModelSettingValue(
+                modelSettings,
+                modelMeta,
+                control.aliases
+                    ? [control.key, ...control.aliases]
+                    : control.key,
+            );
+            items.push({
+                key: `control-${control.key}`,
+                complete: isFilledGuidanceValue(value),
+                title: t("Set {{field}}", {
+                    field: t(control.label || control.key),
+                }),
+                detail: isFilledGuidanceValue(value)
+                    ? getMediaControlDisplayValue(
+                          value,
+                          control.options || [],
+                          control,
+                      )
+                    : t("Not set"),
+            });
+        });
+
+    if (voiceDesignDescriptionMessage) {
+        items.push({
+            key: "voice-description",
+            complete: false,
+            title: t("Set {{field}}", {
+                field: t("Voice description"),
+            }),
+            detail: voiceDesignDescriptionMessage,
+        });
+    }
+
+    return items;
+};
+
+const getMediaWizardControlValue = (modelSettings, modelMeta, control) =>
+    getModelSettingValue(
+        modelSettings,
+        modelMeta,
+        control.aliases ? [control.key, ...control.aliases] : control.key,
+    );
+
+const buildMediaGenerationWizardSteps = ({
+    modelMeta,
+    modelSettings,
+    selectedModelType,
+    promptText,
+    controls,
+    imageRange,
+    videoRange,
+    audioRange,
+    imageCount,
+    videoCount,
+    audioCount,
+    hasPromptlessInputs,
+    voiceDesignDescriptionMessage,
+    canGenerate,
+    validationMessage,
+    selectedInputModeKey,
+    t,
+}) => {
+    if (!modelMeta) return [];
+
+    const mediaInputModes = getMediaInputModes(modelMeta, controls);
+    const selectedInputMode = getSelectedMediaInputMode(
+        mediaInputModes,
+        selectedInputModeKey,
+        modelMeta,
+        modelSettings,
+    );
+    const hasInputModeChoice = mediaInputModes.length > 1;
+    const stepImageRange = getInputModeReferenceRange({
+        modes: mediaInputModes,
+        selectedMode: selectedInputMode,
+        baseRange: imageRange,
+        key: "inputImages",
+        fallbackMax: 3,
+    });
+    const stepVideoRange = getInputModeReferenceRange({
+        modes: mediaInputModes,
+        selectedMode: selectedInputMode,
+        baseRange: videoRange,
+        key: "inputVideos",
+        fallbackMax: 0,
+    });
+    const stepAudioRange = getInputModeReferenceRange({
+        modes: mediaInputModes,
+        selectedMode: selectedInputMode,
+        baseRange: audioRange,
+        key: "inputAudio",
+        fallbackMax: 1,
+    });
+    const guidanceItems = buildModelGuidanceItems({
+        modelMeta,
+        modelSettings,
+        selectedModelType,
+        promptText,
+        controls,
+        imageRange: stepImageRange,
+        videoRange: stepVideoRange,
+        audioRange: stepAudioRange,
+        imageCount,
+        videoCount,
+        audioCount,
+        hasPromptlessInputs,
+        voiceDesignDescriptionMessage,
+        t,
+    });
+    const guidanceByKey = new Map(
+        guidanceItems.map((item) => [item.key, item]),
+    );
+    const referenceRows = buildReferenceParameterRows({
+        modelMeta,
+        imageRange: stepImageRange,
+        videoRange: stepVideoRange,
+        audioRange: stepAudioRange,
+        imageCount,
+        videoCount,
+        audioCount,
+        selectedModelType,
+        selectedInputMode,
+        t,
+    });
+    const steps = [];
+
+    if (hasInputModeChoice) {
+        steps.push({
+            key: "input-mode",
+            kind: "input-path",
+            complete: Boolean(selectedInputModeKey),
+            title: t("Choose variant"),
+            detail: selectedInputMode
+                ? getInputModeSummary(selectedInputMode, {
+                      selectedModelType,
+                      controls,
+                      t,
+                  })
+                : t("Make a choice"),
+            actionLabel: t("Make a choice"),
+            choices: mediaInputModes.map((mode, index) => ({
+                value: getMediaInputModeKey(mode, index),
+                label: t(mode?.label || mode?.key || "Input path"),
+                detail: getInputModeSummary(mode, {
+                    selectedModelType,
+                    controls,
+                    t,
+                }),
+                selected:
+                    getMediaInputModeKey(mode, index) === selectedInputModeKey,
+            })),
+        });
+    }
+
+    const promptRequiredBySelectedMode = selectedInputMode
+        ? selectedInputMode.requiresAnyOf?.some(
+              (requirement) => requirement.prompt === true,
+          )
+        : mediaInputModes.some((mode) =>
+              mode?.requiresAnyOf?.some(
+                  (requirement) => requirement.prompt === true,
+              ),
+          );
+    const selectedModeAllowsPromptlessInput =
+        selectedInputMode?.promptRequired === false ||
+        (!hasInputModeChoice &&
+            mediaInputModes.some((mode) => mode?.promptRequired === false));
+    const promptItem = guidanceByKey.get("prompt");
+    const unsatisfiedModeSettingKeys = getUnsatisfiedModeSettingKeys({
+        modelMeta,
+        modelSettings,
+        promptText,
+        controls,
+        inputImageCount: imageCount,
+        inputVideoCount: videoCount,
+        inputAudioCount: audioCount,
+    });
+    const parameterControls = controls.filter(
+        (control) =>
+            control?.required === true ||
+            [...unsatisfiedModeSettingKeys].some((key) =>
+                mediaControlMatchesKey(control, key),
+            ) ||
+            (voiceDesignDescriptionMessage &&
+                mediaControlMatchesKey(control, "voiceDescription")),
+    );
+    const promptControls = controls.filter(isTextMediaControl);
+    const optionControls = controls.filter((control) => {
+        if (isTextMediaControl(control)) return false;
+        return (
+            isNumericMediaControl(control) || (control.options?.length || 0) > 0
+        );
+    });
+    const requiredPromptControls = parameterControls.filter(isTextMediaControl);
+    const requiredOptionControls = parameterControls.filter(
+        (control) => !isTextMediaControl(control),
+    );
+    const promptRequired =
+        Boolean(promptItem) &&
+        !hasPromptlessInputs &&
+        !selectedModeAllowsPromptlessInput &&
+        (!hasInputModeChoice ||
+            Boolean(selectedInputMode && promptRequiredBySelectedMode));
+    const promptOptional = !promptRequired;
+    const requiredPromptControlsComplete = requiredPromptControls.every(
+        (control) =>
+            isFilledGuidanceValue(
+                getMediaWizardControlValue(modelSettings, modelMeta, control),
+            ),
+    );
+    const promptComplete =
+        (!promptRequired || Boolean(promptText) || hasPromptlessInputs) &&
+        requiredPromptControlsComplete;
+
+    steps.push({
+        key: "prompt",
+        kind: "prompt",
+        complete: promptComplete,
+        optional: promptOptional,
+        title: t("Enter prompts"),
+        detail: !requiredPromptControlsComplete
+            ? t("Complete the required model text inputs")
+            : promptOptional
+              ? t("Prompt optional with current inputs")
+              : promptComplete
+                ? t("Ready")
+                : t("Add the text the model should follow"),
+        promptControls,
+        requiredControlKeys: requiredPromptControls.map(
+            (control) => control.key,
+        ),
+        actionLabel: t("Write description"),
+    });
+
+    if (referenceRows.length > 0) {
+        steps.push({
+            key: "references",
+            kind: "references",
+            complete: referenceRows.every((row) => row.complete),
+            optional: referenceRows.every((row) => row.optional),
+            title: t("Select references"),
+            detail: referenceRows.every((row) => row.complete)
+                ? t("Ready")
+                : t("Attach the media this model needs"),
+            referenceRows,
+            actionLabel: t("Attach reference"),
+        });
+    }
+
+    steps.push({
+        key: "options",
+        kind: "options",
+        complete: requiredOptionControls.every((control) =>
+            isFilledGuidanceValue(
+                getMediaWizardControlValue(modelSettings, modelMeta, control),
+            ),
+        ),
+        title: t("Set options"),
+        detail: t("Review the settings for this model"),
+        optionControls,
+        requiredControlKeys: requiredOptionControls.map(
+            (control) => control.key,
+        ),
+        actionLabel: t("Set options"),
+    });
+
+    steps.push({
+        key: "generate",
+        kind: "generate",
+        complete: false,
+        title: t("Generate media"),
+        detail: canGenerate
+            ? t("Ready to generate")
+            : validationMessage || t("Complete the steps above"),
+        actionLabel: t("Generate now"),
+    });
+
+    return steps;
+};
+
+const mediaControlMatchesKey = (control, key) =>
+    control?.key === key ||
+    (Array.isArray(control?.aliases) && control.aliases.includes(key));
+
+const getUnsatisfiedModeSettingKeys = ({
+    modelMeta,
+    modelSettings,
+    promptText,
+    controls = [],
+    inputImageCount,
+    inputVideoCount,
+    inputAudioCount,
+}) => {
+    const keys = new Set();
+    getMediaInputModes(modelMeta, controls).forEach((mode) => {
+        const requires = mode?.requires || {};
+        const baseSatisfied =
+            countMatchesRequirement(inputImageCount, requires.inputImages, 3) &&
+            countMatchesRequirement(inputVideoCount, requires.inputVideos, 0) &&
+            countMatchesRequirement(inputAudioCount, requires.inputAudio, 1);
+        if (
+            !baseSatisfied ||
+            !Array.isArray(mode?.requiresAnyOf) ||
+            mode.requiresAnyOf.length === 0
+        ) {
+            return;
+        }
+        const anySatisfied = mode.requiresAnyOf.some((requirement) =>
+            hasInputModeTextRequirement(requirement, {
+                modelMeta,
+                modelSettings,
+                promptText,
+            }),
+        );
+        if (anySatisfied) return;
+        mode.requiresAnyOf.forEach((requirement) => {
+            if (requirement?.setting) keys.add(requirement.setting);
+        });
+    });
+    return keys;
+};
+
+const buildReferenceParameterRows = ({
+    modelMeta,
+    imageRange,
+    videoRange,
+    audioRange,
+    imageCount,
+    videoCount,
+    audioCount,
+    selectedModelType,
+    selectedInputMode,
+    t,
+}) =>
+    [
+        {
+            kind: "image",
+            count: imageCount,
+            range: imageRange,
+            item: getReferenceGuidanceItem({
+                key: "input-images",
+                kind: "image",
+                count: imageCount,
+                range: imageRange,
+                selectedModelType,
+                t,
+            }),
+        },
+        {
+            kind: "video",
+            count: videoCount,
+            range: videoRange,
+            item: getReferenceGuidanceItem({
+                key: "input-videos",
+                kind: "video",
+                count: videoCount,
+                range: videoRange,
+                selectedModelType,
+                t,
+            }),
+        },
+        {
+            kind: "audio",
+            count: audioCount,
+            range: audioRange,
+            item: getReferenceGuidanceItem({
+                key: "input-audio",
+                kind: "audio",
+                count: audioCount,
+                range: audioRange,
+                selectedModelType,
+                t,
+            }),
+        },
+    ]
+        .filter((row) => row.item)
+        .map((row) => ({
+            ...row.item,
+            kind: row.kind,
+            count: row.count,
+            range: row.range,
+            purpose: getReferencePurposeFromMetadata({
+                modelMeta,
+                selectedModelType,
+                kind: row.kind,
+                range: row.range,
+                selectedInputMode,
+                t,
+            }),
+        }));
+
 function getAudioTime(audio, key) {
     return Number.isFinite(audio?.[key]) ? audio[key] : 0;
 }
@@ -1455,6 +3941,14 @@ function MediaPage() {
     const [, setQuality] = useState("draft");
     const [, setOutputType] = useState("image");
     const [selectedModel, setSelectedModel] = useState(""); // Set from API defaults on load
+    const selectedModelRef = useRef("");
+    const [selectedGenerationJobType, setSelectedGenerationJobType] =
+        useState("");
+    const [selectedGenerationModel, setSelectedGenerationModel] = useState("");
+    const [isGenerationModelConfirmed, setIsGenerationModelConfirmed] =
+        useState(false);
+    const [generationFlowStepIndex, setGenerationFlowStepIndex] = useState(0);
+    const [selectedInputModeKey, setSelectedInputModeKey] = useState("");
     const [isModelSelectOpen, setIsModelSelectOpen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [disableTooltip, setDisableTooltip] = useState(false);
@@ -1464,6 +3958,10 @@ function MediaPage() {
     const [currentMediaFolder, setCurrentMediaFolder] = useState("");
     const runTask = useRunTask();
     const client = useApolloClient();
+
+    useEffect(() => {
+        selectedModelRef.current = selectedModel;
+    }, [selectedModel]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -1644,6 +4142,7 @@ function MediaPage() {
     const formRef = useRef(null);
     const bulkTagInputRef = useRef(null);
     const mediaUploadInputRef = useRef(null);
+    const mediaLibraryRef = useRef(null);
     const createMediaItem = useCreateMediaItem();
     const deleteMediaItem = useDeleteMediaItem();
     const updateMediaItem = useUpdateMediaItem();
@@ -1684,6 +4183,19 @@ function MediaPage() {
     const [selectedMediaFileObjects, setSelectedMediaFileObjects] = useState(
         [],
     );
+    const resetGenerationDraft = useCallback(() => {
+        setPrompt("");
+        setSelectedImages(new Set());
+        setSelectedImagesObjects([]);
+        setInputImageRolesById({});
+        setIsImageReferenceDetailsOpen(false);
+    }, [setSelectedImages, setSelectedImagesObjects]);
+
+    useEffect(() => {
+        if (!selectedGenerationJobType) {
+            resetGenerationDraft();
+        }
+    }, [resetGenerationDraft, selectedGenerationJobType]);
 
     const isRefreshingMediaLibrary =
         isCleaningOrphanedMediaItems || isSyncingMediaItemsFromStorage;
@@ -1778,15 +4290,21 @@ function MediaPage() {
 
     // Set default model from API metadata when models first load
     useEffect(() => {
-        if (!selectedModel && mediaModels?.length) {
-            const defaultImage = mediaModels.find(
-                (m) => m.category === "image" && m.isDefault,
-            );
-            const defaultModel = defaultImage || mediaModels[0];
-            setSelectedModel(defaultModel?.modelId || "");
-            setOutputType(defaultModel?.category || "image");
-        }
-    }, [mediaModels, selectedModel]);
+        if (selectedModelRef.current || !mediaModels?.length) return;
+
+        const defaultImage = mediaModels.find(
+            (m) => m.category === "image" && m.isDefault,
+        );
+        const defaultModel = defaultImage || mediaModels[0];
+        const defaultModelId = defaultModel?.modelId || "";
+        if (!defaultModelId) return;
+
+        selectedModelRef.current = defaultModelId;
+        setSelectedModel(defaultModelId);
+        setOutputType(
+            getGenerationOutputType(defaultModel?.category, defaultModel),
+        );
+    }, [mediaModels, setOutputType]);
 
     // No longer need to load images from user state - they come from the API now
 
@@ -1927,12 +4445,75 @@ function MediaPage() {
         setOutputType,
         setQuality,
         getModelSettings,
+        suspendAutoSelection:
+            Boolean(selectedGenerationJobType) && !isGenerationModelConfirmed,
     });
+    const availableGenerationModels = useMemo(
+        () => getAvailableModels(),
+        [getAvailableModels],
+    );
+    const generationJobTypes = useMemo(
+        () =>
+            [
+                {
+                    key: "image",
+                    title: t("Create Image"),
+                    detail: t("Generate or edit an image"),
+                    icon: <ImageIcon className="h-5 w-5" />,
+                    accent: "image",
+                    models: availableGenerationModels.image,
+                },
+                {
+                    key: "video",
+                    title: t("Create Video"),
+                    detail: t("Generate or transform video"),
+                    icon: <Video className="h-5 w-5" />,
+                    accent: "video",
+                    models: availableGenerationModels.video,
+                },
+                {
+                    key: "audio",
+                    title: t("Create Music"),
+                    detail: t("Generate music or sound"),
+                    icon: <Music className="h-5 w-5" />,
+                    accent: "audio",
+                    models: availableGenerationModels.audio,
+                },
+                {
+                    key: "tts",
+                    title: t("Create Speech"),
+                    detail: t("Generate speech or voices"),
+                    icon: <Mic className="h-5 w-5" />,
+                    accent: "tts",
+                    models: availableGenerationModels.tts,
+                },
+                {
+                    key: "upscaling",
+                    title: t("Upscale Media"),
+                    detail: t("Enhance image or video resolution"),
+                    icon: <ZoomIn className="h-5 w-5" />,
+                    accent: "upscaling",
+                    models: availableGenerationModels.upscaling,
+                },
+            ].filter((job) => job.models.length > 0),
+        [availableGenerationModels, t],
+    );
+    const selectedGenerationModelOptions = useMemo(
+        () =>
+            generationJobTypes.find(
+                (job) => job.key === selectedGenerationJobType,
+            )?.models || [],
+        [generationJobTypes, selectedGenerationJobType],
+    );
+    const activeMediaModel =
+        isGenerationModelConfirmed && selectedGenerationModel
+            ? selectedGenerationModel
+            : selectedModel;
 
     // Pre-compute selected model metadata — avoids repeated .find() in render
     const selectedModelMeta = useMemo(
-        () => modelMap.get(selectedModel),
-        [modelMap, selectedModel],
+        () => modelMap.get(activeMediaModel),
+        [activeMediaModel, modelMap],
     );
     const selectedReferenceRoleOptions = useMemo(() => {
         return (selectedModelMeta?.referenceImageRoles || []).map((role) => ({
@@ -1952,20 +4533,23 @@ function MediaPage() {
         supportsInputImageRoles || supportsVideoExtendReferences;
     const isSelectedVeoModel = useMemo(
         () =>
-            getModelProviderInfo(selectedModelMeta, selectedModel).key ===
+            getModelProviderInfo(selectedModelMeta, activeMediaModel).key ===
             "veo",
-        [selectedModelMeta, selectedModel],
+        [activeMediaModel, selectedModelMeta],
     );
 
     // Get current model settings for display
     const currentModelSettings = useMemo(() => {
-        return getModelSettings(settings, selectedModel, mediaModels);
-    }, [settings, selectedModel, mediaModels]);
+        return getModelSettings(settings, activeMediaModel, mediaModels);
+    }, [activeMediaModel, settings, mediaModels]);
 
     const selectedModelType = useMemo(() => {
-        return getModelType(selectedModel, settings, mediaModels);
-    }, [selectedModel, settings, mediaModels]);
-    const generationOutputType = getGenerationOutputType(selectedModelType);
+        return getModelType(activeMediaModel, settings, mediaModels);
+    }, [activeMediaModel, settings, mediaModels]);
+    const generationOutputType = getGenerationOutputType(
+        selectedModelType,
+        selectedModelMeta,
+    );
 
     const getCurrentSettingValue = useCallback(
         (keys, fallback) => {
@@ -1984,14 +4568,28 @@ function MediaPage() {
         },
         [currentModelSettings, selectedModelMeta],
     );
+    const currentMediaControlContext = useMemo(
+        () => ({
+            inputAudioAttached: selectedImagesObjects.some(
+                hasUsableInputAudioUrl,
+            ),
+        }),
+        [selectedImagesObjects],
+    );
     const currentMediaControls = useMemo(
         () =>
             getAugmentedMediaControls(
                 selectedModelMeta,
                 t,
                 currentModelSettings,
+                currentMediaControlContext,
             ),
-        [currentModelSettings, selectedModelMeta, t],
+        [
+            currentMediaControlContext,
+            currentModelSettings,
+            selectedModelMeta,
+            t,
+        ],
     );
     const currentStructuredMediaControls = useMemo(
         () => currentMediaControls.filter(isTextMediaControl),
@@ -2017,22 +4615,22 @@ function MediaPage() {
     const isCurrentModelInstrumental =
         getCurrentSettingValue("isInstrumental", true) === true;
     const showLyricsInput = supportsLyricsInput && !isCurrentModelInstrumental;
-    const currentLyrics = lyricsByModel[selectedModel] || "";
+    const currentLyrics = lyricsByModel[activeMediaModel] || "";
     const updateCurrentLyrics = useCallback(
         (value) => {
             setLyricsByModel((prev) => ({
                 ...prev,
-                [selectedModel]: value,
+                [activeMediaModel]: value,
             }));
         },
-        [selectedModel],
+        [activeMediaModel],
     );
     const getGenerationSettings = useCallback(() => {
         if (!supportsLyricsInput) return settingsRef.current || settings;
 
         const baseSettings = settingsRef.current || settings || {};
         const modelSettings = {
-            ...getModelSettings(baseSettings, selectedModel, mediaModels),
+            ...getModelSettings(baseSettings, activeMediaModel, mediaModels),
         };
         const trimmedLyrics = currentLyrics.trim();
 
@@ -2046,13 +4644,13 @@ function MediaPage() {
             ...baseSettings,
             models: {
                 ...(baseSettings.models || {}),
-                [selectedModel]: modelSettings,
+                [activeMediaModel]: modelSettings,
             },
         });
     }, [
+        activeMediaModel,
         currentLyrics,
         mediaModels,
-        selectedModel,
         settings,
         settingsRef,
         showLyricsInput,
@@ -2063,10 +4661,10 @@ function MediaPage() {
         return (
             (selectedModelType !== "audio" &&
                 selectedModelType !== "tts" &&
-                getAvailableAspectRatios(selectedModel).length > 0) ||
+                getAvailableAspectRatios(activeMediaModel).length > 0) ||
             (selectedModelMeta?.availableImageSizes?.length || 0) > 0 ||
             (selectedModelType === "video" &&
-                getAvailableDurations(selectedModel).length > 0) ||
+                getAvailableDurations(activeMediaModel).length > 0) ||
             (selectedModelMeta?.availableResolutions?.length || 0) > 0 ||
             mediaToggles.includes("generateAudio") ||
             mediaToggles.includes("cameraFixed") ||
@@ -2074,10 +4672,10 @@ function MediaPage() {
             currentMediaControls.length > 0
         );
     }, [
+        activeMediaModel,
         currentMediaControls,
         getAvailableAspectRatios,
         getAvailableDurations,
-        selectedModel,
         selectedModelMeta,
         selectedModelType,
     ]);
@@ -2089,13 +4687,13 @@ function MediaPage() {
 
             setSettingsAndRef((prev) => {
                 const currentModel =
-                    prev.models?.[selectedModel] ||
-                    getModelSettings(prev, selectedModel, mediaModels);
+                    prev.models?.[activeMediaModel] ||
+                    getModelSettings(prev, activeMediaModel, mediaModels);
                 nextSettings = {
                     ...prev,
                     models: {
                         ...(prev.models || {}),
-                        [selectedModel]: {
+                        [activeMediaModel]: {
                             ...currentModel,
                             [key]: value,
                             ...(key === "image_size"
@@ -2117,13 +4715,182 @@ function MediaPage() {
             }
         },
         [
+            activeMediaModel,
             debouncedUpdateUserState,
             mediaModels,
-            selectedModel,
             setSettingsAndRef,
             userState?.media,
         ],
     );
+    const updateCurrentModelSettings = useCallback(
+        (patch = {}) => {
+            const entries = Object.entries(patch).filter(
+                ([, value]) => value !== undefined,
+            );
+            if (entries.length === 0) return;
+
+            let nextSettings;
+            hasLocalMediaSettingsChangesRef.current = true;
+
+            setSettingsAndRef((prev) => {
+                const currentModel =
+                    prev.models?.[activeMediaModel] ||
+                    getModelSettings(prev, activeMediaModel, mediaModels);
+                const patchObject = Object.fromEntries(entries);
+                nextSettings = {
+                    ...prev,
+                    models: {
+                        ...(prev.models || {}),
+                        [activeMediaModel]: {
+                            ...currentModel,
+                            ...patchObject,
+                            ...(patchObject.image_size
+                                ? {
+                                      imageSize: patchObject.image_size,
+                                      size: patchObject.image_size,
+                                  }
+                                : {}),
+                        },
+                    },
+                };
+                return nextSettings;
+            });
+
+            if (nextSettings) {
+                debouncedUpdateUserState({
+                    media: {
+                        ...userState?.media,
+                        settings: nextSettings,
+                    },
+                });
+            }
+        },
+        [
+            activeMediaModel,
+            debouncedUpdateUserState,
+            mediaModels,
+            setSettingsAndRef,
+            userState?.media,
+        ],
+    );
+    const generationOptionFields = useMemo(() => {
+        const fields = [];
+        const mediaToggles = selectedModelMeta?.mediaToggles || [];
+        const aspectRatioOptions = getAvailableAspectRatios(activeMediaModel);
+        const durationOptions = getAvailableDurations(activeMediaModel);
+
+        if (
+            selectedModelType !== "audio" &&
+            selectedModelType !== "tts" &&
+            aspectRatioOptions.length > 0
+        ) {
+            fields.push({
+                key: "aspectRatio",
+                label: t("Aspect Ratio"),
+                value: getCurrentSettingValue("aspectRatio", "1:1"),
+                options: aspectRatioOptions,
+                onSelect: (value) =>
+                    updateCurrentModelSetting("aspectRatio", value),
+            });
+        }
+
+        if ((selectedModelMeta?.availableImageSizes?.length || 0) > 0) {
+            fields.push({
+                key: "image_size",
+                label: t("Image Size"),
+                value: getCurrentSettingValue(
+                    ["image_size", "imageSize", "size"],
+                    "2K",
+                ),
+                options: selectedModelMeta.availableImageSizes.map((size) => ({
+                    value: size,
+                    label: size,
+                })),
+                onSelect: (value) =>
+                    updateCurrentModelSetting("image_size", value),
+            });
+        }
+
+        if (selectedModelType === "video" && durationOptions.length > 0) {
+            fields.push({
+                key: "duration",
+                label: t("Duration"),
+                value: getCurrentSettingValue("duration", 5),
+                options: durationOptions,
+                onSelect: (value) =>
+                    updateCurrentModelSetting("duration", parseInt(value, 10)),
+            });
+        }
+
+        if ((selectedModelMeta?.availableResolutions?.length || 0) > 0) {
+            fields.push({
+                key: "resolution",
+                label: t("Resolution"),
+                value: getCurrentSettingValue("resolution", "1080p"),
+                options: selectedModelMeta.availableResolutions.map(
+                    (resolution) => ({
+                        value: resolution,
+                        label: resolution,
+                    }),
+                ),
+                onSelect: (value) =>
+                    updateCurrentModelSetting("resolution", value),
+            });
+        }
+
+        if (mediaToggles.includes("generateAudio")) {
+            fields.push({
+                key: "generateAudio",
+                label: t("Generate Audio"),
+                value: Boolean(getCurrentSettingValue("generateAudio", false)),
+                options: [
+                    { value: true, label: t("Audio") },
+                    { value: false, label: t("No Audio") },
+                ],
+                onSelect: (value) =>
+                    updateCurrentModelSetting("generateAudio", value),
+            });
+        }
+
+        if (mediaToggles.includes("cameraFixed")) {
+            fields.push({
+                key: "cameraFixed",
+                label: t("Camera"),
+                value: Boolean(getCurrentSettingValue("cameraFixed", false)),
+                options: [
+                    { value: false, label: t("Free Camera") },
+                    { value: true, label: t("Fixed Camera") },
+                ],
+                onSelect: (value) =>
+                    updateCurrentModelSetting("cameraFixed", value),
+            });
+        }
+
+        if (mediaToggles.includes("optimizePrompt")) {
+            fields.push({
+                key: "optimizePrompt",
+                label: t("Optimize Prompt"),
+                value: getCurrentSettingValue("optimizePrompt", true) !== false,
+                options: [
+                    { value: true, label: t("Optimized") },
+                    { value: false, label: t("Raw Prompt") },
+                ],
+                onSelect: (value) =>
+                    updateCurrentModelSetting("optimizePrompt", value),
+            });
+        }
+
+        return fields;
+    }, [
+        activeMediaModel,
+        getAvailableAspectRatios,
+        getAvailableDurations,
+        getCurrentSettingValue,
+        selectedModelMeta,
+        selectedModelType,
+        t,
+        updateCurrentModelSetting,
+    ]);
 
     const selectedImageObjectsForGeneration = useMemo(() => {
         return selectedImagesObjects.filter(
@@ -2180,10 +4947,17 @@ function MediaPage() {
 
     const getSelectedImageRole = useCallback(
         (image) => {
+            const imageId = getSelectedMediaId(image);
+            const selectedRole =
+                inputImageRolesById[imageId] || image?.inputImageRole;
+            if (
+                image?.type === "video" &&
+                selectedRole === VIDEO_EXTEND_REFERENCE_ROLE
+            ) {
+                return selectedRole;
+            }
             if (!supportsReferenceRoles) return "";
             const supportedRoles = getSupportedReferenceRolesForMedia(image);
-            const imageId = getSelectedMediaId(image);
-            const selectedRole = inputImageRolesById[imageId];
             if (supportedRoles.includes(selectedRole)) return selectedRole;
             return getDefaultReferenceImageRole(supportedRoles, {
                 preferExtend:
@@ -2198,9 +4972,40 @@ function MediaPage() {
             supportsReferenceRoles,
         ],
     );
+    const getSelectedReferenceParameterKind = useCallback(
+        (media, index) => {
+            if (hasUsableInputAudioUrl(media)) return "audio";
+            if (media?.type === "video") {
+                const mediaId = getSelectedMediaId(media);
+                const role =
+                    inputImageRolesById[mediaId] ||
+                    media?.inputImageRole ||
+                    getSelectedImageRole(media, index);
+                return role === VIDEO_EXTEND_REFERENCE_ROLE ? "video" : "image";
+            }
+            return "image";
+        },
+        [getSelectedImageRole, inputImageRolesById],
+    );
+    const referencesByParameterKind = useMemo(
+        () =>
+            selectedReferenceObjectsForDisplay.reduce(
+                (groups, media, index) => {
+                    const kind = getSelectedReferenceParameterKind(
+                        media,
+                        index,
+                    );
+                    return {
+                        ...groups,
+                        [kind]: [...(groups[kind] || []), { media, index }],
+                    };
+                },
+                {},
+            ),
+        [getSelectedReferenceParameterKind, selectedReferenceObjectsForDisplay],
+    );
 
     const selectedInputImageRolesById = useMemo(() => {
-        if (!supportsReferenceRoles) return {};
         return Object.fromEntries(
             selectedImageObjectsForGeneration
                 .map((image, index) => [
@@ -2209,11 +5014,30 @@ function MediaPage() {
                 ])
                 .filter(([id, role]) => id && role),
         );
-    }, [
-        getSelectedImageRole,
-        selectedImageObjectsForGeneration,
-        supportsReferenceRoles,
-    ]);
+    }, [getSelectedImageRole, selectedImageObjectsForGeneration]);
+
+    const getReferenceMaxForKind = useCallback(
+        (referenceKind) => {
+            const range =
+                referenceKind === "audio"
+                    ? getModelInputAudioRange(
+                          selectedModelMeta,
+                          currentModelSettings,
+                      )
+                    : referenceKind === "video"
+                      ? getModelInputVideosRange(
+                            selectedModelMeta,
+                            currentModelSettings,
+                        )
+                      : getModelInputImagesRange(
+                            selectedModelMeta,
+                            currentModelSettings,
+                        );
+            const max = Number(range?.max);
+            return Number.isFinite(max) ? max : null;
+        },
+        [currentModelSettings, selectedModelMeta],
+    );
 
     const handleSelectedImageRoleChange = useCallback((image, role) => {
         const imageId = getSelectedMediaId(image);
@@ -2253,18 +5077,58 @@ function MediaPage() {
     );
 
     const handleAddSelectedFilesAsReferences = useCallback(
-        (files = []) => {
+        (files = [], options = {}) => {
             if (!files.length) return;
 
             const nextReferencesById = new Map();
+            const referenceCountsByKind = new Map(
+                ["image", "video", "audio"].map((kind) => [
+                    kind,
+                    referencesByParameterKind[kind]?.length || 0,
+                ]),
+            );
+            const nextRolesById = {};
             selectedImagesObjects.forEach((item) => {
                 const id = getSelectedMediaId(item) || createFileId(item);
                 if (id) nextReferencesById.set(id, item);
             });
             files.forEach((file) => {
-                const media = file?._mediaItem || file;
+                const media = getReferenceMediaForTargetKind(
+                    file,
+                    options.referenceKind,
+                );
                 const id = getSelectedMediaId(media) || createFileId(media);
-                if (id) nextReferencesById.set(id, media);
+                if (id) {
+                    const alreadySelected = nextReferencesById.has(id);
+                    const referenceKind =
+                        options.referenceKind ||
+                        getSelectedReferenceParameterKind(
+                            media,
+                            nextReferencesById.size,
+                        );
+                    const maxReferences = getReferenceMaxForKind(referenceKind);
+                    const currentCount =
+                        referenceCountsByKind.get(referenceKind) || 0;
+
+                    if (
+                        !alreadySelected &&
+                        maxReferences !== null &&
+                        currentCount >= maxReferences
+                    ) {
+                        return;
+                    }
+
+                    nextReferencesById.set(id, media);
+                    if (!alreadySelected) {
+                        referenceCountsByKind.set(
+                            referenceKind,
+                            currentCount + 1,
+                        );
+                    }
+                    if (media?.inputImageRole) {
+                        nextRolesById[id] = media.inputImageRole;
+                    }
+                }
             });
 
             const nextReferenceObjects = Array.from(
@@ -2272,12 +5136,121 @@ function MediaPage() {
             );
             setSelectedImages(new Set(nextReferenceObjects.map(createFileId)));
             setSelectedImagesObjects(nextReferenceObjects);
-            setIsImageReferenceDetailsOpen(nextReferenceObjects.length > 0);
+            if (Object.keys(nextRolesById).length > 0) {
+                setInputImageRolesById((prev) => ({
+                    ...prev,
+                    ...nextRolesById,
+                }));
+            }
+            setIsImageReferenceDetailsOpen(false);
             setTimeout(() => {
                 promptRef.current?.focus();
             }, 0);
         },
-        [selectedImagesObjects, setSelectedImages, setSelectedImagesObjects],
+        [
+            getReferenceMaxForKind,
+            getSelectedReferenceParameterKind,
+            referencesByParameterKind,
+            selectedImagesObjects,
+            setSelectedImages,
+            setSelectedImagesObjects,
+        ],
+    );
+
+    const getSelectedCompatibleReferenceCount = useCallback(
+        (row) => {
+            const compatibleCount = selectedMediaFileObjects.filter((file) =>
+                isFileCompatibleWithReferenceKind(file, row?.kind),
+            ).length;
+            const max = Number(row?.range?.max);
+            if (!Number.isFinite(max)) return compatibleCount;
+
+            const currentCount =
+                referencesByParameterKind[row?.kind]?.length || 0;
+            return Math.max(0, Math.min(compatibleCount, max - currentCount));
+        },
+        [referencesByParameterKind, selectedMediaFileObjects],
+    );
+
+    const handleAddSelectedReferencesForRow = useCallback(
+        (row) => {
+            const max = Number(row?.range?.max);
+            const currentCount =
+                referencesByParameterKind[row?.kind]?.length || 0;
+            let remainingSlots = Number.isFinite(max)
+                ? Math.max(0, max - currentCount)
+                : Number.POSITIVE_INFINITY;
+            if (remainingSlots <= 0) return;
+
+            const selectedFilesToAdd = [];
+            selectedMediaFileObjects.forEach((file) => {
+                if (remainingSlots <= 0) return;
+                if (!isFileCompatibleWithReferenceKind(file, row?.kind)) return;
+                selectedFilesToAdd.push(file);
+                remainingSlots -= 1;
+            });
+            if (selectedFilesToAdd.length === 0) return;
+
+            handleAddSelectedFilesAsReferences(selectedFilesToAdd, {
+                referenceKind: row?.kind,
+            });
+        },
+        [
+            handleAddSelectedFilesAsReferences,
+            referencesByParameterKind,
+            selectedMediaFileObjects,
+        ],
+    );
+
+    const handleReferenceParameterSelect = useCallback(() => {
+        setShowSettings(false);
+
+        setTimeout(() => {
+            mediaLibraryRef.current?.scrollIntoView({
+                block: "start",
+                behavior: "smooth",
+            });
+        }, 0);
+    }, []);
+    const handleMediaFileDragStart = useCallback((event, file) => {
+        const payload = getReferenceDragPayload(file);
+        event.dataTransfer.effectAllowed = "copy";
+        event.dataTransfer.setData(
+            MEDIA_REFERENCE_DRAG_MIME,
+            JSON.stringify(payload),
+        );
+        event.dataTransfer.setData(
+            "text/plain",
+            getSelectedMediaDisplayName(payload),
+        );
+    }, []);
+    const handleGenerationReferenceDrop = useCallback(
+        (event, row) => {
+            event.preventDefault();
+            setShowSettings(false);
+
+            const rawPayload = event.dataTransfer.getData(
+                MEDIA_REFERENCE_DRAG_MIME,
+            );
+            if (!rawPayload) {
+                handleReferenceParameterSelect(row);
+                return;
+            }
+
+            try {
+                const media = JSON.parse(rawPayload);
+                if (!isFileCompatibleWithReferenceKind(media, row?.kind)) {
+                    return;
+                }
+                handleAddSelectedFilesAsReferences([media], {
+                    referenceKind: row?.kind,
+                });
+            } catch (error) {
+                console.error("Error attaching dropped reference:", error);
+                handleReferenceParameterSelect(row);
+            }
+        },
+        [handleAddSelectedFilesAsReferences, handleReferenceParameterSelect],
     );
 
     const handleMediaFolderChange = useCallback((folderPath) => {
@@ -2510,6 +5483,9 @@ function MediaPage() {
         return {
             allowedKeys,
             excludedKeys,
+            selectedImageCount: imageEntries.length,
+            selectedVideoCount: entries.filter((entry) => entry.isVideoExtend)
+                .length,
             allowedImageCount: allowedImageKeys.size,
             allowedVideoCount: allowedVideoKeys.size,
             allowedReferences: entries
@@ -2568,6 +5544,15 @@ function MediaPage() {
             selectedAudioLimitState.range.max
             ? selectedAudioLimitState.allowedReferences[0] || null
             : null;
+    const selectedInputImageRange = useMemo(
+        () => getModelInputImagesRange(selectedModelMeta, currentModelSettings),
+        [currentModelSettings, selectedModelMeta],
+    );
+    const selectedInputVideoRange = useMemo(
+        () => getModelInputVideosRange(selectedModelMeta, currentModelSettings),
+        [currentModelSettings, selectedModelMeta],
+    );
+    const selectedInputAudioRange = selectedAudioLimitState.range;
     const unsupportedVeoInputImages = useMemo(() => {
         if (!isSelectedVeoModel) return [];
         return selectedImageObjectsForGeneration.filter(
@@ -2631,33 +5616,41 @@ function MediaPage() {
         ],
     );
     const selectedModelReferenceMessage = useMemo(() => {
-        const imageRange = getModelInputImagesRange(
-            selectedModelMeta,
-            currentModelSettings,
-        );
-        if (selectedReferenceLimitState.allowedImageCount < imageRange.min) {
+        if (
+            selectedReferenceLimitState.allowedImageCount <
+            selectedInputImageRange.min
+        ) {
             return t("Attach more references");
         }
 
-        const videoRange = getModelInputVideosRange(
-            selectedModelMeta,
-            currentModelSettings,
-        );
-        if (selectedReferenceLimitState.allowedVideoCount < videoRange.min) {
+        if (
+            selectedReferenceLimitState.allowedVideoCount <
+            selectedInputVideoRange.min
+        ) {
             return t("Attach more references");
         }
 
-        const audioRange = selectedAudioLimitState.range;
+        const audioRange = selectedInputAudioRange;
         if (audioRange) {
             const selectedAudioCount = selectedAudioObjectsForGeneration.length;
+            const audioReferenceLabel =
+                selectedModelType === "tts"
+                    ? "voice reference"
+                    : selectedModelType === "video"
+                      ? "audio track"
+                      : "music item";
             const missingAudioMessage =
-                selectedModelType === "tts"
+                audioReferenceLabel === "voice reference"
                     ? t("Attach one voice reference")
-                    : t("Attach one music item");
+                    : audioReferenceLabel === "audio track"
+                      ? t("Attach one audio track")
+                      : t("Attach one music item");
             const tooManyAudioMessage =
-                selectedModelType === "tts"
+                audioReferenceLabel === "voice reference"
                     ? t("Attach only one voice reference")
-                    : t("Attach only one music item");
+                    : audioReferenceLabel === "audio track"
+                      ? t("Attach only one audio track")
+                      : t("Attach only one music item");
             if (selectedAudioCount < audioRange.min) {
                 return missingAudioMessage;
             }
@@ -2668,10 +5661,10 @@ function MediaPage() {
 
         return "";
     }, [
-        currentModelSettings,
-        selectedAudioLimitState.range,
+        selectedInputAudioRange,
+        selectedInputImageRange.min,
+        selectedInputVideoRange.min,
         selectedAudioObjectsForGeneration.length,
-        selectedModelMeta,
         selectedModelType,
         selectedReferenceLimitState.allowedImageCount,
         selectedReferenceLimitState.allowedVideoCount,
@@ -2694,14 +5687,117 @@ function MediaPage() {
         }
         return t("Describe the voice before generating.");
     }, [currentModelSettings, selectedModelMeta, selectedModelType, t]);
+    const promptText = prompt.trim();
+    const promptOptionalMediaModel = hasPromptlessMediaInputMode(
+        selectedModelMeta,
+        currentMediaControls,
+    );
+    const hasPromptlessMediaInputs =
+        promptOptionalMediaModel &&
+        hasSatisfiedPromptlessMediaInputMode(selectedModelMeta, {
+            controls: currentMediaControls,
+            inputImageCount: selectedReferenceLimitState.allowedImageCount,
+            inputVideoCount: selectedReferenceLimitState.allowedVideoCount,
+            inputAudioCount: selectedAudioForInput ? 1 : 0,
+            modelMeta: selectedModelMeta,
+            modelSettings: currentModelSettings,
+            promptText,
+        });
+    const modelGuidanceItems = useMemo(
+        () =>
+            buildModelGuidanceItems({
+                modelMeta: selectedModelMeta,
+                modelSettings: currentModelSettings,
+                selectedModelType,
+                promptText,
+                controls: currentMediaControls,
+                imageRange: selectedInputImageRange,
+                videoRange: selectedInputVideoRange,
+                audioRange: selectedInputAudioRange,
+                imageCount: selectedReferenceLimitState.selectedImageCount,
+                videoCount: selectedReferenceLimitState.selectedVideoCount,
+                audioCount: selectedAudioObjectsForGeneration.length,
+                hasPromptlessInputs: hasPromptlessMediaInputs,
+                voiceDesignDescriptionMessage,
+                t,
+            }),
+        [
+            currentMediaControls,
+            currentModelSettings,
+            hasPromptlessMediaInputs,
+            promptText,
+            selectedAudioObjectsForGeneration.length,
+            selectedInputAudioRange,
+            selectedInputImageRange,
+            selectedInputVideoRange,
+            selectedModelMeta,
+            selectedModelType,
+            selectedReferenceLimitState.selectedImageCount,
+            selectedReferenceLimitState.selectedVideoCount,
+            t,
+            voiceDesignDescriptionMessage,
+        ],
+    );
+    const modelGuidanceAttentionCount = modelGuidanceItems.filter(
+        (item) => !item.complete,
+    ).length;
+    const hasCurrentParameterSettings =
+        modelGuidanceItems.length > 0 || selectedReferenceCount > 0;
     const generationValidationMessage =
         veoInputImageFormatMessage ||
         selectedModelReferenceMessage ||
         voiceDesignDescriptionMessage;
     const canGenerate =
-        (Boolean(prompt.trim()) ||
-            (selectedModelType === "audio" && selectedImageCount > 0)) &&
+        (Boolean(promptText) ||
+            (selectedModelType === "audio" && selectedImageCount > 0) ||
+            hasPromptlessMediaInputs) &&
         !generationValidationMessage;
+    const generationWizardSteps = useMemo(
+        () =>
+            buildMediaGenerationWizardSteps({
+                modelMeta: selectedModelMeta,
+                modelSettings: currentModelSettings,
+                selectedModelType,
+                promptText,
+                controls: currentMediaControls,
+                imageRange: selectedInputImageRange,
+                videoRange: selectedInputVideoRange,
+                audioRange: selectedInputAudioRange,
+                imageCount: selectedReferenceLimitState.selectedImageCount,
+                videoCount: selectedReferenceLimitState.selectedVideoCount,
+                audioCount: selectedAudioObjectsForGeneration.length,
+                hasPromptlessInputs: hasPromptlessMediaInputs,
+                voiceDesignDescriptionMessage,
+                canGenerate,
+                validationMessage: generationValidationMessage,
+                selectedInputModeKey,
+                t,
+            }),
+        [
+            canGenerate,
+            currentMediaControls,
+            currentModelSettings,
+            generationValidationMessage,
+            hasPromptlessMediaInputs,
+            promptText,
+            selectedAudioObjectsForGeneration.length,
+            selectedInputAudioRange,
+            selectedInputImageRange,
+            selectedInputVideoRange,
+            selectedInputModeKey,
+            selectedModelMeta,
+            selectedModelType,
+            selectedReferenceLimitState.selectedImageCount,
+            selectedReferenceLimitState.selectedVideoCount,
+            t,
+            voiceDesignDescriptionMessage,
+        ],
+    );
+    const flowCanGenerate =
+        canGenerate &&
+        generationWizardSteps
+            .filter((step) => step.kind !== "generate")
+            .every((step) => step.complete);
     const enhancePromptLabel =
         selectedModelType === "tts"
             ? t("Enhance speech prompt")
@@ -2726,7 +5822,7 @@ function MediaPage() {
         handleModifySelected: handleModifySelectedHook,
         handleCombineSelected: handleCombineSelectedHook,
     } = useMediaGeneration({
-        selectedModel,
+        selectedModel: activeMediaModel,
         outputType: generationOutputType,
         settings,
         settingsRef,
@@ -2744,26 +5840,110 @@ function MediaPage() {
 
         setIsOptimizing(true);
         try {
-            const selectedReferences = selectedReferencesForGeneration
-                .map((reference, index) => ({
-                    url: getSelectedMediaUrl(reference),
-                    role: getSelectedImageRole(reference, index),
-                }))
-                .filter((reference) => reference.url);
+            const mediaInputModes = getMediaInputModes(
+                selectedModelMeta,
+                currentMediaControls,
+            );
+            const selectedInputMode = getSelectedMediaInputMode(
+                mediaInputModes,
+                selectedInputModeKey,
+                selectedModelMeta,
+                currentModelSettings,
+            );
+            const selectedInputModeSummary = selectedInputMode
+                ? getInputModeSummary(selectedInputMode, {
+                      selectedModelType,
+                      controls: currentMediaControls,
+                      t,
+                  })
+                : "";
+            const generationJobTitle =
+                generationJobTypes.find(
+                    (job) => job.key === selectedGenerationJobType,
+                )?.title || selectedModelType;
+            const selectedReferenceContext =
+                selectedReferencesForGeneration.map((reference, index) => {
+                    const role = getSelectedImageRole(reference, index);
+                    return {
+                        reference,
+                        url: getSelectedMediaUrl(reference),
+                        role,
+                        kind: getSelectedReferenceParameterKind(
+                            reference,
+                            index,
+                        ),
+                    };
+                });
+            if (selectedAudioForInput) {
+                selectedReferenceContext.push({
+                    reference: selectedAudioForInput,
+                    url: getSelectedMediaUrl(selectedAudioForInput),
+                    role: "",
+                    kind: "audio",
+                });
+            }
+            const selectedReferences = selectedReferenceContext.filter(
+                (reference) => reference.url,
+            );
+            const workflowContext = mergePromptAssistSummaryItems(
+                [
+                    promptText
+                        ? "Refine the user's current prompt."
+                        : "Create a starter prompt because the prompt box is empty.",
+                    `Selected workflow: ${generationJobTitle}`,
+                    `Output type: ${generationOutputType}`,
+                    selectedInputModeSummary
+                        ? `Input path: ${selectedInputModeSummary}`
+                        : "",
+                    hasPromptlessMediaInputs
+                        ? "The selected model can run without a prompt when required references and settings are present."
+                        : "",
+                    selectedModelReferenceMessage
+                        ? `Validation note: ${selectedModelReferenceMessage}`
+                        : "",
+                ],
+                modelGuidanceItems.map(
+                    (item) => `${item.title}: ${item.detail}`,
+                ),
+            );
+            const settingsSummary = mergePromptAssistSummaryItems(
+                getPromptAssistFieldSummaries(generationOptionFields),
+                getPromptAssistControlSummaries({
+                    controls: currentMediaControls,
+                    modelSettings: currentModelSettings,
+                    modelMeta: selectedModelMeta,
+                    t,
+                }),
+            );
             const response = await client.query({
                 query: QUERIES.MEDIA_PROMPT_ASSISTANT,
                 variables: {
                     prompt: promptText,
                     mediaType: selectedModelType,
-                    model: selectedModel,
+                    outputType: generationOutputType,
+                    model: activeMediaModel,
+                    modelDisplayName:
+                        selectedModelMeta?.displayName ||
+                        getDisplayName(activeMediaModel),
                     references: selectedReferences.map(
                         (reference) => reference.url,
                     ),
                     referenceRoles: selectedReferences
                         .map((reference) => reference.role)
                         .filter(Boolean),
-                    hasInputImages: selectedReferences.length > 0,
+                    referenceDescriptions: getPromptAssistReferenceDescriptions(
+                        selectedReferenceContext,
+                    ),
+                    hasInputImages: selectedReferences.some(
+                        (reference) =>
+                            reference.kind === "image" ||
+                            reference.reference?.type === "image",
+                    ),
                     referenceCount: selectedReferences.length,
+                    selectedInputMode: selectedInputModeSummary,
+                    settingsSummary,
+                    workflowContext,
+                    suggestionSeed: Math.floor(Math.random() * 1000000000),
                 },
             });
 
@@ -2782,16 +5962,98 @@ function MediaPage() {
         }
     }, [
         client,
+        activeMediaModel,
+        currentMediaControls,
+        currentModelSettings,
+        generationJobTypes,
+        generationOptionFields,
+        generationOutputType,
+        getDisplayName,
         getSelectedImageRole,
+        getSelectedReferenceParameterKind,
+        hasPromptlessMediaInputs,
         isOptimizing,
+        modelGuidanceItems,
         prompt,
-        selectedModel,
+        selectedAudioForInput,
+        selectedGenerationJobType,
+        selectedInputModeKey,
+        selectedModelMeta,
+        selectedModelReferenceMessage,
         selectedModelType,
         selectedReferencesForGeneration,
+        t,
     ]);
     const handlePromptAssist = useCallback(() => {
         handleOptimizePrompt();
     }, [handleOptimizePrompt]);
+    const handleGenerationJobSelect = useCallback((jobType) => {
+        setSelectedGenerationJobType(jobType);
+        setSelectedGenerationModel("");
+        setIsGenerationModelConfirmed(false);
+        setGenerationFlowStepIndex(0);
+        setSelectedInputModeKey("");
+    }, []);
+    const handleGenerationModelSelect = useCallback(
+        (modelName) => {
+            if (!modelName) {
+                setSelectedGenerationModel("");
+                setIsGenerationModelConfirmed(false);
+                setGenerationFlowStepIndex(0);
+                setSelectedInputModeKey("");
+                return;
+            }
+
+            const modelSettings = getModelSettings(
+                settings,
+                modelName,
+                mediaModels,
+            );
+            const modelMeta = modelMap.get(modelName);
+            selectedModelRef.current = modelName;
+            flushSync(() => {
+                setSelectedGenerationModel(modelName);
+                setSelectedModel(modelName);
+                if (modelSettings.type === "image") {
+                    setQuality(modelSettings.quality || "draft");
+                }
+                setOutputType(
+                    getGenerationOutputType(modelSettings.type, modelMeta),
+                );
+            });
+            setIsGenerationModelConfirmed(true);
+            setGenerationFlowStepIndex(0);
+            setSelectedInputModeKey("");
+        },
+        [mediaModels, modelMap, settings, setOutputType, setQuality],
+    );
+    const handleGenerationInputModeChoice = useCallback(
+        (modeKey) => {
+            setSelectedInputModeKey(modeKey);
+
+            const mode = getMediaInputModes(
+                selectedModelMeta,
+                currentMediaControls,
+            ).find(
+                (item, index) => getMediaInputModeKey(item, index) === modeKey,
+            );
+            updateCurrentModelSettings(getModeSettingPatch(mode));
+        },
+        [currentMediaControls, selectedModelMeta, updateCurrentModelSettings],
+    );
+    const handleGenerationReferenceStepAction = useCallback(
+        (step) => {
+            handleReferenceParameterSelect(step.referenceRow);
+        },
+        [handleReferenceParameterSelect],
+    );
+    const handleGenerationSubmit = useCallback(() => {
+        if (!loading && flowCanGenerate) {
+            formRef.current?.requestSubmit();
+            return true;
+        }
+        return false;
+    }, [flowCanGenerate, loading]);
 
     // Wrapper function to pass required parameters to hooks
     const handleCombineSelectedWrapper = useCallback(async () => {
@@ -2812,7 +6074,7 @@ function MediaPage() {
                 prompt,
                 selectedImagesObjects: selectedReferences,
                 outputType: generationOutputType,
-                selectedModel,
+                selectedModel: activeMediaModel,
                 settings: getGenerationSettings(),
                 runTask,
                 createMediaItem,
@@ -2820,6 +6082,7 @@ function MediaPage() {
                 outputFolder: currentMediaFolder,
                 inputImageRolesById: selectedInputImageRolesById,
                 inputAudio: selectedAudioForInput,
+                allowPromptlessGeneration: hasPromptlessMediaInputs,
             });
         } catch (error) {
             console.error("Error preparing media references:", error);
@@ -2830,8 +6093,9 @@ function MediaPage() {
         selectedReferencesForGeneration,
         selectedInputImageRolesById,
         selectedAudioForInput,
+        hasPromptlessMediaInputs,
         generationOutputType,
-        selectedModel,
+        activeMediaModel,
         getGenerationSettings,
         runTask,
         createMediaItem,
@@ -3066,6 +6330,10 @@ function MediaPage() {
             try {
                 for (const file of files) {
                     const media = file?._mediaItem || file;
+                    const generatedMedia = findGeneratedMediaForMove(
+                        file,
+                        sortedImages,
+                    );
                     const blobPath =
                         file?.blobPath ||
                         getMediaBlobPath(file) ||
@@ -3121,7 +6389,7 @@ function MediaPage() {
                     const data = await response.json().catch(() => ({}));
                     const moveResult = getMoveResultPayload(data);
 
-                    if (media?.taskId) {
+                    if (generatedMedia?.taskId) {
                         const movedBlobPath =
                             moveResult.blobPath || targetBlobPath;
                         const updates = {
@@ -3143,7 +6411,7 @@ function MediaPage() {
                         updates.outputFolder = normalizedTarget;
 
                         await updateMediaItem.mutateAsync({
-                            taskId: media.taskId,
+                            taskId: generatedMedia.taskId,
                             updates,
                         });
                     }
@@ -3167,7 +6435,13 @@ function MediaPage() {
                 await refreshMediaLibrary({ force: true });
             }
         },
-        [mediaStorageTarget, refreshMediaLibrary, t, updateMediaItem],
+        [
+            mediaStorageTarget,
+            refreshMediaLibrary,
+            sortedImages,
+            t,
+            updateMediaItem,
+        ],
     );
 
     const renderMediaFileStatus = useCallback(
@@ -3209,7 +6483,7 @@ function MediaPage() {
 
     const renderMediaPreviewDialog = useCallback(
         ({ file, onClose, autoPlay = false }) => {
-            const media = file?._mediaItem || file;
+            const media = buildPreviewDialogMedia(file);
             return (
                 <ImageModal
                     key={
@@ -3314,7 +6588,62 @@ function MediaPage() {
             className="flex h-full min-h-0 flex-col overflow-hidden overscroll-contain"
             dir={direction}
         >
-            <div className="flex flex-shrink-0 flex-col gap-4">
+            <div className="media-flow-region">
+                <MediaGenerationFlow
+                    jobTypes={generationJobTypes}
+                    selectedJobType={selectedGenerationJobType}
+                    selectedModel={activeMediaModel}
+                    modelOptions={selectedGenerationModelOptions}
+                    modelMap={modelMap}
+                    getDisplayName={getDisplayName}
+                    getSettingValue={getCurrentSettingValue}
+                    steps={generationWizardSteps}
+                    stepIndex={generationFlowStepIndex}
+                    modelConfirmed={isGenerationModelConfirmed}
+                    prompt={prompt}
+                    promptRef={promptRef}
+                    promptAssistLabel={promptAssistLabel}
+                    referenceRows={
+                        generationWizardSteps.find(
+                            (step) => step.kind === "references",
+                        )?.referenceRows || []
+                    }
+                    referencesByParameterKind={referencesByParameterKind}
+                    optionFields={generationOptionFields}
+                    selectedLibraryCount={selectedMediaFileObjects.length}
+                    showLyricsInput={showLyricsInput}
+                    currentLyrics={currentLyrics}
+                    loading={loading}
+                    canGenerate={flowCanGenerate}
+                    isPromptAssistPending={isOptimizing}
+                    validationMessage={generationValidationMessage}
+                    getSelectedImageRole={getSelectedImageRole}
+                    getSelectedCompatibleReferenceCount={
+                        getSelectedCompatibleReferenceCount
+                    }
+                    getSelectedReferenceRoleOptions={
+                        getSelectedReferenceRoleOptions
+                    }
+                    getSelectedReferenceError={getSelectedReferenceError}
+                    onJobSelect={handleGenerationJobSelect}
+                    onModelSelect={handleGenerationModelSelect}
+                    onStepIndexChange={setGenerationFlowStepIndex}
+                    onPromptChange={setPrompt}
+                    onPromptAssist={handlePromptAssist}
+                    onControlChange={updateCurrentModelSetting}
+                    onLyricsChange={updateCurrentLyrics}
+                    onInputModeChoice={handleGenerationInputModeChoice}
+                    onReferenceStepAction={handleGenerationReferenceStepAction}
+                    onAddSelectedReferences={handleAddSelectedReferencesForRow}
+                    onReferenceDrop={handleGenerationReferenceDrop}
+                    onRemoveSelectedReference={handleRemoveSelectedReference}
+                    onSelectedReferenceRoleChange={
+                        handleSelectedImageRoleChange
+                    }
+                    onGenerate={handleGenerationSubmit}
+                />
+            </div>
+            <div className="hidden">
                 <div className="mb-3 sm:mb-4">
                     <form
                         ref={formRef}
@@ -3395,7 +6724,6 @@ function MediaPage() {
                                                 }
                                             }
                                         }}
-                                        ref={promptRef}
                                     />
                                     {showLyricsInput && (
                                         <div className="mt-2 border-t border-gray-200 pt-2 dark:border-gray-700">
@@ -3618,6 +6946,12 @@ function MediaPage() {
                                                 symbol: "🗣️",
                                                 models: availableModels.tts,
                                             },
+                                            {
+                                                key: "upscaling",
+                                                title: t("Upscale"),
+                                                symbol: "⬆️",
+                                                models: availableModels.upscaling,
+                                            },
                                         ];
                                         const handleModelSelect = (
                                             newSelectedModel,
@@ -3640,7 +6974,12 @@ function MediaPage() {
                                                 );
                                             }
                                             setOutputType(
-                                                modelSettings.type || "image",
+                                                getGenerationOutputType(
+                                                    modelSettings.type,
+                                                    modelMap.get(
+                                                        newSelectedModel,
+                                                    ),
+                                                ),
                                             );
                                             setIsModelSelectOpen(false);
                                         };
@@ -3668,6 +7007,9 @@ function MediaPage() {
                                                 <MediaModelSelectContent
                                                     direction={direction}
                                                     modelGroups={modelGroups}
+                                                    selectedModel={
+                                                        selectedModel
+                                                    }
                                                     getDisplayName={
                                                         getDisplayName
                                                     }
@@ -3718,7 +7060,8 @@ function MediaPage() {
                                     </TooltipProvider>
                                 </div>
 
-                                {hasCurrentOutputSettings && (
+                                {(hasCurrentOutputSettings ||
+                                    hasCurrentParameterSettings) && (
                                     <div className="flex items-center gap-1">
                                         {/* Settings button */}
                                         <TooltipProvider>
@@ -3732,7 +7075,15 @@ function MediaPage() {
                                                 <TooltipTrigger asChild>
                                                     <button
                                                         type="button"
-                                                        className="cursor-pointer border-none bg-transparent p-1 text-gray-500 outline-none hover:text-gray-700 hover:opacity-80 focus:outline-none dark:text-gray-400 dark:hover:text-gray-200"
+                                                        className={`media-settings-parameter-button ${
+                                                            modelGuidanceAttentionCount >
+                                                            0
+                                                                ? "needs-attention"
+                                                                : "ready"
+                                                        }`}
+                                                        aria-label={t(
+                                                            "Generation Settings",
+                                                        )}
                                                         onClick={() =>
                                                             setShowSettings(
                                                                 true,
@@ -3740,10 +7091,25 @@ function MediaPage() {
                                                         }
                                                     >
                                                         <Settings className="h-4 w-4" />
+                                                        {modelGuidanceAttentionCount >
+                                                            0 && (
+                                                            <span className="media-settings-attention-count">
+                                                                {
+                                                                    modelGuidanceAttentionCount
+                                                                }
+                                                            </span>
+                                                        )}
                                                     </button>
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    {t("Generation Settings")}
+                                                    {modelGuidanceAttentionCount >
+                                                    0
+                                                        ? t(
+                                                              "Parameters need attention",
+                                                          )
+                                                        : t(
+                                                              "Generation Settings",
+                                                          )}
                                                 </TooltipContent>
                                             </Tooltip>
                                         </TooltipProvider>
@@ -4292,7 +7658,10 @@ function MediaPage() {
                 disabled={isUploading}
             />
 
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div
+                ref={mediaLibraryRef}
+                className="min-h-0 flex-1 overflow-hidden"
+            >
                 {mediaItemsLoading || isMigrationInProgress ? (
                     <div className="flex h-full items-center justify-center py-8">
                         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -4319,7 +7688,6 @@ function MediaPage() {
                         onUpdateMetadata={handleUnifiedRename}
                         onDownload={handleDownload}
                         isDownloading={isDownloading}
-                        onAttach={handleAddSelectedFilesAsReferences}
                         getBulkActionVisibility={getMediaBulkActionVisibility}
                         onUploadClick={() =>
                             mediaUploadInputRef.current?.click()
@@ -4341,6 +7709,7 @@ function MediaPage() {
                         renderFileOverlay={renderMediaFileOverlay}
                         renderFileStatus={renderMediaFileStatus}
                         renderPreviewDialog={renderMediaPreviewDialog}
+                        onFileDragStart={handleMediaFileDragStart}
                         containerHeight="100%"
                     />
                 )}
@@ -4357,6 +7726,27 @@ function MediaPage() {
                 debouncedUpdateUserState={debouncedUpdateUserState}
                 userState={userState}
                 currentSelectedModel={selectedModel}
+                mediaControlContext={currentMediaControlContext}
+                promptText={prompt}
+                onPromptChange={setPrompt}
+                selectedReferenceObjectsForDisplay={
+                    selectedReferenceObjectsForDisplay
+                }
+                selectedReferenceCounts={{
+                    image: selectedReferenceLimitState.selectedImageCount,
+                    video: selectedReferenceLimitState.selectedVideoCount,
+                    audio: selectedAudioObjectsForGeneration.length,
+                }}
+                getSelectedImageRole={getSelectedImageRole}
+                getSelectedReferenceParameterKind={
+                    getSelectedReferenceParameterKind
+                }
+                getSelectedReferenceError={getSelectedReferenceError}
+                onRemoveSelectedReference={handleRemoveSelectedReference}
+                onOpenReferenceDetails={openImageReferenceDetails}
+                onPromptAssist={handleOptimizePrompt}
+                isPromptAssistPending={isOptimizing}
+                onReferenceParameterClick={handleReferenceParameterSelect}
             />
 
             <AlertDialog
@@ -4525,6 +7915,19 @@ function SettingsDialog({
     debouncedUpdateUserState,
     userState,
     currentSelectedModel,
+    mediaControlContext = {},
+    promptText = "",
+    onPromptChange,
+    selectedReferenceObjectsForDisplay = [],
+    selectedReferenceCounts = {},
+    getSelectedImageRole = () => "",
+    getSelectedReferenceParameterKind = () => "image",
+    getSelectedReferenceError = () => "",
+    onRemoveSelectedReference,
+    onOpenReferenceDetails,
+    onPromptAssist,
+    isPromptAssistPending = false,
+    onReferenceParameterClick,
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
@@ -4581,7 +7984,12 @@ function SettingsDialog({
                 modelMap.get(selectedModel)?.category ||
                 "image";
 
-            setOutputType(selectedModelType);
+            setOutputType(
+                getGenerationOutputType(
+                    selectedModelType,
+                    modelMap.get(selectedModel),
+                ),
+            );
             if (selectedModelType === "image") {
                 setQuality(selectedModelSettings?.quality || "draft");
             }
@@ -4683,6 +8091,12 @@ function SettingsDialog({
             (name) => (localSettings.models[name]?.type || "image") === "tts",
         )
         .sort();
+    const upscalingModels = allModelNames
+        .filter(
+            (name) =>
+                (localSettings.models[name]?.type || "image") === "upscaling",
+        )
+        .sort();
     const currentModelSettings = localSettings.models?.[selectedModel] || {};
     const selectedModelType = getModelType(selectedModel);
     const selectedDisplayName = getModelDisplayName(selectedModel);
@@ -4707,10 +8121,122 @@ function SettingsDialog({
         selectedModelMeta,
         t,
         currentModelSettings,
+        mediaControlContext,
     );
     const structuredMediaControls = mediaControls.filter(isTextMediaControl);
     const compactMediaControls = mediaControls.filter(
         (control) => !isTextMediaControl(control),
+    );
+    const inputImageCount = selectedReferenceCounts.image || 0;
+    const inputVideoCount = selectedReferenceCounts.video || 0;
+    const inputAudioCount = selectedReferenceCounts.audio || 0;
+    const selectedInputImageRange = getModelInputImagesRange(
+        selectedModelMeta,
+        currentModelSettings,
+    );
+    const selectedInputVideoRange = getModelInputVideosRange(
+        selectedModelMeta,
+        currentModelSettings,
+    );
+    const selectedInputAudioRange = getModelInputAudioRange(
+        selectedModelMeta,
+        currentModelSettings,
+    );
+    const promptValue = String(promptText || "").trim();
+    const hasPromptlessInputs =
+        hasPromptlessMediaInputMode(selectedModelMeta, mediaControls) &&
+        hasSatisfiedPromptlessMediaInputMode(selectedModelMeta, {
+            controls: mediaControls,
+            inputImageCount,
+            inputVideoCount,
+            inputAudioCount,
+            modelMeta: selectedModelMeta,
+            modelSettings: currentModelSettings,
+            promptText: promptValue,
+        });
+    const voiceDesignParameterMessage =
+        selectedModelType === "tts" &&
+        isVoiceDesignMode(currentModelSettings, selectedModelMeta) &&
+        !String(
+            getVoiceDescriptionValue(currentModelSettings, selectedModelMeta) ||
+                "",
+        ).trim()
+            ? t("Required")
+            : "";
+    const parameterGuidanceItems = buildModelGuidanceItems({
+        modelMeta: selectedModelMeta,
+        modelSettings: currentModelSettings,
+        selectedModelType,
+        promptText: promptValue,
+        controls: mediaControls,
+        imageRange: selectedInputImageRange,
+        videoRange: selectedInputVideoRange,
+        audioRange: selectedInputAudioRange,
+        imageCount: inputImageCount,
+        videoCount: inputVideoCount,
+        audioCount: inputAudioCount,
+        hasPromptlessInputs,
+        voiceDesignDescriptionMessage: voiceDesignParameterMessage,
+        t,
+    });
+    const inputModeGuidanceItem = parameterGuidanceItems.find(
+        (item) => item.key === "input-mode",
+    );
+    const promptGuidanceItem = parameterGuidanceItems.find(
+        (item) => item.key === "prompt",
+    );
+    const referenceParameterRows = buildReferenceParameterRows({
+        modelMeta: selectedModelMeta,
+        imageRange: selectedInputImageRange,
+        videoRange: selectedInputVideoRange,
+        audioRange: selectedInputAudioRange,
+        imageCount: inputImageCount,
+        videoCount: inputVideoCount,
+        audioCount: inputAudioCount,
+        selectedModelType,
+        selectedInputMode: getSelectedMediaInputMode(
+            getMediaInputModes(selectedModelMeta, mediaControls),
+            "",
+            selectedModelMeta,
+            currentModelSettings,
+        ),
+        t,
+    });
+    const referencesByParameterKind = selectedReferenceObjectsForDisplay.reduce(
+        (groups, media, index) => {
+            const kind = getSelectedReferenceParameterKind(media, index);
+            return {
+                ...groups,
+                [kind]: [...(groups[kind] || []), { media, index }],
+            };
+        },
+        {},
+    );
+    const unsatisfiedModeSettingKeys = getUnsatisfiedModeSettingKeys({
+        modelMeta: selectedModelMeta,
+        modelSettings: currentModelSettings,
+        promptText: promptValue,
+        controls: mediaControls,
+        inputImageCount,
+        inputVideoCount,
+        inputAudioCount,
+    });
+    const isParameterControl = (control) =>
+        control?.required === true ||
+        [...unsatisfiedModeSettingKeys].some((key) =>
+            mediaControlMatchesKey(control, key),
+        ) ||
+        (voiceDesignParameterMessage &&
+            mediaControlMatchesKey(control, "voiceDescription"));
+    const parameterStructuredControls =
+        structuredMediaControls.filter(isParameterControl);
+    const advancedStructuredMediaControls = structuredMediaControls.filter(
+        (control) => !isParameterControl(control),
+    );
+    const parameterCompactControls =
+        compactMediaControls.filter(isParameterControl);
+    const advancedCompactMediaControls = compactMediaControls.filter(
+        (control) => !isParameterControl(control),
     );
     const showAspectRatioSetting =
         selectedModelType !== "audio" &&
@@ -4734,7 +8260,15 @@ function SettingsDialog({
         showGenerateAudioSetting ||
         showCameraFixedSetting ||
         showOptimizePromptSetting ||
-        mediaControls.length > 0;
+        advancedCompactMediaControls.length > 0 ||
+        advancedStructuredMediaControls.length > 0;
+    const hasParameterSettings =
+        Boolean(inputModeGuidanceItem) ||
+        Boolean(promptGuidanceItem) ||
+        referenceParameterRows.length > 0 ||
+        parameterCompactControls.length > 0 ||
+        parameterStructuredControls.length > 0 ||
+        selectedReferenceObjectsForDisplay.length > 0;
     const modelGroups = [
         {
             key: "image",
@@ -4759,6 +8293,12 @@ function SettingsDialog({
             title: t("Speech"),
             symbol: "🗣️",
             models: ttsModels,
+        },
+        {
+            key: "upscaling",
+            title: t("Upscale"),
+            symbol: "⬆️",
+            models: upscalingModels,
         },
     ];
     const getSettingValue = (keys, fallback) => {
@@ -4824,6 +8364,7 @@ function SettingsDialog({
                         <MediaModelSelectContent
                             direction={direction}
                             modelGroups={modelGroups}
+                            selectedModel={selectedModel}
                             getDisplayName={getModelDisplayName}
                             getModelMeta={(modelName) =>
                                 modelMap.get(modelName)
@@ -4836,6 +8377,155 @@ function SettingsDialog({
                             onClose={() => setIsModelSelectOpen(false)}
                         />
                     </Select>
+
+                    {hasParameterSettings && (
+                        <div className="media-settings-panel media-parameters-panel">
+                            <div className="media-settings-panel-header">
+                                <span>{t("Parameters")}</span>
+                                <span className="media-settings-panel-subtitle">
+                                    {parameterGuidanceItems.every(
+                                        (item) => item.complete,
+                                    )
+                                        ? t("Ready")
+                                        : t("Needs attention")}
+                                </span>
+                            </div>
+                            {inputModeGuidanceItem && (
+                                <div className="media-input-path-note">
+                                    <span>{t("Input path")}</span>
+                                    <span>{inputModeGuidanceItem.detail}</span>
+                                </div>
+                            )}
+
+                            <div className="media-parameter-form">
+                                {promptGuidanceItem && (
+                                    <ParameterPromptField
+                                        label={t("Description")}
+                                        value={promptText}
+                                        required={!promptGuidanceItem.complete}
+                                        placeholder={t(
+                                            "Describe what you want to generate",
+                                        )}
+                                        onChange={onPromptChange}
+                                        onPromptAssist={onPromptAssist}
+                                        isPromptAssistPending={
+                                            isPromptAssistPending
+                                        }
+                                    />
+                                )}
+
+                                {referenceParameterRows.map((row) => (
+                                    <AttachmentParameterField
+                                        key={row.key}
+                                        row={row}
+                                        references={
+                                            referencesByParameterKind[
+                                                row.kind
+                                            ] || []
+                                        }
+                                        required={row.range?.min > 0}
+                                        getSelectedImageRole={
+                                            getSelectedImageRole
+                                        }
+                                        getSelectedReferenceError={
+                                            getSelectedReferenceError
+                                        }
+                                        onOpenReferenceDetails={
+                                            onOpenReferenceDetails
+                                        }
+                                        onRemoveSelectedReference={
+                                            onRemoveSelectedReference
+                                        }
+                                        onSelectReference={
+                                            onReferenceParameterClick
+                                        }
+                                    />
+                                ))}
+
+                                {parameterCompactControls.map((control) => {
+                                    const value = getSettingValue(
+                                        control.aliases
+                                            ? [control.key, ...control.aliases]
+                                            : control.key,
+                                        selectedModelMeta?.mediaDefaults?.[
+                                            control.key
+                                        ],
+                                    );
+                                    if (isNumericMediaControl(control)) {
+                                        return (
+                                            <ParameterNumberField
+                                                key={control.key}
+                                                label={t(
+                                                    control.label ||
+                                                        control.key,
+                                                )}
+                                                value={value}
+                                                control={control}
+                                                required
+                                                onChange={(nextValue) =>
+                                                    updateModelSetting(
+                                                        selectedModel,
+                                                        control.key,
+                                                        nextValue,
+                                                    )
+                                                }
+                                            />
+                                        );
+                                    }
+                                    return (
+                                        <ParameterOptionField
+                                            key={control.key}
+                                            label={t(
+                                                control.label || control.key,
+                                            )}
+                                            value={value}
+                                            options={control.options}
+                                            required
+                                            onSelect={(nextValue) =>
+                                                updateModelSetting(
+                                                    selectedModel,
+                                                    control.key,
+                                                    nextValue,
+                                                )
+                                            }
+                                        />
+                                    );
+                                })}
+                                {parameterStructuredControls.map((control) => (
+                                    <ParameterTextField
+                                        key={control.key}
+                                        label={t(control.label || control.key)}
+                                        value={getSettingValue(
+                                            control.aliases
+                                                ? [
+                                                      control.key,
+                                                      ...control.aliases,
+                                                  ]
+                                                : control.key,
+                                            selectedModelMeta?.mediaDefaults?.[
+                                                control.key
+                                            ] || "",
+                                        )}
+                                        placeholder={
+                                            control.placeholder
+                                                ? t(control.placeholder)
+                                                : ""
+                                        }
+                                        minHeight={64}
+                                        maxHeight={220}
+                                        required
+                                        onChange={(nextValue) =>
+                                            updateModelSetting(
+                                                selectedModel,
+                                                control.key,
+                                                nextValue,
+                                            )
+                                        }
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {hasOutputSettings && (
                         <div className="media-settings-panel">
@@ -4996,9 +8686,11 @@ function SettingsDialog({
                                     />
                                 )}
 
-                                {compactMediaControls.map((control) => {
+                                {advancedCompactMediaControls.map((control) => {
                                     const value = getSettingValue(
-                                        control.key,
+                                        control.aliases
+                                            ? [control.key, ...control.aliases]
+                                            : control.key,
                                         selectedModelMeta?.mediaDefaults?.[
                                             control.key
                                         ],
@@ -5042,13 +8734,13 @@ function SettingsDialog({
                                     );
                                 })}
                             </div>
-                            {structuredMediaControls.length > 0 && (
+                            {advancedStructuredMediaControls.length > 0 && (
                                 <div className="media-settings-structured-inputs">
                                     <div className="media-settings-panel-header">
                                         <span>{t("Model Inputs")}</span>
                                     </div>
                                     <div className="media-settings-structured-grid">
-                                        {structuredMediaControls.map(
+                                        {advancedStructuredMediaControls.map(
                                             (control) => (
                                                 <TextMediaControl
                                                     key={control.key}
@@ -5057,7 +8749,12 @@ function SettingsDialog({
                                                             control.key,
                                                     )}
                                                     value={getSettingValue(
-                                                        control.key,
+                                                        control.aliases
+                                                            ? [
+                                                                  control.key,
+                                                                  ...control.aliases,
+                                                              ]
+                                                            : control.key,
                                                         selectedModelMeta
                                                             ?.mediaDefaults?.[
                                                             control.key
@@ -5122,6 +8819,7 @@ function ImageModal({
     const modalScrollRef = useRef(null);
     const imageZoomContainerRef = useRef(null);
     const ignoreModalPauseRef = useRef(false);
+    const hideHandledRef = useRef(false);
     const inputImageReferences = useMemo(
         () => getInputImageReferences(image),
         [image],
@@ -5140,6 +8838,7 @@ function ImageModal({
     useEffect(() => {
         if (show) {
             ignoreModalPauseRef.current = false;
+            hideHandledRef.current = false;
         }
     }, [show]);
 
@@ -5164,8 +8863,14 @@ function ImageModal({
         show,
     ]);
 
-    const sourceUrl = image?.azureUrl || image?.url || null;
-    const displayUrl = sourceUrl ? getDownloadUrl(sourceUrl) : sourceUrl;
+    const sourceUrl = getUsableMediaUrl(
+        image?.azureUrl,
+        image?.url,
+        image?._previewUrl,
+        image?.converted?.url,
+    );
+    const displayUrl =
+        image?._previewUrl || (sourceUrl ? getDownloadUrl(sourceUrl) : null);
     const displayGcsUrl = image?.gcsUrl || null;
     const normalizedStatus = String(image?.status || "").toLowerCase();
     const isProcessingMedia = ["pending", "processing", "queued"].includes(
@@ -5320,6 +9025,9 @@ function ImageModal({
     );
 
     const handleHide = useCallback(() => {
+        if (hideHandledRef.current) return;
+        hideHandledRef.current = true;
+
         const audio = modalAudioRef.current;
         if (image?.type === "audio" && mediaPlaybackId && audio) {
             ignoreModalPauseRef.current = true;

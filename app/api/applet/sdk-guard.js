@@ -15,9 +15,19 @@ export const APPLET_SDK_LIMITS = {
         maxPerWindow: 12,
         windowMs: ONE_MINUTE_MS,
     },
+    sourceQa: {
+        concurrent: 3,
+        maxPerWindow: 12,
+        windowMs: ONE_MINUTE_MS,
+    },
     modelGenerate: {
         concurrent: 3,
         maxPerWindow: 30,
+        windowMs: ONE_MINUTE_MS,
+    },
+    mediaTask: {
+        concurrent: 2,
+        maxPerWindow: 12,
         windowMs: ONE_MINUTE_MS,
     },
     serviceToken: {
@@ -75,6 +85,62 @@ function jsonGuardError(payload, status, retryAfterSeconds = null) {
         response.headers.set("Retry-After", String(retryAfterSeconds));
     }
     return response;
+}
+
+function isStreamingResponse(response) {
+    return (
+        response instanceof Response &&
+        response.body &&
+        response.headers
+            .get("Content-Type")
+            ?.toLowerCase()
+            .includes("text/event-stream")
+    );
+}
+
+function responseInitFrom(response) {
+    return {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+    };
+}
+
+function holdReleaseUntilStreamCloses(response, release) {
+    const reader = response.body.getReader();
+    let released = false;
+
+    const releaseOnce = () => {
+        if (released) return;
+        released = true;
+        release();
+    };
+
+    const stream = new ReadableStream({
+        async pull(controller) {
+            try {
+                const { done, value } = await reader.read();
+                if (done) {
+                    releaseOnce();
+                    controller.close();
+                    return;
+                }
+                controller.enqueue(value);
+            } catch (error) {
+                releaseOnce();
+                controller.error(error);
+            }
+        },
+        async cancel(reason) {
+            try {
+                await reader.cancel(reason);
+            } finally {
+                releaseOnce();
+            }
+        },
+    });
+
+    return new Response(stream, responseInitFrom(response));
 }
 
 async function getActiveSuspension(appletId, now = nowMs()) {
@@ -212,15 +278,28 @@ export async function withAppletSdkGuard({
     }
 
     activeRequests.set(key, activeCount + 1);
-    try {
-        return await run();
-    } finally {
+    let released = false;
+    const release = () => {
+        if (released) return;
+        released = true;
         const nextCount = (activeRequests.get(key) || 1) - 1;
         if (nextCount <= 0) {
             activeRequests.delete(key);
         } else {
             activeRequests.set(key, nextCount);
         }
+    };
+
+    try {
+        const result = await run();
+        if (isStreamingResponse(result)) {
+            return holdReleaseUntilStreamCloses(result, release);
+        }
+        release();
+        return result;
+    } catch (error) {
+        release();
+        throw error;
     }
 }
 

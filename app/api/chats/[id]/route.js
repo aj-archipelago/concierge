@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import Chat from "../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../utils/auth";
+import { syncChatLinkSharing } from "../../utils/shareHelpers";
 import {
     deleteChatIdFromRecentList,
     getChatById,
@@ -10,6 +11,7 @@ import {
     prepareMessagesForPersistence,
     addStoppedSubscription,
     buildLastMessagePreview,
+    getChatForOwnerWrite,
 } from "../_lib";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +38,14 @@ export async function POST(req, { params }) {
         ]);
         const messageForPersistence = messagesForPersistence[0] || message;
 
-        const chat = await Chat.findOne({ _id: id, userId: currentUser._id });
-        if (!chat) {
-            throw new Error("Chat not found");
+        const loaded = await getChatForOwnerWrite(id, currentUser?._id);
+        if (!loaded.ok) {
+            return NextResponse.json(
+                { error: loaded.error },
+                { status: loaded.status },
+            );
         }
+        const chat = loaded.chat;
 
         const prepared = prepareMessagesForPersistence([
             ...(chat.messages || []),
@@ -52,8 +58,6 @@ export async function POST(req, { params }) {
             chat.messagesCompactedAt = new Date();
         }
         Object.assign(chat, buildLastMessagePreview(chat.messages));
-        // One-way gate: if chat has messages, mark it as used
-        chat.isUnused = false;
         await chat.save();
 
         // Sanitize messages in response to remove Mongoose metadata
@@ -157,13 +161,21 @@ export async function PUT(req, { params }) {
         }
 
         // First, get the existing chat to preserve server-generated messages
-        const existingChat = await Chat.findOne({
-            _id: id,
-            userId: currentUser._id,
-        });
+        const loaded = await getChatForOwnerWrite(id, currentUser._id);
+        if (!loaded.ok) {
+            return NextResponse.json(
+                { error: loaded.error },
+                { status: loaded.status },
+            );
+        }
+        const existingChat = loaded.chat;
+        const { access } = loaded;
 
-        if (!existingChat) {
-            throw new Error("Chat not found");
+        if (
+            Object.prototype.hasOwnProperty.call(body, "isPublic") &&
+            !access.isOwner
+        ) {
+            delete body.isPublic;
         }
 
         // If the request contains messages, preserve server-owned assistant
@@ -228,9 +240,6 @@ export async function PUT(req, { params }) {
                     body.messagesCompactedAt = new Date();
                 }
 
-                // One-way gate: if chat has messages, mark it as used
-                body.isUnused = false;
-
                 Object.assign(body, buildLastMessagePreview(body.messages));
             }
             // If body.messages is empty, we don't add server messages back
@@ -268,10 +277,17 @@ export async function PUT(req, { params }) {
             delete body.isChatLoading;
         }
 
+        if (Object.prototype.hasOwnProperty.call(body, "isPublic")) {
+            await syncChatLinkSharing({
+                chatId: id,
+                ownerId: existingChat.userId,
+                linkEnabled: Boolean(body.isPublic),
+            });
+        }
+
         const chat = await Chat.findOneAndUpdate(
             {
                 _id: id,
-                userId: currentUser._id,
             },
             body,
             {

@@ -8,6 +8,7 @@ import {
     ExternalLink,
     FileText,
     LayoutDashboard,
+    Loader2,
     Trash2,
     Upload,
 } from "lucide-react";
@@ -25,9 +26,13 @@ export default function AdvancedTab({
     onFieldChange,
     latestHtmlRunId,
     onUploadFile,
+    isUploading = false,
+    uploadError = "",
     onDeleteFile,
     onDelete,
     isDeleting,
+    readOnly = false,
+    canManage = true,
 }) {
     const { t } = useTranslation();
     const fileInputRef = useRef(null);
@@ -97,6 +102,7 @@ export default function AdvancedTab({
                         <Checkbox
                             id="produces-html"
                             checked={form.producesHtml}
+                            disabled={readOnly}
                             onCheckedChange={(checked) =>
                                 onFieldChange("producesHtml", Boolean(checked))
                             }
@@ -116,7 +122,7 @@ export default function AdvancedTab({
                     >
                         <Checkbox
                             id="pin-sidebar"
-                            disabled={!form.producesHtml}
+                            disabled={readOnly || !form.producesHtml}
                             checked={form.producesHtml && form.pinnedToSidebar}
                             onCheckedChange={(checked) =>
                                 onFieldChange(
@@ -136,7 +142,7 @@ export default function AdvancedTab({
                         <Checkbox
                             id="pin-home"
                             checked={Boolean(form.pinnedToHome)}
-                            disabled={!automationId}
+                            disabled={readOnly || !canManage || !automationId}
                             onCheckedChange={(checked) =>
                                 onFieldChange("pinnedToHome", Boolean(checked))
                             }
@@ -163,12 +169,12 @@ export default function AdvancedTab({
 
             <Card>
                 <CardHeader className="p-4 pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <CardTitle className="text-base font-semibold text-gray-900 dark:text-gray-100">
                             {t("Supporting files")}
                         </CardTitle>
-                        {automationId && (
-                            <>
+                        {automationId && !readOnly && (
+                            <div className="flex flex-col items-start gap-1.5 sm:items-end">
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -185,14 +191,24 @@ export default function AdvancedTab({
                                     type="button"
                                     variant="outline"
                                     size="sm"
+                                    disabled={isUploading}
                                     onClick={() =>
                                         fileInputRef.current?.click()
                                     }
                                 >
-                                    <Upload className="me-1.5 h-3.5 w-3.5" />
+                                    {isUploading ? (
+                                        <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                        <Upload className="me-1.5 h-3.5 w-3.5" />
+                                    )}
                                     {t("Upload")}
                                 </Button>
-                            </>
+                                {uploadError && (
+                                    <div className="max-w-full text-start text-xs text-red-600 dark:text-red-400 sm:max-w-72 sm:text-end">
+                                        {uploadError}
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 </CardHeader>
@@ -216,15 +232,19 @@ export default function AdvancedTab({
                                             {filename}
                                         </span>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => onDeleteFile(filename)}
-                                        title={t("Delete")}
-                                    >
-                                        <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
-                                    </Button>
+                                    {!readOnly && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() =>
+                                                onDeleteFile(filename)
+                                            }
+                                            title={t("Delete")}
+                                        >
+                                            <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                                        </Button>
+                                    )}
                                 </div>
                             );
                         })
@@ -232,7 +252,7 @@ export default function AdvancedTab({
                 </CardContent>
             </Card>
 
-            {automationId && (
+            {automationId && canManage && (
                 <Card className="border-red-200 dark:border-red-900/40">
                     <CardHeader className="p-4 pb-2">
                         <CardTitle className="text-base font-semibold text-red-700 dark:text-red-300">

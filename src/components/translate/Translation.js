@@ -2,7 +2,7 @@
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApolloClient } from "@apollo/client";
-import { useContext, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import classNames from "../../../app/utils/class-names";
 import { LanguageContext } from "../../contexts/LanguageProvider";
@@ -10,58 +10,62 @@ import { QUERIES } from "../../graphql";
 import { stripHTML } from "../../utils/html.utils";
 import CopyButton from "../CopyButton";
 import LoadingButton from "../editor/LoadingButton";
+import {
+    getTranslationModel,
+    getTranslationLanguageOptions,
+    isGoogleTranslateLlmEnabled,
+    LANGUAGE_NAMES,
+    normalizeTranslationStrategy,
+    TRANSLATION_STRATEGIES,
+} from "./translationConfig";
 
-const LANGUAGE_NAMES = {
-    en: "English",
-    ar: "Arabic",
-    es: "Spanish",
-    fr: "French",
-    bs: "Bosnian",
-    hr: "Croatian",
-    zh: "Chinese",
-    de: "German",
-    he: "Hebrew",
-    it: "Italian",
-    ja: "Japanese",
-    ko: "Korean",
-    pt: "Portuguese",
-    ru: "Russian",
-    sr: "Serbian",
-    tr: "Turkish",
+export {
+    getTranslationModel,
+    getTranslationLanguageOptions,
+    isGoogleTranslateLlmEnabled,
+    LANGUAGE_NAMES,
+    normalizeTranslationStrategy,
+    TRANSLATION_STRATEGIES,
 };
 
-export const TRANSLATION_STRATEGIES = {
-    AZURE: "azure",
-    GEMINI_31_PRO: "gemini31pro",
-    GPT_55: "gpt55",
-    CLAUDE_47_OPUS: "claude47opus",
-    GEMINI_3_FLASH: "gemini3flash",
-    GPT_54_MINI: "gpt54mini",
-    CLAUDE_45_HAIKU: "claude45haiku",
-    GPT_4O_LEGACY: "gpt4oLegacy",
-};
-
-const DEFAULT_TRANSLATION_STRATEGY = TRANSLATION_STRATEGIES.GPT_55;
-
-const LEGACY_TRANSLATION_STRATEGY_MAP = {
-    "GPT-5.2": TRANSLATION_STRATEGIES.GPT_55,
-    "GPT-4-OMNI": TRANSLATION_STRATEGIES.GPT_4O_LEGACY,
-    traditional: TRANSLATION_STRATEGIES.AZURE,
-    translate: TRANSLATION_STRATEGIES.GPT_55,
-    quick: TRANSLATION_STRATEGIES.GPT_55,
-    context: TRANSLATION_STRATEGIES.GPT_55,
-    gpt54: TRANSLATION_STRATEGIES.GPT_55,
-};
-
-export function normalizeTranslationStrategy(strategy) {
-    if (Object.values(TRANSLATION_STRATEGIES).includes(strategy)) {
-        return strategy;
+export function buildTranslationRequest(strategy, inputText, to) {
+    const normalizedStrategy = normalizeTranslationStrategy(strategy);
+    const targetLanguage = LANGUAGE_NAMES[to];
+    if (
+        !getTranslationLanguageOptions(normalizedStrategy).some(
+            ([code]) => code === to,
+        )
+    ) {
+        throw new Error(
+            `${targetLanguage || to} is not supported by the selected translation provider.`,
+        );
     }
 
-    return (
-        LEGACY_TRANSLATION_STRATEGY_MAP[strategy] ||
-        DEFAULT_TRANSLATION_STRATEGY
-    );
+    const isAzure = normalizedStrategy === TRANSLATION_STRATEGIES.AZURE;
+    const isGoogleTranslateLlm =
+        normalizedStrategy === TRANSLATION_STRATEGIES.GOOGLE_TRANSLATE_LLM;
+    const model = getTranslationModel(normalizedStrategy);
+    const query = isAzure
+        ? QUERIES.TRANSLATE_AZURE
+        : isGoogleTranslateLlm
+          ? QUERIES.TRANSLATE_GOOGLE_LLM
+          : QUERIES.TRANSLATE;
+    const resultKey = isAzure
+        ? "translate_azure"
+        : isGoogleTranslateLlm
+          ? "translate_google_llm"
+          : "translate";
+
+    const variables = {
+        text: stripHTML(inputText),
+        to: isAzure || isGoogleTranslateLlm ? to : targetLanguage,
+    };
+
+    if (model) {
+        variables.model = model;
+    }
+
+    return { query, resultKey, variables };
 }
 
 // Get optimal font family and direction for target language
@@ -102,6 +106,10 @@ function Translation({
     const apolloClient = useApolloClient();
     const { direction } = useContext(LanguageContext);
     const [activeTab, setActiveTab] = useState("input");
+    const languageOptions = useMemo(
+        () => getTranslationLanguageOptions(translationStrategy),
+        [translationStrategy],
+    );
 
     const tabs = [
         {
@@ -118,74 +126,29 @@ function Translation({
         tabs.reverse();
     }
 
+    useEffect(() => {
+        if (
+            !languageOptions.some(([code]) => code === translationLanguage) &&
+            translationLanguage !== "en"
+        ) {
+            setTranslationLanguage("en");
+        }
+    }, [languageOptions, setTranslationLanguage, translationLanguage]);
+
     const executeTranslation = (strategy, inputText, to) => {
-        let query;
-        let resultKey;
-        let model;
-
-        switch (normalizeTranslationStrategy(strategy)) {
-            case TRANSLATION_STRATEGIES.GEMINI_31_PRO:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "gemini-pro-31-vision";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.GPT_55:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "oai-gpt55";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.CLAUDE_47_OPUS:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "claude-47-opus-vertex";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.GEMINI_3_FLASH:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "gemini-flash-3-vision";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.GPT_54_MINI:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "oai-gpt54-mini";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.CLAUDE_45_HAIKU:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "claude-45-haiku-vertex";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.GPT_4O_LEGACY:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "oai-gpt4o";
-                to = LANGUAGE_NAMES[to];
-                break;
-            case TRANSLATION_STRATEGIES.AZURE:
-                query = QUERIES.TRANSLATE_AZURE;
-                resultKey = "translate_azure";
-                break;
-            default:
-                query = QUERIES.TRANSLATE;
-                resultKey = "translate";
-                model = "oai-gpt55";
-                to = LANGUAGE_NAMES[to];
-                break;
+        let request;
+        try {
+            request = buildTranslationRequest(strategy, inputText, to);
+        } catch (e) {
+            setLoading(false);
+            console.error(e);
+            setTranslatedText(
+                `An error occurred while trying to get translation.\n\n${e.toString()}`,
+            );
+            return;
         }
 
-        const variables = {
-            text: stripHTML(inputText),
-            to: to,
-        };
-
-        if (model) {
-            variables.model = model;
-        }
+        const { query, resultKey, variables } = request;
 
         apolloClient
             .query({
@@ -193,8 +156,19 @@ function Translation({
                 variables: variables,
             })
             .then((e) => {
+                if (e.errors?.length) {
+                    throw new Error(e.errors[0].message);
+                }
+                const pathwayResult = e.data?.[resultKey];
+                if (pathwayResult?.errors?.length) {
+                    throw new Error(pathwayResult.errors[0]);
+                }
+                const result = pathwayResult?.result;
+                if (typeof result !== "string") {
+                    throw new Error("Translation service returned no result.");
+                }
                 setLoading(false);
-                setTranslatedText(e.data[resultKey].result.trim());
+                setTranslatedText(result.trim());
                 setActiveTab("output");
             })
             .catch((e) => {
@@ -219,19 +193,18 @@ function Translation({
                             className="lb-select"
                             id="translateLanguageSelect"
                             name="language"
+                            aria-label={t("Translate to")}
                             value={translationLanguage}
                             onChange={(e) => {
                                 const language = e.target.value;
                                 setTranslationLanguage(language);
                             }}
                         >
-                            {Object.entries(LANGUAGE_NAMES).map(
-                                ([code, name]) => (
-                                    <option key={code} value={code}>
-                                        {t(name)}
-                                    </option>
-                                ),
-                            )}
+                            {languageOptions.map(([code, name]) => (
+                                <option key={code} value={code}>
+                                    {t(name)}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div className="flex-1 flex gap-2 items-center justify-between w-full">
@@ -245,6 +218,15 @@ function Translation({
                                 setTranslationStrategy(strategy);
                             }}
                         >
+                            {isGoogleTranslateLlmEnabled() && (
+                                <option
+                                    value={
+                                        TRANSLATION_STRATEGIES.GOOGLE_TRANSLATE_LLM
+                                    }
+                                >
+                                    {t("Google TranslateLLM")}
+                                </option>
+                            )}
                             <option
                                 value={TRANSLATION_STRATEGIES.GEMINI_31_PRO}
                             >
@@ -261,7 +243,7 @@ function Translation({
                             <option
                                 value={TRANSLATION_STRATEGIES.GEMINI_3_FLASH}
                             >
-                                {t("Fastest Google (Gemini 3 Flash)")}
+                                {t("Fastest Google (Gemini 3.5 Flash)")}
                             </option>
                             <option value={TRANSLATION_STRATEGIES.GPT_54_MINI}>
                                 {t("Fastest OpenAI (GPT 5.4 Mini)")}

@@ -1,3 +1,4 @@
+@use "sass:color";
 @use "sass:meta";
 
 $enable-important-utilities: false;
@@ -190,7 +191,7 @@ button:focus:not(:focus-visible),
 
 .prompt-info {
     .prompt {
-        background-color: darken(white, 10%);
+        background-color: color.adjust(white, $lightness: -10%);
     }
 }
 

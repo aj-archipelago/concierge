@@ -145,7 +145,7 @@ export default function CanvasAppletManageDialog({
                                   "Edit your app details or manage publication settings.",
                               )
                             : t(
-                                  "Your applet has been published. Share the direct link or add it to the app store.",
+                                  "Your applet has been published. Share the direct link or add it to the Applet Store.",
                               )}
                     </DialogDescription>
                 </DialogHeader>
@@ -305,8 +305,8 @@ export default function CanvasAppletManageDialog({
                             {isSaving
                                 ? t("Publishing...")
                                 : showAppStoreForm
-                                  ? t("Publish to App Store")
-                                  : t("Add to App Store")}
+                                  ? t("Publish to Applet Store")
+                                  : t("Add to Applet Store")}
                         </Button>
                     )}
                 </DialogFooter>

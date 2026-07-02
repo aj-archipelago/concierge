@@ -166,6 +166,219 @@ describe("applet model APIs", () => {
         ]);
     });
 
+    test("lists applet-available media models with generation defaults", async () => {
+        mockMetadata([
+            {
+                modelId: "image-model",
+                displayName: "Image Model",
+                provider: "openai",
+                category: "image",
+                isDefault: true,
+                mediaDefaults: {
+                    aspectRatio: "1:1",
+                    quality: "high",
+                },
+                mediaControls: [{ key: "aspectRatio" }],
+                availableOutputFormats: [
+                    { value: "png", label: "PNG" },
+                    { value: "jpg", label: "JPG" },
+                ],
+                availableImageSizes: ["1K", "2K"],
+                availableResolutions: ["720p", "1080p"],
+                availableDurations: [5, 8],
+                mediaToggles: ["generateAudio"],
+            },
+            {
+                modelId: "speech-model",
+                displayName: "Speech Model",
+                provider: "google",
+                category: "tts",
+                mediaDefaults: {
+                    voiceName: "Aoede",
+                },
+            },
+            {
+                modelId: "chat-model",
+                category: "chat",
+            },
+            {
+                modelId: "disabled-image",
+                category: "image",
+                isAvailable: false,
+            },
+        ]);
+
+        const res = await getModels({
+            url: `http://localhost/api/applet/models?appletId=${appletId}&kind=media`,
+        });
+        const data = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(data.defaultModel).toBe("image-model");
+        expect(data.models).toEqual([
+            expect.objectContaining({
+                id: "image-model",
+                name: "Image Model",
+                category: "image",
+                mediaDefaults: {
+                    aspectRatio: "1:1",
+                    quality: "high",
+                },
+                availableOutputFormats: [
+                    { value: "png", label: "PNG" },
+                    { value: "jpg", label: "JPG" },
+                ],
+                availableImageSizes: ["1K", "2K"],
+                availableResolutions: ["720p", "1080p"],
+                availableDurations: [5, 8],
+                mediaToggles: ["generateAudio"],
+                isDefault: true,
+            }),
+            expect.objectContaining({
+                id: "speech-model",
+                category: "tts",
+                mediaDefaults: {
+                    voiceName: "Aoede",
+                },
+            }),
+        ]);
+        expect(data.models[0].mediaControls).toEqual([
+            { key: "aspectRatio" },
+            {
+                key: "image_size",
+                aliases: ["imageSize", "size"],
+                label: "Image Size",
+                type: "select",
+                options: [
+                    { value: "1K", label: "1K" },
+                    { value: "2K", label: "2K" },
+                ],
+            },
+            {
+                key: "resolution",
+                label: "Resolution",
+                type: "select",
+                options: [
+                    { value: "720p", label: "720p" },
+                    { value: "1080p", label: "1080p" },
+                ],
+            },
+            {
+                key: "duration",
+                label: "Duration",
+                type: "select",
+                options: [
+                    { value: 5, label: "5s" },
+                    { value: 8, label: "8s" },
+                ],
+            },
+            {
+                key: "outputFormat",
+                label: "Output Format",
+                type: "select",
+                options: [
+                    { value: "png", label: "PNG" },
+                    { value: "jpg", label: "JPG" },
+                ],
+            },
+            {
+                key: "generateAudio",
+                label: "Generate Audio",
+                type: "boolean",
+                trueLabel: "Audio",
+                falseLabel: "No Audio",
+            },
+        ]);
+    });
+
+    test("exposes Media-page option families as applet SDK controls", async () => {
+        mockMetadata([
+            {
+                modelId: "gemini-flash-31-image",
+                displayName: "Gemini 3.1 Flash Image",
+                provider: "google",
+                category: "image",
+                mediaDefaults: {
+                    inputImages: [0, 3],
+                    quality: "high",
+                    aspectRatio: "1:1",
+                    optimizePrompt: true,
+                },
+                availableAspectRatios: [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "match_input_image",
+                ],
+                mediaToggles: ["optimizePrompt"],
+                mediaInputModes: [
+                    {
+                        key: "referenceEdit",
+                        promptRequired: false,
+                        requires: {
+                            inputImages: [1, 3],
+                        },
+                    },
+                ],
+                preferredUrlFormat: "gcs",
+            },
+        ]);
+
+        const res = await getModels({
+            url: `http://localhost/api/applet/models?appletId=${appletId}&kind=media`,
+        });
+        const data = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(data.models[0]).toEqual(
+            expect.objectContaining({
+                id: "gemini-flash-31-image",
+                availableAspectRatios: [
+                    "1:1",
+                    "16:9",
+                    "9:16",
+                    "match_input_image",
+                ],
+                mediaDefaults: expect.objectContaining({
+                    aspectRatio: "1:1",
+                    optimizePrompt: true,
+                }),
+                mediaInputModes: [
+                    {
+                        key: "referenceEdit",
+                        promptRequired: false,
+                        requires: {
+                            inputImages: [1, 3],
+                        },
+                    },
+                ],
+            }),
+        );
+        expect(data.models[0].mediaControls).toEqual([
+            {
+                key: "aspectRatio",
+                label: "Aspect Ratio",
+                type: "select",
+                options: [
+                    { value: "1:1", label: "1:1" },
+                    { value: "16:9", label: "16:9" },
+                    { value: "9:16", label: "9:16" },
+                    {
+                        value: "match_input_image",
+                        label: "Match Input Image",
+                    },
+                ],
+            },
+            {
+                key: "optimizePrompt",
+                label: "Optimize Prompt",
+                type: "boolean",
+                trueLabel: "Optimized",
+                falseLabel: "Raw Prompt",
+            },
+        ]);
+    });
+
     test("generates with run_workspace_prompt without agent entity variables", async () => {
         mockMetadata([
             {
@@ -180,6 +393,10 @@ describe("applet model APIs", () => {
             data: {
                 run_workspace_prompt: {
                     result: "مرحبا",
+                    tool: JSON.stringify({
+                        citations: [{ title: "Source", url: "https://x" }],
+                        custom: { confidence: 0.9 },
+                    }),
                 },
             },
         });
@@ -194,7 +411,14 @@ describe("applet model APIs", () => {
         const data = await res.json();
 
         expect(res.status).toBe(200);
-        expect(data).toEqual({ result: "مرحبا" });
+        expect(data).toEqual({
+            result: "مرحبا",
+            citations: [{ title: "Source", url: "https://x" }],
+            metadata: {
+                citations: [{ title: "Source", url: "https://x" }],
+                custom: { confidence: 0.9 },
+            },
+        });
         expect(mockQuery).toHaveBeenCalledTimes(2);
         expect(mockQuery.mock.calls[1][0].variables).toEqual(
             expect.objectContaining({

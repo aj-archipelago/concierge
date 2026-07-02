@@ -141,7 +141,7 @@ describe("check-url API", () => {
 
         const response = await POST(
             createMockRequest({
-                url: "https://customerstorage.blob.core.windows.net/files/test.pdf",
+                url: "https://storage.googleapis.com/bucket/files/test.pdf",
                 hash: "hash123",
                 chatId: "chat-123",
                 fileScope: "chat",
@@ -158,11 +158,13 @@ describe("check-url API", () => {
             exists: true,
             source: "url",
         });
-        expect(global.fetch).toHaveBeenCalledWith(
-            "https://customerstorage.blob.core.windows.net/files/test.pdf",
+        expect(global.fetch.mock.calls[0][0].toString()).toBe(
+            "https://storage.googleapis.com/bucket/files/test.pdf",
+        );
+        expect(global.fetch.mock.calls[0][1]).toEqual(
             expect.objectContaining({
                 method: "HEAD",
-                redirect: "follow",
+                redirect: "manual",
             }),
         );
     });
@@ -305,9 +307,9 @@ describe("check-url API", () => {
             },
         });
         checkMediaFile.mockResolvedValue({
-            url: "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
+            url: "https://storage.googleapis.com/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
             shortLivedUrl:
-                "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
+                "https://storage.googleapis.com/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
             blobPath: "mod63eq7-act.jpeg",
             hash: "af67fc86281c4eb0",
         });
@@ -327,9 +329,9 @@ describe("check-url API", () => {
             exists: true,
             source: "canonical",
             file: {
-                url: "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
+                url: "https://storage.googleapis.com/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=fresh&sig=token",
                 shortLivedUrl:
-                    "https://customerstorage.blob.core.windows.net/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
+                    "https://storage.googleapis.com/cortexfiles/chats/chat-123/mod63eq7-act.jpeg?sv=short&sig=token",
                 blobPath: "chats/chat-123/mod63eq7-act.jpeg",
                 hash: "af67fc86281c4eb0",
             },

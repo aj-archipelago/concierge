@@ -10,20 +10,15 @@ import {
     determineFileRouting,
     extractBlobPathFromUrl,
     fetchShortLivedUrl,
+    isAllowedBlobDomain,
     prepareFileContentForLLM,
+    validateAllowedBlobUrl,
 } from "../llm-file-utils";
 import {
     createUserGlobalStorageTarget,
     createWorkspacePrivateStorageTarget,
     createWorkspaceSharedStorageTarget,
 } from "../../../../src/utils/storageTargets.js";
-
-// Mock config
-jest.mock("../../../../config", () => ({
-    endpoints: {
-        mediaHelperDirect: jest.fn(() => "http://media-helper.test"),
-    },
-}));
 
 // Suppress console.error and console.warn for expected errors in file handling
 const originalError = console.error;
@@ -1048,19 +1043,21 @@ describe("determineFileRouting", () => {
 
 describe("fetchShortLivedUrl", () => {
     const originalFetch = global.fetch;
-    const config = require("../../../../config");
+    const originalMediaHelperUrl = process.env.CORTEX_MEDIA_API_URL;
 
     beforeEach(() => {
         global.fetch = jest.fn();
         jest.clearAllMocks();
-        // Reset config mock to return URL by default
-        config.endpoints.mediaHelperDirect.mockReturnValue(
-            "http://media-helper.test",
-        );
+        process.env.CORTEX_MEDIA_API_URL = "http://media-helper.test";
     });
 
     afterAll(() => {
         global.fetch = originalFetch;
+        if (originalMediaHelperUrl == null) {
+            delete process.env.CORTEX_MEDIA_API_URL;
+        } else {
+            process.env.CORTEX_MEDIA_API_URL = originalMediaHelperUrl;
+        }
     });
 
     it("should return shortLivedUrl and gcs from media-helper response", async () => {
@@ -1195,7 +1192,7 @@ describe("fetchShortLivedUrl", () => {
     });
 
     it("should return null when media-helper URL is not configured", async () => {
-        config.endpoints.mediaHelperDirect.mockReturnValue(null);
+        delete process.env.CORTEX_MEDIA_API_URL;
 
         const result = await fetchShortLivedUrl({
             hash: "testhash",
@@ -1647,5 +1644,44 @@ describe("extractBlobPathFromUrl", () => {
         const url =
             "https://account.blob.core.windows.net/container/abc123_file.pdf";
         expect(extractBlobPathFromUrl(url)).toBe("abc123_file.pdf");
+    });
+});
+
+describe("blob URL allowlist", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+
+    afterEach(() => {
+        process.env.NODE_ENV = originalNodeEnv;
+    });
+
+    it("allows only exact configured storage hostnames", () => {
+        expect(isAllowedBlobDomain("storage.googleapis.com")).toBe(true);
+        expect(isAllowedBlobDomain("bucket.storage.googleapis.com")).toBe(
+            false,
+        );
+    });
+
+    it("rejects non-exact storage origins before fetch", () => {
+        expect(() =>
+            validateAllowedBlobUrl(
+                "https://bucket.storage.googleapis.com/file.txt",
+            ),
+        ).toThrow("URL is not from an allowed domain");
+    });
+
+    it("keeps local Azurite origins development-only", () => {
+        process.env.NODE_ENV = "development";
+        expect(() =>
+            validateAllowedBlobUrl(
+                "http://127.0.0.1:10000/devstoreaccount1/container/file.txt",
+            ),
+        ).not.toThrow();
+
+        process.env.NODE_ENV = "production";
+        expect(() =>
+            validateAllowedBlobUrl(
+                "http://127.0.0.1:10000/devstoreaccount1/container/file.txt",
+            ),
+        ).toThrow("URL is not from an allowed domain");
     });
 });

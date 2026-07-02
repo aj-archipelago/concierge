@@ -4,13 +4,36 @@ import { FORMAT_PARAGRAPH_TURBO } from "../graphql.mjs";
 import { BaseTask } from "./base-task.mjs";
 import { getStoredTranscriptFormat } from "./transcribe-format.mjs";
 import { getTranscribeQueryForModelOption } from "./transcribe-query.mjs";
+import { applyTranscriptionCompletionToState } from "./transcribe-state.mjs";
+import { normalizeTranscribeTaskMetadata } from "../../app/api/utils/transcribe-model-options.js";
 import {
     redactObjectForLog,
     redactSensitiveText,
     redactUrlForLog,
 } from "../../app/api/utils/log-redaction.mjs";
+import { validatePublicMediaUrl } from "../../app/api/utils/publicMediaUrlValidation.js";
 // Update model imports to use dynamic import since they're ES modules
 let User, UserState, Task;
+const activeTaskStatusFilter = {
+    $nin: ["completed", "failed", "cancelled", "abandoned"],
+};
+
+function getTranscriptionBackendError(dataObject) {
+    const text =
+        typeof dataObject === "string"
+            ? dataObject
+            : typeof dataObject?.data === "string"
+              ? dataObject.data
+              : typeof dataObject?.error === "string"
+                ? dataObject.error
+                : typeof dataObject?.message === "string"
+                  ? dataObject.message
+                  : "";
+    const prefix = "transcribe error:";
+    const trimmed = text.trim();
+    if (!trimmed.toLowerCase().startsWith(prefix)) return null;
+    return trimmed.slice(prefix.length).trim() || null;
+}
 
 // Initialize models asynchronously
 async function initializeModels() {
@@ -45,12 +68,13 @@ class TranscribeHandler extends BaseTask {
 
     async startRequest(job) {
         const { taskId, metadata } = job.data;
+        const normalizedMetadata = normalizeTranscribeTaskMetadata(metadata);
         console.debug(
             `[TranscribeHandler] Initializing job ${taskId}`,
-            redactObjectForLog(metadata),
+            redactObjectForLog(normalizedMetadata),
         );
 
-        const {
+        let {
             url,
             language,
             wordTimestamped,
@@ -61,16 +85,28 @@ class TranscribeHandler extends BaseTask {
             highlightWords,
             modelOption,
             contextId,
-        } = metadata;
+        } = normalizedMetadata;
 
-        // Validate URL
-        try {
-            new URL(url);
-        } catch (error) {
-            console.debug(
-                `[TranscribeHandler] URL validation failed for ${redactUrlForLog(url)}`,
-            );
-            throw new Error(`Invalid URL: ${redactUrlForLog(url)}`);
+        if (metadata.enforcePublicUrl) {
+            const validation = await validatePublicMediaUrl(url, {
+                validateRedirects: true,
+            });
+            if (!validation.ok) {
+                console.debug(
+                    `[TranscribeHandler] Public URL validation failed for ${redactUrlForLog(url)}`,
+                );
+                throw new Error(`Invalid URL: ${redactUrlForLog(url)}`);
+            }
+            url = validation.url;
+        } else {
+            try {
+                new URL(url);
+            } catch (error) {
+                console.debug(
+                    `[TranscribeHandler] URL validation failed for ${redactUrlForLog(url)}`,
+                );
+                throw new Error(`Invalid URL: ${redactUrlForLog(url)}`);
+            }
         }
 
         // Select query based on model option
@@ -118,6 +154,7 @@ class TranscribeHandler extends BaseTask {
             data?.transcribe?.result ||
             data?.transcribe_neuralspace?.result ||
             data?.transcribe_gemini?.result ||
+            data?.transcribe_mai_15?.result ||
             data?.transcribe_xai_gemini?.result ||
             data?.transcribe_xai?.result;
 
@@ -140,6 +177,11 @@ class TranscribeHandler extends BaseTask {
             format: metadata.responseFormat,
             hasData: !!dataObject,
         });
+
+        const backendError = getTranscriptionBackendError(dataObject);
+        if (backendError) {
+            throw new Error(`Transcription failed: ${backendError}`);
+        }
 
         let finalTranscript = dataObject;
         if (
@@ -166,17 +208,18 @@ class TranscribeHandler extends BaseTask {
             }
         }
 
-        // Save transcript to user state
-        const { userId } = metadata;
-        await this.handleTranscriptionCompletion(
-            userId,
-            finalTranscript,
-            metadata.responseFormat,
-            metadata,
-        );
-        console.debug(
-            `[TranscribeHandler] Transcript saved to user state for ${userId}`,
-        );
+        if (!metadata.skipUserState) {
+            const { userId } = metadata;
+            await this.handleTranscriptionCompletion(
+                userId,
+                finalTranscript,
+                metadata.responseFormat,
+                { ...metadata, taskId },
+            );
+            console.debug(
+                `[TranscribeHandler] Transcript saved to user state for ${userId}`,
+            );
+        }
 
         return finalTranscript;
     }
@@ -189,7 +232,7 @@ class TranscribeHandler extends BaseTask {
     ) {
         try {
             // Ensure models are initialized
-            if (!User || !UserState) {
+            if (!User || !UserState || !Task) {
                 await initializeModels();
             }
 
@@ -229,65 +272,44 @@ class TranscribeHandler extends BaseTask {
                 }
             }
 
-            const transcribeState = state.transcribe || {};
-            const transcripts = transcribeState.transcripts || [];
-
             const { url } = metadata || {};
             console.debug(
                 `[TranscribeHandler] Adding transcript for video ${redactUrlForLog(url)}`,
             );
 
             const storedFormat = getStoredTranscriptFormat(format);
-            const name = storedFormat === "vtt" ? "Subtitles" : "Transcript";
+            const result = applyTranscriptionCompletionToState({
+                state,
+                transcriptionData,
+                storedFormat,
+                metadata,
+            });
 
-            // Find existing tracks with the same name and get the highest number
-            const baseNameMatch = name.match(/(.*?)(?:\s+\((\d+)\))?$/);
-            const baseName = baseNameMatch[1];
-            const existingNumbers = transcripts
-                .filter((t) => t.name && t.name.startsWith(baseName))
-                .map((t) => {
-                    const match = t.name.match(
-                        new RegExp(`${baseName}\\s+\\((\\d+)\\)$`),
-                    );
-                    return match ? parseInt(match[1]) : 0;
-                });
-
-            // Determine the new name with suffix if needed
-            let newName = name;
-            if (transcripts.some((t) => t.name === name)) {
-                const nextNumber =
-                    existingNumbers.length > 0
-                        ? Math.max(...existingNumbers) + 1
-                        : 1;
-                newName = `${baseName} (${nextNumber})`;
+            if (!result.applied) {
+                console.warn(
+                    `[TranscribeHandler] Skipping transcript save because the active video changed before completion`,
+                    { target: redactUrlForLog(url) },
+                );
+                return;
             }
 
-            // Add the new transcript
-            const updatedTranscripts = [
-                ...transcripts,
-                {
-                    text: transcriptionData,
-                    format: storedFormat,
-                    name: newName,
-                    timestamp: new Date().toISOString(),
-                },
-            ];
+            if (metadata?.taskId) {
+                const activeTask = await Task.findOne({
+                    _id: metadata.taskId,
+                    status: activeTaskStatusFilter,
+                }).select("_id");
 
-            // Set the active transcript to the new one
-            const newActiveIndex = updatedTranscripts.length - 1;
-
-            // Update the state
-            const updatedState = {
-                ...state,
-                transcribe: {
-                    ...transcribeState,
-                    transcripts: updatedTranscripts,
-                    activeTranscript: newActiveIndex,
-                },
-            };
+                if (!activeTask) {
+                    console.warn(
+                        `[TranscribeHandler] Skipping transcript save because task is already terminal`,
+                        { taskId: metadata.taskId },
+                    );
+                    return;
+                }
+            }
 
             // Save the updated state
-            userState.serializedState = JSON.stringify(updatedState);
+            userState.serializedState = JSON.stringify(result.state);
             await userState.save();
 
             console.debug(

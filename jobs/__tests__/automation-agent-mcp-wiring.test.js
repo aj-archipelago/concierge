@@ -34,4 +34,42 @@ describe("automation agent MCP wiring", () => {
             "mcpAvailableServers: mcpAgentConfig.mcpAvailableServers",
         );
     });
+
+    it("starts automation agent runs as streamed async Cortex requests", () => {
+        const taskSource = read("jobs/tasks/automation-run.mjs");
+
+        expect(taskSource).toContain("StreamAccumulator");
+        expect(taskSource).toContain("stream: true");
+        expect(taskSource).toContain(
+            "const subscriptionId = result.data?.sys_entity_agent?.result",
+        );
+        expect(taskSource).toContain("return subscriptionId");
+        expect(taskSource).toContain("async handleProgress(");
+        expect(taskSource).toContain("async handleCompletion(");
+        expect(taskSource).not.toContain("stream: false");
+    });
+
+    it("passes automation files as Cortex attachments instead of text-only prompt snippets", () => {
+        const taskSource = read("jobs/tasks/automation-run.mjs");
+
+        expect(taskSource).toContain("prepareFileContentForLLM");
+        expect(taskSource).toContain("buildAutomationFileContext");
+        expect(taskSource).toContain("...fileContext.fileContent");
+        expect(taskSource).toContain('kind: "user-files"');
+        expect(taskSource).not.toContain("TEXT_FILE_EXTENSIONS");
+        expect(taskSource).not.toContain("readBlobContent");
+    });
+
+    it("attaches the previous HTML output with previous-run context", () => {
+        const taskSource = read("jobs/tasks/automation-run.mjs");
+
+        expect(taskSource).toContain("previous-run-output.html");
+        expect(taskSource).toContain("previous_run_output");
+        expect(taskSource).toContain("prepareExistingAutomationFileReference");
+        expect(taskSource).toContain("checkMediaFile");
+        expect(taskSource).toContain(
+            "The previous run's HTML output is attached",
+        );
+        expect(taskSource).toContain("latestHtmlOutputPath");
+    });
 });

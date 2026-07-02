@@ -50,7 +50,11 @@ describe("POST /api/tasks", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        process.env = { ...originalEnv, ENABLE_XAI_TRANSCRIBE: "true" };
+        process.env = {
+            ...originalEnv,
+            ENABLE_XAI_TRANSCRIBE: "true",
+            ENABLE_MAI_TRANSCRIBE: "true",
+        };
         getCurrentUser.mockResolvedValue({
             _id: "user-1",
             contextId: "server-context",
@@ -86,6 +90,39 @@ describe("POST /api/tasks", () => {
                     modelOption: "xAI + Gemini",
                 }),
                 invokedFrom: { source: "video_page", chatId: undefined },
+            }),
+        );
+    });
+
+    test("allows MAI transcribe tasks when enabled", async () => {
+        const response = await POST({
+            json: async () => ({
+                type: "transcribe",
+                source: "video_page",
+                url: "https://example.com/audio.wav",
+                modelOption: "MAI-Transcribe-1.5",
+                wordTimestamped: true,
+                maxLineCount: 1,
+                maxLineWidth: 35,
+                maxWordsPerLine: 3,
+                highlightWords: true,
+            }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(createBackgroundTask).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "transcribe",
+                metadata: expect.objectContaining({
+                    modelOption: "MAI-Transcribe-1.5",
+                    contextId: "server-context",
+                    wordTimestamped: false,
+                    maxLineCount: undefined,
+                    maxLineWidth: undefined,
+                    maxWordsPerLine: undefined,
+                    highlightWords: false,
+                }),
+                timeout: 60 * 60 * 1000,
             }),
         );
     });

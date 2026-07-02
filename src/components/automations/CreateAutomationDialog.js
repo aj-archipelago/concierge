@@ -135,7 +135,7 @@ export default function CreateAutomationDialog({
 
         try {
             const created = await create.mutateAsync(payload);
-            onCreated?.(created._id, { customize: openAfter });
+            onCreated?.(created, { customize: openAfter });
             onOpenChange(false);
         } catch (err) {
             setError(err?.response?.data?.error || err.message);

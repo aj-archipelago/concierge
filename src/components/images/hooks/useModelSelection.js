@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useMediaModels } from "../../../../app/queries/modelMetadata";
 
+const getModelGenerationOutputType = (modelSettings = {}, modelMeta = null) => {
+    const type = modelSettings.type || modelMeta?.category || "image";
+    if (type === "tts") return "audio";
+    if (type === "upscaling") {
+        const defaults = modelMeta?.mediaDefaults || {};
+        return defaults.inputImages ? "image" : "video";
+    }
+    return type;
+};
+
 export const useModelSelection = ({
     settings,
     selectedModel,
@@ -8,6 +18,7 @@ export const useModelSelection = ({
     setOutputType,
     setQuality,
     getModelSettings,
+    suspendAutoSelection = false,
 }) => {
     const { data: mediaModels } = useMediaModels();
 
@@ -28,6 +39,7 @@ export const useModelSelection = ({
             const video = [];
             const audio = [];
             const tts = [];
+            const upscaling = [];
             for (const id of models) {
                 const type =
                     settings.models?.[id]?.type ||
@@ -39,6 +51,8 @@ export const useModelSelection = ({
                     tts.push(id);
                 } else if (type === "audio") {
                     audio.push(id);
+                } else if (type === "upscaling") {
+                    upscaling.push(id);
                 } else {
                     image.push(id);
                 }
@@ -51,7 +65,8 @@ export const useModelSelection = ({
             video.sort(sortByDisplayName);
             audio.sort(sortByDisplayName);
             tts.sort(sortByDisplayName);
-            return { image, video, audio, tts };
+            upscaling.sort(sortByDisplayName);
+            return { image, video, audio, tts, upscaling };
         };
 
         return groupModels(allModels);
@@ -59,6 +74,8 @@ export const useModelSelection = ({
 
     // Keep selection valid if model configuration changes.
     useEffect(() => {
+        if (suspendAutoSelection) return;
+
         // Don't pick anything until the API model list has loaded — without
         // it we can't honor `isDefault`, and `Object.keys(settings.models)`
         // sorted by raw modelId would (incorrectly) prefer whichever id is
@@ -72,13 +89,15 @@ export const useModelSelection = ({
             ...availableModels.video,
             ...availableModels.audio,
             ...availableModels.tts,
+            ...availableModels.upscaling,
         ];
 
-        // Check if current model still exists in the configured model list.
-        const isCurrentModelAvailable =
-            allAvailableModels.includes(selectedModel);
+        setSelectedModel((currentModel) => {
+            const modelToCheck = currentModel || selectedModel;
+            if (allAvailableModels.includes(modelToCheck)) {
+                return currentModel;
+            }
 
-        if (!isCurrentModelAvailable) {
             // Prefer the API-flagged default before the alphabetical first.
             const newModel =
                 mediaModels.find(
@@ -86,25 +105,32 @@ export const useModelSelection = ({
                         m.isDefault && allAvailableModels.includes(m.modelId),
                 )?.modelId || allAvailableModels[0];
 
-            if (newModel) {
-                setSelectedModel(newModel);
-                // Update output type based on the new model
-                const newModelSettings = getModelSettings(settings, newModel);
-                if (newModelSettings.type === "image") {
-                    setQuality(newModelSettings.quality || "draft");
-                }
-                setOutputType(newModelSettings.type || "image");
+            if (!newModel) return currentModel;
+
+            // Update output type based on the new model
+            const newModelSettings = getModelSettings(settings, newModel);
+            if (newModelSettings.type === "image") {
+                setQuality(newModelSettings.quality || "draft");
             }
-        }
+            setOutputType(
+                getModelGenerationOutputType(
+                    newModelSettings,
+                    modelMap.get(newModel),
+                ),
+            );
+            return newModel;
+        });
     }, [
         settings,
         selectedModel,
+        modelMap,
         mediaModels,
         getAvailableModels,
         setSelectedModel,
         setOutputType,
         setQuality,
         getModelSettings,
+        suspendAutoSelection,
     ]);
 
     return {

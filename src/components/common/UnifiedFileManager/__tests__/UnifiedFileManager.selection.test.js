@@ -6,6 +6,7 @@ import {
     waitFor,
     within,
 } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom";
 
 import UnifiedFileManager from "../UnifiedFileManager";
@@ -336,6 +337,27 @@ jest.mock("../FileContentArea", () => ({
     },
 }));
 
+function renderWithQueryClient(ui) {
+    const queryClient = new QueryClient({
+        defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+        },
+    });
+
+    const view = render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    );
+
+    return {
+        ...view,
+        unmount: () => {
+            view.unmount();
+            queryClient.clear();
+        },
+    };
+}
+
 describe("UnifiedFileManager shift selection", () => {
     beforeEach(() => {
         window.localStorage.clear();
@@ -345,7 +367,7 @@ describe("UnifiedFileManager shift selection", () => {
     });
 
     it("selects the full visible range in list order", () => {
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 onDownload={jest.fn()}
@@ -375,7 +397,7 @@ describe("UnifiedFileManager shift selection", () => {
     });
 
     it("uses defaultViewMode only when there is no saved view preference", () => {
-        const { unmount } = render(
+        const { unmount } = renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 defaultViewMode="grid"
@@ -387,7 +409,7 @@ describe("UnifiedFileManager shift selection", () => {
         unmount();
 
         window.localStorage.setItem("unified-file-manager-view-mode", "list");
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 defaultViewMode="grid"
@@ -400,8 +422,45 @@ describe("UnifiedFileManager shift selection", () => {
         ).toBeInTheDocument();
     });
 
+    it("restores persisted file selections for the files page", async () => {
+        window.localStorage.setItem(
+            "unified-file-manager-state:files-page-test",
+            JSON.stringify({
+                selectedFileIds: ["id-newest", "id-oldest", "id-missing"],
+                lastSelectedFileId: "id-oldest",
+            }),
+        );
+
+        renderWithQueryClient(
+            <UnifiedFileManager
+                contextId="ctx-1"
+                onDownload={jest.fn()}
+                containerHeight="400px"
+                persistenceKey="files-page-test"
+            />,
+        );
+
+        await waitFor(() => {
+            expect(
+                screen.getByTestId("content-selected-count"),
+            ).toHaveTextContent("2");
+        });
+        expect(screen.getByTestId("status-selected-count")).toHaveTextContent(
+            "2",
+        );
+        await waitFor(() => {
+            expect(
+                JSON.parse(
+                    window.localStorage.getItem(
+                        "unified-file-manager-state:files-page-test",
+                    ),
+                ).selectedFileIds,
+            ).toEqual(["id-newest", "id-oldest"]);
+        });
+    });
+
     it("filters media files by tags", () => {
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 onDownload={jest.fn()}
@@ -425,7 +484,7 @@ describe("UnifiedFileManager shift selection", () => {
     });
 
     it("hides unavailable bulk actions for the current selection", () => {
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 onAttach={jest.fn()}
@@ -460,7 +519,7 @@ describe("UnifiedFileManager shift selection", () => {
     });
 
     it("explains the move destination clearly", () => {
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 onMove={jest.fn()}
@@ -489,7 +548,7 @@ describe("UnifiedFileManager shift selection", () => {
     it("refreshes files after a failed move so partial server success is reconciled", async () => {
         const onMove = jest.fn().mockRejectedValue(new Error("Move failed"));
 
-        render(
+        renderWithQueryClient(
             <UnifiedFileManager
                 contextId="ctx-1"
                 onMove={onMove}

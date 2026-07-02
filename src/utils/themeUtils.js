@@ -173,6 +173,14 @@ export function filterDarkClasses(content, theme) {
     return content.replace(/\bdark:[^\s"'`>]+/g, "");
 }
 
+function escapeHtmlAttribute(value) {
+    return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
 /** Supported applet UI languages. */
 export const SUPPORTED_APPLET_LANGUAGES = new Set(["en", "ar"]);
 
@@ -254,6 +262,7 @@ export function parseAppletParams(search = "") {
  * @param {string} [options.language] - Applet UI language (en or ar)
  * @param {string} [options.direction] - Text direction (ltr or rtl)
  * @param {Record<string, string>} [options.params] - Query params to inject (defaults to parent page URL)
+ * @param {string|null} [options.baseHref] - Base URL for relative applet assets
  * @returns {string} - The complete HTML document with dark classes filtered based on theme
  */
 export function generateFilteredSandboxHtml(content, theme, options = {}) {
@@ -275,6 +284,9 @@ export function generateFilteredSandboxHtml(content, theme, options = {}) {
 
     // Extract head and body content from the user's HTML
     const { headContent, bodyContent } = extractHtmlStructure(content);
+    const baseHref = options.baseHref
+        ? `<base href="${escapeHtmlAttribute(options.baseHref)}">`
+        : "";
 
     // Tailwind v4 browser script - required for <style type="text/tailwindcss"> and Tailwind classes in applet body
     const TAILWIND_SCRIPT = includeRuntimeScripts
@@ -328,6 +340,7 @@ export function generateFilteredSandboxHtml(content, theme, options = {}) {
             <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
+                ${baseHref}
                 ${TAILWIND_ERROR_RECOVERY}
                 ${TAILWIND_SCRIPT}
                 ${APPLET_SDK_SCRIPT}

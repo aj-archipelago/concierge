@@ -1,11 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { NEW_CHAT_ID } from "../../app/utils/chatClientIds";
-import {
-    normalizeChatForCache,
-    syncInFlightChatCache,
-} from "../../app/queries/chats";
+import { syncInFlightChatCache } from "../../app/queries/chats";
 import {
     appendAssistantThinkingSummary,
     appendAssistantTextChunk,
@@ -20,6 +16,42 @@ import {
 
 const STREAM_KEY = (chatId) => ["stream", chatId];
 const FRAME_FALLBACK_MS = 16;
+const streamSessions = new Map();
+
+function getStreamSession(chatId) {
+    if (!chatId) return null;
+    const key = String(chatId);
+    let session = streamSessions.get(key);
+    if (!session) {
+        session = {
+            chatId: key,
+            queue: [],
+            processing: false,
+            queueScheduled: false,
+            processedTools: new Set(),
+            ackedClientTools: new Set(),
+            reader: null,
+            callbacks: {},
+            chatSnapshot: null,
+            queryClient: null,
+        };
+        streamSessions.set(key, session);
+    }
+    return session;
+}
+
+function deleteStreamSession(chatId) {
+    if (!chatId) return;
+    streamSessions.delete(String(chatId));
+}
+
+function isCurrentStreamSessionRun(chatId, session, streamRunId) {
+    if (!chatId || !session) return false;
+    return (
+        streamSessions.get(String(chatId)) === session &&
+        session.streamRunId === streamRunId
+    );
+}
 
 const scheduleNextPaint = (callback) => {
     let completed = false;
@@ -85,32 +117,42 @@ export function useStreamingMessages({
     chat,
     updateChatHook,
     onClientSideToolCall,
-    onChatPromoted,
+    onClientSideToolHeartbeat,
     onStreamComplete,
     onStreamDetached,
     onServerToolFinish,
 }) {
     const queryClient = useQueryClient();
     const chatId = chat?._id ? String(chat._id) : null;
-    const promotedStreamChatIdRef = useRef(null);
-    const processQueueRef = useRef(null);
 
-    const refs = useRef({
-        queue: [],
-        processing: false,
-        queueScheduled: false,
-        processedTools: new Set(),
-    });
+    useEffect(() => {
+        const session = getStreamSession(chatId);
+        if (!session) return;
+        session.queryClient = queryClient;
+        session.chatSnapshot = chat || null;
+        session.callbacks = {
+            onClientSideToolCall,
+            onClientSideToolHeartbeat,
+            onStreamComplete,
+            onStreamDetached,
+            onServerToolFinish,
+        };
+    }, [
+        chatId,
+        chat,
+        queryClient,
+        onClientSideToolCall,
+        onClientSideToolHeartbeat,
+        onStreamComplete,
+        onStreamDetached,
+        onServerToolFinish,
+    ]);
 
     const getMirroredStreamChatIds = useCallback(
         (baseChatId = chatId) => {
             const ids = new Set();
             if (baseChatId) {
                 ids.add(String(baseChatId));
-            }
-
-            if (promotedStreamChatIdRef.current) {
-                ids.add(String(promotedStreamChatIdRef.current));
             }
 
             return [...ids];
@@ -146,9 +188,7 @@ export function useStreamingMessages({
 
     const startPendingStream = useCallback(() => {
         if (!chatId) return;
-        if (chatId === NEW_CHAT_ID) {
-            promotedStreamChatIdRef.current = null;
-        }
+        getStreamSession(chatId);
         const current = queryClient.getQueryData(STREAM_KEY(chatId)) || {};
         if (current.isStreaming) return;
         queryClient.setQueryData(STREAM_KEY(chatId), {
@@ -174,6 +214,7 @@ export function useStreamingMessages({
             const state = queryClient.getQueryData(STREAM_KEY(targetChatId));
             state?.reader?.cancel?.().catch(() => {});
             queryClient.removeQueries({ queryKey: STREAM_KEY(targetChatId) });
+            deleteStreamSession(targetChatId);
         });
     }, [getMirroredStreamChatIds, queryClient]);
 
@@ -189,15 +230,15 @@ export function useStreamingMessages({
     }, [chatId, updateChatHook, clearStream]);
 
     const scheduleProcessQueue = useCallback(() => {
-        const r = refs.current;
-        if (r.queueScheduled) return;
-        r.queueScheduled = true;
+        const session = getStreamSession(chatId);
+        if (!session || session.queueScheduled) return;
+        session.queueScheduled = true;
 
         scheduleNextPaint(() => {
-            refs.current.queueScheduled = false;
-            void processQueueRef.current?.();
+            session.queueScheduled = false;
+            void session.processQueue?.();
         });
-    }, []);
+    }, [chatId]);
 
     const applyStreamToolMessage = useCallback(
         (toolMessage, state = {}) => {
@@ -276,19 +317,20 @@ export function useStreamingMessages({
                 });
 
                 if (success) {
-                    onServerToolFinish?.();
+                    const session = getStreamSession(chatId);
+                    session?.callbacks?.onServerToolFinish?.();
                 }
             }
         },
-        [onServerToolFinish, setStream],
+        [chatId, setStream],
     );
 
     const processQueue = useCallback(async () => {
-        const r = refs.current;
-        if (r.processing || !r.queue.length) return;
+        const session = getStreamSession(chatId);
+        if (!session || session.processing || !session.queue.length) return;
 
-        r.processing = true;
-        const msg = r.queue.shift();
+        session.processing = true;
+        const msg = session.queue.shift();
 
         try {
             const state = queryClient.getQueryData(STREAM_KEY(chatId)) || {};
@@ -312,13 +354,12 @@ export function useStreamingMessages({
                 if (
                     info.clientSideTool &&
                     info.toolCallbackId &&
-                    !r.processedTools.has(info.toolCallbackId)
+                    !session.processedTools.has(info.toolCallbackId)
                 ) {
-                    r.processedTools.add(info.toolCallbackId);
-                    if (onClientSideToolCall) {
-                        Promise.resolve(onClientSideToolCall(info)).catch(
-                            () => {},
-                        );
+                    session.processedTools.add(info.toolCallbackId);
+                    const toolHandler = session.callbacks?.onClientSideToolCall;
+                    if (toolHandler) {
+                        Promise.resolve(toolHandler(info)).catch(() => {});
                     }
                 }
 
@@ -389,50 +430,64 @@ export function useStreamingMessages({
             console.error("Process queue error:", e);
         }
 
-        r.processing = false;
-        if (r.queue.length) {
+        session.processing = false;
+        if (session.queue.length) {
             scheduleProcessQueue();
         }
     }, [
         applyStreamToolMessage,
         chatId,
         setStream,
-        onClientSideToolCall,
         queryClient,
         scheduleProcessQueue,
     ]);
-    processQueueRef.current = processQueue;
+
+    useEffect(() => {
+        const session = getStreamSession(chatId);
+        if (!session) return;
+        session.processQueue = processQueue;
+    }, [chatId, processQueue]);
 
     const flushPendingQueue = useCallback(async () => {
-        while (refs.current.processing || refs.current.queue.length) {
-            if (!refs.current.processing && refs.current.queue.length) {
+        const session = getStreamSession(chatId);
+        while (session?.processing || session?.queue.length) {
+            if (!session.processing && session.queue.length) {
                 scheduleProcessQueue();
             }
             await waitForNextPaint();
         }
-    }, [scheduleProcessQueue]);
+    }, [chatId, scheduleProcessQueue]);
 
     const setSubscriptionId = useCallback(
         (response) => {
             if (!(response instanceof Response) || !chatId) return;
 
-            promotedStreamChatIdRef.current = null;
+            const session = getStreamSession(chatId);
+            if (!session) return;
+            session.processQueue = processQueue;
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
             let cancelled = false;
-            let resolvedChatId = chatId;
             let endStreamPromise = null;
+            session.queue = [];
+            session.processing = false;
+            session.queueScheduled = false;
+            session.processedTools = new Set();
+            session.ackedClientTools = new Set();
+            session.reader = reader;
+            session.streamRunId = (session.streamRunId || 0) + 1;
+            const streamRunId = session.streamRunId;
 
             const clearDetachedStreamState = () => {
-                const targetChatIds = new Set([String(chatId)]);
-                if (resolvedChatId) {
-                    targetChatIds.add(String(resolvedChatId));
+                if (!isCurrentStreamSessionRun(chatId, session, streamRunId)) {
+                    return;
                 }
+                const targetChatIds = new Set([String(chatId)]);
 
-                refs.current.queue = [];
-                refs.current.processing = false;
-                refs.current.queueScheduled = false;
+                session.queue = [];
+                session.processing = false;
+                session.queueScheduled = false;
 
                 targetChatIds.forEach((targetChatId) => {
                     const state = queryClient.getQueryData(
@@ -442,6 +497,7 @@ export function useStreamingMessages({
                     queryClient.removeQueries({
                         queryKey: STREAM_KEY(targetChatId),
                     });
+                    deleteStreamSession(targetChatId);
                 });
             };
 
@@ -472,17 +528,14 @@ export function useStreamingMessages({
 
                 endStreamPromise = (async () => {
                     await flushPendingQueue();
+                    if (
+                        !isCurrentStreamSessionRun(chatId, session, streamRunId)
+                    ) {
+                        return;
+                    }
 
                     // 1. Read accumulated stream data before cleanup.
-                    //    After promotion, stream updates only go to
-                    //    STREAM_KEY(resolvedChatId), so read from there first.
-                    const s =
-                        (resolvedChatId &&
-                            resolvedChatId !== chatId &&
-                            queryClient.getQueryData(
-                                STREAM_KEY(resolvedChatId),
-                            )) ||
-                        queryClient.getQueryData(STREAM_KEY(chatId));
+                    const s = queryClient.getQueryData(STREAM_KEY(chatId));
                     const content = s?.streamingContent || "";
                     const thinkingContent =
                         s?.thinkingContent || s?.ephemeralContent || "";
@@ -507,7 +560,7 @@ export function useStreamingMessages({
                     s?.reader?.cancel?.().catch(() => {});
 
                     // 3. Write AI message directly to cached chat (synchronous, uncancelable)
-                    const targetChatId = resolvedChatId;
+                    const targetChatId = chatId;
                     const payload = hasStoredInlineItems
                         ? buildAssistantPayloadFromItems(finalizedInlineItems)
                         : buildInlineAssistantPayload({
@@ -523,7 +576,9 @@ export function useStreamingMessages({
                               sentTime: new Date().toISOString(),
                               direction: "incoming",
                               position: "single",
-                              entityId: chat?.selectedEntityId || null,
+                              entityId:
+                                  session.chatSnapshot?.selectedEntityId ||
+                                  null,
                               isServerGenerated: true,
                               _id: null,
                               _clientId: `stream-end:${targetChatId}:${Date.now()}`,
@@ -532,7 +587,7 @@ export function useStreamingMessages({
                               task: null,
                           }
                         : null;
-                    onStreamComplete?.({
+                    session.callbacks?.onStreamComplete?.({
                         chatId: targetChatId,
                         payload,
                         assistantMessage,
@@ -559,77 +614,25 @@ export function useStreamingMessages({
 
                     // 5. Clear stream state after the final assistant payload has been emitted.
                     queryClient.removeQueries({ queryKey: STREAM_KEY(chatId) });
-                    if (resolvedChatId && resolvedChatId !== chatId) {
-                        queryClient.removeQueries({
-                            queryKey: STREAM_KEY(resolvedChatId),
-                        });
-                    }
+                    deleteStreamSession(chatId);
                 })();
 
                 return endStreamPromise;
             };
 
-            const promotePendingChat = (newId) => {
-                if (chatId === newId || chatId !== NEW_CHAT_ID) return;
-                resolvedChatId = newId;
-                promotedStreamChatIdRef.current = newId;
-                const cached = queryClient.getQueryData(["chat", chatId]);
-                if (cached) {
-                    queryClient.setQueryData(
-                        ["chat", newId],
-                        normalizeChatForCache(cached, {
-                            ...cached,
-                            _id: newId,
-                            isTemporary: false,
-                        }),
-                    );
-                    // Defer removal of old query so React can process the
-                    // promotion state updates first.  Removing it synchronously
-                    // can briefly null-out urlChat in Chat.js before
-                    // setPromotedChatId has been committed, causing a flash.
-                    setTimeout(() => {
-                        queryClient.removeQueries({
-                            queryKey: ["chat", chatId],
-                        });
-                    }, 0);
-                }
-                // Copy stream state so hasActiveStream(newId) returns true —
-                // prevents useGetChatById from polling the server mid-stream.
-                const streamState = queryClient.getQueryData(
-                    STREAM_KEY(chatId),
-                );
-                if (streamState) {
-                    queryClient.setQueryData(STREAM_KEY(newId), streamState);
-                }
-                if (onChatPromoted) {
-                    onChatPromoted(newId, chatId);
-                } else {
-                    queryClient.setQueryData(["activeChats"], (old = []) =>
-                        old.map((c) =>
-                            String(c._id) === chatId ? { ...c, _id: newId } : c,
-                        ),
-                    );
-                    queryClient.setQueryData(["userChatInfo"], (old) => ({
-                        ...old,
-                        activeChatId: newId,
-                        recentChatIds: [
-                            newId,
-                            ...(old?.recentChatIds || []).filter(
-                                (id) => id !== newId && id !== chatId,
-                            ),
-                        ],
-                    }));
-                    window.dispatchEvent(
-                        new CustomEvent("chatIdUpdate", {
-                            detail: { chatId: newId },
-                        }),
-                    );
-                }
-            };
-
             (async () => {
                 try {
                     while (!cancelled) {
+                        if (
+                            !isCurrentStreamSessionRun(
+                                chatId,
+                                session,
+                                streamRunId,
+                            )
+                        ) {
+                            cancelled = true;
+                            break;
+                        }
                         const { done, value } = await reader.read();
                         if (done) {
                             cancelled = true;
@@ -647,13 +650,11 @@ export function useStreamingMessages({
                                 const { event, data: d } = JSON.parse(
                                     line.slice(6),
                                 );
-                                if (event === "chatId" && d?.chatId)
-                                    promotePendingChat(String(d.chatId));
-                                else if (
+                                if (
                                     event === "subscriptionId" &&
                                     d?.subscriptionId
                                 ) {
-                                    const targetId = resolvedChatId;
+                                    const targetId = chatId;
                                     const cached = queryClient.getQueryData([
                                         "chat",
                                         targetId,
@@ -683,13 +684,39 @@ export function useStreamingMessages({
                                     event === "info" ||
                                     event === "progress"
                                 ) {
-                                    refs.current.queue.push({
+                                    session.queue.push({
                                         progress: d?.progress,
                                         result:
                                             event === "data" ? d?.result : null,
                                         info: event === "info" ? d?.info : null,
                                     });
-                                    if (!refs.current.processing) {
+                                    if (event === "info") {
+                                        let info = d?.info;
+                                        if (typeof info === "string") {
+                                            try {
+                                                info = JSON.parse(info);
+                                            } catch {
+                                                info = {};
+                                            }
+                                        }
+                                        if (
+                                            info?.clientSideTool &&
+                                            info.toolCallbackId &&
+                                            !session.ackedClientTools.has(
+                                                info.toolCallbackId,
+                                            )
+                                        ) {
+                                            session.ackedClientTools.add(
+                                                info.toolCallbackId,
+                                            );
+                                            Promise.resolve(
+                                                session.callbacks?.onClientSideToolHeartbeat?.(
+                                                    info,
+                                                ),
+                                            ).catch(() => {});
+                                        }
+                                    }
+                                    if (!session.processing) {
                                         scheduleProcessQueue();
                                     }
                                 }
@@ -701,9 +728,16 @@ export function useStreamingMessages({
                 } catch (e) {
                     if (!cancelled) {
                         cancelled = true;
-                        const targetChatId = String(
-                            resolvedChatId || chatId || "",
-                        );
+                        const targetChatId = String(chatId || "");
+                        if (
+                            !isCurrentStreamSessionRun(
+                                targetChatId,
+                                session,
+                                streamRunId,
+                            )
+                        ) {
+                            return;
+                        }
                         const streamStillActive = Boolean(
                             queryClient.getQueryData(
                                 STREAM_KEY(targetChatId || chatId),
@@ -720,7 +754,7 @@ export function useStreamingMessages({
                                 null,
                             );
                         }
-                        onStreamDetached?.({
+                        session.callbacks?.onStreamDetached?.({
                             chatId: targetChatId,
                         });
                     }
@@ -729,13 +763,10 @@ export function useStreamingMessages({
         },
         [
             chatId,
-            chat?.selectedEntityId,
             queryClient,
+            processQueue,
             scheduleProcessQueue,
             flushPendingQueue,
-            onChatPromoted,
-            onStreamComplete,
-            onStreamDetached,
         ],
     );
 
@@ -759,12 +790,6 @@ export function useStreamingMessages({
         }, 1000);
         return () => clearInterval(interval);
     }, [isStreaming, queryClient, chatId, setStream]);
-
-    useEffect(() => {
-        if (chatId === NEW_CHAT_ID || !isStreaming) {
-            promotedStreamChatIdRef.current = null;
-        }
-    }, [chatId, isStreaming]);
 
     useEffect(() => {
         if (

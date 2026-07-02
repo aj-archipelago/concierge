@@ -1,7 +1,11 @@
-const plugin = require("tailwindcss/plugin");
+import plugin from "tailwindcss/plugin.js";
+import tailwindcssAnimate from "tailwindcss-animate";
+import tailwindcssForms from "@tailwindcss/forms";
+import tailwindScrollbar from "tailwind-scrollbar";
+import tailwindTypography from "tailwind-typography";
 
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+const config = {
     darkMode: ["class"],
     content: [
         "./app/**/*.{js,ts,jsx,tsx,mdx}", // Note the addition of the `app` directory.
@@ -64,10 +68,10 @@ module.exports = {
         },
     },
     plugins: [
-        require("tailwindcss-animate"),
-        require("@tailwindcss/forms"),
-        require("tailwind-scrollbar"),
-        require("tailwind-typography"),
+        tailwindcssAnimate,
+        tailwindcssForms,
+        tailwindScrollbar,
+        tailwindTypography,
         plugin(function ({ addVariant, e }) {
             addVariant("rtl", ({ modifySelectors, separator }) => {
                 modifySelectors(({ className }) => {
@@ -77,3 +81,4 @@ module.exports = {
         }),
     ],
 };
+export default config;

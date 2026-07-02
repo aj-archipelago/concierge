@@ -8,7 +8,6 @@ import {
 import axios from "../utils/axios-client";
 import { isValidObjectId } from "../../src/utils/helper.js";
 import { hasActiveStream } from "../../src/hooks/useStreamingMessages";
-import { NEW_CHAT_ID, isClientOnlyChatId } from "../utils/chatClientIds";
 import {
     DEFAULT_PAGE_SIZE,
     DEFAULT_CHAT_MESSAGES_LIMIT,
@@ -301,8 +300,7 @@ export const syncInFlightChatCache = (
         ...sourceChat,
         _id: id,
         title: sourceChat?.title || fallbackChat?.title || "",
-        isTemporary: Boolean(sourceChat?.isTemporary) || isClientOnlyChatId(id),
-        isUnused: false,
+        isTemporary: Boolean(sourceChat?.isTemporary),
         isChatLoading: true,
         ...(Array.isArray(nextMessages) ? { messages: nextMessages } : {}),
         ...(resolvedActiveSubscriptionId !== undefined
@@ -311,7 +309,7 @@ export const syncInFlightChatCache = (
     });
 
     queryClient.setQueryData(chatKey, nextChat);
-    if (nextChat && !isClientOnlyChatId(id)) {
+    if (nextChat) {
         syncChatToListCaches(queryClient, nextChat);
     }
 
@@ -381,7 +379,19 @@ export const syncChatToListCaches = (queryClient, nextChat) => {
             return nextPage;
         });
 
-        return changed ? { ...oldData, pages: nextPages } : oldData;
+        if (changed) {
+            return { ...oldData, pages: nextPages };
+        }
+
+        const [firstPage = [], ...remainingPages] = nextPages;
+        if (!Array.isArray(firstPage)) {
+            return oldData;
+        }
+
+        return {
+            ...oldData,
+            pages: [[nextChat, ...firstPage], ...remainingPages],
+        };
     });
 };
 
@@ -511,70 +521,13 @@ export const mergeFetchedChatResponse = (
                 ...serverChat,
                 messages: mergedMessages,
                 isChatLoading:
-                    Boolean(cachedChat?.isChatLoading) ||
-                    Boolean(serverChat?.isChatLoading),
-                isUnused:
-                    cachedChat?.isUnused === false
-                        ? false
-                        : serverChat?.isUnused,
+                    Boolean(serverChat?.isChatLoading) ||
+                    Boolean(isSending && cachedChat?.isChatLoading),
             };
         }
     }
 
     return serverChat;
-};
-
-const ensureChatMarkedUsed = (queryClient, chatId) => {
-    if (!queryClient || !chatId) return;
-    const id = String(chatId);
-    // Check if this chat was previously unused before marking it
-    const prevChat = queryClient.getQueryData(["chat", id]);
-    const wasUnused = prevChat?.isUnused;
-    const markUsed = (chat) =>
-        chat && chat.isUnused ? { ...chat, isUnused: false } : chat;
-    queryClient.setQueryData(["chat", id], (prev) => markUsed(prev));
-    queryClient.setQueryData(["activeChats"], (oldData = []) => {
-        const safe = Array.isArray(oldData) ? oldData : [];
-        let updated = false;
-        const mapped = safe.map((chat) => {
-            if (String(chat?._id) !== id) return chat;
-            if (!chat?.isUnused) return chat;
-            updated = true;
-            return { ...chat, isUnused: false };
-        });
-        return updated ? mapped : safe;
-    });
-    queryClient.setQueryData(["chats"], (oldData) => {
-        if (!oldData || !oldData.pages) return oldData;
-        let changed = false;
-        const pages = oldData.pages.map((page) => {
-            if (!Array.isArray(page)) return page;
-            const mapped = page.map((chat) => {
-                if (String(chat?._id) !== id) return chat;
-                if (!chat?.isUnused) return chat;
-                changed = true;
-                return { ...chat, isUnused: false };
-            });
-            return mapped;
-        });
-        return changed ? { ...oldData, pages } : oldData;
-    });
-    queryClient.setQueryData(["userChatInfo"], (oldData = {}) => {
-        const activeId = oldData.activeChatId;
-        if (activeId && String(activeId) !== id) return oldData;
-        if (activeId && activeId !== id && String(activeId) === id) {
-            return { ...oldData, activeChatId: id };
-        }
-        return oldData;
-    });
-    // A previously-unused prefetched chat just became a real chat —
-    // bump the total count optimistically and refetch from server
-    if (wasUnused) {
-        queryClient.setQueryData(["totalChatCount"], (old) =>
-            typeof old === "number" ? old + 1 : old,
-        );
-        queryClient.invalidateQueries({ queryKey: ["totalChatCount"] });
-    }
 };
 
 export function useGetChats({ initialPage } = {}) {
@@ -607,7 +560,6 @@ export function useGetActiveChats({ initialData } = {}) {
             const response = await axios.get(`/api/chats/active/detail`);
             const activeChats = response.data;
 
-            // Process each chat and ensure isUnused is correctly set
             const processedChats = activeChats.map((chat) => {
                 const existingChat =
                     queryClient.getQueryData(["chat", chat._id]) || {};
@@ -625,19 +577,9 @@ export function useGetActiveChats({ initialData } = {}) {
                     updatedChat.messages = existingChat.messages;
                 }
 
-                // CRITICAL: Always use server's isUnused value, never preserve from cache
-                // This prevents old chats with stale isUnused:true from being reused
-                if (chat.hasOwnProperty("isUnused")) {
-                    updatedChat.isUnused = chat.isUnused;
-                } else {
-                    // If server didn't send isUnused, it's an old chat - mark as used
-                    updatedChat.isUnused = false;
-                }
-
                 // Update individual chat cache
                 queryClient.setQueryData(["chat", chat._id], updatedChat);
 
-                // Return the processed chat with correct isUnused for activeChats array
                 return updatedChat;
             });
 
@@ -705,13 +647,7 @@ export function useAddChat() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({
-            messages,
-            messageList,
-            title,
-            forceNew,
-            isUnused,
-        }) => {
+        mutationFn: async ({ messages, messageList, title }) => {
             const normalizedMessages = Array.isArray(messages)
                 ? messages
                 : Array.isArray(messageList)
@@ -719,11 +655,9 @@ export function useAddChat() {
                   : messages || messageList
                     ? [messages || messageList]
                     : [];
-            const query = forceNew ? "?forceNew=true" : "";
-            const response = await axios.post(`/api/chats${query}`, {
+            const response = await axios.post(`/api/chats`, {
                 messages: normalizedMessages,
                 title,
-                isUnused,
             });
             return response.data;
         },
@@ -753,7 +687,7 @@ export function useAddMessage() {
 
     return useMutation({
         mutationFn: async ({ message, chatId }) => {
-            if (!chatId || isClientOnlyChatId(chatId)) {
+            if (!chatId) {
                 throw new Error("chatId is required to persist a message");
             }
             const chatResponse = await axios.post(
@@ -1024,23 +958,6 @@ export function useGetChatById(
         queryFn: async () => {
             if (!chatId) throw new Error("chatId is required");
 
-            if (chatId === NEW_CHAT_ID) {
-                const cachedNew = queryClient.getQueryData(["chat", chatId]);
-                if (cachedNew) return cachedNew;
-                return {
-                    _id: NEW_CHAT_ID,
-                    title: "",
-                    messages: [],
-                    isPublic: false,
-                    readOnly: false,
-                    isChatLoading: false,
-                    isTemporary: true,
-                    isUnused: true,
-                    hasMoreMessages: false,
-                    messagesTruncated: false,
-                };
-            }
-
             const cachedForFetch = queryClient.getQueryData(["chat", chatId]);
             const shouldLimit =
                 !cachedForFetch || cachedForFetch.messagesTruncated !== false;
@@ -1065,13 +982,10 @@ export function useGetChatById(
         // Server sets isChatLoading: true when stream starts, false when it completes
         staleTime: shouldForceRefetch ? 0 : 1000 * 15, // Avoid refetching on quick switches
         refetchOnMount: shouldForceRefetch ? "always" : "ifStale",
-        refetchOnWindowFocus: isClientOnlyChatId(chatId)
-            ? false
-            : shouldForceRefetch,
+        refetchOnWindowFocus: shouldForceRefetch,
         ...(notifyOnChangeProps ? { notifyOnChangeProps } : {}),
         refetchInterval: (query) => {
             const data = getRefetchIntervalData(query);
-            if (isClientOnlyChatId(chatId)) return false;
             if (!pollOnLoading || !data?.isChatLoading) return false;
             if (hasActiveStream(queryClient, String(chatId))) return false;
             // Don't poll while a message send is in progress but the
@@ -1108,29 +1022,6 @@ const buildUserChatInfo = (previousData, activeChatId) => ({
     recentChatIds: buildRecentChatIds(previousData, activeChatId),
 });
 
-const reorderActiveChats = (activeChats, activeChatId, cachedChat) => {
-    if (!Array.isArray(activeChats)) {
-        return cachedChat ? [cachedChat] : activeChats;
-    }
-
-    const targetId = String(activeChatId);
-    const existingIndex = activeChats.findIndex(
-        (chat) => String(chat?._id) === targetId,
-    );
-
-    if (existingIndex === 0) {
-        return activeChats;
-    }
-
-    const nextChat = cachedChat || activeChats[existingIndex];
-    return nextChat
-        ? [
-              nextChat,
-              ...activeChats.filter((chat) => String(chat?._id) !== targetId),
-          ]
-        : activeChats;
-};
-
 export function useSetActiveChatId() {
     const queryClient = useQueryClient();
 
@@ -1153,37 +1044,20 @@ export function useSetActiveChatId() {
             if (!isValidObjectId(activeChatId)) return;
 
             const previousData = queryClient.getQueryData(["userChatInfo"]);
-            const previousActiveChats = queryClient.getQueryData([
-                "activeChats",
-            ]);
 
             await queryClient.cancelQueries({ queryKey: ["userChatInfo"] });
-            await queryClient.cancelQueries({ queryKey: ["activeChats"] });
             queryClient.setQueryData(
                 ["userChatInfo"],
                 buildUserChatInfo(previousData, activeChatId),
             );
-            queryClient.setQueryData(["activeChats"], (activeChats) =>
-                reorderActiveChats(
-                    activeChats,
-                    activeChatId,
-                    queryClient.getQueryData(["chat", String(activeChatId)]),
-                ),
-            );
 
-            return { previousData, previousActiveChats };
+            return { previousData };
         },
         onError: (err, variables, context) => {
             if (context?.previousData) {
                 queryClient.setQueryData(
                     ["userChatInfo"],
                     context.previousData,
-                );
-            }
-            if (context?.previousActiveChats) {
-                queryClient.setQueryData(
-                    ["activeChats"],
-                    context.previousActiveChats,
                 );
             }
         },
@@ -1261,10 +1135,6 @@ export function useUpdateChat() {
                     ...clearStorageStatus,
                     messages: nextMessages,
                 });
-
-                if (nextMessages.length > 0) {
-                    ensureChatMarkedUsed(queryClient, chatId);
-                }
             }
 
             syncChatCaches(queryClient, chatId, expectedChatData);

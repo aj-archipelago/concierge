@@ -3,7 +3,7 @@ import { getCurrentUser, handleError } from "../../../utils/auth";
 import { createBackgroundTask } from "../../../utils/tasks";
 import {
     AUTOMATION_TASK_TYPE,
-    findAutomationForUser,
+    findAutomationForEditor,
     hasActiveAutomationRun,
 } from "../../utils";
 
@@ -11,19 +11,20 @@ export async function POST(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForEditor(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
 
+        const { automation } = found;
         const body = await request.json().catch(() => ({}));
         const activeRun = await hasActiveAutomationRun(
             automation._id,
-            user._id,
+            automation.owner,
         );
         if (activeRun && !body.force) {
             return NextResponse.json(
@@ -34,7 +35,7 @@ export async function POST(request, { params }) {
 
         const scheduledFor = new Date();
         const result = await createBackgroundTask({
-            userId: user._id,
+            userId: automation.owner,
             type: AUTOMATION_TASK_TYPE,
             timeout: 15 * 60 * 1000,
             metadata: {

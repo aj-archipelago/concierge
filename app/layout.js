@@ -9,6 +9,7 @@ import classNames from "./utils/class-names";
 import {
     getTranscribeAlternateModelOption,
     getTranscribeDefaultModelOption,
+    isMaiTranscribeEnabled,
     isXaiTranscribeDefaultEnabled,
     isXaiTranscribeEnabled,
 } from "./api/utils/transcribe-model-options";
@@ -23,8 +24,10 @@ const font = Inter({ subsets: ["latin"] });
 const neuralspaceEnabled = process.env.ENABLE_NEURALSPACE === "true";
 const xaiTranscribeEnabled = isXaiTranscribeEnabled();
 const xaiTranscribeDefaultEnabled = isXaiTranscribeDefaultEnabled();
+const maiTranscribeEnabled = isMaiTranscribeEnabled();
 const transcribeDefaultModelOption = getTranscribeDefaultModelOption();
 const transcribeAlternateModelOption = getTranscribeAlternateModelOption();
+const shouldPrefetchShellData = process.env.NODE_ENV !== "development";
 
 const SOCIAL_DESCRIPTION =
     process.env.NEXT_PUBLIC_SITE_DESCRIPTION ||
@@ -97,26 +100,32 @@ export default async function RootLayout({ children }) {
     // https://tanstack.com/query/v5/docs/framework/react/guides/advanced-ssr#prefetching-and-dehydrating-data
     const queryClient = new QueryClient();
     let initialActiveChats;
-    await queryClient.prefetchQuery({
-        queryKey: ["currentUser"],
-        queryFn: async () => {
-            return (await getCurrentUser()).toJSON();
-        },
-        staleTime: Infinity,
-    });
+    if (shouldPrefetchShellData) {
+        await queryClient.prefetchQuery({
+            queryKey: ["currentUser"],
+            queryFn: async () => {
+                return (await getCurrentUser()).toJSON();
+            },
+            staleTime: Infinity,
+        });
 
-    try {
-        const activeChats = await getRecentChatsOfCurrentUser();
-        initialActiveChats = activeChats
-            ? JSON.parse(JSON.stringify(activeChats))
-            : activeChats;
-    } catch (error) {
-        console.warn("Failed to prefetch active chats:", error);
-        initialActiveChats = undefined;
+        try {
+            const activeChats = await getRecentChatsOfCurrentUser();
+            initialActiveChats = activeChats
+                ? JSON.parse(JSON.stringify(activeChats))
+                : activeChats;
+        } catch (error) {
+            console.warn("Failed to prefetch active chats:", error);
+            initialActiveChats = undefined;
+        }
     }
 
     return (
-        <html lang={language} dir={language === "ar" ? "rtl" : "ltr"}>
+        <html
+            lang={language}
+            dir={language === "ar" ? "rtl" : "ltr"}
+            suppressHydrationWarning
+        >
             <head>
                 <link
                     rel="stylesheet"
@@ -147,6 +156,7 @@ export default async function RootLayout({ children }) {
                             xaiTranscribeDefaultEnabled={
                                 xaiTranscribeDefaultEnabled
                             }
+                            maiTranscribeEnabled={maiTranscribeEnabled}
                             transcribeDefaultModelOption={
                                 transcribeDefaultModelOption
                             }

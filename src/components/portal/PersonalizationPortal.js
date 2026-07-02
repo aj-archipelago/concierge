@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Compass, User, Bot, Brain, Zap } from "lucide-react";
+import { Compass, User, Bot, Brain, Zap, Users } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 import DiscoverSection from "./DiscoverSection";
 import ProfileSection from "./ProfileSection";
+import SharingSection from "./SharingSection";
 import AIAssistantSection from "./AIAssistantSection";
 import MemorySection from "./MemorySection";
 import CapabilitiesSection from "./CapabilitiesSection";
@@ -28,6 +29,7 @@ import CapabilitiesSection from "./CapabilitiesSection";
 const TABS = [
     { id: "discover", icon: Compass, labelKey: "portal_tab_discover" },
     { id: "profile", icon: User, labelKey: "portal_tab_profile" },
+    { id: "sharing", icon: Users, labelKey: "portal_tab_sharing" },
     { id: "ai-assistant", icon: Bot, labelKey: "portal_tab_ai_assistant" },
     { id: "memory", icon: Brain, labelKey: "portal_tab_memory" },
     { id: "capabilities", icon: Zap, labelKey: "portal_tab_capabilities" },
@@ -161,6 +163,7 @@ export default function PersonalizationPortal({
                         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
                             {activeTab === "discover" && <DiscoverSection />}
                             {activeTab === "profile" && <ProfileSection />}
+                            {activeTab === "sharing" && <SharingSection />}
                             {activeTab === "ai-assistant" && (
                                 <AIAssistantSection />
                             )}

@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 
-jest.mock("../../../../config", () => ({
+jest.mock("../../../../config/index.js", () => ({
     endpoints: {
         mediaHelperDirect: jest.fn(() => "http://media-helper.test"),
     },

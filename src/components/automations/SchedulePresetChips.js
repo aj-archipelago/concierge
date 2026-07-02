@@ -35,6 +35,7 @@ export default function SchedulePresetChips({
     onChange,
     showCustom = true,
     className,
+    disabled = false,
 }) {
     const { t } = useTranslation();
     const chips = showCustom
@@ -50,6 +51,7 @@ export default function SchedulePresetChips({
                     <button
                         key={preset.id}
                         type="button"
+                        disabled={disabled}
                         onClick={() => onChange(preset.id)}
                         title={t(preset.descriptionKey)}
                         className={classNames(

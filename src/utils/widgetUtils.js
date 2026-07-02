@@ -3,45 +3,20 @@
  * Widgets are in the format: <div html="...">...</div>
  */
 
+import { parseFragment, serialize } from "parse5";
+
 /**
  * Serializes a parse5 node tree back to HTML string
  * @param {Object} node - parse5 node
  * @returns {string} - HTML string
  */
 function serializeParse5Node(node) {
-    if (node.nodeName === "#text") {
-        return node.value || "";
-    }
-    if (node.nodeName === "#document-fragment") {
-        return (node.childNodes || []).map(serializeParse5Node).join("");
-    }
-
-    let html = `<${node.nodeName}`;
-
-    // Add attributes
-    if (node.attrs) {
-        for (const attr of node.attrs) {
-            const value = attr.value || "";
-            // Escape quotes in attribute values
-            const escapedValue = value.replace(/"/g, "&quot;");
-            html += ` ${attr.name}="${escapedValue}"`;
-        }
-    }
-
-    html += ">";
-
-    // Add child nodes
-    if (node.childNodes) {
-        html += node.childNodes.map(serializeParse5Node).join("");
-    }
-
-    html += `</${node.nodeName}>`;
-    return html;
+    return serialize({ nodeName: "#document-fragment", childNodes: [node] });
 }
 
 /**
  * Extracts widgets from HTML and replaces them with placeholder divs
- * Uses DOMParser in browser and parse5 in Node.js for robust HTML parsing
+ * Uses parse5 for robust inert HTML parsing across browser and Node.js.
  * @param {string} html - The HTML content containing widgets
  * @returns {Object} - { html: string with placeholders, widgets: Map of widget-id to original widget HTML }
  */
@@ -53,136 +28,81 @@ export function extractWidgets(html) {
     const widgets = new Map();
     let widgetIndex = 1;
 
-    // Use DOMParser in browser, parse5 in Node.js
-    if (typeof window !== "undefined" && typeof DOMParser !== "undefined") {
-        // Browser environment - use DOMParser
-        try {
-            const parser = new DOMParser();
-            // Wrap in a container to handle fragments
-            const doc = parser.parseFromString(
-                `<div id="widget-container">${html}</div>`,
-                "text/html",
-            );
-            const container = doc.getElementById("widget-container");
+    try {
+        const document = parseFragment(html);
 
-            if (!container) {
-                // Fallback to original HTML if parsing fails
-                return { html, widgets: new Map() };
+        // Find all div elements with html attribute
+        const findWidgetDivs = (node, parent = null, index = -1) => {
+            const results = [];
+            if (
+                node.nodeName === "div" &&
+                node.attrs?.some((attr) => attr.name === "html")
+            ) {
+                results.push({ node, parent, index });
             }
+            if (node.childNodes) {
+                node.childNodes.forEach((child, idx) => {
+                    results.push(...findWidgetDivs(child, node, idx));
+                });
+            }
+            return results;
+        };
 
-            // Find all divs with html attribute and process them
-            const widgetDivs = Array.from(
-                container.querySelectorAll("div[html]"),
-            );
+        const widgetDivs = findWidgetDivs(document);
 
-            // Store original HTML and replace with placeholders
-            widgetDivs.forEach((div) => {
-                const originalHTML = div.outerHTML;
-                const widgetId = `widget-${widgetIndex}`;
-                widgets.set(widgetId, originalHTML);
-                widgetIndex++;
+        // Process widgets and store their original HTML
+        // We need to serialize before modifying to preserve original structure
+        widgetDivs.forEach(({ node }) => {
+            const originalHTML = serializeParse5Node(node);
+            const widgetId = `widget-${widgetIndex}`;
+            widgets.set(widgetId, originalHTML);
+            widgetIndex++;
 
-                // Replace the div with a placeholder
-                const placeholder = doc.createElement("div");
-                placeholder.id = widgetId;
-                placeholder.textContent = widgetId;
-                div.parentNode.replaceChild(placeholder, div);
-            });
-
-            // Extract the inner HTML of the container (without the wrapper)
-            const htmlWithPlaceholders = container.innerHTML;
-
-            return {
-                html: htmlWithPlaceholders,
-                widgets: widgets,
-            };
-        } catch (error) {
-            console.warn("Error parsing HTML with DOMParser:", error);
-            // Fallback to original HTML
-            return { html, widgets: new Map() };
-        }
-    } else {
-        // Server environment - use parse5
-        try {
-            // Dynamic import for parse5 to avoid issues in browser bundles
-            const parse5 = require("parse5");
-            const document = parse5.parseFragment(html);
-
-            // Find all div elements with html attribute
-            const findWidgetDivs = (node, parent = null, index = -1) => {
-                const results = [];
-                if (
-                    node.nodeName === "div" &&
-                    node.attrs?.some((attr) => attr.name === "html")
-                ) {
-                    results.push({ node, parent, index });
-                }
-                if (node.childNodes) {
-                    node.childNodes.forEach((child, idx) => {
-                        results.push(...findWidgetDivs(child, node, idx));
-                    });
-                }
-                return results;
+            // Replace the node with a placeholder div
+            const placeholder = {
+                nodeName: "div",
+                tagName: "div",
+                namespaceURI: "http://www.w3.org/1999/xhtml",
+                attrs: [{ name: "id", value: widgetId }],
+                childNodes: [
+                    {
+                        nodeName: "#text",
+                        value: widgetId,
+                    },
+                ],
             };
 
-            const widgetDivs = findWidgetDivs(document);
-
-            // Process widgets and store their original HTML
-            // We need to serialize before modifying to preserve original structure
-            widgetDivs.forEach(({ node }) => {
-                const originalHTML = serializeParse5Node(node);
-                const widgetId = `widget-${widgetIndex}`;
-                widgets.set(widgetId, originalHTML);
-                widgetIndex++;
-
-                // Replace the node with a placeholder div
-                const placeholder = {
-                    nodeName: "div",
-                    tagName: "div",
-                    attrs: [{ name: "id", value: widgetId }],
-                    childNodes: [
-                        {
-                            nodeName: "#text",
-                            value: widgetId,
-                        },
-                    ],
-                };
-
-                // Find the parent in the document tree and replace the node
-                const findParent = (currentNode, targetNode) => {
-                    if (currentNode.childNodes) {
-                        if (currentNode.childNodes.includes(targetNode)) {
-                            return currentNode;
-                        }
-                        for (const child of currentNode.childNodes) {
-                            const found = findParent(child, targetNode);
-                            if (found) return found;
-                        }
+            // Find the parent in the document tree and replace the node
+            const findParent = (currentNode, targetNode) => {
+                if (currentNode.childNodes) {
+                    if (currentNode.childNodes.includes(targetNode)) {
+                        return currentNode;
                     }
-                    return null;
-                };
-
-                const parent = findParent(document, node);
-                if (parent && parent.childNodes) {
-                    const index = parent.childNodes.indexOf(node);
-                    if (index !== -1) {
-                        parent.childNodes[index] = placeholder;
+                    for (const child of currentNode.childNodes) {
+                        const found = findParent(child, targetNode);
+                        if (found) return found;
                     }
                 }
-            });
-
-            // Serialize the modified document back to HTML
-            const htmlWithPlaceholders = serializeParse5Node(document);
-
-            return {
-                html: htmlWithPlaceholders,
-                widgets: widgets,
+                return null;
             };
-        } catch (error) {
-            console.warn("Error parsing HTML with parse5:", error);
-            // Fallback to original HTML
-            return { html, widgets: new Map() };
-        }
+
+            const parent = findParent(document, node);
+            if (parent && parent.childNodes) {
+                const index = parent.childNodes.indexOf(node);
+                if (index !== -1) {
+                    parent.childNodes[index] = placeholder;
+                }
+            }
+        });
+
+        return {
+            html: serialize(document),
+            widgets: widgets,
+        };
+    } catch (error) {
+        console.warn("Error parsing HTML with parse5:", error);
+        // Fallback to original HTML
+        return { html, widgets: new Map() };
     }
 }
 

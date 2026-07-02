@@ -9,6 +9,7 @@ import crypto from "crypto";
 import {
     buildMediaHelperFileParams,
     createMediaStorageTarget,
+    resolveStorageTarget,
 } from "../../src/utils/storageTargets.js";
 import { sanitizeMediaSettings } from "../../src/utils/mediaGenerationSettings.js";
 import {
@@ -19,7 +20,19 @@ import {
     getGeneratedMediaFilename,
     getGeneratedMediaTaskSuffix,
 } from "../../src/utils/mediaGeneratedFilename.js";
+import {
+    formatDbErrorForLog,
+    getDbRetryDelayMs,
+} from "../../app/api/utils/db-retry.mjs";
+import { redactSensitiveText } from "../../app/api/utils/log-redaction.mjs";
 import mime from "mime-types";
+
+const REFERENCE_MEDIA_PROMPT = "Media generation from references";
+
+function getMediaItemPrompt(metadata = {}) {
+    const prompt = metadata.displayPrompt || metadata.prompt;
+    return String(prompt || "").trim() ? prompt : REFERENCE_MEDIA_PROMPT;
+}
 
 function normalizeOutputFolder(value) {
     const normalized = String(value || "")
@@ -112,6 +125,25 @@ const GRAPHQL_SUBMIT_MAX_ATTEMPTS = 3;
 const GRAPHQL_SUBMIT_RETRY_DELAY_MS = 1500;
 const MAX_INPUT_IMAGE_REFERENCES = 14;
 const MAX_INPUT_VIDEO_REFERENCES = 1;
+
+function getGraphqlSubmitErrorDetails(error) {
+    const details =
+        error?.networkError?.result?.errors ||
+        error?.cause?.result?.errors ||
+        error?.graphQLErrors ||
+        error?.protocolErrors ||
+        error?.clientErrors;
+
+    if (!details || (Array.isArray(details) && details.length === 0)) {
+        return undefined;
+    }
+
+    try {
+        return redactSensitiveText(JSON.stringify(details)).slice(0, 4000);
+    } catch {
+        return redactSensitiveText(String(details)).slice(0, 4000);
+    }
+}
 
 const ALLOWED_BLOB_DOMAINS = [
     "blob.core.windows.net",
@@ -512,6 +544,24 @@ function buildMediaVariables(
         generateAudio: settings.generateAudio,
         forceInstrumental:
             settings.forceInstrumental ?? settings.force_instrumental,
+        processingType: settings.processingType || settings.processing_type,
+        scene: settings.scene,
+        targetResolution:
+            settings.targetResolution || settings.target_resolution,
+        targetFps: settings.targetFps || settings.target_fps,
+        enhanceModel: settings.enhanceModel || settings.enhance_model,
+        upscaleFactor: settings.upscaleFactor || settings.upscale_factor,
+        subjectDetection:
+            settings.subjectDetection || settings.subject_detection,
+        faceEnhancement: settings.faceEnhancement ?? settings.face_enhancement,
+        faceEnhancementCreativity:
+            settings.faceEnhancementCreativity ??
+            settings.face_enhancement_creativity,
+        faceEnhancementStrength:
+            settings.faceEnhancementStrength ??
+            settings.face_enhancement_strength,
+        cutFirstSecond: settings.cutFirstSecond ?? settings.cut_first_second,
+        noOp: settings.noOp ?? settings.no_op,
         resolution: settings.resolution,
         cameraFixed: settings.cameraFixed,
         imageSize: settings.imageSize || settings.image_size,
@@ -541,6 +591,18 @@ function buildMediaVariables(
         voiceDescription:
             settings.voiceDescription || settings.voice_description,
         voice: settings.voice,
+        voiceScript: settings.voiceScript || settings.voice_script,
+        voiceLanguage: settings.voiceLanguage || settings.voice_language,
+        voicePrompt: settings.voicePrompt || settings.voice_prompt,
+        videoPrompt: settings.videoPrompt || settings.video_prompt,
+        strengthNegativePrompt:
+            settings.strengthNegativePrompt ??
+            settings.strength_negative_prompt,
+        disableSafetyFilter:
+            settings.disableSafetyFilter ?? settings.disable_safety_filter,
+        disablePromptUpsampling:
+            settings.disablePromptUpsampling ??
+            settings.disable_prompt_upsampling,
         stability: settings.stability,
         similarityBoost: settings.similarityBoost ?? settings.similarity_boost,
         style: settings.style,
@@ -582,6 +644,68 @@ function getInputRequirementRange(requirement) {
     const value = Number(requirement);
     if (!Number.isFinite(value)) return null;
     return [value, value];
+}
+
+function countMatchesInputRequirement(count, requirement) {
+    const range = getInputRequirementRange(requirement);
+    if (!range) return true;
+    const [min = 0, max = Number.POSITIVE_INFINITY] = range;
+    return count >= min && count <= max;
+}
+
+function hasInputModeTextRequirement(requirement, { modelSettings, prompt }) {
+    if (!requirement || typeof requirement !== "object") return false;
+    if (requirement.prompt === true)
+        return Boolean(String(prompt || "").trim());
+    if (requirement.setting) {
+        const value = modelSettings?.[requirement.setting];
+        return typeof value === "string"
+            ? Boolean(value.trim())
+            : Boolean(value);
+    }
+    return false;
+}
+
+function isMediaInputModeSatisfied(
+    mode,
+    {
+        inputImagesCount,
+        inputVideosCount,
+        inputAudioCount,
+        modelSettings,
+        prompt,
+    },
+) {
+    const requires = mode?.requires || {};
+    if (
+        !countMatchesInputRequirement(inputImagesCount, requires.inputImages) ||
+        !countMatchesInputRequirement(inputVideosCount, requires.inputVideos) ||
+        !countMatchesInputRequirement(inputAudioCount, requires.inputAudio)
+    ) {
+        return false;
+    }
+
+    if (
+        !Array.isArray(mode?.requiresAnyOf) ||
+        mode.requiresAnyOf.length === 0
+    ) {
+        return true;
+    }
+
+    return mode.requiresAnyOf.some((requirement) =>
+        hasInputModeTextRequirement(requirement, { modelSettings, prompt }),
+    );
+}
+
+function hasSatisfiedPromptlessInputMode(modelMeta, context) {
+    const modes = Array.isArray(modelMeta?.mediaInputModes)
+        ? modelMeta.mediaInputModes
+        : [];
+    return modes.some(
+        (mode) =>
+            mode?.promptRequired === false &&
+            isMediaInputModeSatisfied(mode, context),
+    );
 }
 
 class MediaGenerationHandler extends BaseTask {
@@ -636,23 +760,6 @@ class MediaGenerationHandler extends BaseTask {
         metadata.taskId = taskId;
         metadata.userId = userId;
 
-        const inputImageUrls = pickInputImageValues(metadata, "inputImageUrl");
-        const hasInputImage = inputImageUrls.some(Boolean);
-        const inputAudioUrl = metadata.inputAudioUrl || "";
-        const hasInputAudio = Boolean(inputAudioUrl);
-        const isImageOnlyAudioGeneration =
-            outputType === "audio" && hasInputImage;
-
-        if (!prompt && !isImageOnlyAudioGeneration && !hasInputAudio) {
-            const error = new Error("Prompt is required for media generation");
-            await this.updateMediaItemOnError(
-                metadata,
-                error,
-                "VALIDATION_ERROR",
-            );
-            throw error;
-        }
-
         const modelName =
             model ||
             (outputType === "image"
@@ -665,6 +772,14 @@ class MediaGenerationHandler extends BaseTask {
         const config = this.getModelConfig(modelName, outputType, apiMetadata);
         const sanitizedSettings = sanitizeMediaSettings(settings || {});
         metadata.settings = sanitizedSettings;
+        const modelSettings = sanitizedSettings?.models?.[modelName] || {};
+
+        const inputImageUrls = pickInputImageValues(metadata, "inputImageUrl");
+        const hasInputImage = inputImageUrls.some(Boolean);
+        const inputAudioUrl = metadata.inputAudioUrl || "";
+        const hasInputAudio = Boolean(inputAudioUrl);
+        const isImageOnlyAudioGeneration =
+            outputType === "audio" && hasInputImage;
 
         const inputImageBlobPaths = pickInputImageValues(
             metadata,
@@ -711,11 +826,6 @@ class MediaGenerationHandler extends BaseTask {
                 hash: inputVideoHashes[index],
             }))
             .filter((item) => item.url);
-        const refreshedInputVideos = await refreshInputVideoUrls(
-            inputVideos,
-            userId,
-            preferGcs,
-        );
         const inputAudio = inputAudioUrl
             ? [
                   {
@@ -725,6 +835,33 @@ class MediaGenerationHandler extends BaseTask {
                   },
               ]
             : [];
+
+        if (
+            !prompt &&
+            !isImageOnlyAudioGeneration &&
+            !hasInputAudio &&
+            !hasSatisfiedPromptlessInputMode(modelMeta, {
+                inputImagesCount: inputImages.length,
+                inputVideosCount: inputVideos.length,
+                inputAudioCount: inputAudio.length,
+                modelSettings,
+                prompt,
+            })
+        ) {
+            const error = new Error("Prompt is required for media generation");
+            await this.updateMediaItemOnError(
+                metadata,
+                error,
+                "VALIDATION_ERROR",
+            );
+            throw error;
+        }
+
+        const refreshedInputVideos = await refreshInputVideoUrls(
+            inputVideos,
+            userId,
+            preferGcs,
+        );
         const audioRequirement =
             modelMeta?.mediaDefaults?.inputAudio ??
             sanitizedSettings?.models?.[modelName]?.inputAudio;
@@ -819,6 +956,7 @@ class MediaGenerationHandler extends BaseTask {
                     errorStack: error?.stack,
                     errorCode: error?.code,
                     errorName: error?.name,
+                    graphqlErrors: getGraphqlSubmitErrorDetails(error),
                     model: modelName,
                     prompt: prompt?.substring(0, 100),
                     inputImagesCount: refreshedInputImages.length,
@@ -890,7 +1028,7 @@ class MediaGenerationHandler extends BaseTask {
                     user: userId,
                     taskId: metadata.taskId,
                     cortexRequestId: metadata.taskId,
-                    prompt: metadata.displayPrompt || metadata.prompt || "",
+                    prompt: getMediaItemPrompt(metadata),
                     type: metadata.outputType || "image",
                     model: metadata.model || "",
                     status: "failed",
@@ -972,7 +1110,7 @@ class MediaGenerationHandler extends BaseTask {
             message: "Media generation completed successfully",
             type: metadata.outputType,
             model: metadata.model,
-            prompt: metadata.displayPrompt || metadata.prompt,
+            prompt: getMediaItemPrompt(metadata),
             url: processedData?.url,
             azureUrl: processedData?.azureUrl,
             gcsUrl: processedData?.gcsUrl,
@@ -1157,6 +1295,24 @@ class MediaGenerationHandler extends BaseTask {
             const user = await User.findById(metadata.userId);
             if (!user?.contextId) {
                 return {};
+            }
+
+            if (
+                metadata.storageTarget &&
+                typeof metadata.storageTarget === "object" &&
+                !Array.isArray(metadata.storageTarget)
+            ) {
+                const storageTarget = resolveStorageTarget({
+                    storageTarget: {
+                        ...metadata.storageTarget,
+                        userContextId:
+                            metadata.storageTarget.userContextId ||
+                            user.contextId,
+                        contextId:
+                            metadata.storageTarget.contextId || user.contextId,
+                    },
+                });
+                return buildMediaHelperFileParams({ storageTarget });
             }
 
             return buildMediaHelperFileParams({
@@ -1578,7 +1734,7 @@ class MediaGenerationHandler extends BaseTask {
             } catch (error) {
                 lastError = error;
                 console.warn(
-                    `[MediaGenerationHandler] DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+                    `[MediaGenerationHandler] DB operation attempt ${attempt}/${maxRetries} failed: ${formatDbErrorForLog(error)}`,
                 );
 
                 if (
@@ -1616,7 +1772,10 @@ class MediaGenerationHandler extends BaseTask {
                 }
 
                 if (attempt < maxRetries) {
-                    const currentRetryDelay = retryDelay;
+                    const currentRetryDelay = getDbRetryDelayMs(
+                        error,
+                        retryDelay,
+                    );
                     await new Promise((resolve) =>
                         setTimeout(resolve, currentRetryDelay),
                     );
@@ -1689,7 +1848,7 @@ class MediaGenerationHandler extends BaseTask {
                     user: userId,
                     taskId: metadata.taskId,
                     cortexRequestId: metadata.taskId,
-                    prompt: metadata.displayPrompt || metadata.prompt || "",
+                    prompt: getMediaItemPrompt(metadata),
                     type: metadata.outputType || "image",
                     model: metadata.model || "",
                     ...coreUpdateData,

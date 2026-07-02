@@ -92,6 +92,7 @@ function FileGridCard({
     enableFilenameEdit,
     renderFileOverlay,
     renderFileStatus,
+    onFileDragStart,
 }) {
     const { t } = useTranslation();
     const url = getFilePreviewUrl(file);
@@ -183,6 +184,8 @@ function FileGridCard({
                     : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
             }`}
             data-testid={`file-grid-card-${index}`}
+            draggable={Boolean(onFileDragStart)}
+            onDragStart={(event) => onFileDragStart?.(event, file)}
             onClick={handleCardClick}
             onDoubleClick={handleCardDoubleClick}
         >
@@ -369,6 +372,9 @@ function FileGridCard({
  * @param {Function} props.onRename - Start rename on a file
  * @param {Function} props.onDelete - Request delete of a file
  * @param {boolean} props.enableFilenameEdit - Enable rename action
+ * @param {Function} props.onFileDragStart - Optional drag-start handler for a file
+ * @param {React.RefObject<HTMLDivElement>} props.scrollContainerRef - Scroll container ref
+ * @param {Function} props.onScroll - Scroll handler
  */
 export default function FileGridView({
     files = [],
@@ -382,11 +388,18 @@ export default function FileGridView({
     enableFilenameEdit = true,
     renderFileOverlay,
     renderFileStatus,
+    onFileDragStart,
+    scrollContainerRef,
+    onScroll,
 }) {
     if (files.length === 0) return null;
 
     return (
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain min-w-0 p-3">
+        <div
+            ref={scrollContainerRef}
+            onScroll={onScroll}
+            className="min-h-0 flex-1 overflow-auto overscroll-contain min-w-0 p-3"
+        >
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                 {files.map((file, index) => {
                     const fileId = getFileId(file);
@@ -405,6 +418,7 @@ export default function FileGridView({
                             enableFilenameEdit={enableFilenameEdit}
                             renderFileOverlay={renderFileOverlay}
                             renderFileStatus={renderFileStatus}
+                            onFileDragStart={onFileDragStart}
                         />
                     );
                 })}
