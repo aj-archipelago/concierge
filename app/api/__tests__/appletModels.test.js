@@ -6,6 +6,7 @@ import { GET as getModels } from "../applet/models/route";
 import { POST as generateModel } from "../applet/model-generate/route";
 
 const mockQuery = jest.fn();
+const mockResolveShareAccess = jest.fn();
 const createLeanQuery = (data) => ({
     select: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(data),
@@ -59,6 +60,10 @@ jest.mock("../models/workspace", () => ({
     default: {
         findOne: jest.fn(),
     },
+}));
+
+jest.mock("../utils/shareAccess.js", () => ({
+    resolveShareAccess: (...args) => mockResolveShareAccess(...args),
 }));
 
 jest.mock("../utils/llm-file-utils.js", () => ({
@@ -123,6 +128,11 @@ describe("applet model APIs", () => {
         App.findOne.mockReturnValue(createLeanQuery(null));
         const Workspace = require("../models/workspace").default;
         Workspace.findOne.mockReturnValue(createLeanQuery(null));
+        mockResolveShareAccess.mockResolvedValue({
+            canAccess: false,
+            isOwner: false,
+            role: null,
+        });
     });
 
     test("lists applet-available chat models", async () => {

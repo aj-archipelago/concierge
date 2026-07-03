@@ -96,7 +96,7 @@ describe("POST /api/applet/source-qa/initial-questions", () => {
 
         expect(res.status).toBe(200);
         expect(data.language).toBe("en");
-        expect(data.questions[0].answerCacheKey).toBe("askaj:answer:v1:abc");
+        expect(data.questions[0].answerCacheKey).toBe("sourceqa:answer:v1:abc");
         expect(mockWithAppletSdkGuard).toHaveBeenCalledWith(
             expect.objectContaining({
                 appletId: "507f191e810c19729de860ea",

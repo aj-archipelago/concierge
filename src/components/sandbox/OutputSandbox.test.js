@@ -222,7 +222,7 @@ describe("OutputSandbox", () => {
         const postMessageSpy = jest.spyOn(iframe.contentWindow, "postMessage");
 
         dispatchIframeMessage(iframe, {
-            type: "__LABEEB_NAVIGATION_REQUEST__",
+            type: "__CONCIERGE_NAVIGATION_REQUEST__",
             requestId: "nav-1",
             path: "/apps/foo?tab=details#top",
         });
@@ -235,7 +235,7 @@ describe("OutputSandbox", () => {
         expect(router.replace).not.toHaveBeenCalled();
         expect(postMessageSpy).toHaveBeenCalledWith(
             {
-                type: "__LABEEB_NAVIGATION_RESPONSE__",
+                type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                 requestId: "nav-1",
                 success: true,
                 path: "/apps/foo?tab=details#top",
@@ -260,7 +260,7 @@ describe("OutputSandbox", () => {
         const postMessageSpy = jest.spyOn(iframe.contentWindow, "postMessage");
 
         dispatchIframeMessage(iframe, {
-            type: "__LABEEB_NAVIGATION_REQUEST__",
+            type: "__CONCIERGE_NAVIGATION_REQUEST__",
             requestId: "nav-2",
             path: "https://example.com/phish",
         });
@@ -268,7 +268,7 @@ describe("OutputSandbox", () => {
         await waitFor(() => {
             expect(postMessageSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: "__LABEEB_NAVIGATION_RESPONSE__",
+                    type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                     requestId: "nav-2",
                     success: false,
                 }),

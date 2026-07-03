@@ -228,8 +228,8 @@ Inject or replace:
 - applet name meta tag
 - SDK script if missing
 - optional legacy workspace metadata bootstrap:
-    - `window.LABEEB_LEGACY_WORKSPACE_ID`
-    - `window.LABEEB_WORKSPACE_PROMPT_ENDPOINT`
+    - `window.CONCIERGE_LEGACY_WORKSPACE_ID`
+    - `window.CONCIERGE_WORKSPACE_PROMPT_ENDPOINT`
 
 Do not rewrite applet business logic during database migration. The migration preserves behavior; future applet edits can modernize code.
 

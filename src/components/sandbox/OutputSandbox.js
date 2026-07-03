@@ -390,7 +390,7 @@ const OutputSandbox = forwardRef(
 
                 if (
                     event.data &&
-                    event.data.type === "__LABEEB_NAVIGATION_REQUEST__"
+                    event.data.type === "__CONCIERGE_NAVIGATION_REQUEST__"
                 ) {
                     const { requestId } = event.data;
                     try {
@@ -402,7 +402,7 @@ const OutputSandbox = forwardRef(
                             router.push(path);
                         }
                         sendIframeMessage({
-                            type: "__LABEEB_NAVIGATION_RESPONSE__",
+                            type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                             requestId,
                             success: true,
                             path,
@@ -410,7 +410,7 @@ const OutputSandbox = forwardRef(
                         });
                     } catch (error) {
                         sendIframeMessage({
-                            type: "__LABEEB_NAVIGATION_RESPONSE__",
+                            type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                             requestId,
                             success: false,
                             error:

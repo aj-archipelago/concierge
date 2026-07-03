@@ -26,6 +26,34 @@ function parseJsonObject(value) {
     }
 }
 
+function normalizePublicAnswerCacheKey(value) {
+    return typeof value === "string"
+        ? value.replace(/^askaj:/i, "sourceqa:")
+        : value;
+}
+
+function normalizePublicStarterPayload(payload) {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        return payload;
+    }
+
+    return {
+        ...payload,
+        questions: Array.isArray(payload.questions)
+            ? payload.questions.map((question) =>
+                  question && typeof question === "object"
+                      ? {
+                            ...question,
+                            answerCacheKey: normalizePublicAnswerCacheKey(
+                                question.answerCacheKey,
+                            ),
+                        }
+                      : question,
+              )
+            : payload.questions,
+    };
+}
+
 export async function POST(request) {
     try {
         const { appletId, language, prewarmAnswers } = await request.json();
@@ -60,7 +88,9 @@ export async function POST(request) {
                 });
 
                 const data = response.data?.ask_aj_initial_questions;
-                const payload = parseJsonObject(data?.result);
+                const payload = normalizePublicStarterPayload(
+                    parseJsonObject(data?.result),
+                );
 
                 return NextResponse.json({
                     ...payload,

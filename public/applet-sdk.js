@@ -579,7 +579,6 @@
         var reader = res.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
-        var accumulated = "";
         var finalResponse = null;
         var latestMetadata = null;
 
@@ -600,7 +599,6 @@
             if (event === "data") {
                 var chunk = data.chunk || "";
                 if (chunk) {
-                    accumulated += chunk;
                     if (data.metadata) {
                         latestMetadata = data.metadata;
                     }
@@ -766,7 +764,8 @@
                     if (
                         !event ||
                         !event.data ||
-                        event.data.type !== "__LABEEB_NAVIGATION_RESPONSE__" ||
+                        event.data.type !==
+                            "__CONCIERGE_NAVIGATION_RESPONSE__" ||
                         event.data.requestId !== requestId
                     ) {
                         return;
@@ -791,7 +790,7 @@
                 window.addEventListener("message", onMessage);
                 window.parent.postMessage(
                     {
-                        type: "__LABEEB_NAVIGATION_REQUEST__",
+                        type: "__CONCIERGE_NAVIGATION_REQUEST__",
                         requestId: requestId,
                         path: normalizedPath,
                         replace: replace,
@@ -1014,25 +1013,27 @@
              */
             get: function () {
                 return {
-                    language: _normalizeSdkLanguage(window.LABEEB_LANGUAGE),
-                    direction: _normalizeSdkDirection(window.LABEEB_DIRECTION),
+                    language: _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE),
+                    direction: _normalizeSdkDirection(
+                        window.CONCIERGE_DIRECTION,
+                    ),
                 };
             },
 
             /** @returns {string} */
             getLanguage: function () {
-                return _normalizeSdkLanguage(window.LABEEB_LANGUAGE);
+                return _normalizeSdkLanguage(window.CONCIERGE_LANGUAGE);
             },
 
             /** @returns {"ltr"|"rtl"} */
             getDirection: function () {
-                return _normalizeSdkDirection(window.LABEEB_DIRECTION);
+                return _normalizeSdkDirection(window.CONCIERGE_DIRECTION);
             },
 
             /** @returns {boolean} */
             isRtl: function () {
                 return (
-                    _normalizeSdkDirection(window.LABEEB_DIRECTION) === "rtl"
+                    _normalizeSdkDirection(window.CONCIERGE_DIRECTION) === "rtl"
                 );
             },
         },

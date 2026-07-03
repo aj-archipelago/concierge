@@ -5,7 +5,7 @@ const baseURL =
     process.env.BASE_URL ||
     "http://localhost:3001";
 const storageStatePath = "playwright/.auth/state.json";
-const testEmail = process.env.PLAYWRIGHT_TEST_EMAIL || "test@aljazeera.net";
+const testEmail = process.env.PLAYWRIGHT_TEST_EMAIL || "test@example.com";
 
 function buildLocalAuthToken(email) {
     const now = Math.floor(Date.now() / 1000);
@@ -2046,7 +2046,7 @@ test("Shared chat opens read-only with input disabled", async ({ browser }) => {
     }
     await api.dispose();
 
-    const viewerEmail = `shared-viewer-${Date.now().toString(36)}@aljazeera.net`;
+    const viewerEmail = `shared-viewer-${Date.now().toString(36)}@example.com`;
     const context = await browser.newContext({
         storageState: { cookies: [], origins: [] },
     });

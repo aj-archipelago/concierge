@@ -53,8 +53,8 @@ describe("ConciergeSDK data and files namespaces", () => {
 
     describe("locale", () => {
         test("coerces invalid globals to supported en/ltr values", () => {
-            window.LABEEB_LANGUAGE = "fr";
-            window.LABEEB_DIRECTION = "invalid";
+            window.CONCIERGE_LANGUAGE = "fr";
+            window.CONCIERGE_DIRECTION = "invalid";
 
             expect(ConciergeSDK.locale.get()).toEqual({
                 language: "en",
@@ -66,8 +66,8 @@ describe("ConciergeSDK data and files namespaces", () => {
         });
 
         test("returns ar/rtl when globals are valid", () => {
-            window.LABEEB_LANGUAGE = "ar";
-            window.LABEEB_DIRECTION = "rtl";
+            window.CONCIERGE_LANGUAGE = "ar";
+            window.CONCIERGE_DIRECTION = "rtl";
 
             expect(ConciergeSDK.locale.get()).toEqual({
                 language: "ar",
@@ -93,7 +93,7 @@ describe("ConciergeSDK data and files namespaces", () => {
 
             expect(parentWindow.postMessage).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: "__LABEEB_NAVIGATION_REQUEST__",
+                    type: "__CONCIERGE_NAVIGATION_REQUEST__",
                     path: "/apps/foo?view=full",
                     replace: false,
                 }),
@@ -104,7 +104,7 @@ describe("ConciergeSDK data and files namespaces", () => {
             window.dispatchEvent(
                 new MessageEvent("message", {
                     data: {
-                        type: "__LABEEB_NAVIGATION_RESPONSE__",
+                        type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                         requestId: request.requestId,
                         success: true,
                         path: "/apps/foo?view=full",
@@ -136,7 +136,7 @@ describe("ConciergeSDK data and files namespaces", () => {
 
             const request = parentWindow.postMessage.mock.calls[0][0];
             expect(request).toMatchObject({
-                type: "__LABEEB_NAVIGATION_REQUEST__",
+                type: "__CONCIERGE_NAVIGATION_REQUEST__",
                 path: "/apps/bar",
                 replace: true,
             });
@@ -144,7 +144,7 @@ describe("ConciergeSDK data and files namespaces", () => {
             window.dispatchEvent(
                 new MessageEvent("message", {
                     data: {
-                        type: "__LABEEB_NAVIGATION_RESPONSE__",
+                        type: "__CONCIERGE_NAVIGATION_RESPONSE__",
                         requestId: request.requestId,
                         success: true,
                         path: "/apps/bar",
@@ -541,7 +541,7 @@ describe("ConciergeSDK data and files namespaces", () => {
                 questions: [
                     {
                         question: "Question 1?",
-                        answerCacheKey: "askaj:answer:v1:abc",
+                        answerCacheKey: "sourceqa:answer:v1:abc",
                     },
                 ],
                 cache: { hit: true },
