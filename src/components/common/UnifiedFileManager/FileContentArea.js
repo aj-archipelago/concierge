@@ -121,6 +121,9 @@ function getFileTypeLabel(file, t) {
  * @param {Function} props.onDelete - Delete a file
  * @param {string} props.filterText - Current filter text for highlighting
  * @param {boolean} props.isMobile - Whether to use mobile-specific list behavior
+ * @param {Function} props.onFileDragStart - Optional drag-start handler for a file
+ * @param {React.RefObject<HTMLDivElement>} props.scrollContainerRef - Scroll container ref
+ * @param {Function} props.onScroll - Scroll handler
  */
 export default function FileContentArea({
     files = [],
@@ -136,6 +139,9 @@ export default function FileContentArea({
     filterText = "",
     isMobile = false,
     renderFileStatus,
+    onFileDragStart,
+    scrollContainerRef,
+    onScroll,
 }) {
     const { t } = useTranslation();
 
@@ -275,7 +281,11 @@ export default function FileContentArea({
     const showActionsColumn = !isMobile && !!onDelete;
 
     return (
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain min-w-0">
+        <div
+            ref={scrollContainerRef}
+            onScroll={onScroll}
+            className="min-h-0 flex-1 overflow-auto overscroll-contain min-w-0"
+        >
             <Table>
                 <TableHeader>
                     <TableRow className="border-b border-gray-100 dark:border-gray-800">
@@ -358,6 +368,10 @@ export default function FileContentArea({
                                 }`}
                                 onClick={(e) =>
                                     onSelectFile(file, sortedFiles, index, e)
+                                }
+                                draggable={Boolean(onFileDragStart)}
+                                onDragStart={(event) =>
+                                    onFileDragStart?.(event, file)
                                 }
                                 onDoubleClick={(e) => {
                                     e.stopPropagation();

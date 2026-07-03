@@ -16,9 +16,9 @@ import {
     removeStoppedSubscription,
     getEntrySubscriptionId,
     buildLastMessagePreview,
+    getChatForOwnerWrite,
 } from "../../_lib";
 import { buildModelPayloadFromStoredPayload } from "../../../../../src/utils/assistantInlinePayload";
-import { NEW_CHAT_ID } from "../../../../utils/chatClientIds";
 import { buildMcpAgentConfigForUser } from "../../../utils/mcp-agent-config";
 
 export const dynamic = "force-dynamic";
@@ -159,6 +159,27 @@ function sanitizeConversationForModel(conversation = []) {
         .filter(Boolean);
 }
 
+function serializeForDuplicateCheck(value) {
+    try {
+        return JSON.stringify(value);
+    } catch {
+        return String(value);
+    }
+}
+
+function isDuplicateFinalAssistantMessage(existing, next) {
+    if (!existing || !next) return false;
+    if (existing.isStreaming) return false;
+    return (
+        existing.sender === "assistant" &&
+        next.sender === "assistant" &&
+        existing.direction === "incoming" &&
+        next.direction === "incoming" &&
+        serializeForDuplicateCheck(existing.payload) ===
+            serializeForDuplicateCheck(next.payload)
+    );
+}
+
 /**
  * Helper function to clear isChatLoading state
  */
@@ -199,7 +220,6 @@ export async function POST(req, { params }) {
     let chatId = id;
     let loadingWasSet = false;
     let currentUser = null;
-    let createdChatId = null;
 
     try {
         currentUser = await getCurrentUser(false);
@@ -236,59 +256,21 @@ export async function POST(req, { params }) {
 
         let chat = null;
 
-        // Handle the /chat/new bootstrap path by creating the persisted chat
-        if (id === NEW_CHAT_ID) {
-            let initialUserMessage = null;
-            if (Array.isArray(conversation)) {
-                for (let i = conversation.length - 1; i >= 0; i -= 1) {
-                    const entry = conversation[i];
-                    if (
-                        entry?.role === "user" &&
-                        entry?.content !== undefined &&
-                        entry?.content !== null
-                    ) {
-                        initialUserMessage = entry.content;
-                        break;
-                    }
-                }
-            }
-            const now = new Date().toISOString();
-            const initialMessage = initialUserMessage
-                ? {
-                      payload: initialUserMessage,
-                      sender: "user",
-                      sentTime: now,
-                      direction: "outgoing",
-                      position: "single",
-                  }
-                : null;
-            const preview = initialMessage
-                ? buildLastMessagePreview([initialMessage])
-                : {};
-            const prepared = prepareMessagesForPersistence(
-                initialMessage ? [initialMessage] : [],
+        if (id === "new") {
+            return NextResponse.json(
+                { error: "Create a chat before starting a stream" },
+                { status: 400 },
             );
-            // Create a new chat for this user
-            const newChat = new Chat({
-                userId: currentUser._id,
-                messages: prepared.messages,
-                title: "",
-                isUnused: !initialMessage,
-                messageStorageBytes: prepared.messageStorageBytes,
-                messagesCompacted: prepared.messagesCompacted,
-                messagesCompactedAt: prepared.messagesCompacted
-                    ? new Date()
-                    : null,
-                ...preview,
-            });
-            await newChat.save();
-            chatId = String(newChat._id);
-            createdChatId = chatId;
-            chat = newChat;
-        } else {
-            // Get existing chat and verify ownership
-            chat = await Chat.findOne({ _id: id, userId: currentUser._id });
         }
+
+        const loaded = await getChatForOwnerWrite(id, currentUser._id);
+        if (!loaded.ok) {
+            return NextResponse.json(
+                { error: loaded.error },
+                { status: loaded.status },
+            );
+        }
+        chat = loaded.chat;
 
         if (!chat) {
             return NextResponse.json(
@@ -331,7 +313,7 @@ export async function POST(req, { params }) {
             (resolvedEntitySelection.persistedEntityId || "")
         ) {
             await Chat.findOneAndUpdate(
-                { _id: chatId, userId: currentUser._id },
+                { _id: chatId },
                 {
                     selectedEntityId:
                         resolvedEntitySelection.persistedEntityId || "",
@@ -488,11 +470,6 @@ export async function POST(req, { params }) {
                 };
 
                 try {
-                    // Send chatId to client (important when new chat was created)
-                    if (chatId && id !== chatId) {
-                        sendEvent("chatId", { chatId });
-                    }
-
                     // Send subscriptionId so client can inject messages / cancel
                     sendEvent("subscriptionId", { subscriptionId });
 
@@ -505,6 +482,7 @@ export async function POST(req, { params }) {
                         .subscribe({
                             next: async (result) => {
                                 if (!result?.data?.requestProgress) return;
+                                if (completionHandled) return;
 
                                 const {
                                     progress,
@@ -515,6 +493,7 @@ export async function POST(req, { params }) {
 
                                 // Handle errors
                                 if (error) {
+                                    completionHandled = true;
                                     sendEvent("error", { error });
                                     unsubscribe();
                                     persistMessage(
@@ -661,17 +640,6 @@ export async function POST(req, { params }) {
         });
     } catch (error) {
         console.error("Error in stream endpoint:", error);
-        if (createdChatId && !loadingWasSet && currentUser?._id) {
-            await Chat.deleteOne({
-                _id: createdChatId,
-                userId: currentUser._id,
-            }).catch((cleanupError) => {
-                console.error(
-                    `[SSE Stream] Error deleting failed bootstrap chat ${createdChatId}:`,
-                    cleanupError,
-                );
-            });
-        }
         // Clear loading state if it was set before the error occurred
         if (loadingWasSet) {
             await clearChatLoading(chatId).catch(() => {
@@ -766,6 +734,10 @@ async function persistMessage(
 
         if (lastStreamingIndex !== -1) {
             messages[lastStreamingIndex] = messageToSave;
+        } else if (
+            isDuplicateFinalAssistantMessage(messages.at(-1), messageToSave)
+        ) {
+            messages[messages.length - 1] = messageToSave;
         } else {
             messages.push(messageToSave);
         }
@@ -776,7 +748,6 @@ async function persistMessage(
         const updateData = {
             messages: prepared.messages,
             isChatLoading: false,
-            isUnused: false,
             activeSubscriptionId: null,
             messageStorageBytes: prepared.messageStorageBytes,
         };

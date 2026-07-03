@@ -24,11 +24,17 @@ function getGroupId(groupBy, timestampField = "timestamp") {
                 $dateToString: {
                     format: "%Y-%m-%d %H:%M",
                     date: {
-                        $dateTrunc: {
-                            date: timestampPath,
-                            unit: "minute",
-                            binSize: 15,
-                            timezone: "UTC",
+                        $dateFromParts: {
+                            year: { $year: timestampPath },
+                            month: { $month: timestampPath },
+                            day: { $dayOfMonth: timestampPath },
+                            hour: { $hour: timestampPath },
+                            minute: {
+                                $subtract: [
+                                    { $minute: timestampPath },
+                                    { $mod: [{ $minute: timestampPath }, 15] },
+                                ],
+                            },
                         },
                     },
                     timezone: "UTC",

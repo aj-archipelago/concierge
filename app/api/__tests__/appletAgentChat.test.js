@@ -5,6 +5,7 @@
 import { POST } from "../applet/agent-chat/route";
 
 const mockQuery = jest.fn();
+const mockResolveShareAccess = jest.fn();
 const createLeanQuery = (data) => ({
     select: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(data),
@@ -64,6 +65,10 @@ jest.mock("../models/workspace", () => ({
     },
 }));
 
+jest.mock("../utils/shareAccess.js", () => ({
+    resolveShareAccess: (...args) => mockResolveShareAccess(...args),
+}));
+
 jest.mock("../../../src/utils/fileAccessPlanUtils.js", () => ({
     buildFileAccessPlan: jest.fn(() => [
         {
@@ -120,10 +125,16 @@ describe("POST /api/applet/agent-chat", () => {
         App.findOne.mockReturnValue(createLeanQuery(null));
         const Workspace = require("../models/workspace").default;
         Workspace.findOne.mockReturnValue(createLeanQuery(null));
+        mockResolveShareAccess.mockResolvedValue({
+            canAccess: false,
+            isOwner: false,
+            role: null,
+        });
         mockQuery.mockResolvedValue({
             data: {
                 sys_entity_agent: {
                     result: "Hello from the agent",
+                    tool: JSON.stringify({ citations: [] }),
                     warnings: [],
                     errors: [],
                 },
@@ -214,10 +225,8 @@ describe("POST /api/applet/agent-chat", () => {
             expect(data.error).toBe("Access denied");
             expect(mockQuery).not.toHaveBeenCalled();
         });
-    });
 
-    describe("happy path", () => {
-        test("allows public access to a published v2 applet", async () => {
+        test("returns 403 for a non-recipient on a private published v2 applet", async () => {
             const { getCurrentUser } = require("../utils/auth");
             getCurrentUser.mockResolvedValue({
                 _id: "viewer-1",
@@ -233,6 +242,77 @@ describe("POST /api/applet/agent-chat", () => {
                     publishedVersionIndex: 0,
                 }),
             );
+
+            const res = await POST(
+                createRequest({
+                    messages: [{ role: "user", content: "Hello" }],
+                }),
+            );
+            const data = await res.json();
+
+            expect(res.status).toBe(403);
+            expect(data.error).toBe("Access denied");
+            expect(mockResolveShareAccess).toHaveBeenCalledWith({
+                entityType: "applet",
+                entityId: "507f191e810c19729de860ea",
+                userId: "viewer-1",
+                ownerId: "owner-1",
+            });
+            expect(mockQuery).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("happy path", () => {
+        test("allows public access to a listed published v2 applet", async () => {
+            const { getCurrentUser } = require("../utils/auth");
+            getCurrentUser.mockResolvedValue({
+                _id: "viewer-1",
+                contextId: "user-ctx-1",
+                contextKey: "user-key-1",
+            });
+            const Applet = require("../models/applet").default;
+            Applet.findById.mockReturnValue(
+                createLeanQuery({
+                    _id: "507f191e810c19729de860ea",
+                    owner: "owner-1",
+                    version: 2,
+                    publishedVersionIndex: 0,
+                }),
+            );
+            const App = require("../models/app").default;
+            App.findOne.mockReturnValue(createLeanQuery({ _id: "public-app" }));
+
+            const res = await POST(
+                createRequest({
+                    messages: [{ role: "user", content: "Hello" }],
+                }),
+            );
+
+            expect(res.status).toBe(200);
+            expect(mockQuery).toHaveBeenCalled();
+        });
+
+        test("allows shared access to a private published v2 applet", async () => {
+            const { getCurrentUser } = require("../utils/auth");
+            getCurrentUser.mockResolvedValue({
+                _id: "viewer-1",
+                contextId: "user-ctx-1",
+                contextKey: "user-key-1",
+            });
+            const Applet = require("../models/applet").default;
+            Applet.findById.mockReturnValue(
+                createLeanQuery({
+                    _id: "507f191e810c19729de860ea",
+                    owner: "owner-1",
+                    version: 2,
+                    publishedVersionIndex: 0,
+                }),
+            );
+            mockResolveShareAccess.mockResolvedValue({
+                canAccess: true,
+                isOwner: false,
+                role: "viewer",
+            });
 
             const res = await POST(
                 createRequest({
@@ -288,6 +368,43 @@ describe("POST /api/applet/agent-chat", () => {
             expect(res.status).toBe(200);
             expect(data).toEqual({
                 result: "Hello from the agent",
+                citations: [],
+                metadata: { citations: [] },
+                warnings: [],
+                errors: [],
+            });
+        });
+
+        test("returns citations and parsed tool metadata on success", async () => {
+            mockQuery.mockResolvedValueOnce({
+                data: {
+                    sys_entity_agent: {
+                        result: "Hello from the agent",
+                        tool: JSON.stringify({
+                            citations: [{ title: "Source", url: "https://x" }],
+                            custom: { confidence: 0.9 },
+                        }),
+                        warnings: [],
+                        errors: [],
+                    },
+                },
+            });
+
+            const res = await POST(
+                createRequest({
+                    messages: [{ role: "user", content: "What is 2+2?" }],
+                }),
+            );
+            const data = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(data).toMatchObject({
+                result: "Hello from the agent",
+                citations: [{ title: "Source", url: "https://x" }],
+                metadata: {
+                    citations: [{ title: "Source", url: "https://x" }],
+                    custom: { confidence: 0.9 },
+                },
                 warnings: [],
                 errors: [],
             });
@@ -360,7 +477,13 @@ describe("POST /api/applet/agent-chat", () => {
             const data = await res.json();
 
             expect(res.status).toBe(200);
-            expect(data).toEqual({ result: "", warnings: [], errors: [] });
+            expect(data).toEqual({
+                result: "",
+                citations: [],
+                metadata: {},
+                warnings: [],
+                errors: [],
+            });
         });
 
         test("passes user.personalEntityId and aiName when present", async () => {

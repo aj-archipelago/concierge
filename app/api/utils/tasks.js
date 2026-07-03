@@ -1,10 +1,32 @@
 import { Queue } from "bullmq";
 import Task from "../models/task.mjs";
 import { getRedisConnection } from "./redis.mjs";
+import { formatDbErrorForLog, getDbRetryDelayMs } from "./db-retry.mjs";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
 });
+
+async function retryDbOperation(operation, maxRetries = 3, retryDelay = 1000) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            console.warn(
+                `Background task DB operation attempt ${attempt}/${maxRetries} failed: ${formatDbErrorForLog(error)}`,
+            );
+
+            if (attempt < maxRetries) {
+                const waitTime = getDbRetryDelayMs(error, retryDelay);
+                await new Promise((resolve) => setTimeout(resolve, waitTime));
+                retryDelay *= 2;
+            }
+        }
+    }
+    throw lastError;
+}
 
 async function createBackgroundTask({
     userId,
@@ -16,16 +38,18 @@ async function createBackgroundTask({
     automation,
 }) {
     // Create initial progress record with pending status
-    const requestProgress = await Task.create({
-        owner: userId,
-        type,
-        status: "pending",
-        progress: 0,
-        metadata,
-        invokedFrom,
-        automation,
-        automationRefId: automation?.automationId ?? null,
-    });
+    const requestProgress = await retryDbOperation(() =>
+        Task.create({
+            owner: userId,
+            type,
+            status: "pending",
+            progress: 0,
+            metadata,
+            invokedFrom,
+            automation,
+            automationRefId: automation?.automationId ?? null,
+        }),
+    );
 
     const jobData = {
         taskId: requestProgress._id,
@@ -57,7 +81,9 @@ async function createBackgroundTask({
     });
 
     // Update the Task document with the job id
-    await Task.findByIdAndUpdate(requestProgress._id, { jobId: job.id });
+    await retryDbOperation(() =>
+        Task.findByIdAndUpdate(requestProgress._id, { jobId: job.id }),
+    );
 
     return {
         job,

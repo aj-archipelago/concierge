@@ -7,42 +7,17 @@ import {
     deleteTask,
 } from "../utils/task-utils.mjs";
 
-import RequestProgress from "../models/request-progress.mjs";
 import Task from "../models/task.mjs";
 import UserState from "../models/user-state.mjs";
 import Chat from "../models/chat.mjs";
 import { prepareMessagesForPersistence } from "../chats/persistence.js";
 import Automation from "../models/automation.js";
-import { assertXaiTranscribeEnabled } from "../utils/transcribe-model-options";
-
-/*  RequestProgress is deprecated. This function migrates the tasks 
-    to the new Task model. */
-async function migrateTasks(userId) {
-    const requestProgresses = await RequestProgress.find({ owner: userId });
-    for (const requestProgress of requestProgresses) {
-        const task = requestProgress.toJSON();
-        try {
-            // Ensure encrypted fields have the correct type
-            const sanitizedTask = {
-                ...task,
-                // Convert null to empty object for data and metadata
-                data: task.data || {},
-                metadata: task.metadata || {},
-                // Convert null to empty string for statusText and error
-                statusText: task.statusText || "",
-                error: task.error || "",
-            };
-
-            // Use findOneAndUpdate with upsert to handle existing tasks
-            await Task.findOneAndUpdate({ _id: task._id }, sanitizedTask, {
-                upsert: true,
-                new: true,
-            });
-        } catch (error) {
-            console.error(`Error migrating task ${task._id}`, error);
-        }
-    }
-}
+import {
+    assertTranscribeModelOptionEnabled,
+    getTranscribeTaskTimeout,
+    normalizeTranscribeTaskMetadata,
+} from "../utils/transcribe-model-options";
+import { migrateTasks } from "../utils/task-migration.mjs";
 
 /**
  * Adds a progress message to a chat for a given task
@@ -181,6 +156,7 @@ export async function GET(request) {
 
         const query = {
             owner: user._id,
+            type: { $ne: "resource-shared" },
         };
 
         if (!showDismissed) {
@@ -196,11 +172,13 @@ export async function GET(request) {
             .skip((page - 1) * limit)
             .limit(limit);
 
-        await Promise.all(requests.map((task) => syncTaskWithBullMQJob(task)));
+        const syncedRequests = await Promise.all(
+            requests.map((task) => syncTaskWithBullMQJob(task)),
+        );
 
         // Check each task for abandoned status
         let updatedRequests = await Promise.all(
-            requests.map((task) => checkAndUpdateAbandonedTask(task)),
+            syncedRequests.map((task) => checkAndUpdateAbandonedTask(task)),
         );
         updatedRequests = await enrichAutomationTasks(
             updatedRequests,
@@ -252,30 +230,42 @@ export async function POST(req) {
             // Get current user
             const user = await getCurrentUser();
 
-            const taskMetadata =
+            let taskMetadata =
                 type === "transcribe"
                     ? { ...metadata, contextId: user.contextId }
                     : metadata;
 
             if (type === "transcribe") {
                 try {
-                    assertXaiTranscribeEnabled(taskMetadata.modelOption);
+                    assertTranscribeModelOptionEnabled(
+                        taskMetadata.modelOption,
+                    );
                 } catch (error) {
                     return NextResponse.json(
                         { error: error.message },
                         { status: 400 },
                     );
                 }
+                taskMetadata = normalizeTranscribeTaskMetadata(taskMetadata);
             }
 
-            // Create initial progress record and add job to queue
-            const result = await createBackgroundTask({
+            const taskTimeout =
+                type === "transcribe"
+                    ? getTranscribeTaskTimeout(taskMetadata.modelOption)
+                    : undefined;
+            const backgroundTaskArgs = {
                 userId: user._id,
                 type,
                 metadata: taskMetadata,
                 synchronous,
                 invokedFrom: { source, chatId },
-            });
+            };
+            if (taskTimeout) {
+                backgroundTaskArgs.timeout = taskTimeout;
+            }
+
+            // Create initial progress record and add job to queue
+            const result = await createBackgroundTask(backgroundTaskArgs);
 
             // If chatId is provided, add a progress message to the chat
             if (chatId) {

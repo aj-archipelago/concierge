@@ -51,9 +51,15 @@ export const taskSchema = new mongoose.Schema(
                     "write_page_featured_image",
                     "canvas_new_image",
                     "canvas_image_modify",
+                    "applet_metadata",
+                    "applet_sdk",
                     "automation",
                 ],
                 default: "unknown",
+            },
+            appletId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Applet",
             },
             chatId: {
                 type: mongoose.Schema.Types.ObjectId,
@@ -110,12 +116,10 @@ export const taskSchema = new mongoose.Schema(
 taskSchema.index({ cortexRequestId: 1 });
 taskSchema.index({ createdAt: -1 });
 taskSchema.index({ owner: 1 });
+taskSchema.index({ owner: 1, status: 1, dismissed: 1, createdAt: -1 });
 taskSchema.index({ owner: 1, "automation.automationId": 1, createdAt: -1 });
 taskSchema.index({ owner: 1, automationRefId: 1, createdAt: -1 });
 
 const Task = mongoose.models?.Task || mongoose.model("Task", taskSchema);
-
-// Add a function to sync indexes when needed
-Task.syncIndexes?.();
 
 export default Task;

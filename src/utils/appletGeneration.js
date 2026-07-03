@@ -2,12 +2,15 @@ import { v4 as uuidv4 } from "uuid";
 import {
     incrementFileBrowserRefresh,
     openCanvas,
+    openCanvasForChat,
     updateCanvasTab,
+    updateCanvasTabForChat,
 } from "../stores/chatSlice";
 import { uploadFileToMediaHelper } from "./fileUploadUtils";
 import { registerCanvasAppletAfterUpload } from "./registerCanvasAppletAfterUpload";
 import { createAppletGlobalStorageTarget } from "./storageTargets";
 import { injectAppletIdMeta, injectAppletMetaTags } from "./appletHtmlUtils";
+import { kickoffAppletAssetGeneration } from "./appletAssetGeneration";
 
 export { injectAppletIdMeta, injectAppletMetaTags } from "./appletHtmlUtils";
 
@@ -323,6 +326,7 @@ async function readAppletStream(response, onChunk) {
 export function launchAppletGeneration({
     prompt,
     dispatch,
+    chatId = null,
     userContextId = null,
     tabId = uuidv4(),
     appletName: appletNameOverride = null,
@@ -348,8 +352,15 @@ export function launchAppletGeneration({
         (filenameOverride || "").trim() ||
         deriveAppletFilename(trimmedPrompt, appletName);
 
+    const openCanvasAction = (canvas) =>
+        chatId ? openCanvasForChat({ chatId, canvas }) : openCanvas(canvas);
+    const updateCanvasTabAction = (content) =>
+        chatId
+            ? updateCanvasTabForChat({ chatId, tabId, content })
+            : updateCanvasTab({ tabId, content });
+
     dispatch(
-        openCanvas({
+        openCanvasAction({
             tabId,
             type: "html",
             title: GENERATING_APPLET_TITLE,
@@ -375,12 +386,9 @@ export function launchAppletGeneration({
                 response,
                 (htmlContent) => {
                     dispatch(
-                        updateCanvasTab({
-                            tabId,
-                            content: {
-                                htmlContent,
-                                htmlStatus: "generating",
-                            },
+                        updateCanvasTabAction({
+                            htmlContent,
+                            htmlStatus: "generating",
                         }),
                     );
                 },
@@ -388,15 +396,12 @@ export function launchAppletGeneration({
 
             const taggedHtml = injectAppletMetaTags(finalHtml, appletName);
             dispatch(
-                updateCanvasTab({
-                    tabId,
-                    content: {
-                        htmlContent: taggedHtml,
-                        htmlStatus: null,
-                        htmlError: null,
-                        title: filename,
-                        filename,
-                    },
+                updateCanvasTabAction({
+                    htmlContent: taggedHtml,
+                    htmlStatus: null,
+                    htmlError: null,
+                    title: filename,
+                    filename,
                 }),
             );
 
@@ -456,19 +461,21 @@ export function launchAppletGeneration({
                             : null;
 
                         dispatch(
-                            updateCanvasTab({
-                                tabId,
-                                content: {
-                                    appletId,
-                                    fileHash: effectiveUpload.hash,
-                                    filename: result.filename,
-                                    title: result.filename,
-                                    url: effectiveUpload.url,
-                                    htmlContent: registeredHtml,
-                                    workspacePath: result.workspacePath,
-                                },
+                            updateCanvasTabAction({
+                                appletId,
+                                fileHash: effectiveUpload.hash,
+                                filename: result.filename,
+                                title: result.filename,
+                                url: effectiveUpload.url,
+                                htmlContent: registeredHtml,
+                                workspacePath: result.workspacePath,
                             }),
                         );
+
+                        kickoffAppletAssetGeneration({
+                            appletId,
+                            metadata: { name: appletName },
+                        });
                     }
                 } catch (saveError) {
                     onSaveError?.(saveError, result);
@@ -480,12 +487,9 @@ export function launchAppletGeneration({
         } catch (error) {
             const message = error?.message || "Applet generation failed";
             dispatch(
-                updateCanvasTab({
-                    tabId,
-                    content: {
-                        htmlStatus: "error",
-                        htmlError: message,
-                    },
+                updateCanvasTabAction({
+                    htmlStatus: "error",
+                    htmlError: message,
                 }),
             );
             onError?.(error, { tabId, appletName, filename });

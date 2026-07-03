@@ -243,6 +243,63 @@ describe("MessageList user attachments", () => {
         expect(screen.getByText("concierge-install.sh")).toBeInTheDocument();
     });
 
+    it("uses server message ids when persisted messages share a sent time", () => {
+        const consoleErrorSpy = jest
+            .spyOn(console, "error")
+            .mockImplementation(() => {});
+
+        try {
+            render(
+                <MessageList
+                    messages={[
+                        {
+                            _id: "server-user-message",
+                            payload: "Digest prompt",
+                            sender: "user",
+                            sentTime: "2026-06-16T14:54:17.738Z",
+                            direction: "outgoing",
+                            position: "single",
+                        },
+                        {
+                            _id: "server-assistant-message",
+                            payload: "Digest answer",
+                            sender: "assistant",
+                            sentTime: "2026-06-16T14:54:17.738Z",
+                            direction: "incoming",
+                            position: "single",
+                        },
+                    ]}
+                    bot="chat"
+                    loading={false}
+                    chatId="chat-1"
+                    streamingContent=""
+                    isStreaming={false}
+                    isChatLoading={false}
+                    onSend={jest.fn()}
+                    inlinePayloadItems={[]}
+                    thinkingDuration={0}
+                    isThinking={false}
+                    entities={[]}
+                />,
+            );
+
+            expect(
+                screen.getByTestId("message-wrapper-server-user-message"),
+            ).toBeInTheDocument();
+            expect(
+                screen.getByTestId("message-wrapper-server-assistant-message"),
+            ).toBeInTheDocument();
+            expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+                expect.stringContaining(
+                    "Encountered two children with the same key",
+                ),
+                expect.anything(),
+            );
+        } finally {
+            consoleErrorSpy.mockRestore();
+        }
+    });
+
     it("renders the transient draft pair separately from settled history", () => {
         render(
             <MessageList
@@ -465,115 +522,6 @@ describe("MessageList user attachments", () => {
 
         expect(afterUserWrapper).toBe(beforeUserWrapper);
         expect(afterAssistantWrapper).toBe(beforeAssistantWrapper);
-    });
-
-    it("preserves the streaming assistant node when a new chat is promoted", () => {
-        const { rerender } = render(
-            <MessageList
-                messages={[]}
-                pendingUserMessage={{
-                    payload: "New question",
-                    sender: "user",
-                    sentTime: "2026-03-09T00:00:10.000Z",
-                    direction: "outgoing",
-                    position: "single",
-                    _clientId: "draft-user:new",
-                }}
-                bot="chat"
-                loading={true}
-                chatId="new"
-                isStreaming={true}
-                isChatLoading={true}
-                onSend={jest.fn()}
-                inlinePayloadItems={[]}
-                thinkingDuration={0}
-                isThinking={false}
-                entities={[]}
-            />,
-        );
-
-        const beforeStreamingNode = screen.getByTestId("streaming-message");
-
-        rerender(
-            <MessageList
-                messages={[]}
-                pendingUserMessage={{
-                    payload: "New question",
-                    sender: "user",
-                    sentTime: "2026-03-09T00:00:10.000Z",
-                    direction: "outgoing",
-                    position: "single",
-                    _clientId: "draft-user:new",
-                }}
-                bot="chat"
-                loading={true}
-                chatId="server-chat-1"
-                isStreaming={true}
-                isChatLoading={true}
-                onSend={jest.fn()}
-                inlinePayloadItems={[]}
-                thinkingDuration={0}
-                isThinking={false}
-                entities={[]}
-            />,
-        );
-
-        const afterStreamingNode = screen.getByTestId("streaming-message");
-        expect(afterStreamingNode).toBe(beforeStreamingNode);
-    });
-
-    it("does not reset scroll state when a new chat is promoted", () => {
-        const { rerender } = render(
-            <MessageList
-                messages={[]}
-                pendingUserMessage={{
-                    payload: "New question",
-                    sender: "user",
-                    sentTime: "2026-03-09T00:00:10.000Z",
-                    direction: "outgoing",
-                    position: "single",
-                    _clientId: "draft-user:new",
-                }}
-                bot="chat"
-                loading={true}
-                chatId="new"
-                isStreaming={true}
-                isChatLoading={true}
-                onSend={jest.fn()}
-                inlinePayloadItems={[]}
-                thinkingDuration={0}
-                isThinking={false}
-                entities={[]}
-            />,
-        );
-
-        mockResetScrollState.mockClear();
-
-        rerender(
-            <MessageList
-                messages={[]}
-                pendingUserMessage={{
-                    payload: "New question",
-                    sender: "user",
-                    sentTime: "2026-03-09T00:00:10.000Z",
-                    direction: "outgoing",
-                    position: "single",
-                    _clientId: "draft-user:new",
-                }}
-                bot="chat"
-                loading={true}
-                chatId="507f1f77bcf86cd799439051"
-                isStreaming={true}
-                isChatLoading={true}
-                onSend={jest.fn()}
-                inlinePayloadItems={[]}
-                thinkingDuration={0}
-                isThinking={false}
-                entities={[]}
-            />,
-        );
-
-        expect(mockResetScrollState).not.toHaveBeenCalled();
     });
 
     it("still resets scroll state when switching between persisted chats", () => {

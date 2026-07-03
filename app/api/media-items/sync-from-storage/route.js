@@ -10,6 +10,9 @@ import {
 import {
     isLikelyStorageFileForProcessingMedia,
     isProcessingGeneratedMediaItem,
+    isStorageSyncMediaItem,
+    normalizeMediaPath,
+    storageFileMatchesExpectedGeneratedFilename,
 } from "../../../../src/utils/mediaDuplicateSuppression.js";
 import {
     extractBlobPathFromUrl,
@@ -152,6 +155,140 @@ function collectExistingIdentifiers(mediaItems) {
     return { hashes, blobPaths, urls };
 }
 
+function getExistingBlobPath(item) {
+    return normalizeMediaPath(
+        item?.blobPath ||
+            extractBlobPathFromUrl(item?.azureUrl) ||
+            extractBlobPathFromUrl(item?.url),
+    );
+}
+
+function getExistingUrls(item) {
+    return [item?.url, item?.azureUrl, item?.gcsUrl]
+        .filter(Boolean)
+        .map((value) => String(value));
+}
+
+function isCompletedGeneratedMediaItem(item) {
+    return (
+        !isStorageSyncMediaItem(item) &&
+        String(item?.status || "").toLowerCase() === "completed"
+    );
+}
+
+function listedFileMatchesGeneratedMedia(file, item) {
+    if (!isCompletedGeneratedMediaItem(item)) {
+        return false;
+    }
+
+    if (file?.type && item?.type && file.type !== item.type) {
+        return false;
+    }
+
+    if (file.hash && item?.hash === file.hash) {
+        return true;
+    }
+
+    const fileBlobPath = normalizeMediaPath(file?.blobPath);
+    if (fileBlobPath && getExistingBlobPath(item) === fileBlobPath) {
+        return true;
+    }
+
+    const existingUrls = new Set(getExistingUrls(item));
+    if (getExistingUrls(file).some((url) => existingUrls.has(url))) {
+        return true;
+    }
+
+    return storageFileMatchesExpectedGeneratedFilename(file, item);
+}
+
+function findGeneratedMediaMatch(file, existingItems) {
+    return existingItems.find((item) =>
+        listedFileMatchesGeneratedMedia(file, item),
+    );
+}
+
+function inferOutputFolderFromBlobPath(blobPath) {
+    const parts = normalizeMediaPath(blobPath).split("/").filter(Boolean);
+    const mediaIndex = parts.indexOf("media");
+    const folderParts =
+        mediaIndex >= 0 ? parts.slice(mediaIndex + 1, -1) : parts.slice(0, -1);
+    return folderParts.join("/");
+}
+
+function buildGeneratedMediaHealUpdates(file, existingItem) {
+    const updates = {};
+    const outputFolder = inferOutputFolderFromBlobPath(file.blobPath);
+    const existingBlobPath = getExistingBlobPath(existingItem);
+    const nextBlobPath = normalizeMediaPath(file.blobPath);
+    const blobPathChanged = nextBlobPath && nextBlobPath !== existingBlobPath;
+    const hashChanged = file.hash && existingItem?.hash !== file.hash;
+    const outputFolderChanged = existingItem?.outputFolder !== outputFolder;
+    const shouldRefreshUrls =
+        blobPathChanged ||
+        !existingItem?.url ||
+        !existingItem?.azureUrl ||
+        (file.gcsUrl && !existingItem?.gcsUrl);
+
+    const nextValues = {
+        ...(shouldRefreshUrls &&
+            file.url && { url: file.url, azureUrl: file.url }),
+        ...(shouldRefreshUrls && file.gcsUrl && { gcsUrl: file.gcsUrl }),
+        ...(hashChanged && { hash: file.hash }),
+        ...(blobPathChanged && { blobPath: file.blobPath }),
+        ...(outputFolderChanged && { outputFolder }),
+    };
+
+    for (const [key, value] of Object.entries(nextValues)) {
+        if (value !== undefined && existingItem?.[key] !== value) {
+            updates[key] = value;
+        }
+    }
+
+    return updates;
+}
+
+function storageSyncItemMatchesListedFile(item, file) {
+    if (!isStorageSyncMediaItem(item)) {
+        return false;
+    }
+
+    if (file.hash && item?.hash === file.hash) {
+        return true;
+    }
+
+    const fileBlobPath = normalizeMediaPath(file?.blobPath);
+    if (fileBlobPath && getExistingBlobPath(item) === fileBlobPath) {
+        return true;
+    }
+
+    const existingUrls = new Set(getExistingUrls(item));
+    return getExistingUrls(file).some((url) => existingUrls.has(url));
+}
+
+function getDuplicateStorageSyncIds(file, matchedItem, existingItems) {
+    return existingItems
+        .filter(
+            (item) =>
+                item?._id &&
+                item?.taskId !== matchedItem.taskId &&
+                storageSyncItemMatchesListedFile(item, file),
+        )
+        .map((item) => item._id);
+}
+
+function addFileIdentifiers(existingIdentifiers, file) {
+    if (file.hash) {
+        existingIdentifiers.hashes.add(file.hash);
+    }
+    if (file.blobPath) {
+        existingIdentifiers.blobPaths.add(file.blobPath);
+    }
+    if (file.url) {
+        existingIdentifiers.urls.add(file.url);
+    }
+}
+
 function isExpectedMediaFolderPath(folderPath) {
     if (!folderPath) {
         return false;
@@ -224,7 +361,7 @@ export async function POST() {
 
         const existingItems = await MediaItem.find(
             { user: user._id },
-            "hash blobPath url azureUrl status model type outputFolder taskId cortexRequestId prompt displayPrompt created",
+            "hash blobPath url azureUrl gcsUrl status model type outputFolder taskId cortexRequestId prompt displayPrompt created",
         ).lean();
         const existingIdentifiers = collectExistingIdentifiers(existingItems);
         const pendingGeneratedItems = existingItems.filter(
@@ -233,6 +370,7 @@ export async function POST() {
 
         let syncedCount = 0;
         let skippedCount = 0;
+        let healedCount = 0;
 
         for (const file of listedFiles) {
             if (isMediaSupportAsset(file)) {
@@ -246,6 +384,40 @@ export async function POST() {
                     pendingGeneratedItems,
                 )
             ) {
+                skippedCount += 1;
+                continue;
+            }
+
+            const generatedMediaMatch = findGeneratedMediaMatch(
+                file,
+                existingItems,
+            );
+            if (generatedMediaMatch) {
+                const updates = buildGeneratedMediaHealUpdates(
+                    file,
+                    generatedMediaMatch,
+                );
+                if (Object.keys(updates).length) {
+                    await MediaItem.updateOne(
+                        { user: user._id, taskId: generatedMediaMatch.taskId },
+                        { $set: updates },
+                    );
+                    Object.assign(generatedMediaMatch, updates);
+                    healedCount += 1;
+                }
+
+                const duplicateStorageSyncIds = getDuplicateStorageSyncIds(
+                    file,
+                    generatedMediaMatch,
+                    existingItems,
+                );
+                if (duplicateStorageSyncIds.length) {
+                    await MediaItem.deleteMany({
+                        _id: { $in: duplicateStorageSyncIds },
+                    });
+                }
+
+                addFileIdentifiers(existingIdentifiers, file);
                 skippedCount += 1;
                 continue;
             }
@@ -294,22 +466,14 @@ export async function POST() {
             }
 
             syncedCount += 1;
-
-            if (file.hash) {
-                existingIdentifiers.hashes.add(file.hash);
-            }
-            if (file.blobPath) {
-                existingIdentifiers.blobPaths.add(file.blobPath);
-            }
-            if (file.url) {
-                existingIdentifiers.urls.add(file.url);
-            }
+            addFileIdentifiers(existingIdentifiers, file);
         }
 
         return Response.json({
             success: true,
             inspectedCount: listedFiles.length,
             syncedCount,
+            healedCount,
             skippedCount,
         });
     } catch (error) {

@@ -19,6 +19,7 @@ export const FILE_VALIDATION_CONFIG = {
         // Documents
         "application/pdf",
         "text/plain",
+        "text/html",
         "text/csv",
         "application/json",
         "text/markdown",

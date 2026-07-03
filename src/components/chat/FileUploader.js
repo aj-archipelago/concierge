@@ -14,9 +14,11 @@ import {
 import FileCollectionPickerModal from "./FileCollectionPickerModal";
 import {
     isSupportedFileUrl,
+    isBlobStorageUrl,
     getFilename,
     hashMediaFile,
 } from "../../utils/mediaUtils";
+import { buildFileCollectionAttachments } from "./fileCollectionAttachments";
 import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
 import { createChatStorageTarget } from "../../utils/storageTargets";
 import { isYoutubeUrl } from "../../utils/urlUtils";
@@ -162,7 +164,6 @@ export default function FileUploader({
     setIsUploadingMedia,
     setUrlsData,
     chatId = null,
-    promoteChat = null,
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
@@ -498,22 +499,9 @@ export default function FileUploader({
                 // folder scoping and per-upload filenames are preserved.
                 const fileHash = await hashMediaFile(fileObj);
 
-                // Promote the placeholder "new" chat to a real chat before
-                // we choose a storage folder, so the file lands under the
-                // chat's real id instead of an orphaned chats/new/ folder.
-                let effectiveChatId = chatId;
-                if (promoteChat && chatId) {
-                    try {
-                        effectiveChatId = await promoteChat();
-                    } catch (err) {
-                        console.error("Chat promotion failed:", err);
-                        // Fall through with original chatId; upload still
-                        // proceeds, just lands in chats/new/ as before.
-                    }
-                }
                 const storageTarget = createChatStorageTarget(
                     contextId,
-                    effectiveChatId,
+                    chatId,
                 );
 
                 // Upload the file without hash dedupe for chat-scoped files.
@@ -586,9 +574,7 @@ export default function FileUploader({
                     }
 
                     if (isSupportedFileUrl(fileObj?.name)) {
-                        const hasAzureUrl =
-                            responseData.url &&
-                            responseData.url.includes("blob.core.windows.net");
+                        const hasAzureUrl = isBlobStorageUrl(responseData.url);
 
                         if (!hasAzureUrl) {
                             processingFilesRef.current.delete(fileId);
@@ -671,7 +657,6 @@ export default function FileUploader({
             processUrlFile,
             contextId,
             chatId,
-            promoteChat,
         ],
     );
 
@@ -834,36 +819,13 @@ export default function FileUploader({
         (selectedObjects) => {
             if (!selectedObjects || selectedObjects.length === 0) return;
 
-            const attached = selectedObjects.map((file, index) => {
-                const displayFilename =
-                    file.displayName ||
-                    file.displayFilename ||
-                    file.filename ||
-                    file.name ||
-                    getFilename(file.url || "");
-                const id = `cfh-${file.blobPath || file.url || index}-${Date.now()}`;
-                const attachment = {
-                    url: file.url,
-                    displayFilename,
-                    hash: file.hash,
-                    blobPath: file.blobPath,
-                    converted: file.converted,
-                };
-                addUrl(attachment);
-                return {
-                    id,
-                    source: { url: file.url, ...file },
-                    filename: displayFilename,
-                    name: displayFilename,
-                    type: file.type || file.mimeType || "",
-                    size: file.size || 0,
-                    status: "completed",
-                    progress: 100,
-                    serverId: file.url,
-                };
-            });
+            const attachments = buildFileCollectionAttachments(selectedObjects);
+            attachments.forEach(({ urlData }) => addUrl(urlData));
 
-            setFiles((prev) => [...prev, ...attached]);
+            setFiles((prev) => [
+                ...prev,
+                ...attachments.map((attachment) => attachment.file),
+            ]);
         },
         [addUrl, setFiles],
     );

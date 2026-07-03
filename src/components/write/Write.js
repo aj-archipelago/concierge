@@ -332,6 +332,7 @@ function Write({ articleEditor, isActive }) {
     } = articleEditor.state;
 
     const { updateContent } = articleEditor.operations;
+    const readOnly = articleEditor.readOnly ?? false;
 
     // The action is the AI action that the user has selected.
     // It triggers the AI modal.
@@ -470,7 +471,7 @@ function Write({ articleEditor, isActive }) {
     const editorPane = useMemo(() => {
         return (
             <>
-                <div className="grow md:basis-full flex flex-col min-h-0">
+                <div className="grow md:basis-full flex flex-col min-h-0 px-4 sm:px-6 pt-4 pb-4">
                     {/* Tabs below the header */}
                     <Tabs
                         value={activeTab}
@@ -566,6 +567,7 @@ function Write({ articleEditor, isActive }) {
                                             // UserState persistence removed
                                         }}
                                         articleText={inputText}
+                                        readOnly={readOnly}
                                     />
                                 </div>
                                 {/* Featured Image */}
@@ -602,82 +604,95 @@ function Write({ articleEditor, isActive }) {
                                                     "Featured image unavailable",
                                                 )}
                                             </div>
-                                            <div className="absolute top-2 end-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {!readOnly && (
+                                                <div className="absolute top-2 end-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() =>
+                                                            setShowFeaturedImageDialog(
+                                                                true,
+                                                            )
+                                                        }
+                                                        className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                    >
+                                                        <Upload className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            updateContent({
+                                                                featuredImageUrl:
+                                                                    "",
+                                                            });
+                                                            // UserState persistence removed
+                                                        }}
+                                                        className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                    >
+                                                        <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        !readOnly && (
+                                            <div className="flex items-center gap-2 p-2">
+                                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                    {t("Featured Image")}
+                                                </label>
                                                 <button
                                                     onClick={() =>
                                                         setShowFeaturedImageDialog(
                                                             true,
                                                         )
                                                     }
-                                                    className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                                                    className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                                    aria-label={t(
+                                                        "Add featured image",
+                                                    )}
                                                 >
-                                                    <Upload className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        updateContent({
-                                                            featuredImageUrl:
-                                                                "",
-                                                        });
-                                                        // UserState persistence removed
-                                                    }}
-                                                    className="bg-white dark:bg-gray-800 p-2 rounded-md shadow-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                                                >
-                                                    <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                                    <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                                                 </button>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2 p-2">
-                                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                {t("Featured Image")}
-                                            </label>
-                                            <button
-                                                onClick={() =>
-                                                    setShowFeaturedImageDialog(
-                                                        true,
-                                                    )
-                                                }
-                                                className="p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                                aria-label={t(
-                                                    "Add featured image",
-                                                )}
-                                            >
-                                                <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                                            </button>
-                                        </div>
+                                        )
                                     )}
                                 </div>
-                                <div className="mb-6">
-                                    <Toolbar
-                                        actions={actions}
-                                        onAction={(a, args) => {
-                                            amplitude.track("Modal Opened", {
-                                                type: a,
-                                            });
-                                            setAction(a);
-                                            setArgs(args);
-                                            if (actions[a].postApply) {
-                                                switch (actions[a].postApply) {
-                                                    case "clear-headline":
-                                                        updateContent({
-                                                            headline: "",
-                                                            subhead: "",
-                                                        });
-                                                        // UserState persistence removed
-                                                        break;
-                                                    default:
-                                                        break;
+                                {!readOnly && (
+                                    <div className="mb-6">
+                                        <Toolbar
+                                            actions={actions}
+                                            onAction={(a, args) => {
+                                                amplitude.track(
+                                                    "Modal Opened",
+                                                    {
+                                                        type: a,
+                                                    },
+                                                );
+                                                setAction(a);
+                                                setArgs(args);
+                                                if (actions[a].postApply) {
+                                                    switch (
+                                                        actions[a].postApply
+                                                    ) {
+                                                        case "clear-headline":
+                                                            updateContent({
+                                                                headline: "",
+                                                                subhead: "",
+                                                            });
+                                                            // UserState persistence removed
+                                                            break;
+                                                        default:
+                                                            break;
+                                                    }
                                                 }
+                                            }}
+                                            isTextPresent={!!inputText}
+                                            isTextSelected={!!selection?.text}
+                                            inputText={inputText}
+                                            sidebarItems={sidebarItems}
+                                            onSidebarItemClick={
+                                                openDialogForItem
                                             }
-                                        }}
-                                        isTextPresent={!!inputText}
-                                        isTextSelected={!!selection?.text}
-                                        inputText={inputText}
-                                        sidebarItems={sidebarItems}
-                                        onSidebarItemClick={openDialogForItem}
-                                    />
-                                </div>
+                                        />
+                                    </div>
+                                )}
                                 <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                                     <Editor
                                         value={inputText}
@@ -690,6 +705,7 @@ function Write({ articleEditor, isActive }) {
                                         direction={editorDirection}
                                         isActive={isActive}
                                         fileHash={currentFileHash}
+                                        readOnly={readOnly}
                                     ></Editor>
                                 </div>
                             </div>
@@ -846,6 +862,7 @@ function Write({ articleEditor, isActive }) {
         activeTab,
         editorDirection,
         updateContent,
+        readOnly,
     ]);
 
     return (

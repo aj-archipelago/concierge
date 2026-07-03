@@ -17,6 +17,7 @@ import AddTrackDialog from "./AddTrackDialog";
 
 export function AddTrackButton({
     url,
+    videoInformation,
     onAdd,
     async = true,
     apolloClient,
@@ -132,6 +133,7 @@ export function AddTrackButton({
                 addTrackDialogOpen={addTrackDialogOpen}
                 setAddTrackDialogOpen={setAddTrackDialogOpen}
                 url={url}
+                videoInformation={videoInformation}
                 transcripts={transcripts}
                 onAdd={onAdd}
                 options={options}

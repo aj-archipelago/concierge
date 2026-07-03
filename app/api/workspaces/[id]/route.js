@@ -7,6 +7,7 @@ import AppletFile from "../../models/applet-file";
 import AppletSharedFile from "../../models/applet-shared-file";
 import File from "../../models/file";
 import { getCurrentUser } from "../../utils/auth";
+import { resolveShareAccess } from "../../utils/shareAccess";
 import { getWorkspace } from "./db";
 import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
 
@@ -93,9 +94,19 @@ export async function PUT(req, { params }) {
     const workspace = await Workspace.findById(id);
     const user = await getCurrentUser();
 
-    if (!workspace.owner?.equals(user._id)) {
+    if (!workspace) {
+        return Response.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    const access = await resolveShareAccess({
+        entityType: "workspace",
+        entityId: workspace._id,
+        userId: user?._id,
+        ownerId: workspace.owner,
+    });
+    if (!access.isOwner && access.role !== "editor") {
         return Response.json(
-            { error: "You are not the owner of this workspace" },
+            { error: "You do not have edit access to this workspace" },
             { status: 403 },
         );
     }

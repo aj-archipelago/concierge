@@ -8,6 +8,7 @@ import {
 import config from "../../../../app.config/config/index.js";
 import { validateAppletAccess } from "../access.js";
 import { APPLET_SDK_LIMITS, withAppletSdkGuard } from "../sdk-guard.js";
+import { parseToolMetadata } from "../../utils/tool-metadata.js";
 
 export async function POST(request) {
     try {
@@ -85,9 +86,12 @@ export async function POST(request) {
                 });
 
                 const data = response.data?.sys_entity_agent;
+                const { citations, metadata } = parseToolMetadata(data?.tool);
 
                 return NextResponse.json({
                     result: data?.result || "",
+                    citations,
+                    metadata,
                     warnings: data?.warnings || [],
                     errors: data?.errors || [],
                 });

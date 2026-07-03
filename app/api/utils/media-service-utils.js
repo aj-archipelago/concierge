@@ -280,6 +280,37 @@ async function listScopedFiles({
     }
 }
 
+export async function listMediaFiles({
+    storageTarget = null,
+    subPath = null,
+    ...routing
+} = {}) {
+    try {
+        const url = new URL(getMediaHelperUrl());
+        url.searchParams.set("listFolder", "true");
+        const listParams = buildMediaHelperListParams({
+            storageTarget,
+            ...routing,
+        });
+        for (const [key, value] of Object.entries(listParams)) {
+            url.searchParams.set(key, value);
+        }
+        if (subPath) {
+            url.searchParams.set("subPath", subPath);
+        }
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            return [];
+        }
+        const data = await response.json().catch(() => null);
+        return Array.isArray(data?.files) ? data.files : [];
+    } catch (error) {
+        console.error("Error listing media files:", error);
+        return [];
+    }
+}
+
 /**
  * List files in a skill's directory in blob storage.
  * @param {string} userContextId - The user's context ID

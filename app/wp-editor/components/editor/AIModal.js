@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import {
     Dialog,
     DialogContent,
@@ -64,9 +65,9 @@ export default function AIModal({
                     setEditorOperation(operation || "replaceText");
                 }
 
-                // Store HTML if provided in the message
+                // Store HTML if provided in the message (sanitize cross-origin postMessage HTML)
                 if (data.html) {
-                    setHtml(data.html);
+                    setHtml(DOMPurify.sanitize(data.html));
                 }
 
                 if (args) {

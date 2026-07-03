@@ -2,7 +2,11 @@
  * @jest-environment node
  */
 
-import { handleStreamingFileUpload } from "../utils/upload-utils";
+import {
+    handleStreamingFileUpload,
+    parseStreamingMultipart,
+} from "../utils/upload-utils";
+import { FILE_VALIDATION_CONFIG } from "../utils/fileValidation";
 
 // Mock dependencies
 jest.mock("next/server", () => ({
@@ -263,6 +267,21 @@ describe("Streaming Upload Handler", () => {
             expect(result.success).toBe(true);
         });
 
+        test("should accept HTML files", async () => {
+            const mockRequest = createMockMultipartRequest(
+                "reference.html",
+                "text/html",
+                1024,
+            );
+
+            const result = await handleStreamingFileUpload(
+                mockRequest,
+                mockOptions,
+            );
+
+            expect(result.success).toBe(true);
+        });
+
         test("should reject blocked file extensions", async () => {
             const mockRequest = createMockMultipartRequest(
                 "malware.exe",
@@ -296,6 +315,32 @@ describe("Streaming Upload Handler", () => {
 
             expect(result.error).toBeDefined();
             expect(result.error.data.error).toContain("File validation failed");
+        });
+
+        test("should allow route-specific extension overrides", async () => {
+            const mockRequest = createMockMultipartRequest(
+                "reference.py",
+                "text/x-python",
+                1024,
+            );
+
+            const result = await parseStreamingMultipart(
+                mockRequest,
+                mockUser,
+                {
+                    validationConfig: {
+                        ...FILE_VALIDATION_CONFIG,
+                        ALLOWED_EXTENSIONS: [".py"],
+                        BLOCKED_EXTENSIONS:
+                            FILE_VALIDATION_CONFIG.BLOCKED_EXTENSIONS.filter(
+                                (extension) => extension !== ".py",
+                            ),
+                    },
+                },
+            );
+
+            expect(result.success).toBe(true);
+            expect(result.data.metadata.filename).toBe("reference.py");
         });
     });
 

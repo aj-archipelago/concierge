@@ -8,4 +8,17 @@ describe("chat thinking locale labels", () => {
         expect(ar["Thinking with duration"]).toBeTruthy();
         expect(ar["Thought for duration"]).toBeTruthy();
     });
+
+    it("defines tool error detail toggles", () => {
+        expect(en["Show tool error details"]).toBeTruthy();
+        expect(en["Hide tool error details"]).toBeTruthy();
+        expect(en["Tool failed"]).toBeTruthy();
+        expect(en["Tool running"]).toBeTruthy();
+        expect(en["Tool succeeded"]).toBeTruthy();
+        expect(ar["Show tool error details"]).toBeTruthy();
+        expect(ar["Hide tool error details"]).toBeTruthy();
+        expect(ar["Tool failed"]).toBeTruthy();
+        expect(ar["Tool running"]).toBeTruthy();
+        expect(ar["Tool succeeded"]).toBeTruthy();
+    });
 });

@@ -215,9 +215,13 @@ export async function handleStreamingFileUpload(request, options) {
  * @param {Object} user - Current user for storage validation
  * @returns {Object} Parsed file data or error
  */
-export async function parseStreamingMultipart(request, user) {
+export async function parseStreamingMultipart(request, user, options = {}) {
     return new Promise((resolve, reject) => {
         try {
+            const validationConfig = {
+                ...FILE_VALIDATION_CONFIG,
+                ...(options.validationConfig || {}),
+            };
             const contentType = request.headers.get("content-type");
             if (!contentType || !contentType.includes("multipart/form-data")) {
                 resolve({
@@ -234,7 +238,7 @@ export async function parseStreamingMultipart(request, user) {
                     "content-type": contentType,
                 },
                 limits: {
-                    fileSize: FILE_VALIDATION_CONFIG.MAX_FILE_SIZE * 2, // Set busboy limit higher than our custom validation
+                    fileSize: validationConfig.MAX_FILE_SIZE * 2, // Set busboy limit higher than our custom validation
                     files: 1, // Only allow one file at a time
                     fields: 5, // Limit form fields
                     fieldSize: 1024 * 100, // 100KB max field size
@@ -264,9 +268,7 @@ export async function parseStreamingMultipart(request, user) {
                     .toLowerCase()
                     .substring(filename.lastIndexOf("."));
                 if (
-                    FILE_VALIDATION_CONFIG.BLOCKED_EXTENSIONS.includes(
-                        fileExtension,
-                    )
+                    validationConfig.BLOCKED_EXTENSIONS.includes(fileExtension)
                 ) {
                     validationError = NextResponse.json(
                         {
@@ -282,10 +284,14 @@ export async function parseStreamingMultipart(request, user) {
                 }
 
                 // Validate MIME type early
+                const allowedByExtension =
+                    validationConfig.ALLOWED_EXTENSIONS?.includes(
+                        fileExtension,
+                    );
                 if (
-                    !FILE_VALIDATION_CONFIG.ALLOWED_MIME_TYPES.includes(
-                        mimeType,
-                    )
+                    Array.isArray(validationConfig.ALLOWED_MIME_TYPES) &&
+                    !validationConfig.ALLOWED_MIME_TYPES.includes(mimeType) &&
+                    !allowedByExtension
                 ) {
                     validationError = NextResponse.json(
                         {
@@ -306,12 +312,12 @@ export async function parseStreamingMultipart(request, user) {
                     metadata.size = totalSize;
 
                     // Real-time size validation
-                    if (totalSize > FILE_VALIDATION_CONFIG.MAX_FILE_SIZE) {
+                    if (totalSize > validationConfig.MAX_FILE_SIZE) {
                         validationError = NextResponse.json(
                             {
                                 error: "File validation failed",
                                 details: [
-                                    `File size exceeds maximum limit of ${(FILE_VALIDATION_CONFIG.MAX_FILE_SIZE / (1024 * 1024)).toFixed(1)}MB`,
+                                    `File size exceeds maximum limit of ${(validationConfig.MAX_FILE_SIZE / (1024 * 1024)).toFixed(1)}MB`,
                                 ],
                             },
                             { status: 400 },

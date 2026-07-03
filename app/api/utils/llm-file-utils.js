@@ -1,4 +1,3 @@
-import config from "../../../config";
 import {
     buildFileAccessPlan,
     buildRunContext,
@@ -19,24 +18,193 @@ import { resolveAndHealFile } from "./file-resolution-utils.js";
  * Allowed blob storage domains for proxy routes.
  * Used by image-proxy, text-proxy, and media-proxy to validate URLs.
  */
-export const ALLOWED_BLOB_DOMAINS = [
-    "blob.core.windows.net",
-    "storage.googleapis.com",
-    "storage.cloud.google.com",
-    "127.0.0.1", // Azurite local development
-    "localhost", // Azurite local development
+const DEFAULT_BLOB_ORIGINS = [
+    "https://storage.googleapis.com",
+    "https://storage.cloud.google.com",
 ];
+const AZURE_BLOB_HOST_SUFFIX = ".blob.core.windows.net";
+const AZURE_STORAGE_ACCOUNT_RE = /^[a-z0-9]{3,24}$/;
+
+function parseBlobOrigins(value) {
+    return String(value || "")
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/+$/, "").toLowerCase())
+        .filter(Boolean)
+        .filter((origin) => {
+            try {
+                const url = new URL(origin);
+                return url.protocol === "https:";
+            } catch {
+                return false;
+            }
+        });
+}
+
+export const ALLOWED_BLOB_ORIGINS = [
+    ...new Set([
+        ...DEFAULT_BLOB_ORIGINS,
+        ...parseBlobOrigins(
+            process.env.CORTEX_ALLOWED_BLOB_ORIGINS ||
+                process.env.ALLOWED_BLOB_ORIGINS,
+        ),
+    ]),
+];
+
+export const LOCAL_BLOB_ORIGINS = [
+    "http://127.0.0.1:10000",
+    "http://localhost:10000",
+];
+
+export const ALLOWED_BLOB_DOMAINS = ALLOWED_BLOB_ORIGINS.map(
+    (origin) => new URL(origin).hostname,
+);
+
+export const LOCAL_BLOB_DOMAINS = LOCAL_BLOB_ORIGINS.map(
+    (origin) => new URL(origin).hostname,
+);
+
+function isDefaultAzureBlobHostname(hostname) {
+    const normalizedHostname = String(hostname || "").toLowerCase();
+    if (!normalizedHostname.endsWith(AZURE_BLOB_HOST_SUFFIX)) {
+        return false;
+    }
+
+    const accountName = normalizedHostname.slice(
+        0,
+        -AZURE_BLOB_HOST_SUFFIX.length,
+    );
+    return AZURE_STORAGE_ACCOUNT_RE.test(accountName);
+}
+
+function isDefaultAzureBlobOrigin(urlObj) {
+    return (
+        urlObj.protocol === "https:" &&
+        !urlObj.port &&
+        isDefaultAzureBlobHostname(urlObj.hostname)
+    );
+}
 
 /**
  * Check if a hostname is from an allowed blob storage domain.
- * Uses exact match or subdomain match (e.g., "foo.blob.core.windows.net" matches "blob.core.windows.net").
+ * Uses exact configured hostnames plus validated Azure Blob account hostnames.
  * @param {string} hostname - The hostname to check
  * @returns {boolean}
  */
 export function isAllowedBlobDomain(hostname) {
-    return ALLOWED_BLOB_DOMAINS.some((domain) => {
-        return hostname === domain || hostname.endsWith(`.${domain}`);
+    const normalizedHostname = String(hostname || "").toLowerCase();
+    if (isDefaultAzureBlobHostname(normalizedHostname)) {
+        return true;
+    }
+
+    const allowedDomains = [...ALLOWED_BLOB_DOMAINS];
+    if (process.env.NODE_ENV !== "production") {
+        allowedDomains.push(...LOCAL_BLOB_DOMAINS);
+    }
+
+    return allowedDomains.includes(normalizedHostname);
+}
+
+function isLocalBlobDomain(hostname) {
+    return LOCAL_BLOB_DOMAINS.includes(hostname);
+}
+
+function blobUrlValidationError(message, status) {
+    const error = new Error(message);
+    error.status = status;
+    return error;
+}
+
+function getAllowedBlobOrigin(urlObj) {
+    const normalizedOrigin = urlObj.origin.toLowerCase();
+    if (ALLOWED_BLOB_ORIGINS.includes(normalizedOrigin)) {
+        return normalizedOrigin;
+    }
+
+    if (isDefaultAzureBlobOrigin(urlObj)) {
+        return normalizedOrigin;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+        return (
+            LOCAL_BLOB_ORIGINS.find((origin) => origin === normalizedOrigin) ||
+            null
+        );
+    }
+
+    return null;
+}
+
+function buildBlobFetchUrlFromOrigin(origin, urlObj) {
+    const fetchUrl = new URL(`${origin}/`);
+    fetchUrl.pathname = urlObj.pathname;
+    fetchUrl.search = urlObj.search;
+    fetchUrl.hash = urlObj.hash;
+    return fetchUrl;
+}
+
+export function validateAllowedBlobUrl(url) {
+    let urlObj;
+    try {
+        urlObj = new URL(url);
+    } catch {
+        throw blobUrlValidationError("Invalid URL in request", 400);
+    }
+    const isLocal = isLocalBlobDomain(urlObj.hostname);
+    if (!isAllowedBlobDomain(urlObj.hostname)) {
+        throw blobUrlValidationError("URL is not from an allowed domain", 403);
+    }
+    if (isLocal && !["http:", "https:"].includes(urlObj.protocol)) {
+        throw blobUrlValidationError(
+            "Local blob URLs must use HTTP or HTTPS",
+            403,
+        );
+    }
+    if (!isLocal && urlObj.protocol !== "https:") {
+        throw blobUrlValidationError("Blob URLs must use HTTPS", 403);
+    }
+    if (!getAllowedBlobOrigin(urlObj)) {
+        throw blobUrlValidationError("URL is not from an allowed domain", 403);
+    }
+    return urlObj;
+}
+
+function buildAllowedBlobFetchUrl(url) {
+    const urlObj = validateAllowedBlobUrl(url);
+    const allowedOrigin = getAllowedBlobOrigin(urlObj);
+    return buildBlobFetchUrlFromOrigin(allowedOrigin, urlObj);
+}
+
+async function fetchFromAllowedBlobUrl(urlObj, init) {
+    const allowedOrigin = getAllowedBlobOrigin(urlObj);
+    if (!allowedOrigin) {
+        throw blobUrlValidationError("URL is not from an allowed domain", 403);
+    }
+
+    return fetch(buildBlobFetchUrlFromOrigin(allowedOrigin, urlObj), {
+        ...init,
+        redirect: "manual",
     });
+}
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+export async function fetchAllowedBlobUrl(url, init = {}) {
+    let currentUrl = buildAllowedBlobFetchUrl(url);
+    for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
+        const response = await fetchFromAllowedBlobUrl(currentUrl, init);
+        if (!REDIRECT_STATUSES.has(response.status)) {
+            return response;
+        }
+
+        const location = response.headers.get("location");
+        if (!location) {
+            return response;
+        }
+        currentUrl = buildAllowedBlobFetchUrl(
+            new URL(location, currentUrl).toString(),
+        );
+    }
+    throw new Error("Too many redirects while fetching blob URL");
 }
 
 /** Characters that are invalid in filenames (cross-platform). */
@@ -177,6 +345,10 @@ export function extractHashFromBlobUrl(blobUrl) {
     return null;
 }
 
+function getMediaHelperDirectUrl() {
+    return process.env.CORTEX_MEDIA_API_URL || null;
+}
+
 /**
  * Fetch a 5-minute short-lived URL (and GCS URL) for a file from media-helper using checkHash.
  * GCS URL is resolved here on-demand rather than stored in file entries.
@@ -197,7 +369,7 @@ export async function fetchShortLivedUrl({ blobPath, hash, contextId } = {}) {
     }
 
     try {
-        const mediaHelperUrl = config.endpoints.mediaHelperDirect();
+        const mediaHelperUrl = getMediaHelperDirectUrl();
         if (!mediaHelperUrl) {
             console.warn("Media helper URL not configured, using original URL");
             return null;

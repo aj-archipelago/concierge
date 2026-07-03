@@ -71,6 +71,7 @@ const projects = process.env.CI
               modulePathIgnorePatterns,
               testPathIgnorePatterns,
               watchPathIgnorePatterns,
+              globalTeardown: "<rootDir>/jest.globalTeardown.js",
           },
       ]
     : [
@@ -200,6 +201,7 @@ const projects = process.env.CI
               modulePathIgnorePatterns,
               testPathIgnorePatterns,
               watchPathIgnorePatterns,
+              globalTeardown: "<rootDir>/jest.globalTeardown.js",
           },
       ];
 

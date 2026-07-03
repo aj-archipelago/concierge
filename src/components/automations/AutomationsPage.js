@@ -21,10 +21,10 @@ export default function AutomationsPage() {
         }
     }, [automations, selectedId]);
 
-    const handleCreated = (id, { customize }) => {
-        setSelectedId(id);
+    const handleCreated = (created, { customize }) => {
+        setSelectedId(created._id);
         if (customize) {
-            // Already showing the editor for `id`; nothing else to do.
+            // Already showing the editor for `created._id`; nothing else to do.
         }
     };
 

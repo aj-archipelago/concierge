@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 import AppletData from "../../../models/applet-data";
+import AppletUserData from "../../../models/applet-user-data";
 import { validateMongoDBKey } from "../../../utils/fileValidation";
 import { parseJsonRequest } from "../../../utils/parseJsonRequest";
+import { validateAppletDataPayload } from "../../../utils/appletDataLimits";
 import { getCanvasAppletForDataAccess } from "../utils";
 import {
     APPLET_SDK_LIMITS,
     withAppletSdkGuard,
 } from "../../../applet/sdk-guard";
+
+function toPlainData(doc) {
+    return doc?.data && typeof doc.data === "object" ? doc.data : {};
+}
+
+function mergeAppletData({ legacyDoc, keyedDocs }) {
+    return {
+        ...toPlainData(legacyDoc),
+        ...Object.fromEntries(
+            (keyedDocs || []).map((doc) => [doc.key, doc.value]),
+        ),
+    };
+}
 
 // GET: retrieve data for a canvas applet
 export async function GET(request, { params }) {
@@ -19,19 +34,66 @@ export async function GET(request, { params }) {
 
         const { user } = access;
 
+        const requestUrl = new URL(request.url || "http://localhost");
+        const requestedKey = requestUrl.searchParams.get("key");
+        let keyValidation = null;
+        if (requestUrl.searchParams.has("key")) {
+            keyValidation = validateMongoDBKey(requestedKey);
+            if (!keyValidation.isValid) {
+                return NextResponse.json(
+                    {
+                        error: "Invalid key format",
+                        details: keyValidation.errors,
+                    },
+                    { status: 400 },
+                );
+            }
+        }
+
         return await withAppletSdkGuard({
             appletId: id,
             userId: user._id,
             api: "data.get",
             limits: APPLET_SDK_LIMITS.read,
             run: async () => {
-                const appletData = await AppletData.findOne({
+                const query = {
                     appletId: id,
                     userId: user._id,
-                });
+                };
+
+                if (keyValidation) {
+                    const [legacyDoc, keyedDoc] = await Promise.all([
+                        AppletData.findOne(query),
+                        AppletUserData.findOne({
+                            ...query,
+                            key: keyValidation.sanitizedKey,
+                        }),
+                    ]);
+                    const legacyData = toPlainData(legacyDoc);
+                    const found =
+                        Boolean(keyedDoc) ||
+                        Object.prototype.hasOwnProperty.call(
+                            legacyData,
+                            keyValidation.sanitizedKey,
+                        );
+                    const value = keyedDoc
+                        ? keyedDoc.value
+                        : legacyData[keyValidation.sanitizedKey];
+
+                    return NextResponse.json({
+                        found,
+                        key: keyValidation.sanitizedKey,
+                        value: found ? value : undefined,
+                    });
+                }
+
+                const [legacyDoc, keyedDocs] = await Promise.all([
+                    AppletData.findOne(query),
+                    AppletUserData.find(query),
+                ]);
 
                 return NextResponse.json({
-                    data: appletData ? appletData.data : {},
+                    data: mergeAppletData({ legacyDoc, keyedDocs }),
                 });
             },
         });
@@ -89,16 +151,23 @@ export async function PUT(request, { params }) {
                     appletId: id,
                     userId: user._id,
                 };
-                const existing = await AppletData.findOne(query);
-                const nextData = {
-                    ...(existing?.data || {}),
-                    [keyValidation.sanitizedKey]: body.value,
-                };
-                const appletData = await AppletData.findOneAndUpdate(
-                    query,
+                const sizeValidation = validateAppletDataPayload({
+                    key: keyValidation.sanitizedKey,
+                    value: body.value,
+                });
+                if (!sizeValidation.ok) {
+                    return sizeValidation.response;
+                }
+
+                await AppletUserData.findOneAndUpdate(
+                    {
+                        ...query,
+                        key: keyValidation.sanitizedKey,
+                    },
                     {
                         $set: {
-                            data: nextData,
+                            value: body.value,
+                            valueBytes: sizeValidation.valueBytes,
                         },
                     },
                     {
@@ -107,10 +176,14 @@ export async function PUT(request, { params }) {
                         runValidators: true,
                     },
                 );
+                const [legacyDoc, keyedDocs] = await Promise.all([
+                    AppletData.findOne(query),
+                    AppletUserData.find(query),
+                ]);
 
                 return NextResponse.json({
                     success: true,
-                    data: appletData.data,
+                    data: mergeAppletData({ legacyDoc, keyedDocs }),
                 });
             },
         });

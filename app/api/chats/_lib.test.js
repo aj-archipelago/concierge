@@ -4,18 +4,28 @@
 
 /* eslint-disable import/first */
 
-jest.mock("../models/chat.mjs", () => ({
-    __esModule: true,
-    default: {
-        findOne: jest.fn(),
-        updateOne: jest.fn(),
-    },
-}));
+jest.mock("../models/chat.mjs", () => {
+    const MockChat = jest.fn(function MockChat(data) {
+        Object.assign(this, data);
+        this.save = jest.fn().mockResolvedValue(this);
+    });
+    MockChat.findOne = jest.fn();
+    MockChat.findOneAndUpdate = jest.fn();
+    MockChat.find = jest.fn();
+    MockChat.findById = jest.fn();
+    MockChat.countDocuments = jest.fn();
+    MockChat.updateOne = jest.fn();
+    return {
+        __esModule: true,
+        default: MockChat,
+    };
+});
 
 jest.mock("../models/user", () => ({
     __esModule: true,
     default: {
         findById: jest.fn(),
+        findByIdAndUpdate: jest.fn(),
     },
 }));
 
@@ -23,10 +33,44 @@ jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
+jest.mock("../utils/shareAccess", () => ({
+    resolveShareAccess: jest.fn(
+        async ({ ownerId, userId, legacyPublic, role }) => {
+            const isOwner = String(ownerId) === String(userId);
+            if (isOwner) {
+                return { canAccess: true, isOwner: true, role: "editor" };
+            }
+            if (legacyPublic) {
+                return { canAccess: true, isOwner: false, role: "viewer" };
+            }
+            return { canAccess: false, isOwner: false, role: null };
+        },
+    ),
+}));
+
+jest.mock("../models/share.js", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(() => ({
+            lean: jest.fn(async () => null),
+        })),
+        find: jest.fn(() => ({
+            lean: jest.fn(async () => []),
+        })),
+        findOneAndUpdate: jest.fn(async () => null),
+    },
+}));
+
 import Chat from "../models/chat.mjs";
 import { getCurrentUser } from "../utils/auth";
+import { resolveShareAccess } from "../utils/shareAccess";
 import {
+    createNewChat,
     getChatById,
+    getChatForOwnerWrite,
+    getChatsOfCurrentUser,
+    getRecentChatsOfCurrentUser,
+    getTotalChatCount,
     prepareMessagesForPersistence,
     sanitizeMessagesForPersistence,
     sanitizeToolForPersistence,
@@ -212,6 +256,200 @@ describe("prepareMessagesForPersistence", () => {
     });
 });
 
+describe("chat history visibility", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("marks explicitly titled empty chats as visible", async () => {
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+        });
+
+        await createNewChat(
+            {
+                messages: [],
+                title: "Weather Applet",
+            },
+            { setActive: false },
+        );
+
+        expect(Chat).toHaveBeenCalledWith(
+            expect.objectContaining({
+                userId: "507f1f77bcf86cd799439011",
+                messages: [],
+                title: "Weather Applet",
+                titleSetByUser: true,
+            }),
+        );
+    });
+
+    it("creates a fresh canonical New Chat for untitled empty new-chat requests", async () => {
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+            recentChatIds: ["507f1f77bcf86cd799439013"],
+        });
+        const existingChat = {
+            _id: "507f1f77bcf86cd799439012",
+            userId: "507f1f77bcf86cd799439011",
+            messages: [],
+            title: "New Chat",
+            titleSetByUser: false,
+        };
+        Chat.findOneAndUpdate.mockResolvedValue(existingChat);
+
+        const result = await createNewChat(
+            {
+                messages: [],
+                title: "",
+            },
+            { setActive: false },
+        );
+
+        expect(result).toBeInstanceOf(Chat);
+        expect(result).not.toBe(existingChat);
+        expect(Chat.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Chat).toHaveBeenCalledWith(
+            expect.objectContaining({
+                userId: "507f1f77bcf86cd799439011",
+                messages: [],
+                title: "New Chat",
+                titleSetByUser: false,
+            }),
+        );
+    });
+
+    it("creates a visible canonical New Chat when none exists", async () => {
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+        });
+
+        await createNewChat(
+            {
+                messages: [],
+                title: "",
+            },
+            { setActive: false },
+        );
+
+        expect(Chat).toHaveBeenCalledWith(
+            expect.objectContaining({
+                userId: "507f1f77bcf86cd799439011",
+                messages: [],
+                title: "New Chat",
+                titleSetByUser: false,
+            }),
+        );
+        expect(Chat.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("lists content-bearing chats plus the active empty chat without using legacy unused flags", async () => {
+        const activeChatId = "507f1f77bcf86cd799439012";
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+            activeChatId,
+        });
+
+        const findChain = {
+            sort: jest.fn().mockReturnThis(),
+            skip: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue([
+                {
+                    _id: activeChatId,
+                    title: "",
+                    updatedAt: "2026-06-08T00:00:00.000Z",
+                    lastMessagePreview: "",
+                    lastMessageSender: "",
+                    lastMessageAt: "2026-06-08T00:00:00.000Z",
+                },
+            ]),
+        };
+        Chat.find.mockReturnValue(findChain);
+
+        const result = await getChatsOfCurrentUser();
+
+        expect(result).toHaveLength(1);
+        const query = Chat.find.mock.calls[0][0];
+        expect(query).toMatchObject({
+            userId: "507f1f77bcf86cd799439011",
+            $or: expect.arrayContaining([
+                { _id: activeChatId },
+                { "messages.0": { $exists: true } },
+                { titleSetByUser: true },
+                {
+                    title: "New Chat",
+                    titleSetByUser: { $ne: true },
+                    "messages.0": { $exists: false },
+                },
+            ]),
+        });
+    });
+
+    it("counts the same visible chat set as the history list", async () => {
+        const activeChatId = "507f1f77bcf86cd799439012";
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+            activeChatId,
+        });
+        Chat.countDocuments.mockResolvedValue(3);
+
+        await expect(getTotalChatCount()).resolves.toBe(3);
+
+        const query = Chat.countDocuments.mock.calls[0][0];
+        expect(query).toMatchObject({
+            userId: "507f1f77bcf86cd799439011",
+            $or: expect.arrayContaining([
+                { _id: activeChatId },
+                { "messages.0": { $exists: true } },
+            ]),
+        });
+    });
+
+    it("loads sidebar recent chats in the same activity order as chat history", async () => {
+        const activeChatId = "507f1f77bcf86cd799439012";
+        getCurrentUser.mockResolvedValue({
+            _id: "507f1f77bcf86cd799439011",
+            activeChatId,
+        });
+
+        const findChain = {
+            sort: jest.fn().mockReturnThis(),
+            limit: jest.fn().mockReturnThis(),
+            lean: jest.fn().mockResolvedValue([
+                {
+                    _id: activeChatId,
+                    title: "Newest",
+                    updatedAt: "2026-06-08T00:00:00.000Z",
+                },
+            ]),
+        };
+        Chat.find.mockReturnValueOnce(findChain).mockReturnValueOnce({
+            lean: jest.fn().mockResolvedValue([
+                {
+                    _id: activeChatId,
+                    messages: [
+                        {
+                            payload: "Newest message",
+                            sender: "user",
+                        },
+                    ],
+                },
+            ]),
+        });
+
+        const result = await getRecentChatsOfCurrentUser();
+
+        expect(result.map((chat) => String(chat._id))).toEqual([activeChatId]);
+        expect(findChain.sort).toHaveBeenCalledWith({ updatedAt: -1 });
+        const query = Chat.find.mock.calls[0][0];
+        expect(query).toMatchObject({
+            userId: "507f1f77bcf86cd799439011",
+            $or: expect.arrayContaining([{ _id: activeChatId }]),
+        });
+    });
+});
+
 describe("getChatById", () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -245,6 +483,7 @@ describe("getChatById", () => {
             _id: "507f1f77bcf86cd799439012",
             isChatLoading: true,
             activeSubscriptionId: "sub_123",
+            isShared: false,
             messageStorageBytes: 1_000,
             messagesCompacted: true,
             messagesCompactedAt: new Date("2026-04-28T00:00:00.000Z"),
@@ -369,5 +608,76 @@ describe("getChatById", () => {
         expect(result.messageStorageBytes).toBe(prepared.messageStorageBytes);
         expect(result.messagesCompacted).toBe(false);
         expect(Chat.updateOne).not.toHaveBeenCalled();
+    });
+});
+
+describe("getChatForOwnerWrite", () => {
+    const chatId = "507f1f77bcf86cd799439012";
+    const ownerId = "507f1f77bcf86cd799439011";
+    const collaboratorId = "507f1f77bcf86cd799439013";
+
+    beforeEach(() => {
+        resolveShareAccess.mockReset();
+    });
+
+    it("returns chat for owner", async () => {
+        const chatDoc = { _id: chatId, userId: ownerId, isPublic: false };
+        Chat.findById.mockResolvedValue(chatDoc);
+        resolveShareAccess.mockResolvedValue({
+            canAccess: true,
+            isOwner: true,
+            role: "editor",
+        });
+
+        const result = await getChatForOwnerWrite(chatId, ownerId);
+
+        expect(result.ok).toBe(true);
+        expect(result.chat).toBe(chatDoc);
+        expect(result.access.isOwner).toBe(true);
+    });
+
+    it("rejects shared recipients", async () => {
+        const chatDoc = { _id: chatId, userId: ownerId, isPublic: false };
+        Chat.findById.mockResolvedValue(chatDoc);
+        resolveShareAccess.mockResolvedValue({
+            canAccess: true,
+            isOwner: false,
+            role: "editor",
+        });
+
+        const result = await getChatForOwnerWrite(chatId, collaboratorId);
+
+        expect(result.ok).toBe(false);
+        expect(result.status).toBe(403);
+    });
+
+    it("rejects shared viewers", async () => {
+        const chatDoc = { _id: chatId, userId: ownerId, isPublic: false };
+        Chat.findById.mockResolvedValue(chatDoc);
+        resolveShareAccess.mockResolvedValue({
+            canAccess: true,
+            isOwner: false,
+            role: "viewer",
+        });
+
+        const result = await getChatForOwnerWrite(chatId, collaboratorId);
+
+        expect(result.ok).toBe(false);
+        expect(result.status).toBe(403);
+    });
+
+    it("returns 404 when user has no access", async () => {
+        const chatDoc = { _id: chatId, userId: ownerId, isPublic: false };
+        Chat.findById.mockResolvedValue(chatDoc);
+        resolveShareAccess.mockResolvedValue({
+            canAccess: false,
+            isOwner: false,
+            role: null,
+        });
+
+        const result = await getChatForOwnerWrite(chatId, collaboratorId);
+
+        expect(result.ok).toBe(false);
+        expect(result.status).toBe(404);
     });
 });

@@ -17,6 +17,10 @@ jest.mock("@/src/contexts/LanguageProvider", () => ({
 }));
 
 jest.mock("next/navigation", () => ({
+    useRouter: jest.fn(() => ({
+        push: jest.fn(),
+        replace: jest.fn(),
+    })),
     useSearchParams: jest.fn(() => new URLSearchParams("")),
 }));
 
@@ -47,11 +51,28 @@ const waitForContentReady = async () => {
     });
 };
 
+const dispatchIframeMessage = (iframe, data) => {
+    const event = new MessageEvent("message", { data });
+    const origin =
+        window.location.origin || new URL(window.location.href).origin;
+    Object.defineProperty(event, "source", {
+        value: iframe.contentWindow,
+    });
+    Object.defineProperty(event, "origin", {
+        value: origin,
+    });
+    window.dispatchEvent(event);
+};
+
 describe("OutputSandbox", () => {
     beforeEach(() => {
         // Clear all mocks before each test
         jest.clearAllMocks();
-        const { useSearchParams } = require("next/navigation");
+        const { useRouter, useSearchParams } = require("next/navigation");
+        useRouter.mockReturnValue({
+            push: jest.fn(),
+            replace: jest.fn(),
+        });
         useSearchParams.mockReturnValue(new URLSearchParams(""));
     });
 
@@ -184,5 +205,77 @@ describe("OutputSandbox", () => {
         const frameDoc =
             iframe.contentDocument || iframe.contentWindow?.document;
         expect(frameDoc?.defaultView?.APPLET_PARAMS).toEqual({ foo: "bar" });
+    });
+
+    it("handles applet navigation requests by pushing the host route", async () => {
+        const { useRouter } = require("next/navigation");
+        const router = {
+            push: jest.fn(),
+            replace: jest.fn(),
+        };
+        useRouter.mockReturnValue(router);
+
+        render(<OutputSandbox content="<div>Test content</div>" />);
+        await waitForContentReady();
+
+        const iframe = screen.getByTitle("Output Sandbox");
+        const postMessageSpy = jest.spyOn(iframe.contentWindow, "postMessage");
+
+        dispatchIframeMessage(iframe, {
+            type: "__CONCIERGE_NAVIGATION_REQUEST__",
+            requestId: "nav-1",
+            path: "/apps/foo?tab=details#top",
+        });
+
+        await waitFor(() => {
+            expect(router.push).toHaveBeenCalledWith(
+                "/apps/foo?tab=details#top",
+            );
+        });
+        expect(router.replace).not.toHaveBeenCalled();
+        expect(postMessageSpy).toHaveBeenCalledWith(
+            {
+                type: "__CONCIERGE_NAVIGATION_RESPONSE__",
+                requestId: "nav-1",
+                success: true,
+                path: "/apps/foo?tab=details#top",
+                replace: false,
+            },
+            window.location.origin || new URL(window.location.href).origin,
+        );
+    });
+
+    it("rejects applet navigation requests for non-internal paths", async () => {
+        const { useRouter } = require("next/navigation");
+        const router = {
+            push: jest.fn(),
+            replace: jest.fn(),
+        };
+        useRouter.mockReturnValue(router);
+
+        render(<OutputSandbox content="<div>Test content</div>" />);
+        await waitForContentReady();
+
+        const iframe = screen.getByTitle("Output Sandbox");
+        const postMessageSpy = jest.spyOn(iframe.contentWindow, "postMessage");
+
+        dispatchIframeMessage(iframe, {
+            type: "__CONCIERGE_NAVIGATION_REQUEST__",
+            requestId: "nav-2",
+            path: "https://example.com/phish",
+        });
+
+        await waitFor(() => {
+            expect(postMessageSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: "__CONCIERGE_NAVIGATION_RESPONSE__",
+                    requestId: "nav-2",
+                    success: false,
+                }),
+                window.location.origin || new URL(window.location.href).origin,
+            );
+        });
+        expect(router.push).not.toHaveBeenCalled();
+        expect(router.replace).not.toHaveBeenCalled();
     });
 });

@@ -47,8 +47,14 @@ const getInitialCanvasWidth = () => {
 // re-load the body from the file on mount.
 export function stripCanvasPersistContent(content) {
     if (!content) return content;
+    const hasReloadSource = Boolean(
+        content.url ||
+            content.workspacePath ||
+            content.appletId ||
+            content.fileHash ||
+            content.blobPath,
+    );
     const {
-        htmlContent: _htmlContent,
         content: _bodyContent,
         headline: _headline,
         subhead: _subhead,
@@ -57,6 +63,14 @@ export function stripCanvasPersistContent(content) {
         htmlError: _htmlError,
         ...rest
     } = content;
+    if (hasReloadSource) {
+        delete rest.htmlContent;
+    }
+    // Applet blob URLs must not be persisted — on restore, we re-validate access
+    // via /api/canvas-applets/{id} instead of fetching the blob directly.
+    if (rest.appletId) {
+        delete rest.url;
+    }
     return rest;
 }
 
@@ -79,17 +93,54 @@ const EMPTY_CANVAS = Object.freeze({
     canvasVisible: true,
 });
 
-// After mutating top-level canvas fields, mirror the new state into the
-// active chat's bucket. Reducers that change canvas state must call this
-// before returning so navigating away/back preserves what the user saw.
-function syncActiveCanvasToBucket(state) {
-    const chatId = state.activeCanvasChatId || "__pending__";
-    state.canvasByChatId = state.canvasByChatId || {};
-    state.canvasByChatId[chatId] = snapshotActiveCanvas(state);
+const PENDING_CANVAS_CHAT_ID = "__pending__";
+
+function normalizeCanvasSnapshot(snapshot) {
+    const safe = snapshot || EMPTY_CANVAS;
+    return {
+        canvasContent: safe.canvasContent ?? null,
+        canvasTabs: Array.isArray(safe.canvasTabs) ? [...safe.canvasTabs] : [],
+        activeTabId: safe.activeTabId ?? null,
+        canvasVisible:
+            typeof safe.canvasVisible === "boolean" ? safe.canvasVisible : true,
+    };
+}
+
+function getCanvasTargetChatId(state, chatId) {
+    return chatId
+        ? String(chatId)
+        : state.activeCanvasChatId || PENDING_CANVAS_CHAT_ID;
+}
+
+function shouldMirrorCanvasTarget(state, targetChatId) {
+    return (
+        targetChatId === state.activeCanvasChatId ||
+        (!state.activeCanvasChatId && targetChatId === PENDING_CANVAS_CHAT_ID)
+    );
+}
+
+function mutateCanvasBucket(state, chatId, updater) {
+    const targetChatId = getCanvasTargetChatId(state, chatId);
+    if (!state.canvasByChatId) {
+        state.canvasByChatId = {};
+    }
+    const currentBucket =
+        targetChatId === state.activeCanvasChatId
+            ? snapshotActiveCanvas(state)
+            : state.canvasByChatId[targetChatId];
+    const bucket = normalizeCanvasSnapshot(currentBucket);
+
+    const didChange = updater(bucket);
+    if (didChange === false) return;
+
+    state.canvasByChatId[targetChatId] = bucket;
+    if (shouldMirrorCanvasTarget(state, targetChatId)) {
+        applyCanvasSnapshot(state, bucket);
+    }
 }
 
 function applyCanvasSnapshot(state, snapshot) {
-    const safe = snapshot || EMPTY_CANVAS;
+    const safe = normalizeCanvasSnapshot(snapshot);
     state.canvasContent = safe.canvasContent ?? null;
     state.canvasTabs = Array.isArray(safe.canvasTabs) ? safe.canvasTabs : [];
     state.activeTabId = safe.activeTabId ?? null;
@@ -117,6 +168,169 @@ function findTabByContent(tabs, payload) {
                     tab.content?.url === payload.url),
         ) || null
     );
+}
+
+function openCanvasInBucket(bucket, payload) {
+    if (!payload) return;
+    let tabId = payload.tabId;
+
+    if (!tabId) {
+        const dup = findTabByContent(bucket.canvasTabs, payload);
+        tabId = dup?.id || uuidv4();
+    }
+
+    if (bucket.canvasTabs.length === 0) {
+        bucket.canvasTabs = [
+            {
+                id: tabId,
+                content: payload,
+                title: payload.title || payload.filename || "Canvas",
+            },
+        ];
+        bucket.activeTabId = tabId;
+    } else {
+        const existingTabIndex = bucket.canvasTabs.findIndex(
+            (tab) => tab.id === tabId,
+        );
+        if (existingTabIndex >= 0) {
+            bucket.canvasTabs[existingTabIndex].content = payload;
+            bucket.canvasTabs[existingTabIndex].title =
+                payload.title ||
+                payload.filename ||
+                bucket.canvasTabs[existingTabIndex].title;
+            bucket.activeTabId = tabId;
+        } else {
+            bucket.canvasTabs.push({
+                id: tabId,
+                content: payload,
+                title: payload.title || payload.filename || "Canvas",
+            });
+            bucket.activeTabId = tabId;
+        }
+    }
+
+    bucket.canvasContent = payload;
+    bucket.canvasVisible = true;
+}
+
+function addCanvasTabInBucket(bucket, payload) {
+    const dup = findTabByContent(bucket.canvasTabs, payload);
+    if (dup) {
+        bucket.activeTabId = dup.id;
+        bucket.canvasContent = dup.content;
+        bucket.canvasVisible = true;
+        return;
+    }
+
+    const tabId = uuidv4();
+    const newTab = {
+        id: tabId,
+        content: payload,
+        title: payload.title || payload.filename || "Canvas",
+    };
+    bucket.canvasTabs.push(newTab);
+    bucket.activeTabId = tabId;
+    bucket.canvasContent = newTab.content;
+    bucket.canvasVisible = true;
+}
+
+function closeCanvasTabInBucket(bucket, tabId) {
+    const tabIndex = bucket.canvasTabs.findIndex((tab) => tab.id === tabId);
+    if (tabIndex < 0) return;
+
+    bucket.canvasTabs.splice(tabIndex, 1);
+
+    if (bucket.activeTabId === tabId) {
+        if (bucket.canvasTabs.length > 0) {
+            const newActiveIndex = Math.max(0, tabIndex - 1);
+            bucket.activeTabId = bucket.canvasTabs[newActiveIndex].id;
+            bucket.canvasContent = bucket.canvasTabs[newActiveIndex].content;
+        } else {
+            bucket.activeTabId = null;
+            bucket.canvasContent = null;
+        }
+    }
+}
+
+function switchCanvasTabInBucket(bucket, tabId) {
+    const tab = bucket.canvasTabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    bucket.activeTabId = tabId;
+    bucket.canvasContent = tab.content;
+}
+
+function buildCanvasTabMetadata(content = {}) {
+    const raw = {
+        type: content.type,
+        title: content.title,
+        filename: content.filename,
+        fileHash: content.fileHash,
+        blobPath: content.blobPath,
+        url: content.url,
+        htmlContent: content.htmlContent,
+        workspacePath: content.workspacePath,
+        htmlStatus: content.htmlStatus,
+        htmlError: content.htmlError,
+        canvasChrome: content.canvasChrome,
+        appletId: content.appletId,
+        appletVersionKey: content.appletVersionKey,
+        appletVersionCount: content.appletVersionCount,
+        appletActiveVersionIndex: content.appletActiveVersionIndex,
+        appletActiveVersionNumber: content.appletActiveVersionNumber,
+        appletIsViewingDraft: content.appletIsViewingDraft,
+        workspaceContentVersion: content.workspaceContentVersion,
+    };
+
+    return Object.fromEntries(
+        Object.entries(raw).filter(([, value]) => value !== undefined),
+    );
+}
+
+function updateCanvasTabInBucket(bucket, { tabId, content = {} } = {}) {
+    const tab = bucket.canvasTabs.find((t) => t.id === tabId);
+    if (!tab) return false;
+
+    const metadata = buildCanvasTabMetadata(content);
+    const nextTitle = content.title || content.filename || tab.title;
+    const metadataUnchanged = Object.entries(metadata).every(
+        ([key, value]) => tab.content?.[key] === value,
+    );
+    if (metadataUnchanged && tab.title === nextTitle) {
+        return false;
+    }
+
+    tab.content = { ...tab.content, ...metadata };
+    tab.title = nextTitle;
+
+    if (bucket.activeTabId === tabId) {
+        bucket.canvasContent = {
+            ...bucket.canvasContent,
+            ...metadata,
+        };
+    }
+    return true;
+}
+
+function refreshActiveHtmlCanvasInBucket(bucket, { htmlContent, tabId }) {
+    const targetTabId = tabId || bucket.activeTabId;
+    if (!targetTabId) return;
+    const tab = bucket.canvasTabs.find((t) => t.id === targetTabId);
+    if (!tab || tab.content?.type !== "html") return;
+
+    tab.content = { ...tab.content, htmlContent, htmlStatus: "live" };
+    if (bucket.activeTabId === targetTabId) {
+        bucket.canvasContent = {
+            ...bucket.canvasContent,
+            htmlContent,
+            htmlStatus: "live",
+        };
+    }
+}
+
+function closeCanvasInBucket(bucket) {
+    bucket.canvasContent = null;
+    bucket.canvasTabs = [];
+    bucket.activeTabId = null;
 }
 
 export const chatSlice = createSlice({
@@ -240,191 +454,101 @@ export const chatSlice = createSlice({
             }
         },
         openCanvas: (state, action) => {
-            const payload = action.payload;
-            let tabId = payload.tabId;
-
-            // Deduplicate: if no explicit tabId, find existing tab with same content identity
-            if (!tabId) {
-                const dup = findTabByContent(state.canvasTabs, payload);
-                tabId = dup?.id || uuidv4();
-            }
-
-            // If tabs array is empty, initialize with first tab
-            if (state.canvasTabs.length === 0) {
-                state.canvasTabs = [
-                    {
-                        id: tabId,
-                        content: payload,
-                        title: payload.title || payload.filename || "Canvas",
-                    },
-                ];
-                state.activeTabId = tabId;
-            } else {
-                // Check if tab already exists
-                const existingTabIndex = state.canvasTabs.findIndex(
-                    (tab) => tab.id === tabId,
-                );
-                if (existingTabIndex >= 0) {
-                    // Update existing tab
-                    state.canvasTabs[existingTabIndex].content = payload;
-                    state.canvasTabs[existingTabIndex].title =
-                        payload.title ||
-                        payload.filename ||
-                        state.canvasTabs[existingTabIndex].title;
-                    state.activeTabId = tabId;
-                } else {
-                    // Create new tab
-                    state.canvasTabs.push({
-                        id: tabId,
-                        content: payload,
-                        title: payload.title || payload.filename || "Canvas",
-                    });
-                    state.activeTabId = tabId;
-                }
-            }
-
-            // Keep canvasContent for backward compatibility
-            state.canvasContent = payload;
-            state.canvasVisible = true; // Show canvas when content is opened
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, null, (bucket) => {
+                openCanvasInBucket(bucket, action.payload);
+            });
+        },
+        openCanvasForChat: (state, action) => {
+            const { chatId, canvas } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                openCanvasInBucket(bucket, canvas);
+            });
         },
         addCanvasTab: (state, action) => {
             const payload = action.payload || {
                 type: "empty",
                 title: "Canvas",
             };
-
-            // Deduplicate: if a tab with the same content already exists, just activate it
-            const dup = findTabByContent(state.canvasTabs, payload);
-            if (dup) {
-                state.activeTabId = dup.id;
-                state.canvasContent = dup.content;
-                state.canvasVisible = true;
-                syncActiveCanvasToBucket(state);
-                return;
-            }
-
-            const tabId = uuidv4();
-            const newTab = {
-                id: tabId,
-                content: payload,
-                title: payload.title || payload.filename || "Canvas",
+            mutateCanvasBucket(state, null, (bucket) => {
+                addCanvasTabInBucket(bucket, payload);
+            });
+        },
+        addCanvasTabForChat: (state, action) => {
+            const { chatId, canvas } = action.payload || {};
+            const payload = canvas || {
+                type: "empty",
+                title: "Canvas",
             };
-            state.canvasTabs.push(newTab);
-            state.activeTabId = tabId;
-            state.canvasContent = newTab.content;
-            state.canvasVisible = true;
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                addCanvasTabInBucket(bucket, payload);
+            });
         },
         closeCanvasTab: (state, action) => {
-            const tabId = action.payload;
-            const tabIndex = state.canvasTabs.findIndex(
-                (tab) => tab.id === tabId,
-            );
-
-            if (tabIndex >= 0) {
-                state.canvasTabs.splice(tabIndex, 1);
-
-                // If we closed the active tab, switch to another one
-                if (state.activeTabId === tabId) {
-                    if (state.canvasTabs.length > 0) {
-                        // Switch to the tab that was before this one, or the first tab
-                        const newActiveIndex = Math.max(0, tabIndex - 1);
-                        state.activeTabId = state.canvasTabs[newActiveIndex].id;
-                        state.canvasContent =
-                            state.canvasTabs[newActiveIndex].content;
-                    } else {
-                        // No tabs left
-                        state.activeTabId = null;
-                        state.canvasContent = null;
-                    }
-                }
-                syncActiveCanvasToBucket(state);
-            }
+            mutateCanvasBucket(state, null, (bucket) => {
+                closeCanvasTabInBucket(bucket, action.payload);
+            });
+        },
+        closeCanvasTabForChat: (state, action) => {
+            const { chatId, tabId } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                closeCanvasTabInBucket(bucket, tabId);
+            });
         },
         switchCanvasTab: (state, action) => {
-            const tabId = action.payload;
-            const tab = state.canvasTabs.find((t) => t.id === tabId);
-            if (tab) {
-                state.activeTabId = tabId;
-                state.canvasContent = tab.content;
-                syncActiveCanvasToBucket(state);
-            }
+            mutateCanvasBucket(state, null, (bucket) => {
+                switchCanvasTabInBucket(bucket, action.payload);
+            });
+        },
+        switchCanvasTabForChat: (state, action) => {
+            const { chatId, tabId } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                switchCanvasTabInBucket(bucket, tabId);
+            });
         },
         updateCanvasTab: (state, action) => {
-            const { tabId, content } = action.payload;
-            const tab = state.canvasTabs.find((t) => t.id === tabId);
-            if (tab) {
-                // Only store minimal metadata in Redux, not full article content
-                // Tab components maintain their own state via hooks
-                const raw = {
-                    type: content.type,
-                    title: content.title,
-                    filename: content.filename,
-                    fileHash: content.fileHash,
-                    blobPath: content.blobPath,
-                    url: content.url,
-                    htmlContent: content.htmlContent,
-                    workspacePath: content.workspacePath,
-                    htmlStatus: content.htmlStatus,
-                    htmlError: content.htmlError,
-                    canvasChrome: content.canvasChrome,
-                    appletId: content.appletId,
-                    appletVersionKey: content.appletVersionKey,
-                    appletVersionCount: content.appletVersionCount,
-                    appletActiveVersionIndex: content.appletActiveVersionIndex,
-                    appletActiveVersionNumber:
-                        content.appletActiveVersionNumber,
-                    appletIsViewingDraft: content.appletIsViewingDraft,
-                    workspaceContentVersion: content.workspaceContentVersion,
-                };
-
-                const metadata = Object.fromEntries(
-                    Object.entries(raw).filter(([, v]) => v !== undefined),
-                );
-
-                tab.content = { ...tab.content, ...metadata };
-                tab.title = content.title || content.filename || tab.title;
-
-                // Update canvasContent for backward compatibility
-                if (state.activeTabId === tabId) {
-                    state.canvasContent = {
-                        ...state.canvasContent,
-                        ...metadata,
-                    };
-                }
-                syncActiveCanvasToBucket(state);
-            }
+            mutateCanvasBucket(state, null, (bucket) => {
+                return updateCanvasTabInBucket(bucket, action.payload);
+            });
+        },
+        updateCanvasTabForChat: (state, action) => {
+            const { chatId, tabId, content } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                return updateCanvasTabInBucket(bucket, { tabId, content });
+            });
         },
         refreshActiveHtmlCanvas: (state, action) => {
-            const { htmlContent } = action.payload;
-            if (!state.activeTabId) return;
-            const tab = state.canvasTabs.find(
-                (t) => t.id === state.activeTabId,
-            );
-            if (!tab || tab.content?.type !== "html") return;
-            tab.content = { ...tab.content, htmlContent, htmlStatus: "live" };
-            state.canvasContent = {
-                ...state.canvasContent,
-                htmlContent,
-                htmlStatus: "live",
-            };
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, null, (bucket) => {
+                refreshActiveHtmlCanvasInBucket(bucket, action.payload);
+            });
+        },
+        refreshHtmlCanvasForChat: (state, action) => {
+            const { chatId, htmlContent, tabId } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                refreshActiveHtmlCanvasInBucket(bucket, { htmlContent, tabId });
+            });
         },
         closeCanvas: (state) => {
-            state.canvasContent = null;
-            state.canvasTabs = [];
-            state.activeTabId = null;
-            // Note: canvasVisible is managed separately by callers via setCanvasVisibility
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, null, closeCanvasInBucket);
+        },
+        closeCanvasForChat: (state, action) => {
+            const { chatId } = action.payload || {};
+            mutateCanvasBucket(state, chatId, closeCanvasInBucket);
         },
         toggleCanvasVisibility: (state) => {
-            state.canvasVisible = !state.canvasVisible;
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, null, (bucket) => {
+                bucket.canvasVisible = !bucket.canvasVisible;
+            });
         },
         setCanvasVisibility: (state, action) => {
-            state.canvasVisible = action.payload;
-            syncActiveCanvasToBucket(state);
+            mutateCanvasBucket(state, null, (bucket) => {
+                bucket.canvasVisible = action.payload;
+            });
+        },
+        setCanvasVisibilityForChat: (state, action) => {
+            const { chatId, visible } = action.payload || {};
+            mutateCanvasBucket(state, chatId, (bucket) => {
+                bucket.canvasVisible = visible;
+            });
         },
         setCanvasWidth: (state, action) => {
             const width = action.payload;
@@ -469,12 +593,6 @@ export const chatSlice = createSlice({
                     snapshot.byChatId,
                 )) {
                     if (!bucket) continue;
-                    // Never restore a "new" chat bucket. /chat/new is a
-                    // transient route — its state from a prior session is
-                    // always stale, and rehydrating it will clobber a
-                    // freshly-opened canvas (e.g. an applet just launched
-                    // from /applets) once setActiveCanvasChat("new") fires.
-                    if (chatId === "new") continue;
                     state.canvasByChatId[chatId] = {
                         canvasContent: bucket.canvasContent ?? null,
                         canvasTabs: Array.isArray(bucket.canvasTabs)
@@ -529,7 +647,7 @@ export const chatSlice = createSlice({
             state.activeCanvasChatId = nextChatId;
 
             if (nextChatId) {
-                const pending = state.canvasByChatId.__pending__;
+                const pending = state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
                 const pendingHasContent =
                     pending &&
                     (pending.canvasContent ||
@@ -544,52 +662,20 @@ export const chatSlice = createSlice({
                     // a stale empty bucket would clobber the user's intent.
                     bucket = pending;
                     state.canvasByChatId[nextChatId] = bucket;
-                    delete state.canvasByChatId.__pending__;
+                    delete state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
                 } else {
-                    if (nextChatId === "new") {
-                        // /chat/new is a transient compose route, not a real
-                        // chat. Any bucket already keyed as "new" is stale
-                        // unless a fresh __pending__ canvas was just adopted
-                        // above (for applet-launch flows that preserve canvas).
-                        delete state.canvasByChatId[nextChatId];
-                        applyCanvasSnapshot(state, null);
-                        return;
-                    }
                     bucket = state.canvasByChatId[nextChatId];
-                    if (!bucket && state.canvasByChatId.__pending__) {
-                        bucket = state.canvasByChatId.__pending__;
+                    if (
+                        !bucket &&
+                        state.canvasByChatId[PENDING_CANVAS_CHAT_ID]
+                    ) {
+                        bucket = state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
                         state.canvasByChatId[nextChatId] = bucket;
-                        delete state.canvasByChatId.__pending__;
+                        delete state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
                     }
                 }
                 applyCanvasSnapshot(state, bucket);
             } else {
-                applyCanvasSnapshot(state, null);
-            }
-        },
-        // Re-key a chat's canvas bucket. Used when a NEW_CHAT_ID is promoted
-        // to a real persisted id so the user's in-flight canvas survives.
-        promoteCanvasChatId: (state, action) => {
-            const { fromChatId, toChatId } = action.payload || {};
-            if (!fromChatId || !toChatId || fromChatId === toChatId) return;
-            state.canvasByChatId = state.canvasByChatId || {};
-            const bucket = state.canvasByChatId[fromChatId];
-            if (bucket) {
-                state.canvasByChatId[toChatId] = bucket;
-                delete state.canvasByChatId[fromChatId];
-            }
-            if (state.activeCanvasChatId === fromChatId) {
-                state.activeCanvasChatId = toChatId;
-            }
-        },
-        // Drop a chat's canvas bucket entirely (e.g. when the user starts a
-        // brand new chat from NEW_CHAT_ID and abandons the prior in-flight one).
-        clearCanvasForChat: (state, action) => {
-            const chatId = action.payload;
-            if (!chatId) return;
-            state.canvasByChatId = state.canvasByChatId || {};
-            delete state.canvasByChatId[chatId];
-            if (state.activeCanvasChatId === chatId) {
                 applyCanvasSnapshot(state, null);
             }
         },
@@ -614,20 +700,26 @@ export const {
     // firstRunMessage,
     setChatBoxPosition,
     openCanvas,
+    openCanvasForChat,
     closeCanvas,
+    closeCanvasForChat,
     addCanvasTab,
+    addCanvasTabForChat,
     closeCanvasTab,
+    closeCanvasTabForChat,
     switchCanvasTab,
+    switchCanvasTabForChat,
     updateCanvasTab,
+    updateCanvasTabForChat,
     refreshActiveHtmlCanvas,
+    refreshHtmlCanvasForChat,
     toggleCanvasVisibility,
     setCanvasVisibility,
+    setCanvasVisibilityForChat,
     setCanvasWidth,
     incrementFileBrowserRefresh,
     restoreCanvasState,
     setActiveCanvasChat,
-    promoteCanvasChatId,
-    clearCanvasForChat,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

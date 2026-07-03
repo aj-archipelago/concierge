@@ -34,6 +34,10 @@ export default function ArticleTabContent({
     const articleEditor = useArticleEditor(
         workspacePath,
         workspaceContentVersion,
+        {
+            sharedArticleId: initialContent?.articleId || null,
+            readOnly: Boolean(initialContent?.readOnly),
+        },
     );
     const { state: articleState } = articleEditor;
 

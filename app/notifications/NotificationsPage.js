@@ -14,6 +14,7 @@ import { ClockIcon, TrashIcon, XIcon } from "lucide-react";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useInView } from "react-intersection-observer";
+import { useRouter } from "next/navigation";
 import TimeAgo from "react-time-ago";
 import { toast } from "react-toastify";
 import stringcase from "stringcase";
@@ -21,15 +22,23 @@ import { useJob } from "../../app/queries/jobs";
 import {
     useCancelTask,
     useDeleteOldTasks,
-    useDeleteTask,
-    useInfiniteTasks,
+    useDeleteInboxItem,
+    useInfiniteInbox,
+    useMarkNotificationsRead,
 } from "../../app/queries/notifications";
 import {
     StatusIndicator,
     getStatusColorClass,
 } from "../../src/components/notifications/NotificationButton";
 import { TASK_INFO } from "../../src/utils/task-info";
+import {
+    getNotificationNavigationPath,
+    getShareNotificationSubtitle,
+    getShareNotificationTitle,
+    isShareNotification,
+} from "../../src/utils/shareNotificationUtils";
 import { LanguageContext } from "@/src/contexts/LanguageProvider";
+import { getYouTubeTranscriptionAccessErrorMessage } from "@/src/utils/transcriptionErrors";
 
 const StatusText = ({ text, id, t }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -124,29 +133,69 @@ function NotificationItem({
     t,
     handleCancelRequest,
     handleDelete,
+    router,
+    onMarkRead,
 }) {
     const { data: job } = useJob(notification.jobId);
+    const navigationPath = getNotificationNavigationPath(notification);
+    const accessErrorMessage =
+        notification.type === "transcribe"
+            ? getYouTubeTranscriptionAccessErrorMessage(
+                  notification.statusText,
+                  t,
+                  {
+                      url: notification.metadata?.url,
+                  },
+              )
+            : null;
+    const statusText =
+        accessErrorMessage ||
+        notification.statusText ||
+        (notification.status === "failed" ? t("Request failed") : "");
+    const shareSubtitle = isShareNotification(notification)
+        ? getShareNotificationSubtitle(notification, t)
+        : null;
+    const isUnreadNotification =
+        notification.inboxKind === "notification" && !notification.read;
 
     return (
         <div
             key={notification._id}
-            className="space-y-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md"
+            className={`space-y-2 p-3 rounded-md ${isUnreadNotification ? "bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800" : "bg-gray-100 dark:bg-gray-700"} ${navigationPath ? "cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600/80" : ""}`}
+            onClick={() => {
+                if (navigationPath) {
+                    if (isUnreadNotification && onMarkRead) {
+                        onMarkRead(notification._id);
+                    }
+                    router.push(navigationPath);
+                }
+            }}
         >
             <div className="flex gap-3">
                 <div className="ps-1 pt-1">
-                    <StatusIndicator status={notification.status} />
+                    {isUnreadNotification ? (
+                        <span
+                            className="mt-1 block h-2 w-2 rounded-full bg-sky-500"
+                            aria-hidden="true"
+                        />
+                    ) : (
+                        <StatusIndicator status={notification.status} />
+                    )}
                 </div>
                 <div className="flex flex-col grow overflow-hidden">
                     <div className="flex justify-between items-start">
                         <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {displayType(notification.type)}
+                            {isShareNotification(notification)
+                                ? getShareNotificationTitle(notification, t)
+                                : displayType(notification.type)}
                         </span>
                         <div className="flex gap-2">
                             {notification.status === "in_progress" && (
                                 <button
-                                    onClick={() =>
-                                        handleCancelRequest(notification._id)
-                                    }
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleCancelRequest(notification._id);
+                                    }}
                                     className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Cancel")}
                                 >
@@ -158,9 +207,10 @@ function NotificationItem({
                                 notification.status === "cancelled" ||
                                 notification.status === "abandoned") && (
                                 <button
-                                    onClick={() =>
-                                        handleDelete(notification._id)
-                                    }
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleDelete(notification);
+                                    }}
                                     className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Delete")}
                                 >
@@ -169,28 +219,26 @@ function NotificationItem({
                             )}
                         </div>
                     </div>
+                    {shareSubtitle ? (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {shareSubtitle}
+                        </span>
+                    ) : null}
                     {notification.createdAt && (
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                             {t("Created ")}{" "}
                             <TimeAgo date={notification.createdAt} />
                         </span>
                     )}
-                    <span
-                        className={`text-sm font-semibold ${getStatusColorClass(notification.status)}`}
-                    >
-                        {t(stringcase.sentencecase(notification.status))}
-                    </span>
+                    {!isShareNotification(notification) ? (
+                        <span
+                            className={`text-sm font-semibold ${getStatusColorClass(notification.status)}`}
+                        >
+                            {t(stringcase.sentencecase(notification.status))}
+                        </span>
+                    ) : null}
 
-                    <StatusText
-                        text={
-                            notification.statusText ||
-                            (notification.status === "failed"
-                                ? t("Request failed")
-                                : "")
-                        }
-                        id={notification._id}
-                        t={t}
-                    />
+                    <StatusText text={statusText} id={notification._id} t={t} />
 
                     {notification.status === "in_progress" && (
                         <div className="my-2 h-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full">
@@ -211,15 +259,18 @@ function NotificationItem({
 
 export default function NotificationsPage() {
     const { t } = useTranslation();
+    const router = useRouter();
     const { direction: pageDirection } = useContext(LanguageContext);
     const direction = pageDirection ?? "ltr";
     const { ref, inView } = useInView();
     const [showDeleteOldDialog, setShowDeleteOldDialog] = useState(false);
-    const [deleteNotificationId, setDeleteNotificationId] = useState(null);
+    const [deleteNotificationTarget, setDeleteNotificationTarget] =
+        useState(null);
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, status } =
-        useInfiniteTasks();
+        useInfiniteInbox();
 
-    const deleteNotification = useDeleteTask();
+    const deleteNotification = useDeleteInboxItem();
+    const markNotificationsRead = useMarkNotificationsRead();
     const [cancelRequestId, setCancelRequestId] = useState(null);
     const cancelRequest = useCancelTask();
     const deleteOldTasks = useDeleteOldTasks();
@@ -230,16 +281,19 @@ export default function NotificationsPage() {
         }
     }, [inView, hasNextPage, fetchNextPage]);
 
-    const handleDelete = (_id) => {
-        setDeleteNotificationId(_id);
+    const handleDelete = (notification) => {
+        setDeleteNotificationTarget({
+            id: notification._id,
+            inboxKind: notification.inboxKind || "task",
+        });
     };
 
     const confirmDeleteNotification = useCallback(() => {
-        if (deleteNotificationId) {
-            deleteNotification.mutate(deleteNotificationId);
-            setDeleteNotificationId(null);
+        if (deleteNotificationTarget) {
+            deleteNotification.mutate(deleteNotificationTarget);
+            setDeleteNotificationTarget(null);
         }
-    }, [deleteNotificationId, deleteNotification]);
+    }, [deleteNotificationTarget, deleteNotification]);
 
     const handleCancelRequest = (_id) => {
         setCancelRequestId(_id);
@@ -261,6 +315,13 @@ export default function NotificationsPage() {
             return info?.displayName || type;
         },
         [t],
+    );
+
+    const handleMarkRead = useCallback(
+        (id) => {
+            markNotificationsRead.mutate({ ids: [id] });
+        },
+        [markNotificationsRead],
     );
 
     const handleDeleteOld = async () => {
@@ -322,6 +383,8 @@ export default function NotificationsPage() {
                                 t={t}
                                 handleCancelRequest={handleCancelRequest}
                                 handleDelete={handleDelete}
+                                router={router}
+                                onMarkRead={handleMarkRead}
                             />
                         ))}
 
@@ -336,9 +399,9 @@ export default function NotificationsPage() {
                 )}
             </div>
             <AlertDialog
-                open={!!deleteNotificationId}
+                open={!!deleteNotificationTarget}
                 onOpenChange={(open) => {
-                    if (!open) setDeleteNotificationId(null);
+                    if (!open) setDeleteNotificationTarget(null);
                 }}
             >
                 <AlertDialogContent dir={direction}>

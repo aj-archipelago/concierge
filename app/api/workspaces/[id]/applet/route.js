@@ -1,235 +1,65 @@
 import { NextResponse } from "next/server";
-import Workspace from "@/app/api/models/workspace";
-import Applet from "@/app/api/models/applet";
-import { getWorkspace } from "../db.js";
-import App, { APP_TYPES, APP_STATUS } from "@/app/api/models/app";
-import { hydrateAppletVersionContents } from "@/app/api/canvas-applets/versioning";
+import { getCurrentUser } from "@/app/api/utils/auth";
+import { migrateWorkspaceAppletToV2 } from "@/app/api/canvas-applets/migration";
 
-// Legacy v1 workspace applet endpoint. Keep this route on the original
-// Mongo-inline applet shape; v2 canvas applet versioning/publication belongs in
-// /api/canvas-applets and app/api/canvas-applets/registry.js.
+function jsonError(error, fallback = "Internal server error") {
+    return NextResponse.json(
+        { error: error?.message || fallback },
+        { status: error?.status || 500 },
+    );
+}
 
-// GET: fetch or create applet (already implemented)
+function compatibilityPayload(result, status = 200) {
+    return NextResponse.json(
+        {
+            ...result.applet,
+            appletId: result.appletId,
+            version: 2,
+            migrated: true,
+            workspaceId: result.workspaceId,
+            workspacePath: result.workspacePath || null,
+            fileHash: result.fileHash || null,
+            fileBlobPath: result.fileBlobPath || null,
+            app: result.app || null,
+            warnings: result.warnings || [],
+        },
+        { status },
+    );
+}
+
+// Legacy workspace applet endpoint. Workspace applets are no longer edited in
+// place; authenticated access promotes the applet to v2 and returns the v2
+// applet metadata so old callers can redirect/open the canvas applet.
 export async function GET(request, { params }) {
-    params = await params;
-    const { id } = params;
+    const { id } = await params;
 
     try {
-        const workspace = await getWorkspace(id);
-        if (!workspace) {
-            return NextResponse.json(
-                { error: "Workspace not found" },
-                { status: 404 },
-            );
-        }
-
-        // Find the workspace document to access the applet reference
-        const workspaceDoc = await Workspace.findById(workspace._id).populate(
-            "applet",
-        );
-
-        if (!workspaceDoc.applet) {
-            const newApplet = await Applet.create({
-                owner: workspaceDoc.owner,
-                html: "",
-                messages: [],
-                suggestions: [],
-                name: `${workspaceDoc.name} Applet`,
-            });
-            workspaceDoc.applet = newApplet._id;
-            await workspaceDoc.save();
-            await workspaceDoc.populate("applet");
-        }
-        const applet =
-            typeof workspaceDoc.applet?.toObject === "function"
-                ? workspaceDoc.applet.toObject()
-                : workspaceDoc.applet;
-        return NextResponse.json(await hydrateAppletVersionContents(applet));
+        const user = await getCurrentUser();
+        const result = await migrateWorkspaceAppletToV2({
+            workspaceId: id,
+            user,
+        });
+        return compatibilityPayload(result);
     } catch (error) {
-        console.error(error);
-        return NextResponse.json(
-            { error: "Failed to fetch workspace applet" },
-            { status: 500 },
-        );
+        console.error("Error migrating workspace applet:", error);
+        return jsonError(error, "Failed to fetch workspace applet");
     }
 }
 
-// PUT: update applet (html, messages, etc)
+// Editing through this legacy route is intentionally closed. Migrate first,
+// then tell clients to use the v2 canvas applet APIs.
 export async function PUT(request, { params }) {
-    params = await params;
-    const { id } = params;
-    const body = await request.json();
+    const { id } = await params;
 
     try {
-        const workspace = await getWorkspace(id);
-        if (!workspace) {
-            return NextResponse.json(
-                { error: "Workspace not found" },
-                { status: 404 },
-            );
-        }
-
-        // Find the workspace document to access the applet reference
-        const workspaceDoc = await Workspace.findById(workspace._id);
-        if (!workspaceDoc.applet) {
-            return NextResponse.json(
-                { error: "Applet not found" },
-                { status: 404 },
-            );
-        }
-
-        // Prepare update object
-        const updateObj = {};
-        const currentDate = new Date();
-
-        if (body.htmlVersions !== undefined) {
-            // Direct update of htmlVersions array when provided
-            updateObj.htmlVersions = body.htmlVersions.map((content) => ({
-                content,
-                timestamp: currentDate,
-            }));
-        } else if (body.html !== undefined) {
-            // Existing logic for adding new versions
-            updateObj.html = body.html;
-            updateObj.$push = {
-                htmlVersions: {
-                    $each: [
-                        {
-                            content: body.html,
-                            timestamp: currentDate,
-                        },
-                    ],
-                    $cond: {
-                        if: {
-                            $or: [
-                                { $eq: [{ $size: "$htmlVersions" }, 0] },
-                                {
-                                    $ne: [
-                                        {
-                                            $arrayElemAt: [
-                                                "$htmlVersions.content",
-                                                -1,
-                                            ],
-                                        },
-                                        body.html,
-                                    ],
-                                },
-                            ],
-                        },
-                    },
-                },
-            };
-        }
-        if (body.messages !== undefined) updateObj.messages = body.messages;
-        if (body.suggestions !== undefined)
-            updateObj.suggestions = body.suggestions;
-        if (body.name !== undefined) updateObj.name = body.name;
-        if (body.publishedVersionIndex !== undefined)
-            updateObj.publishedVersionIndex = body.publishedVersionIndex;
-
-        // Use findOneAndUpdate with atomic operations
-        const updatedApplet = await Applet.findOneAndUpdate(
-            { _id: workspaceDoc.applet },
-            updateObj,
-            {
-                new: true,
-                upsert: true,
-                runValidators: true,
-            },
-        );
-
-        // Handle App creation/deactivation based on publishedVersionIndex and publishToAppStore preference
-        if (body.publishToAppStore !== undefined) {
-            if (
-                body.publishToAppStore &&
-                (body.publishedVersionIndex !== undefined ||
-                    body.appName ||
-                    body.appSlug)
-            ) {
-                // Applet is being published to app store - upsert an App
-                const appName =
-                    body.appName ||
-                    body.name ||
-                    updatedApplet.name ||
-                    `${workspace.name} Applet`;
-
-                // Check if app name conflicts with built-in native apps
-                const nativeAppNames = [
-                    "Translate",
-                    "Transcribe",
-                    "Write",
-                    "Workspaces",
-                    "Images",
-                    "Jira",
-                ];
-                if (nativeAppNames.includes(appName)) {
-                    return NextResponse.json(
-                        {
-                            error: `App name "${appName}" is reserved for built-in apps. Please use another name.`,
-                        },
-                        { status: 400 },
-                    );
-                }
-
-                // Use provided slug or existing app slug
-                let appSlug = body.appSlug;
-                if (!appSlug) {
-                    const existingApp = await App.findOne({
-                        workspaceId: workspace._id,
-                    });
-                    appSlug = existingApp?.slug || workspace.slug;
-                }
-
-                // Check for slug collision with other apps
-                const existingAppWithSlug = await App.findOne({
-                    slug: appSlug,
-                    workspaceId: { $ne: workspace._id }, // Exclude current workspace's app
-                    status: APP_STATUS.ACTIVE,
-                });
-
-                if (existingAppWithSlug) {
-                    return NextResponse.json(
-                        {
-                            error: `The slug "${appSlug}" is already in use by another app. Please choose a different slug.`,
-                        },
-                        { status: 400 },
-                    );
-                }
-
-                await App.findOneAndUpdate(
-                    { workspaceId: workspace._id },
-                    {
-                        name: appName,
-                        slug: appSlug,
-                        author: workspace.owner,
-                        type: APP_TYPES.APPLET,
-                        status: APP_STATUS.ACTIVE,
-                        workspaceId: workspace._id,
-                        icon: body.appIcon || null,
-                        description: body.appDescription || null,
-                    },
-                    {
-                        new: true,
-                        upsert: true,
-                        runValidators: true,
-                    },
-                );
-            } else {
-                // Applet is being unpublished or not published to app store - deactivate the App
-                await App.findOneAndUpdate(
-                    { workspaceId: workspace._id },
-                    { status: APP_STATUS.INACTIVE },
-                    { new: true },
-                );
-            }
-        }
-
-        return NextResponse.json(updatedApplet);
+        const user = await getCurrentUser();
+        const result = await migrateWorkspaceAppletToV2({
+            workspaceId: id,
+            user,
+        });
+        return compatibilityPayload(result, 410);
     } catch (error) {
-        console.error(error);
-        return NextResponse.json(
-            { error: "Failed to update applet" },
-            { status: 500 },
-        );
+        console.error("Error migrating workspace applet before edit:", error);
+        return jsonError(error, "Failed to update workspace applet");
     }
 }

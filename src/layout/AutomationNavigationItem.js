@@ -71,7 +71,7 @@ export default function AutomationNavigationItem({
     return (
         <li
             className={classNames(
-                "group flex items-stretch rounded-md my-0.5",
+                "group my-0.5 flex h-12 items-stretch rounded-md",
                 isActiveRoute
                     ? "bg-gray-100 dark:bg-gray-700"
                     : "hover:bg-gray-100 dark:hover:bg-gray-700",
@@ -82,7 +82,7 @@ export default function AutomationNavigationItem({
                 type="button"
                 title={latestRunLine}
                 className={classNames(
-                    "flex min-h-11 min-w-0 flex-1 flex-col gap-0.5 py-2 ps-4 pe-1 text-start text-xs cursor-pointer rounded-md border-0 bg-transparent leading-snug font-normal text-gray-700 dark:text-gray-200",
+                    "flex h-full min-w-0 flex-1 flex-col justify-center gap-0.5 py-1.5 ps-4 pe-1 text-start text-xs cursor-pointer rounded-md border-0 bg-transparent leading-snug font-normal text-gray-700 dark:text-gray-200",
                     isCollapsed && "pe-3",
                 )}
                 onClick={() => handleNavigate(latestHref)}

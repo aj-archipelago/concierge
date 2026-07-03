@@ -61,7 +61,6 @@ export async function POST(req) {
         const start = performance.now();
         const { searchParams } = new URL(req.url);
         const isPrefetch = searchParams.get("prefetch") === "true";
-        const forceNew = isPrefetch || searchParams.get("forceNew") === "true";
 
         let data;
         try {
@@ -79,7 +78,6 @@ export async function POST(req) {
         }
         const newChat = await createNewChat(data, {
             setActive: !isPrefetch,
-            forceNew,
         });
         const response = NextResponse.json(newChat);
         response.headers.set(

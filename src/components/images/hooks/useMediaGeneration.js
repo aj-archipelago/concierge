@@ -6,9 +6,11 @@ import {
     selectImageReferencesWithinLimits,
     validateImageReferenceLimits,
 } from "../mediaReferenceLimits";
+import { AUDIO_EXTENSIONS } from "../../../utils/mediaUtils";
 
 const LOADING_STATE_DELAY_MS = 1000;
 const IMAGE_ONLY_AUDIO_PROMPT = "Image-only music generation";
+const REFERENCE_MEDIA_PROMPT = "Media generation from references";
 export const MAX_INPUT_IMAGE_REFERENCES = 14;
 export const MAX_INPUT_VIDEO_REFERENCES = 1;
 const VIDEO_EXTEND_REFERENCE_ROLE = "extend";
@@ -29,10 +31,53 @@ export function hasUsableInputVideoUrl(video) {
     return Boolean(video?.url || video?.azureUrl || video?.gcsUrl);
 }
 
+function hasAudioExtension(value) {
+    const path = String(value || "")
+        .split("?")[0]
+        .split("#")[0]
+        .toLowerCase();
+
+    return AUDIO_EXTENSIONS.some((extension) =>
+        path.endsWith(extension.toLowerCase()),
+    );
+}
+
+function isAudioMediaReference(media) {
+    if (!media) return false;
+    if (String(media.type || "").toLowerCase() === "audio") return true;
+
+    const mimeType = String(media.mimeType || media.contentType || "")
+        .trim()
+        .toLowerCase();
+    if (mimeType.startsWith("audio/")) return true;
+
+    return [
+        media.url,
+        media.azureUrl,
+        media.gcsUrl,
+        media.converted?.url,
+        media.image_url?.url,
+        typeof media.file === "string" ? media.file : "",
+        media.blobPath,
+        media.converted?.blobPath,
+        media.filename,
+        media.displayFilename,
+        media.originalName,
+        media.name,
+    ].some(hasAudioExtension);
+}
+
 export function hasUsableInputAudioUrl(media) {
     return (
-        media?.type === "audio" &&
-        Boolean(media?.url || media?.azureUrl || media?.gcsUrl)
+        isAudioMediaReference(media) &&
+        Boolean(
+            media?.url ||
+                media?.azureUrl ||
+                media?.gcsUrl ||
+                media?.converted?.url ||
+                media?.image_url?.url ||
+                (typeof media?.file === "string" ? media.file : ""),
+        )
     );
 }
 
@@ -58,11 +103,27 @@ export function getStoredInputVideoUrl(video) {
 
 export function getInputAudioUrl(media) {
     if (!media) return "";
-    return media.azureUrl || media.url || media.gcsUrl || "";
+    return (
+        media.azureUrl ||
+        media.url ||
+        media.gcsUrl ||
+        media.converted?.url ||
+        media.image_url?.url ||
+        (typeof media.file === "string" ? media.file : "") ||
+        ""
+    );
 }
 
 export function getStoredInputAudioUrl(media) {
-    return media?.url || media?.azureUrl || media?.gcsUrl || "";
+    return (
+        media?.url ||
+        media?.azureUrl ||
+        media?.gcsUrl ||
+        media?.converted?.url ||
+        media?.image_url?.url ||
+        (typeof media?.file === "string" ? media.file : "") ||
+        ""
+    );
 }
 
 export function applyInputImageReference(taskData, image, index, preferGcs) {
@@ -98,11 +159,13 @@ export function applyInputAudioReference(taskData, media) {
     if (!url) return;
 
     taskData.inputAudioUrl = url;
-    if (media?.blobPath) {
-        taskData.inputAudioBlobPath = media.blobPath;
+    const blobPath = media?.blobPath || media?.converted?.blobPath;
+    const hash = media?.hash || media?.converted?.hash;
+    if (blobPath) {
+        taskData.inputAudioBlobPath = blobPath;
     }
-    if (media?.hash) {
-        taskData.inputAudioHash = media.hash;
+    if (hash) {
+        taskData.inputAudioHash = hash;
     }
 }
 
@@ -147,17 +210,20 @@ export function applyStoredInputAudioReference(mediaItemData, media) {
     if (!url) return;
 
     mediaItemData.inputAudioUrl = url;
-    if (media?.blobPath) {
-        mediaItemData.inputAudioBlobPath = media.blobPath;
+    const blobPath = media?.blobPath || media?.converted?.blobPath;
+    const hash = media?.hash || media?.converted?.hash;
+    if (blobPath) {
+        mediaItemData.inputAudioBlobPath = blobPath;
     }
-    if (media?.hash) {
-        mediaItemData.inputAudioHash = media.hash;
+    if (hash) {
+        mediaItemData.inputAudioHash = hash;
     }
 }
 
-function getDisplayPrompt(prompt, outputType, hasInputImage) {
+function getDisplayPrompt(prompt, outputType, hasInputImage, hasInputAudio) {
     if (prompt?.trim()) return prompt;
     if (outputType === "audio" && hasInputImage) return IMAGE_ONLY_AUDIO_PROMPT;
+    if (hasInputImage || hasInputAudio) return REFERENCE_MEDIA_PROMPT;
     return prompt || "";
 }
 
@@ -226,11 +292,18 @@ export const useMediaGeneration = ({
             );
             const modelSettings = effectiveSettings?.models?.[modelName] || {};
             const normalizedOutputFolder = normalizeOutputFolder(outputFolder);
+            const displayPrompt = getDisplayPrompt(
+                prompt,
+                outputType,
+                Boolean(inputImageUrl),
+                hasUsableInputAudioUrl(inputAudio),
+            );
 
             try {
                 const taskData = {
                     type: "media-generation",
                     prompt,
+                    displayPrompt,
                     outputType,
                     model: modelName,
                     inputImageUrl: inputImageUrl || "",
@@ -257,7 +330,7 @@ export const useMediaGeneration = ({
                     const mediaItemData = {
                         taskId: result.taskId,
                         cortexRequestId: result.taskId,
-                        prompt: prompt,
+                        prompt: displayPrompt,
                         type: outputType,
                         model: modelName,
                         status: "pending",
@@ -317,6 +390,7 @@ export const useMediaGeneration = ({
             inputImageRolesById = {},
             outputFolder = "",
             inputAudio = null,
+            allowPromptlessGeneration = false,
         }) => {
             // Use the selectedImagesObjects array directly
             const selectedReferenceObjects = selectedImagesObjects.filter(
@@ -325,7 +399,9 @@ export const useMediaGeneration = ({
             );
             if (
                 selectedReferenceObjects.length === 0 ||
-                (!prompt.trim() && outputType !== "audio")
+                (!allowPromptlessGeneration &&
+                    !prompt.trim() &&
+                    outputType !== "audio")
             )
                 return;
             const effectiveSettings = sanitizeMediaSettings(settings);
@@ -342,6 +418,12 @@ export const useMediaGeneration = ({
                         image,
                         inputImageRolesById,
                     );
+                    const displayPrompt = getDisplayPrompt(
+                        combinedPrompt,
+                        outputType,
+                        true,
+                        hasUsableInputAudioUrl(inputAudio),
+                    );
 
                     // Use metadata to determine URL format preference
                     const modelMeta = mediaModels?.find(
@@ -354,11 +436,7 @@ export const useMediaGeneration = ({
                     const taskData = {
                         type: "media-generation",
                         prompt: combinedPrompt,
-                        displayPrompt: getDisplayPrompt(
-                            combinedPrompt,
-                            outputType,
-                            true,
-                        ),
+                        displayPrompt,
                         outputType,
                         model: selectedModel,
                         inputImageUrl: "",
@@ -393,11 +471,7 @@ export const useMediaGeneration = ({
                         const mediaItemData = {
                             taskId: result.taskId,
                             cortexRequestId: result.taskId,
-                            prompt: getDisplayPrompt(
-                                combinedPrompt,
-                                outputType,
-                                true,
-                            ),
+                            prompt: displayPrompt,
                             type: outputType,
                             model: selectedModel,
                             status: "pending",
@@ -458,6 +532,7 @@ export const useMediaGeneration = ({
             inputImageRolesById = {},
             outputFolder = "",
             inputAudio = null,
+            allowPromptlessGeneration = false,
         }) => {
             // Use the selectedImagesObjects array directly
             const selectedReferenceObjects = selectedImagesObjects.filter(
@@ -490,7 +565,9 @@ export const useMediaGeneration = ({
                 getInputImageRole(image, inputImageRolesById);
 
             if (
-                (!prompt.trim() && outputType !== "audio") ||
+                (!allowPromptlessGeneration &&
+                    !prompt.trim() &&
+                    outputType !== "audio") ||
                 selectedReferenceObjects.length < minReferences ||
                 selectedVideoObjects.length > maxVideos
             )
@@ -529,6 +606,12 @@ export const useMediaGeneration = ({
 
             try {
                 const combinedPrompt = prompt;
+                const displayPrompt = getDisplayPrompt(
+                    combinedPrompt,
+                    outputType,
+                    selectedReferencesForTask.length > 0,
+                    hasUsableInputAudioUrl(inputAudio),
+                );
 
                 // Use metadata to determine URL format preference
                 const preferGcs = modelMeta?.preferredUrlFormat === "gcs";
@@ -544,11 +627,7 @@ export const useMediaGeneration = ({
                 const taskData = {
                     type: "media-generation",
                     prompt: combinedPrompt,
-                    displayPrompt: getDisplayPrompt(
-                        combinedPrompt,
-                        outputType,
-                        true,
-                    ),
+                    displayPrompt,
                     outputType,
                     model: selectedModel,
                     settings: effectiveSettings,
@@ -597,11 +676,7 @@ export const useMediaGeneration = ({
                     const mediaItemData = {
                         taskId: result.taskId,
                         cortexRequestId: result.taskId,
-                        prompt: getDisplayPrompt(
-                            combinedPrompt,
-                            outputType,
-                            true,
-                        ),
+                        prompt: displayPrompt,
                         type: outputType,
                         model: selectedModel,
                         status: "pending",

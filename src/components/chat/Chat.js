@@ -12,12 +12,7 @@ import {
     useAddChat,
     useUpdateChat,
 } from "../../../app/queries/chats";
-import {
-    isClientOnlyChatId,
-    NEW_CHAT_ID,
-} from "../../../app/utils/chatClientIds";
-import { NEW_CHAT_REQUEST_EVENT } from "../../utils/requestChatInputFocus";
-import { useContext, useState, useEffect, useRef, useMemo } from "react";
+import { useContext, useState, useEffect, useRef, useMemo, useId } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSelector, useDispatch } from "react-redux";
 import { CurrentUserContext, AuthContext } from "../../App";
@@ -44,8 +39,6 @@ import {
     closeCanvas,
     restoreCanvasState,
     setActiveCanvasChat,
-    promoteCanvasChatId,
-    clearCanvasForChat,
     stripCanvasPersistContent,
 } from "../../stores/chatSlice";
 import EntityIcon from "./EntityIcon";
@@ -71,14 +64,10 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import ChatTopMenu from "./ChatTopMenu";
+import { getTextProxyUrl } from "@/src/utils/proxyUrl";
+import ShareButton from "@/components/share/ShareButton";
+import { resolveStableChatOwnerState } from "./chatShareVisibility";
 
 /**
  * Determines which chat to use based on URL and viewing state.
@@ -114,8 +103,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const routeChatId = chatIdOverride || params?.id;
-    const [promotedChatId, setPromotedChatId] = useState(null);
-    const urlChatId = promotedChatId || routeChatId;
+    const urlChatId = routeChatId;
     const updateActiveChat = useUpdateActiveChat();
     const updateChatHook = useUpdateChat();
     const setActiveChatId = useSetActiveChatId();
@@ -132,10 +120,10 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
     const isRTL = i18n.dir() === "rtl";
 
     // Memoize chat determination to avoid recalculation on every render.
-    // Keep a ref to the last non-null value so transient gaps during
-    // promotion (old query removed before new urlChatId commits) never
+    // Keep a ref to the last non-null value so transient query gaps never
     // pass null to ChatContent, which would unmount the input and flash.
     const lastChatRef = useRef(null);
+    const confirmedOwnerChatIdRef = useRef(null);
     const rawChat = useMemo(
         () => getChatToUse(urlChatId, urlChat, viewingChat, activeChat),
         [urlChatId, urlChat, viewingChat, activeChat],
@@ -146,8 +134,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
     const chat = rawChat ?? lastChatRef.current;
     const activeChatId = useMemo(() => chat?._id, [chat?._id]);
     // Force a fresh ChatContent instance when the user truly switches chats.
-    // Prefer the route id so /chat/new can promote to a real persisted id
-    // without remounting the streaming hook mid-response.
     const chatContentInstanceKey = useMemo(() => {
         if (
             routeChatId &&
@@ -168,75 +154,12 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
         return "chat:default";
     }, [routeChatId, viewingChat?._id, activeChatId]);
     const user = useContext(CurrentUserContext);
-    const { readOnly } = viewingChat || {};
-    const publicChatOwner = viewingChat?.owner;
+    const readOnly = Boolean(viewingChat?.readOnly || chat?.readOnly);
+    const publicChatOwner = viewingChat?.owner || chat?.owner;
     const { setPageContext, clearPageContext } = usePageContext();
     const { mcpServers: connectedMcpServers } = useMcpServers();
     const slackBotConnected = !!connectedMcpServers?.slack?.hasBotToken;
     const dispatch = useDispatch();
-
-    useEffect(() => {
-        const handleChatIdUpdate = (event) => {
-            const nextChatId = event.detail?.chatId;
-            if (!nextChatId) {
-                return;
-            }
-            // Migrate the in-flight canvas bucket from NEW_CHAT_ID to the
-            // newly-persisted chat id so the user's open canvas survives
-            // the URL flip without a flash.
-            dispatch(
-                promoteCanvasChatId({
-                    fromChatId: NEW_CHAT_ID,
-                    toChatId: String(nextChatId),
-                }),
-            );
-            setPromotedChatId(String(nextChatId));
-        };
-
-        const handleNewChatRequest = (event) => {
-            setPromotedChatId(null);
-            queryClient.removeQueries({ queryKey: ["chat", NEW_CHAT_ID] });
-            // The user is starting a fresh new chat — discard any canvas
-            // state still parked under NEW_CHAT_ID from the prior compose.
-            // preserveCanvas=true skips this so flows that intentionally open
-            // a canvas while spawning a chat (e.g. launching an applet) keep it.
-            if (event?.detail?.preserveCanvas) return;
-            // Switch the active bucket to NEW_CHAT_ID FIRST so the subsequent
-            // closeCanvas / setCanvasVisibility syncs land on NEW_CHAT_ID's
-            // bucket — not on the previous chat's bucket, which would wipe its
-            // persisted canvas state. (The route useEffect at line 349 hasn't
-            // fired yet at this point because we're still on /chat/{prevId}.)
-            dispatch(setActiveCanvasChat(NEW_CHAT_ID));
-            dispatch(clearCanvasForChat(NEW_CHAT_ID));
-            dispatch(closeCanvas());
-            dispatch(setCanvasVisibility(false));
-        };
-
-        window.addEventListener("chatIdUpdate", handleChatIdUpdate);
-        window.addEventListener(NEW_CHAT_REQUEST_EVENT, handleNewChatRequest);
-        return () => {
-            window.removeEventListener("chatIdUpdate", handleChatIdUpdate);
-            window.removeEventListener(
-                NEW_CHAT_REQUEST_EVENT,
-                handleNewChatRequest,
-            );
-        };
-    }, [queryClient, dispatch]);
-
-    useEffect(() => {
-        if (!promotedChatId) {
-            return;
-        }
-
-        if (String(routeChatId || "") === String(promotedChatId)) {
-            setPromotedChatId(null);
-            return;
-        }
-
-        if (routeChatId && !isClientOnlyChatId(routeChatId)) {
-            setPromotedChatId(null);
-        }
-    }, [promotedChatId, routeChatId]);
 
     useEffect(() => {
         if (!urlChatId || !urlChatError) return;
@@ -300,12 +223,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             return;
         }
 
-        // Client-only routes are promoted by the stream path and should never
-        // be written back as the persisted active chat ID.
-        if (isClientOnlyChatId(urlChatId)) {
-            return;
-        }
-
         // Skip if viewing a read-only chat or chat doesn't exist
         if (viewingChat || !urlChat || urlChat.readOnly) {
             return;
@@ -332,10 +249,14 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
         chat?.selectedEntityId || "",
     );
     const persistedEntityRepairRef = useRef(null);
-    const [showPublicConfirm, setShowPublicConfirm] = useState(false);
-    const [showUnshareConfirm, setShowUnshareConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showSharedByDialog, setShowSharedByDialog] = useState(false);
+    const [entityMenuOpen, setEntityMenuOpen] = useState(false);
+    const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+    const entityMenuId = useId();
+    const overflowMenuId = useId();
+    const entityMenuRef = useRef(null);
+    const overflowMenuRef = useRef(null);
 
     const defaultAiName = user?.aiName || "Concierge";
     const { entities, defaultEntityId, entitiesLoaded } = useEntities(
@@ -360,6 +281,46 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
     const canvasByChatId = useSelector(
         (state) => state.chat?.canvasByChatId || {},
     );
+
+    useEffect(() => {
+        if (!entityMenuOpen && !overflowMenuOpen) return;
+
+        const handlePointerDown = (event) => {
+            if (
+                entityMenuOpen &&
+                !entityMenuRef.current?.contains(event.target)
+            ) {
+                setEntityMenuOpen(false);
+            }
+
+            if (
+                overflowMenuOpen &&
+                !overflowMenuRef.current?.contains(event.target)
+            ) {
+                setOverflowMenuOpen(false);
+            }
+        };
+        const handleKeyDown = (event) => {
+            if (event.key === "Escape") {
+                setEntityMenuOpen(false);
+                setOverflowMenuOpen(false);
+            }
+        };
+
+        document.addEventListener("pointerdown", handlePointerDown);
+        document.addEventListener("keydown", handleKeyDown);
+
+        return () => {
+            document.removeEventListener("pointerdown", handlePointerDown);
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [entityMenuOpen, overflowMenuOpen]);
+
+    useEffect(() => {
+        if (!user?.useCustomEntities || readOnly) {
+            setEntityMenuOpen(false);
+        }
+    }, [readOnly, user?.useCustomEntities]);
 
     // Switch the active canvas bucket whenever the chat changes so each chat
     // sees its own open tabs/applet. setActiveCanvasChat snapshots the prior
@@ -404,12 +365,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             // Skip the throwaway pending bucket — it migrates into a real
             // chat on setActiveCanvasChat and isn't worth persisting.
             if (chatId === "__pending__") continue;
-            // NEW_CHAT_ID is a transient route that gets promoted to a real
-            // chat id once the user sends a message. Persisting its bucket
-            // re-seeds stale state on the next /chat/new mount, which then
-            // overwrites a freshly-adopted __pending__ bucket (e.g. when
-            // launching an applet from /applets) and the canvas vanishes.
-            if (chatId === NEW_CHAT_ID) continue;
             byChatId[chatId] = stripBucket(bucket);
         }
         debouncedUpdateUserState({
@@ -447,11 +402,34 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                 const applet = await res.json();
                 if (cancelled) return;
                 const versions = applet.htmlVersions;
-                const latestHtml =
-                    Array.isArray(versions) && versions.length > 0
-                        ? versions[versions.length - 1].content
-                        : applet.html || "";
-                if (!applet.filePath && !latestHtml) {
+                let htmlContent = "";
+                let appletActiveVersionIndex = null;
+                let appletActiveVersionNumber = null;
+                let appletIsViewingDraft = true;
+
+                if (applet.filePath) {
+                    const htmlRes = await fetch(
+                        getTextProxyUrl(applet.filePath),
+                        { cache: "no-store" },
+                    );
+                    if (cancelled || !htmlRes.ok) {
+                        if (!cancelled) stripOpenAppletParam();
+                        return;
+                    }
+                    htmlContent = await htmlRes.text();
+                } else {
+                    htmlContent =
+                        Array.isArray(versions) && versions.length > 0
+                            ? versions[versions.length - 1].content
+                            : applet.html || "";
+                    if (Array.isArray(versions) && versions.length > 0) {
+                        appletActiveVersionIndex = versions.length - 1;
+                        appletActiveVersionNumber = versions.length;
+                        appletIsViewingDraft = false;
+                    }
+                }
+
+                if (!htmlContent) {
                     stripOpenAppletParam();
                     return;
                 }
@@ -467,11 +445,14 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                         title: baseTitle,
                         filename,
                         url: applet.filePath || undefined,
-                        htmlContent: latestHtml || undefined,
+                        htmlContent,
                         appletId: String(applet._id),
                         workspacePath: applet.workspacePath || null,
                         fileHash: applet.fileHash || null,
                         blobPath: applet.fileBlobPath || null,
+                        appletActiveVersionIndex,
+                        appletActiveVersionNumber,
+                        appletIsViewingDraft,
                     }),
                 );
                 stripOpenAppletParam();
@@ -529,7 +510,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
         }
     };
 
-    // For /chat/new, keep the selector pinned to the current default unless
+    // For empty chats, keep the selector pinned to the current default unless
     // the user already has a valid explicit selection carried from a chat.
     useEffect(() => {
         if (chat?.selectedEntityId || !defaultEntityId) {
@@ -549,7 +530,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
     // Sync local state with fetched chat data (only for persisted chats)
     useEffect(() => {
         const entityIdFromChat = chat?.selectedEntityId;
-        // Skip sync when there's no persisted entity to sync from (e.g. /chat/new)
+        // Skip sync when there's no persisted entity to sync from.
         // so user-selected entities aren't clobbered by defaultEntityId resets
         if (!entityIdFromChat || !entitiesLoaded) return;
 
@@ -565,8 +546,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             !newEntityId ||
             readOnly ||
             chat?.readOnly ||
-            !chat?._id ||
-            chat?._id === NEW_CHAT_ID
+            !chat?._id
         ) {
             persistedEntityRepairRef.current = null;
             return;
@@ -594,27 +574,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
         updateChatHook,
     ]);
 
-    const handleShare = () => {
-        setShowPublicConfirm(true);
-    };
-
-    const handleCopyUrl = async () => {
-        const shareUrl = `${window.location.origin}/chat/${chat._id}`;
-        try {
-            await navigator.clipboard.writeText(shareUrl);
-        } catch (error) {
-            console.error("Error copying URL:", error);
-        }
-    };
-
-    const handleUnshare = async () => {
-        try {
-            await updateActiveChat.mutateAsync({ isPublic: false });
-        } catch (error) {
-            console.error("Error unsharing chat:", error);
-        }
-    };
-
     const handleEntityChange = (value) => {
         const newEntityId = value === defaultAiName ? "" : value;
         setSelectedEntityId(newEntityId);
@@ -623,17 +582,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                 chatId: activeChatId,
                 selectedEntityId: newEntityId,
             });
-        }
-    };
-
-    const handleMakePublic = async () => {
-        try {
-            const shareUrl = `${window.location.origin}/chat/${chat._id}`;
-            await updateActiveChat.mutateAsync({ isPublic: true });
-            document.body.focus();
-            await navigator.clipboard.writeText(shareUrl);
-        } catch (error) {
-            console.error("Error making chat public:", error);
         }
     };
 
@@ -687,9 +635,16 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
         }
     };
 
-    // Determine if current user owns this chat
-    const isChatOwner = !readOnly && !publicChatOwner;
-    const isShared = chat?.isPublic;
+    // Only the chat owner can manage sharing settings. Keep confirmed
+    // ownership stable while send/stream cache updates briefly omit isOwner.
+    const ownerState = resolveStableChatOwnerState({
+        chat,
+        readOnly,
+        publicChatOwner,
+        confirmedOwnerChatId: confirmedOwnerChatIdRef.current,
+    });
+    confirmedOwnerChatIdRef.current = ownerState.confirmedOwnerChatId;
+    const isChatOwner = ownerState.isChatOwner;
     const hasMessages =
         Array.isArray(chat?.messages) && chat.messages.length > 0;
     const selectedEntity = entities.find(
@@ -776,28 +731,49 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
 
         if (isInteractive) {
             return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            className={buttonClassName}
-                            aria-label={t("Select entity")}
+                <div
+                    ref={entityMenuRef}
+                    className="relative inline-flex w-full"
+                >
+                    <button
+                        type="button"
+                        className={buttonClassName}
+                        aria-label={t("Select entity")}
+                        aria-haspopup="menu"
+                        aria-expanded={entityMenuOpen}
+                        aria-controls={
+                            entityMenuOpen ? entityMenuId : undefined
+                        }
+                        onClick={() => setEntityMenuOpen((open) => !open)}
+                    >
+                        {content}
+                    </button>
+                    {entityMenuOpen ? (
+                        <div
+                            id={entityMenuId}
+                            role="menu"
+                            className={`absolute top-full z-50 mt-1 max-h-72 min-w-full overflow-y-auto rounded-md border border-gray-200 bg-white p-1 text-gray-950 shadow-md dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 ${
+                                isRTL ? "start-0" : "end-0"
+                            }`}
                         >
-                            {content}
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align={isRTL ? "start" : "end"}>
-                        {entities.map((entity) => (
-                            <DropdownMenuItem
-                                key={entity.id}
-                                onClick={() => handleEntityChange(entity.id)}
-                                className="flex items-center gap-2 text-sm focus:bg-gray-100 dark:focus:bg-gray-700 dark:focus:text-gray-100"
-                            >
-                                <EntityIcon entity={entity} size="xs" />
-                                {t(entity.name)}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                            {entities.map((entity) => (
+                                <button
+                                    key={entity.id}
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                        setEntityMenuOpen(false);
+                                        handleEntityChange(entity.id);
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-start text-sm text-gray-800 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:bg-gray-700 dark:focus:text-gray-100"
+                                >
+                                    <EntityIcon entity={entity} size="xs" />
+                                    {t(entity.name)}
+                                </button>
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
             );
         }
 
@@ -821,8 +797,8 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                     onClick={() => setShowSharedByDialog(true)}
                     className={`flex items-center gap-1.5 rounded-md border bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400 ${
                         mobile
-                            ? "px-2.5 py-2 text-xs"
-                            : "px-3 py-1.5 text-xs hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                            ? "h-9 px-2.5 text-xs"
+                            : "h-9 px-3 text-xs hover:bg-sky-100 dark:hover:bg-sky-900/30"
                     }`}
                     title={`${t("Shared by")} ${publicChatOwner?.name || publicChatOwner?.username || ""}`}
                 >
@@ -837,7 +813,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             return (
                 <div
                     className={`flex items-center gap-1.5 rounded-md border bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 ${
-                        mobile ? "px-2.5 py-2 text-xs" : "px-3 py-1.5 text-xs"
+                        mobile ? "h-9 px-2.5 text-xs" : "h-9 px-3 text-xs"
                     }`}
                     title={t("Read-only mode")}
                 >
@@ -847,82 +823,110 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             );
         }
 
-        if (isShared) {
+        if (isChatOwner && chat?._id) {
             return (
-                <div
-                    className={`flex items-center gap-1.5 rounded-md border bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600 dark:text-sky-400 ${
-                        mobile ? "px-2.5 py-2 text-xs" : "px-3 py-1.5 text-xs"
-                    }`}
-                    title={t("Shared chat options")}
-                >
-                    <Users className="w-4 h-4" />
-                    <span>{t("Shared")}</span>
-                </div>
+                <ShareButton
+                    entityType="chat"
+                    entityId={chat._id}
+                    label={t("Share")}
+                    size="sm"
+                    className={
+                        mobile ? "h-9 px-2.5 text-xs" : "h-9 px-3 text-xs"
+                    }
+                />
             );
         }
 
         return null;
     };
 
-    const renderOverflowMenu = () => (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+    const renderOverflowMenu = () => {
+        const menuItemClassName =
+            "flex w-full items-center rounded-sm px-2 py-1.5 text-start text-sm text-gray-800 outline-none transition-colors hover:bg-gray-100 focus:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus:bg-gray-700";
+
+        return (
+            <div ref={overflowMenuRef} className="relative inline-flex">
                 <button
                     type="button"
                     className="flex items-center justify-center rounded-md border border-gray-200 bg-white px-2.5 py-2 text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                     aria-label={t("More actions")}
                     title={t("More actions")}
+                    aria-haspopup="menu"
+                    aria-expanded={overflowMenuOpen}
+                    aria-controls={
+                        overflowMenuOpen ? overflowMenuId : undefined
+                    }
+                    onClick={() => setOverflowMenuOpen((open) => !open)}
                 >
                     <MoreHorizontal className="h-4 w-4" />
                 </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align={isRTL ? "start" : "end"}>
-                <DropdownMenuItem onClick={handleCanvasToggle}>
-                    {canvasContent && canvasVisible
-                        ? t("Hide Canvas")
-                        : t("Show Canvas")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                    disabled={!hasMessages}
-                    onClick={handleExportActiveChat}
-                >
-                    {t("Export")}
-                </DropdownMenuItem>
-                {isChatOwner && !isShared ? (
-                    <DropdownMenuItem disabled={readOnly} onClick={handleShare}>
-                        {t("Share")}
-                    </DropdownMenuItem>
-                ) : null}
-                {isChatOwner && isShared ? (
-                    <>
-                        <DropdownMenuItem onClick={handleCopyUrl}>
-                            {t("Copy Share URL")}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            onClick={() => setShowUnshareConfirm(true)}
-                        >
-                            {t("Unshare")}
-                        </DropdownMenuItem>
-                    </>
-                ) : null}
-                {publicChatOwner ? (
-                    <DropdownMenuItem
-                        onClick={() => setShowSharedByDialog(true)}
+                {overflowMenuOpen ? (
+                    <div
+                        id={overflowMenuId}
+                        role="menu"
+                        className={`absolute top-full z-50 mt-1 min-w-[10rem] overflow-hidden rounded-md border border-gray-200 bg-white p-1 text-gray-950 shadow-md dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 ${
+                            isRTL ? "start-0" : "end-0"
+                        }`}
                     >
-                        {t("Shared chat")}
-                    </DropdownMenuItem>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            className={menuItemClassName}
+                            onClick={() => {
+                                setOverflowMenuOpen(false);
+                                handleCanvasToggle();
+                            }}
+                        >
+                            {canvasContent && canvasVisible
+                                ? t("Hide Canvas")
+                                : t("Show Canvas")}
+                        </button>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            disabled={!hasMessages}
+                            className={menuItemClassName}
+                            onClick={() => {
+                                setOverflowMenuOpen(false);
+                                handleExportActiveChat();
+                            }}
+                        >
+                            {t("Export")}
+                        </button>
+                        {publicChatOwner ? (
+                            <button
+                                type="button"
+                                role="menuitem"
+                                className={menuItemClassName}
+                                onClick={() => {
+                                    setOverflowMenuOpen(false);
+                                    setShowSharedByDialog(true);
+                                }}
+                            >
+                                {t("Shared chat")}
+                            </button>
+                        ) : null}
+                        <div
+                            aria-hidden="true"
+                            className="-mx-1 my-1 h-px bg-gray-100 dark:bg-gray-700"
+                        />
+                        <button
+                            type="button"
+                            role="menuitem"
+                            disabled={readOnly || !!publicChatOwner}
+                            className={`${menuItemClassName} text-red-600 hover:text-red-600 focus:text-red-600 dark:text-red-400 dark:hover:text-red-400 dark:focus:text-red-400`}
+                            onClick={() => {
+                                setOverflowMenuOpen(false);
+                                setShowDeleteConfirm(true);
+                            }}
+                        >
+                            {t("Clear this chat")}
+                        </button>
+                    </div>
                 ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    disabled={readOnly || !!publicChatOwner}
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
-                >
-                    {t("Clear this chat")}
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
-    );
+            </div>
+        );
+    };
 
     return (
         <div className="flex flex-col gap-3 h-full">
@@ -931,7 +935,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
             >
                 {isMobile ? (
                     <>
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-h-9 items-center gap-2">
                             <ChatTopMenu
                                 displayState="mobile"
                                 readOnly={readOnly || !!publicChatOwner}
@@ -945,7 +949,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                                 {renderOverflowMenu()}
                             </div>
                         </div>
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-h-9 min-w-0 items-center gap-2">
                             <div className="min-w-0 flex-1">
                                 {renderEntityControl({ mobile: true })}
                             </div>
@@ -953,7 +957,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                         </div>
                     </>
                 ) : (
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex min-h-9 min-w-0 flex-1 items-center gap-2">
                         <ChatTopMenu
                             displayState="full"
                             readOnly={readOnly || !!publicChatOwner}
@@ -966,8 +970,10 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                         <div className="min-w-0 flex-1 max-w-[24rem] ms-2">
                             {renderEntityControl({ mobile: false })}
                         </div>
-                        {renderSharedStatus({ mobile: false })}
-                        <div className="ms-auto">{renderOverflowMenu()}</div>
+                        <div className="ms-auto flex h-9 flex-shrink-0 items-center gap-2">
+                            {renderSharedStatus({ mobile: false })}
+                            {renderOverflowMenu()}
+                        </div>
                     </div>
                 )}
             </div>
@@ -1013,6 +1019,10 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                             selectedEntityId={effectiveSelectedEntityId}
                             entities={entities}
                             entityIconSize="lg"
+                            onCopyAndContinue={
+                                readOnly ? handleCopyChat : undefined
+                            }
+                            copyInProgress={addChat.isPending}
                         />
                     </div>
                 </div>
@@ -1029,6 +1039,10 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                             selectedEntityId={effectiveSelectedEntityId}
                             entities={entities}
                             entityIconSize="lg"
+                            onCopyAndContinue={
+                                readOnly ? handleCopyChat : undefined
+                            }
+                            copyInProgress={addChat.isPending}
                         />
                     </div>
                     {canvasContent && canvasVisible && (
@@ -1047,66 +1061,6 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                     )}
                 </div>
             )}
-
-            <AlertDialog
-                open={showPublicConfirm}
-                onOpenChange={setShowPublicConfirm}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {t("Make this chat public?")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t(
-                                "This will make this chat visible to anyone with the link. This action cannot be undone.",
-                            )}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                            autoFocus
-                            onClick={() => {
-                                handleMakePublic();
-                                setShowPublicConfirm(false);
-                            }}
-                        >
-                            {t("Make Public")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <AlertDialog
-                open={showUnshareConfirm}
-                onOpenChange={setShowUnshareConfirm}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {t("Unshare this chat?")}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {t(
-                                "This will make this chat private. People with the link will no longer be able to access it.",
-                            )}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                            autoFocus
-                            onClick={() => {
-                                handleUnshare();
-                                setShowUnshareConfirm(false);
-                            }}
-                        >
-                            {t("Unshare")}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
 
             <AlertDialog
                 open={showDeleteConfirm}
@@ -1178,7 +1132,7 @@ function Chat({ viewingChat = null, chatIdOverride = null, instantOnly }) {
                             <Copy className="w-4 h-4" />
                             {addChat.isPending
                                 ? t("Copying...")
-                                : t("Copy Chat")}
+                                : t("Copy and continue")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

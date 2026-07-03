@@ -166,7 +166,7 @@ export default function PublishConfirmDialog({
                                 className="text-sm leading-relaxed cursor-pointer"
                             >
                                 {t(
-                                    "Publish to app store (everyone using this site will be able to access the app)",
+                                    "Publish to Applet Store (everyone using this site will be able to access the applet)",
                                 )}
                             </label>
                         </div>

@@ -43,13 +43,14 @@ export function useUpdateWorkspace() {
     return mutation;
 }
 
-export function useWorkspaces() {
+export function useWorkspaces(options = {}) {
     const query = useQuery({
         queryKey: ["workspaces"],
         queryFn: async () => {
             const { data } = await axios.get(`/api/workspaces`);
             return data;
         },
+        ...options,
     });
 
     return query;

@@ -86,10 +86,13 @@ describe("resolveAndHealFile", () => {
     });
 
     it("heals a legacy fallback hit into the primary target when refresh is enabled", async () => {
+        const legacyBlobUrl =
+            "http://127.0.0.1:10000/devstoreaccount1/container/file.pdf";
+
         checkMediaFile
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce({
-                url: "https://legacy.example.com/file.pdf",
+                url: legacyBlobUrl,
                 hash: "hash-123",
                 blobPath: "workspace/file.pdf",
             })
@@ -138,10 +141,12 @@ describe("resolveAndHealFile", () => {
         expect(result.status).toBe("refreshed");
         expect(result.accessUrl).toBe("https://primary.example.com/file.pdf");
         expect(global.fetch).toHaveBeenCalledWith(
-            "https://legacy.example.com/file.pdf",
-            {
-                redirect: "follow",
-            },
+            expect.objectContaining({
+                href: legacyBlobUrl,
+            }),
+            expect.objectContaining({
+                redirect: "manual",
+            }),
         );
         expect(uploadBufferToMediaService).toHaveBeenCalledWith(
             expect.any(Buffer),
@@ -157,6 +162,33 @@ describe("resolveAndHealFile", () => {
                 }),
             }),
         );
+    });
+
+    it("does not fetch disallowed URLs when refresh is enabled", async () => {
+        checkMediaFile.mockResolvedValueOnce(null).mockResolvedValueOnce({
+            url: "https://evil.example.com/file.pdf",
+            hash: "hash-123",
+            blobPath: "workspace/file.pdf",
+        });
+
+        const result = await resolveAndHealFile(
+            {
+                hash: "hash-123",
+                url: "https://stale.example.com/file.pdf",
+                originalName: "file.pdf",
+            },
+            {
+                storageTarget: createAppletSharedStorageTarget("applet-123"),
+                fallbackStorageTargets: [
+                    createWorkspaceSharedStorageTarget("workspace-123"),
+                ],
+                allowUrlRefresh: true,
+            },
+        );
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(result.status).toBe("resolved");
+        expect(result.accessUrl).toBe("https://evil.example.com/file.pdf");
     });
 
     it("drops stale gcs metadata when a fresh lookup no longer returns gcs", async () => {

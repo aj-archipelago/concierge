@@ -1,3 +1,5 @@
+@use "sass:color";
+
 $link-color: #006fe6;
 $popover-color: #333333;
 $popover-bg-color: #ffffff;
@@ -19,7 +21,7 @@ $popover-border-color: #cccccc;
     padding: 10px;
     font-family: $font-family-sans-serif;
     .popover-header {
-        background-color: darken($popover-bg-color, 10%);
+        background-color: color.adjust($popover-bg-color, $lightness: -10%);
         color: $popover-color;
     }
     .popover-link {
@@ -266,7 +268,10 @@ html[dir="ltr"] {
 .ps__rail-y:hover > .ps__thumb-y,
 .ps__rail-y:focus > .ps__thumb-y,
 .ps__rail-y.ps--clicking .ps__thumb-y {
-    background-color: opacify(lighten($primary, 25%), 0.1);
+    background-color: color.adjust(
+        color.adjust($primary, $lightness: 25%),
+        $alpha: 0.1
+    );
 }
 
 .chat-message-user {

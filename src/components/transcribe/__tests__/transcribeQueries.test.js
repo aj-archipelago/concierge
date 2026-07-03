@@ -3,7 +3,9 @@ import {
     getDefaultTranscribeModelOption,
     getTranscribeQuery,
     getTranscribeResult,
+    isMaiTranscribeModelOption,
     isXaiTranscribeModelOption,
+    supportsSubtitleLayoutTranscribeOption,
     supportsWordTimestampedTranscribeOption,
 } from "../transcribeQueries";
 import { QUERIES } from "../../../graphql";
@@ -13,6 +15,9 @@ describe("transcribeQueries", () => {
         ["Whisper", QUERIES.TRANSCRIBE],
         ["NeuralSpace", QUERIES.TRANSCRIBE_NEURALSPACE],
         ["Gemini", QUERIES.TRANSCRIBE_GEMINI],
+        ["MAI-Transcribe-1.5", QUERIES.TRANSCRIBE_MAI_15],
+        ["mai-1.5", QUERIES.TRANSCRIBE_MAI_15],
+        ["MAI Transcribe 1.5", QUERIES.TRANSCRIBE_MAI_15],
         ["xAI", QUERIES.TRANSCRIBE_XAI],
         ["xAI + Gemini", QUERIES.TRANSCRIBE_XAI_GEMINI],
         ["xai+gemini", QUERIES.TRANSCRIBE_XAI_GEMINI],
@@ -30,6 +35,11 @@ describe("transcribeQueries", () => {
                 transcribe_xai_gemini: { result: "hybrid" },
             }),
         ).toBe("hybrid");
+        expect(
+            getTranscribeResult({
+                transcribe_mai_15: { result: "mai" },
+            }),
+        ).toBe("mai");
     });
 
     test("defaults YouTube to Gemini and regular media to xAI hybrid when xAI is enabled", () => {
@@ -109,11 +119,33 @@ describe("transcribeQueries", () => {
         },
     );
 
-    test("disables word-timestamped UI modes only for Gemini alone", () => {
+    test.each(["MAI-Transcribe-1.5", "mai-1.5", "MAI Transcribe 1.5"])(
+        "identifies %s as a MAI model",
+        (modelOption) => {
+            expect(isMaiTranscribeModelOption(modelOption)).toBe(true);
+        },
+    );
+
+    test("does not treat malformed mai-prefixed values as MAI", () => {
+        expect(isMaiTranscribeModelOption("mai-fast")).toBe(false);
+    });
+
+    test("disables word-timestamped UI modes for phrase-timed models", () => {
         expect(supportsWordTimestampedTranscribeOption("Gemini")).toBe(false);
+        expect(
+            supportsWordTimestampedTranscribeOption("MAI-Transcribe-1.5"),
+        ).toBe(false);
         expect(supportsWordTimestampedTranscribeOption("xAI + Gemini")).toBe(
             true,
         );
         expect(supportsWordTimestampedTranscribeOption("Whisper")).toBe(true);
+    });
+
+    test("disables subtitle layout modes only for MAI", () => {
+        expect(supportsSubtitleLayoutTranscribeOption("Gemini")).toBe(true);
+        expect(supportsSubtitleLayoutTranscribeOption("Whisper")).toBe(true);
+        expect(
+            supportsSubtitleLayoutTranscribeOption("MAI-Transcribe-1.5"),
+        ).toBe(false);
     });
 });

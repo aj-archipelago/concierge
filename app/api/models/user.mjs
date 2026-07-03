@@ -77,6 +77,92 @@ const userSchema = new mongoose.Schema(
             ref: "Chat",
             required: false,
         },
+        homeAppletId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Applet",
+            required: false,
+        },
+        homeAppletDirectory: {
+            type: [
+                {
+                    appletId: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "Applet",
+                        required: true,
+                    },
+                    order: {
+                        type: Number,
+                        required: true,
+                        min: 0,
+                    },
+                    addedAt: {
+                        type: Date,
+                        default: Date.now,
+                    },
+                },
+            ],
+            required: false,
+            default: [],
+        },
+        homeItems: {
+            type: [
+                {
+                    type: {
+                        type: String,
+                        enum: ["digest", "automation", "applet", "group"],
+                        required: true,
+                    },
+                    groupId: {
+                        type: String,
+                        required: false,
+                    },
+                    title: {
+                        type: String,
+                        required: false,
+                    },
+                    blockId: {
+                        type: String,
+                        required: false,
+                    },
+                    automationId: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "Automation",
+                        required: false,
+                    },
+                    appletId: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "Applet",
+                        required: false,
+                    },
+                    size: {
+                        type: String,
+                        enum: ["mini", "large"],
+                        default: "large",
+                    },
+                    order: {
+                        type: Number,
+                        required: true,
+                        min: 0,
+                    },
+                    addedAt: {
+                        type: Date,
+                        default: Date.now,
+                    },
+                },
+            ],
+            required: false,
+            default: [],
+        },
+        homeItemsConfigured: {
+            type: Boolean,
+            required: false,
+            default: false,
+        },
+        homeItemsDefaultGroupMigrated: {
+            type: Boolean,
+            required: false,
+            default: false,
+        },
         lastActiveAt: {
             type: Date,
             required: false,
@@ -108,6 +194,11 @@ const userSchema = new mongoose.Schema(
             ],
             required: false,
             default: [],
+        },
+        sidebarAppsVersion: {
+            type: Number,
+            required: false,
+            default: 0,
         },
         profilePicture: {
             type: String,
@@ -161,6 +252,11 @@ userSchema.virtual("initials").get(function () {
 // index for createdAt descending
 userSchema.index({ createdAt: -1 });
 userSchema.index({ "apps.appId": 1 });
+userSchema.index({ homeAppletId: 1 });
+userSchema.index({ "homeAppletDirectory.appletId": 1 });
+userSchema.index({ "homeItems.type": 1 });
+userSchema.index({ "homeItems.appletId": 1 });
+userSchema.index({ "homeItems.automationId": 1 });
 
 // Create the User model from the schema
 const User = mongoose.models?.User || mongoose.model("User", userSchema);

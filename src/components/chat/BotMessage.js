@@ -34,27 +34,30 @@ const getStableAssistantMessageId = (message) =>
             "assistant",
     );
 
-const TOOL_EVENT_ERROR_MAX_CHARS = 500;
+const TOOL_EVENT_ERROR_KEY_MAX_CHARS = 500;
 
-function formatToolEventError(error) {
+function stringifyToolEventError(error) {
     if (!error) return "";
 
-    let text;
     if (typeof error === "string") {
-        text = error;
-    } else {
-        try {
-            text = JSON.stringify(error);
-        } catch {
-            text = String(error);
-        }
+        return error;
     }
 
-    if (text.length <= TOOL_EVENT_ERROR_MAX_CHARS) {
+    try {
+        return JSON.stringify(error);
+    } catch {
+        return String(error);
+    }
+}
+
+function getToolEventErrorKey(error) {
+    const text = stringifyToolEventError(error);
+
+    if (text.length <= TOOL_EVENT_ERROR_KEY_MAX_CHARS) {
         return text;
     }
 
-    return `${text.slice(0, TOOL_EVENT_ERROR_MAX_CHARS).trimEnd()}...`;
+    return `${text.slice(0, TOOL_EVENT_ERROR_KEY_MAX_CHARS).trimEnd()}...`;
 }
 
 function buildAssistantPayloadItemBaseKey(item, parsed, fallbackIndex) {
@@ -77,7 +80,7 @@ function buildAssistantPayloadItemBaseKey(item, parsed, fallbackIndex) {
     }
 
     if (parsed.type === ASSISTANT_PAYLOAD_ITEM_TYPES.TOOL_EVENT) {
-        return `tool:${parsed.callId || ""}:${parsed.userMessage || ""}:${parsed.status || ""}:${formatToolEventError(parsed.error)}:${parsed.presentation || ""}`;
+        return `tool:${parsed.callId || ""}:${parsed.userMessage || ""}:${parsed.status || ""}:${getToolEventErrorKey(parsed.error)}:${parsed.presentation || ""}`;
     }
 
     if (parsed.type === ASSISTANT_PAYLOAD_ITEM_TYPES.THINKING) {
@@ -202,17 +205,72 @@ const getInlineUserIdentity = (currentUser) => {
     };
 };
 
-const ToolEventStatusIcon = ({ status }) => {
+const ToolEventStatusIcon = ({
+    status,
+    hasError = false,
+    showErrors = false,
+    onToggleErrors = null,
+}) => {
+    const { t } = useTranslation();
+    const canToggleError = (status === "failed" || hasError) && onToggleErrors;
+
     if (status === "thinking") {
         return (
-            <Loader2 className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin" />
+            <Loader2
+                aria-label={t("Tool running")}
+                role="img"
+                className="h-3 w-3 text-gray-500 dark:text-gray-400 animate-spin"
+            />
+        );
+    }
+    if (status === "failed" || hasError) {
+        if (!canToggleError) {
+            return (
+                <XCircle
+                    aria-label={t("Tool failed")}
+                    role="img"
+                    className="h-3 w-3 translate-y-px text-red-500 dark:text-red-400"
+                />
+            );
+        }
+
+        return (
+            <XCircle
+                role="button"
+                tabIndex={0}
+                onMouseDown={(event) => {
+                    event.preventDefault();
+                }}
+                onClick={onToggleErrors}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onToggleErrors();
+                    }
+                }}
+                aria-label={
+                    showErrors
+                        ? t("Hide tool error details")
+                        : t("Show tool error details")
+                }
+                aria-expanded={showErrors}
+                title={
+                    showErrors
+                        ? t("Hide tool error details")
+                        : t("Show tool error details")
+                }
+                className="h-3 w-3 translate-y-px cursor-pointer rounded-full text-red-500 outline-offset-2 hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 dark:text-red-400 dark:hover:bg-red-950/30"
+            />
         );
     }
     if (status === "completed") {
-        return <Check className="h-3 w-3 text-green-500 dark:text-green-400" />;
-    }
-    if (status === "failed") {
-        return <XCircle className="h-3 w-3 text-red-500 dark:text-red-400" />;
+        return (
+            <Check
+                aria-label={t("Tool succeeded")}
+                role="img"
+                className="h-3 w-3 translate-y-px text-green-500 dark:text-green-400"
+            />
+        );
     }
     return null;
 };
@@ -233,12 +291,15 @@ const ToolEventItem = React.memo(function ToolEventItem({
     item,
     count = 1,
     currentUser = null,
+    showErrors = false,
+    onToggleErrors = null,
 }) {
     const { t, i18n } = useTranslation();
     const localizedCount = formatLocalizedNumber(i18n.language, count);
     const isInlineUserMessage = item.presentation === "inline_user";
     const inlineUser = getInlineUserIdentity(currentUser);
-    const displayError = formatToolEventError(item.error);
+    const displayError = stringifyToolEventError(item.error);
+    const showInlineError = showErrors && displayError;
 
     if (isInlineUserMessage) {
         return (
@@ -259,17 +320,27 @@ const ToolEventItem = React.memo(function ToolEventItem({
                     <div className="w-full ps-8 pe-1">
                         <div className="chat-message-user whitespace-pre-wrap break-words text-[13px] leading-5 text-slate-700 dark:text-slate-100">
                             {item.userMessage}
+                            {displayError && (
+                                <span className="ms-1 inline-flex align-[-0.125em]">
+                                    <ToolEventStatusIcon
+                                        status="failed"
+                                        hasError={true}
+                                        showErrors={showErrors}
+                                        onToggleErrors={onToggleErrors}
+                                    />
+                                </span>
+                            )}
+                            {showInlineError && (
+                                <span className="ms-1 text-red-600 dark:text-red-300">
+                                    ({displayError})
+                                </span>
+                            )}
                         </div>
                         {count > 1 && (
                             <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
                                 {t("Repeated count", {
                                     value: localizedCount,
                                 })}
-                            </div>
-                        )}
-                        {displayError && (
-                            <div className="mt-1 text-red-600 dark:text-red-300">
-                                {displayError}
                             </div>
                         )}
                     </div>
@@ -281,22 +352,27 @@ const ToolEventItem = React.memo(function ToolEventItem({
     return (
         <div className="flex items-start gap-2 rtl:flex-row-reverse text-[13px] leading-5 text-gray-500 dark:text-gray-400">
             <div className="mt-1 flex-shrink-0 rtl:order-2">
-                <ToolEventStatusIcon status={item.status} />
+                <ToolEventStatusIcon
+                    status={item.status}
+                    hasError={Boolean(displayError)}
+                    showErrors={showErrors}
+                    onToggleErrors={displayError ? onToggleErrors : null}
+                />
             </div>
             <div className="min-w-0 flex-1 rtl:order-1 rtl:text-right">
                 {item.icon ? (
-                    <span className="mr-1 inline-flex align-[-0.125em] opacity-80 rtl:mr-0 rtl:ml-1">
+                    <span className="me-1 inline-flex align-[-0.125em] opacity-80">
                         <ToolEventIcon icon={item.icon} />
                     </span>
                 ) : null}
                 <span>{item.userMessage}</span>
                 {count > 1 && (
-                    <span className="ml-2 text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500 rtl:ml-0 rtl:mr-2">
+                    <span className="ms-2 text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
                         {t("Repeated count", { value: localizedCount })}
                     </span>
                 )}
-                {displayError && (
-                    <span className="ml-1 text-red-500 dark:text-red-400 rtl:ml-0 rtl:mr-1">
+                {showInlineError && (
+                    <span className="ms-1 text-red-500 dark:text-red-400">
                         ({displayError})
                     </span>
                 )}
@@ -313,7 +389,7 @@ const collapseToolEvents = (items) => {
             icon: item.icon || "",
             userMessage: item.userMessage || "",
             status: item.status || "",
-            error: formatToolEventError(item.error),
+            error: getToolEventErrorKey(item.error),
             presentation: item.presentation || "",
         });
         const previous = collapsed[collapsed.length - 1];
@@ -336,6 +412,8 @@ const collapseToolEvents = (items) => {
 const ToolEventGroup = React.memo(function ToolEventGroup({
     items,
     currentUser = null,
+    showErrors = false,
+    onToggleErrors = null,
 }) {
     const collapsedItems = collapseToolEvents(items);
 
@@ -348,6 +426,8 @@ const ToolEventGroup = React.memo(function ToolEventGroup({
                         item={item}
                         count={count}
                         currentUser={currentUser}
+                        showErrors={showErrors}
+                        onToggleErrors={onToggleErrors}
                     />
                 ))}
             </div>
@@ -574,6 +654,7 @@ export const InlineAssistantPayload = React.memo(
         currentUser = null,
     }) {
         const { t } = useTranslation();
+        const [showToolErrors, setShowToolErrors] = useState(false);
         const normalizedItems = Array.isArray(items)
             ? items.filter(Boolean)
             : [];
@@ -720,6 +801,12 @@ export const InlineAssistantPayload = React.memo(
                                         key={`${stableMessageId}-tool-group-${index}`}
                                         items={block.items}
                                         currentUser={currentUser}
+                                        showErrors={showToolErrors}
+                                        onToggleErrors={() =>
+                                            setShowToolErrors(
+                                                (currentValue) => !currentValue,
+                                            )
+                                        }
                                     />
                                 );
                             }

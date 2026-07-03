@@ -163,6 +163,25 @@ describe("themeUtils", () => {
             expect(result).toContain('class="flex p-4"');
         });
 
+        it("injects a base href before applet head content for relative assets", () => {
+            const content =
+                '<html><head><link rel="preload" href="assets/banner.jpg"></head><body><img src="assets/card.jpg"></body></html>';
+            const result = generateFilteredSandboxHtml(content, "light", {
+                baseHref: "/workspace/files/applets/text-ai-launcher.html",
+            });
+
+            expect(
+                result.indexOf(
+                    '<base href="/workspace/files/applets/text-ai-launcher.html">',
+                ),
+            ).toBeGreaterThan(-1);
+            expect(
+                result.indexOf(
+                    '<base href="/workspace/files/applets/text-ai-launcher.html">',
+                ),
+            ).toBeLessThan(result.indexOf('href="assets/banner.jpg"'));
+        });
+
         it("keeps cross-origin fetches anonymous unless the applet opts into credentials", () => {
             const result = generateFilteredSandboxHtml(
                 "<script>fetch('https://cdn.jsdelivr.net/data.json')</script>",

@@ -1,5 +1,5 @@
-import Applets from "./components/Applets";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-    return <Applets />;
+    redirect("/apps?tab=my-applets");
 }

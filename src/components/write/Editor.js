@@ -37,6 +37,7 @@ function Editor({
     direction,
     isActive,
     fileHash,
+    readOnly = false,
 }) {
     const { t } = useTranslation();
     const lastSetValueRef = useRef(value);
@@ -68,6 +69,7 @@ function Editor({
             RawHtml,
         ],
         content: value || "",
+        editable: !readOnly,
         immediatelyRender: false,
         onUpdate: ({ editor }) => {
             const html = editor.getHTML();
@@ -187,6 +189,13 @@ function Editor({
         }
     }, [isCodeView, editor]);
 
+    // Keep TipTap editable state in sync with the readOnly prop
+    useEffect(() => {
+        if (editor && editor.isEditable !== !readOnly) {
+            editor.setEditable(!readOnly);
+        }
+    }, [editor, readOnly]);
+
     // Expose editor instance to parent component
     useEffect(() => {
         if (editor && onEditorReady) {
@@ -227,313 +236,342 @@ function Editor({
 
     return (
         <div className="relative grow h-full flex flex-col rounded-lg overflow-hidden">
-            {/* Toolbar */}
-            <div className="border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900">
-                <div
-                    role="toolbar"
-                    aria-label="Text formatting toolbar"
-                    className="flex items-center gap-1 p-2 flex-wrap"
-                >
-                    {/* Text Formatting */}
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleBold().run()
-                        }
-                        disabled={
-                            !editor.can().chain().focus().toggleBold().run()
-                        }
-                        aria-label={t("Bold")}
-                        aria-pressed={editor.isActive("bold")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("bold")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Bold")}
-                    >
-                        <Bold className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleItalic().run()
-                        }
-                        disabled={
-                            !editor.can().chain().focus().toggleItalic().run()
-                        }
-                        aria-label={t("Italic")}
-                        aria-pressed={editor.isActive("italic")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("italic")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Italic")}
-                    >
-                        <Italic className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleStrike().run()
-                        }
-                        disabled={
-                            !editor.can().chain().focus().toggleStrike().run()
-                        }
-                        aria-label={t("Strikethrough")}
-                        aria-pressed={editor.isActive("strike")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("strike")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Strikethrough")}
-                    >
-                        <Strikethrough className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleCode().run()
-                        }
-                        disabled={
-                            !editor.can().chain().focus().toggleCode().run()
-                        }
-                        aria-label={t("Inline Code")}
-                        aria-pressed={editor.isActive("code")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("code")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Inline Code")}
-                    >
-                        <Code className="w-4 h-4" aria-hidden="true" />
-                    </button>
+            {/* Toolbar — hidden for read-only viewers */}
+            {!readOnly && (
+                <div className="border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900">
                     <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Headings */}
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor
-                                .chain()
-                                .focus()
-                                .toggleHeading({ level: 1 })
-                                .run()
-                        }
-                        aria-label={t("Heading 1")}
-                        aria-pressed={editor.isActive("heading", { level: 1 })}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("heading", { level: 1 })
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Heading 1")}
+                        role="toolbar"
+                        aria-label="Text formatting toolbar"
+                        className="flex items-center gap-1 p-2 flex-wrap"
                     >
-                        <Heading1 className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor
-                                .chain()
-                                .focus()
-                                .toggleHeading({ level: 2 })
-                                .run()
-                        }
-                        aria-label={t("Heading 2")}
-                        aria-pressed={editor.isActive("heading", { level: 2 })}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("heading", { level: 2 })
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Heading 2")}
-                    >
-                        <Heading2 className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor
-                                .chain()
-                                .focus()
-                                .toggleHeading({ level: 3 })
-                                .run()
-                        }
-                        aria-label={t("Heading 3")}
-                        aria-pressed={editor.isActive("heading", { level: 3 })}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("heading", { level: 3 })
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Heading 3")}
-                    >
-                        <Heading3 className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Lists */}
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleBulletList().run()
-                        }
-                        aria-label={t("Bullet List")}
-                        aria-pressed={editor.isActive("bulletList")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("bulletList")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Bullet List")}
-                    >
-                        <List className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleOrderedList().run()
-                        }
-                        aria-label={t("Numbered List")}
-                        aria-pressed={editor.isActive("orderedList")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("orderedList")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Numbered List")}
-                    >
-                        <ListOrdered className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            editor.chain().focus().toggleBlockquote().run()
-                        }
-                        aria-label={t("Blockquote")}
-                        aria-pressed={editor.isActive("blockquote")}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            editor.isActive("blockquote")
-                                ? "bg-gray-200 dark:bg-gray-700"
-                                : ""
-                        }`}
-                        title={t("Blockquote")}
-                    >
-                        <Quote className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Undo/Redo */}
-                    <button
-                        type="button"
-                        onClick={() => editor.chain().focus().undo().run()}
-                        disabled={!editor.can().chain().focus().undo().run()}
-                        aria-label={t("Undo")}
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t("Undo")}
-                    >
-                        <Undo className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => editor.chain().focus().redo().run()}
-                        disabled={!editor.can().chain().focus().redo().run()}
-                        aria-label={t("Redo")}
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={t("Redo")}
-                    >
-                        <Redo className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Code View Toggle */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (isCodeView) {
-                                // Switching from code view to visual view
-                                const htmlContent = codeViewContent;
-                                if (editor) {
-                                    editor.commands.setContent(
-                                        htmlContent || "",
-                                        false,
-                                    );
-                                    lastSetValueRef.current = htmlContent;
-                                    lastCodeViewValueRef.current = htmlContent;
-                                    onChange(htmlContent);
-                                }
-                            } else {
-                                // Switching from visual view to code view
-                                const htmlContent = editor
-                                    ? editor.getHTML()
-                                    : value || "";
-                                setCodeViewContent(htmlContent);
-                                lastCodeViewValueRef.current = htmlContent;
+                        {/* Text Formatting */}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleBold().run()
                             }
-                            setIsCodeView(!isCodeView);
-                        }}
-                        aria-label={t("Code View")}
-                        aria-pressed={isCodeView}
-                        className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
-                            isCodeView ? "bg-gray-200 dark:bg-gray-700" : ""
-                        }`}
-                        title={t("Code View")}
-                    >
-                        <FileCode className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Insert Raw HTML */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setShowRawHtmlDialog(true);
-                            setRawHtmlInput("");
-                        }}
-                        aria-label={t("Insert Raw HTML")}
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        title={t("Insert Raw HTML")}
-                    >
-                        <Code2 className="w-4 h-4" aria-hidden="true" />
-                    </button>
-                    <div
-                        role="separator"
-                        aria-orientation="vertical"
-                        className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
-                    />
-                    {/* Insert Image */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setShowImageDialog(true);
-                        }}
-                        aria-label={t("Insert Image")}
-                        className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        title={t("Insert Image")}
-                    >
-                        <ImageIcon className="w-4 h-4" aria-hidden="true" />
-                    </button>
+                            disabled={
+                                !editor.can().chain().focus().toggleBold().run()
+                            }
+                            aria-label={t("Bold")}
+                            aria-pressed={editor.isActive("bold")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("bold")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Bold")}
+                        >
+                            <Bold className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleItalic().run()
+                            }
+                            disabled={
+                                !editor
+                                    .can()
+                                    .chain()
+                                    .focus()
+                                    .toggleItalic()
+                                    .run()
+                            }
+                            aria-label={t("Italic")}
+                            aria-pressed={editor.isActive("italic")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("italic")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Italic")}
+                        >
+                            <Italic className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleStrike().run()
+                            }
+                            disabled={
+                                !editor
+                                    .can()
+                                    .chain()
+                                    .focus()
+                                    .toggleStrike()
+                                    .run()
+                            }
+                            aria-label={t("Strikethrough")}
+                            aria-pressed={editor.isActive("strike")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("strike")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Strikethrough")}
+                        >
+                            <Strikethrough
+                                className="w-4 h-4"
+                                aria-hidden="true"
+                            />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleCode().run()
+                            }
+                            disabled={
+                                !editor.can().chain().focus().toggleCode().run()
+                            }
+                            aria-label={t("Inline Code")}
+                            aria-pressed={editor.isActive("code")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("code")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Inline Code")}
+                        >
+                            <Code className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Headings */}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor
+                                    .chain()
+                                    .focus()
+                                    .toggleHeading({ level: 1 })
+                                    .run()
+                            }
+                            aria-label={t("Heading 1")}
+                            aria-pressed={editor.isActive("heading", {
+                                level: 1,
+                            })}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("heading", { level: 1 })
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Heading 1")}
+                        >
+                            <Heading1 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor
+                                    .chain()
+                                    .focus()
+                                    .toggleHeading({ level: 2 })
+                                    .run()
+                            }
+                            aria-label={t("Heading 2")}
+                            aria-pressed={editor.isActive("heading", {
+                                level: 2,
+                            })}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("heading", { level: 2 })
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Heading 2")}
+                        >
+                            <Heading2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor
+                                    .chain()
+                                    .focus()
+                                    .toggleHeading({ level: 3 })
+                                    .run()
+                            }
+                            aria-label={t("Heading 3")}
+                            aria-pressed={editor.isActive("heading", {
+                                level: 3,
+                            })}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("heading", { level: 3 })
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Heading 3")}
+                        >
+                            <Heading3 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Lists */}
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleBulletList().run()
+                            }
+                            aria-label={t("Bullet List")}
+                            aria-pressed={editor.isActive("bulletList")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("bulletList")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Bullet List")}
+                        >
+                            <List className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleOrderedList().run()
+                            }
+                            aria-label={t("Numbered List")}
+                            aria-pressed={editor.isActive("orderedList")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("orderedList")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Numbered List")}
+                        >
+                            <ListOrdered
+                                className="w-4 h-4"
+                                aria-hidden="true"
+                            />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                editor.chain().focus().toggleBlockquote().run()
+                            }
+                            aria-label={t("Blockquote")}
+                            aria-pressed={editor.isActive("blockquote")}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                editor.isActive("blockquote")
+                                    ? "bg-gray-200 dark:bg-gray-700"
+                                    : ""
+                            }`}
+                            title={t("Blockquote")}
+                        >
+                            <Quote className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Undo/Redo */}
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().undo().run()}
+                            disabled={
+                                !editor.can().chain().focus().undo().run()
+                            }
+                            aria-label={t("Undo")}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t("Undo")}
+                        >
+                            <Undo className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().redo().run()}
+                            disabled={
+                                !editor.can().chain().focus().redo().run()
+                            }
+                            aria-label={t("Redo")}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t("Redo")}
+                        >
+                            <Redo className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Code View Toggle */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (isCodeView) {
+                                    // Switching from code view to visual view
+                                    const htmlContent = codeViewContent;
+                                    if (editor) {
+                                        editor.commands.setContent(
+                                            htmlContent || "",
+                                            false,
+                                        );
+                                        lastSetValueRef.current = htmlContent;
+                                        lastCodeViewValueRef.current =
+                                            htmlContent;
+                                        onChange(htmlContent);
+                                    }
+                                } else {
+                                    // Switching from visual view to code view
+                                    const htmlContent = editor
+                                        ? editor.getHTML()
+                                        : value || "";
+                                    setCodeViewContent(htmlContent);
+                                    lastCodeViewValueRef.current = htmlContent;
+                                }
+                                setIsCodeView(!isCodeView);
+                            }}
+                            aria-label={t("Code View")}
+                            aria-pressed={isCodeView}
+                            className={`p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${
+                                isCodeView ? "bg-gray-200 dark:bg-gray-700" : ""
+                            }`}
+                            title={t("Code View")}
+                        >
+                            <FileCode className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Insert Raw HTML */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowRawHtmlDialog(true);
+                                setRawHtmlInput("");
+                            }}
+                            aria-label={t("Insert Raw HTML")}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            title={t("Insert Raw HTML")}
+                        >
+                            <Code2 className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                        <div
+                            role="separator"
+                            aria-orientation="vertical"
+                            className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"
+                        />
+                        {/* Insert Image */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowImageDialog(true);
+                            }}
+                            aria-label={t("Insert Image")}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            title={t("Insert Image")}
+                        >
+                            <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Raw HTML Dialog */}
             {showRawHtmlDialog && (
@@ -604,7 +642,7 @@ function Editor({
             />
 
             {/* Editor Content */}
-            <div className="flex-1 relative bg-white dark:bg-gray-800 overflow-hidden min-h-[300px] sm:min-h-[500px] pt-4">
+            <div className="flex-1 relative bg-white dark:bg-gray-800 overflow-hidden min-h-[300px] sm:min-h-[500px] px-4 sm:px-6 pt-4 pb-4">
                 {value && !isCodeView && (
                     <CopyButton
                         item={value}
@@ -618,15 +656,21 @@ function Editor({
                         language="html"
                         theme={isDarkMode ? "vs-dark" : "vs"}
                         value={codeViewContent}
-                        onChange={(newValue) => {
-                            const updatedValue = newValue || "";
-                            setCodeViewContent(updatedValue);
-                            lastCodeViewValueRef.current = updatedValue;
-                            onChange(updatedValue);
-                        }}
+                        onChange={
+                            readOnly
+                                ? undefined
+                                : (newValue) => {
+                                      const updatedValue = newValue || "";
+                                      setCodeViewContent(updatedValue);
+                                      lastCodeViewValueRef.current =
+                                          updatedValue;
+                                      onChange(updatedValue);
+                                  }
+                        }
                         options={{
                             fontSize: 14,
                             fontWeight: "normal",
+                            readOnly,
                             minimap: { enabled: false },
                             scrollBeyondLastLine: false,
                             wordWrap: "on",

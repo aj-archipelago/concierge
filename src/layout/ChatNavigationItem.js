@@ -5,7 +5,6 @@ import {
     useUpdateChat,
     DEFAULT_CHAT_MESSAGES_LIMIT,
 } from "../../app/queries/chats";
-import { isClientOnlyChatId } from "../../app/utils/chatClientIds";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "../../app/utils/axios-client";
 import classNames from "../../app/utils/class-names";
@@ -39,7 +38,7 @@ const ChatNavigationItem = ({
     // Prefetch chat data on hover for instant switching
     const handleMouseEnter = () => {
         const chatId = subItem?.key;
-        if (!chatId || isClientOnlyChatId(chatId)) return;
+        if (!chatId) return;
 
         // Already prefetched
         if (prefetchedChatsRef.current.has(chatId)) return;
@@ -94,7 +93,7 @@ const ChatNavigationItem = ({
                 data-testid="sidebar-chat-item"
                 data-chat-id={subItem?.key}
                 className={classNames(
-                    "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
+                    "group my-0.5 flex h-10 items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700",
                     pathname === subItem?.href
                         ? "bg-gray-100 dark:bg-gray-700"
                         : "",
@@ -111,7 +110,7 @@ const ChatNavigationItem = ({
                 }}
             >
                 <div
-                    className={`h-10 py-2.5 px-2 text-xs flex items-center justify-between gap-2 w-full`}
+                    className={`h-full px-2 text-xs flex items-center justify-between gap-2 w-full`}
                     dir={document.documentElement.dir}
                 >
                     <div className="flex items-center gap-2 overflow-auto">

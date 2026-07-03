@@ -7,6 +7,7 @@ import {
     getFileIcon,
     generateFilenameFromMimeType,
     isSupportedFileUrl,
+    isBlobStorageUrl,
     makeUniqueFilename,
 } from "../mediaUtils";
 
@@ -98,6 +99,37 @@ describe("mediaUtils", () => {
             expect(isSupportedFileUrl("")).toBe(false);
             expect(isSupportedFileUrl(null)).toBe(false);
             expect(isSupportedFileUrl(undefined)).toBe(false);
+        });
+    });
+
+    describe("isBlobStorageUrl", () => {
+        test("accepts Azure blob storage URLs by hostname", () => {
+            expect(
+                isBlobStorageUrl(
+                    "https://storage.blob.core.windows.net/container/file.pdf",
+                ),
+            ).toBe(true);
+        });
+
+        test("rejects substring matches in unrelated hosts", () => {
+            expect(
+                isBlobStorageUrl(
+                    "https://evil.blob.core.windows.net.attacker.com/file.pdf",
+                ),
+            ).toBe(false);
+            expect(
+                isBlobStorageUrl(
+                    "https://attacker.com/blob.core.windows.net/file.pdf",
+                ),
+            ).toBe(false);
+        });
+
+        test("accepts local Azurite URLs", () => {
+            expect(
+                isBlobStorageUrl(
+                    "http://127.0.0.1:10000/devstoreaccount1/container/file.pdf",
+                ),
+            ).toBe(true);
         });
     });
 

@@ -24,7 +24,6 @@ import CopyButton from "../CopyButton";
 import ReplayButton from "../ReplayButton";
 import MediaCard from "./MediaCard";
 import { CurrentUserContext } from "../../App";
-import { isClientOnlyChatId } from "../../../app/utils/chatClientIds";
 import BotMessage from "./BotMessage";
 import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
@@ -128,9 +127,9 @@ const getYoutubeEmbedUrl = (url) => {
 const getStableMessageId = (message, index = 0) =>
     String(
         message?._clientId ||
-            message?.sentTime ||
             message?.id ||
             message?._id ||
+            message?.sentTime ||
             `${message?.sender || "message"}-${index}`,
     );
 
@@ -724,13 +723,8 @@ const MessageList = React.memo(
         // Reset scroll when switching chats
         useEffect(() => {
             const previousChatId = prevChatIdRef.current;
-            const isPromotion =
-                previousChatId &&
-                chatId !== previousChatId &&
-                isClientOnlyChatId(previousChatId) &&
-                !isClientOnlyChatId(chatId);
 
-            if (chatId !== previousChatId && !isPromotion) {
+            if (chatId !== previousChatId) {
                 scrollBottomRef.current?.resetScrollState();
             }
             prevChatIdRef.current = chatId;

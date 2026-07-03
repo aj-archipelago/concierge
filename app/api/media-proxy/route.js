@@ -3,8 +3,9 @@ import {
     fetchShortLivedUrl,
     extractBlobPathFromUrl,
     extractHashFromBlobUrl,
-    isAllowedBlobDomain,
+    fetchAllowedBlobUrl,
     sanitizeFilename,
+    validateAllowedBlobUrl,
 } from "../utils/llm-file-utils.js";
 import archiver from "archiver";
 import mime from "mime-types";
@@ -78,19 +79,11 @@ export async function POST(req) {
         // Validate all URLs are from allowed domains
         for (const fileInfo of fileData) {
             try {
-                const urlObj = new URL(fileInfo.url);
-                if (!isAllowedBlobDomain(urlObj.hostname)) {
-                    return Response.json(
-                        {
-                            error: `URL is not from an allowed domain: ${urlObj.hostname}`,
-                        },
-                        { status: 403 },
-                    );
-                }
-            } catch {
+                validateAllowedBlobUrl(fileInfo.url);
+            } catch (error) {
                 return Response.json(
-                    { error: "Invalid URL in request" },
-                    { status: 400 },
+                    { error: error.message || "Invalid URL in request" },
+                    { status: error.status || 400 },
                 );
             }
         }
@@ -118,7 +111,7 @@ export async function POST(req) {
         const fetchPromises = fileData.map(async (fileInfo, index) => {
             const { url, filename: providedFilename } = fileInfo;
             try {
-                let response = await fetch(url);
+                let response = await fetchAllowedBlobUrl(url);
 
                 // If SAS token expired, try to refresh via media-helper
                 if (response.status === 403) {
@@ -133,7 +126,7 @@ export async function POST(req) {
                             contextId,
                         });
                         if (refreshed?.url) {
-                            response = await fetch(refreshed.url);
+                            response = await fetchAllowedBlobUrl(refreshed.url);
                         }
                     }
                 }

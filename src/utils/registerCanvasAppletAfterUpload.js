@@ -33,7 +33,6 @@ export async function registerCanvasAppletAfterUpload({
             body: JSON.stringify({
                 name: appletName || filename.replace(/\.html$/i, ""),
                 filePath: initialUploadResult.url,
-                html: taggedHtml,
             }),
         });
         if (!appletRes.ok) {
@@ -57,18 +56,23 @@ export async function registerCanvasAppletAfterUpload({
             effectiveUpload = secondUpload;
         }
 
-        await fetch(`/api/canvas-applets/${appletId}`, {
+        const updateRes = await fetch(`/api/canvas-applets/${appletId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 html,
+                saveVersion: true,
                 ...(effectiveUpload?.url
                     ? { filePath: effectiveUpload.url }
                     : {}),
             }),
         });
+        if (!updateRes.ok) {
+            throw new Error("Failed to save registered applet HTML");
+        }
     } catch (err) {
         console.error("Error creating canvas applet record:", err);
+        throw err;
     }
 
     return { appletId, html, effectiveUpload };

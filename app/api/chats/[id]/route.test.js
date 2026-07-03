@@ -12,6 +12,7 @@ jest.mock("../../models/chat.mjs", () => ({
     __esModule: true,
     default: {
         findOne: jest.fn(async () => mockExistingChat),
+        findById: jest.fn(async () => mockExistingChat),
         findOneAndUpdate: jest.fn(),
         findOneAndDelete: jest.fn(),
     },
@@ -20,6 +21,14 @@ jest.mock("../../models/chat.mjs", () => ({
 jest.mock("../../utils/auth", () => ({
     getCurrentUser: jest.fn(async () => ({ _id: "user-1" })),
     handleError: jest.fn((error) => Response.json({ error: error.message })),
+}));
+
+jest.mock("../../utils/shareAccess", () => ({
+    resolveShareAccess: jest.fn(async ({ ownerId, userId }) => ({
+        canAccess: true,
+        isOwner: String(ownerId) === String(userId),
+        role: "editor",
+    })),
 }));
 
 const createRequest = (body) => ({

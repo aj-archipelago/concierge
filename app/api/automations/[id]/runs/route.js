@@ -8,7 +8,7 @@ import {
 import {
     AUTOMATION_TASK_TYPE,
     buildHtmlPreview,
-    findAutomationForUser,
+    findAutomationForViewer,
     parseAutomationTaskOutput,
     sanitizeGeneratedHtml,
     scheduleAutomationRefIdBackfill,
@@ -49,14 +49,18 @@ export async function GET(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForViewer(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
+
+        const { automation } = found;
+        // Tasks are owned by the automation owner; viewers read the owner's runs.
+        const ownerId = automation.owner;
 
         const { searchParams } = new URL(request.url);
         const page = Math.max(
@@ -69,7 +73,7 @@ export async function GET(request, { params }) {
         );
 
         const query = {
-            owner: user._id,
+            owner: ownerId,
             type: AUTOMATION_TASK_TYPE,
             automationRefId: automation._id,
         };
@@ -85,7 +89,7 @@ export async function GET(request, { params }) {
         } else {
             const windowSize = Math.min(1200, page * limit * 10 + 200);
             const recent = await Task.find({
-                owner: user._id,
+                owner: ownerId,
                 type: AUTOMATION_TASK_TYPE,
             })
                 .sort({ createdAt: -1 })
@@ -108,14 +112,16 @@ export async function GET(request, { params }) {
                 pageIds.length > 0
                     ? await Task.find({
                           _id: { $in: pageIds },
-                          owner: user._id,
+                          owner: ownerId,
                       }).sort({ createdAt: -1 })
                     : [];
         }
 
-        await Promise.all(runs.map((task) => syncTaskWithBullMQJob(task)));
+        const syncedRuns = await Promise.all(
+            runs.map((task) => syncTaskWithBullMQJob(task)),
+        );
         const updatedRuns = await Promise.all(
-            runs.map((task) => checkAndUpdateAbandonedTask(task)),
+            syncedRuns.map((task) => checkAndUpdateAbandonedTask(task)),
         );
         const enrichedRuns = updatedRuns.map((run) =>
             enrichRunForHtmlOutput(run, automation),

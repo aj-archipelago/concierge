@@ -253,4 +253,39 @@ describe("getCurrentUser personal entity provisioning", () => {
         const storedUser = await User.findOne({ userId }).lean();
         expect(storedUser.username).toBe(username);
     });
+
+    test("refreshes stale lastActiveAt without saving the whole user document", async () => {
+        const staleLastActiveAt = new Date(Date.now() - 31 * 60 * 1000);
+
+        await User.create({
+            userId: "user-1",
+            username: "user-1@example.com",
+            name: "User One",
+            contextId: "context-1",
+            contextKey: "context-key-1",
+            personalEntityId: "entity-existing",
+            aiMemorySelfModify: true,
+            aiName: "Concierge",
+            agentModel: "test-model",
+            lastActiveAt: staleLastActiveAt,
+        });
+
+        const saveSpy = jest.spyOn(User.prototype, "save");
+
+        try {
+            const user = await getCurrentUser(false);
+
+            expect(saveSpy).not.toHaveBeenCalled();
+            expect(user.lastActiveAt.getTime()).toBeGreaterThan(
+                staleLastActiveAt.getTime(),
+            );
+
+            const storedUser = await User.findOne({ userId: "user-1" }).lean();
+            expect(storedUser.lastActiveAt.getTime()).toBeGreaterThan(
+                staleLastActiveAt.getTime(),
+            );
+        } finally {
+            saveSpy.mockRestore();
+        }
+    });
 });

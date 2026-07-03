@@ -43,6 +43,9 @@ import {
 import Loader from "../../../components/loader";
 import { useChatModels } from "../../../queries/modelMetadata";
 import { usePromptsByIds } from "../../../queries/prompts";
+import ShareButton from "../../../../@/components/share/ShareButton";
+
+const WORKSPACE_LIBRARY_HREF = "/apps?tab=workspaces";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
     const router = useRouter();
@@ -58,7 +61,7 @@ export default function WorkspaceActions({ idOrSlug, user }) {
                     <div className="hidden sm:block">
                         <button
                             className="lb-outline-secondary"
-                            onClick={() => router.push("/applets")}
+                            onClick={() => router.push(WORKSPACE_LIBRARY_HREF)}
                         >
                             {direction === "rtl" ? (
                                 <ArrowRight />
@@ -313,7 +316,7 @@ function Actions({ user, workspace }) {
 
         try {
             await deleteWorkspace.mutateAsync({ id: workspace._id });
-            router.push("/applets");
+            router.push(WORKSPACE_LIBRARY_HREF);
         } catch (error) {
             if (error?.response?.data?.hasPublishedApplet) {
                 const appName = error.response.data.appName;
@@ -321,7 +324,7 @@ function Actions({ user, workspace }) {
                     t("Cannot delete workspace with published applet") +
                         ` "${appName}". ` +
                         t(
-                            "Please unpublish the applet first by going to the Applet tab and unpublishing it.",
+                            "Please unpublish the applet from the Applets page first.",
                         ),
                 );
             } else {
@@ -337,6 +340,7 @@ function Actions({ user, workspace }) {
     if (isUserOwner) {
         return (
             <div className="flex gap-4 items-center">
+                <ShareButton entityType="workspace" entityId={workspace?._id} />
                 <div className="text-sm">
                     {workspace.published && (
                         <div

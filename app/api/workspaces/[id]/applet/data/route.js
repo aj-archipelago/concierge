@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server";
 import AppletData from "../../../../models/applet-data.js";
+import AppletUserData from "../../../../models/applet-user-data.js";
 import { getWorkspace } from "../../db.js";
 import { getCurrentUser } from "@/app/api/utils/auth.js";
 import { validateMongoDBKey } from "@/app/api/utils/fileValidation.js";
 import { parseJsonRequest } from "@/app/api/utils/parseJsonRequest.js";
+import { validateAppletDataPayload } from "@/app/api/utils/appletDataLimits.js";
+
+function toPlainData(doc) {
+    return doc?.data && typeof doc.data === "object" ? doc.data : {};
+}
+
+function mergeAppletData({ legacyDoc, keyedDocs }) {
+    return {
+        ...toPlainData(legacyDoc),
+        ...Object.fromEntries(
+            (keyedDocs || []).map((doc) => [doc.key, doc.value]),
+        ),
+    };
+}
 
 // PUT: store data for an applet
 export async function PUT(request, { params }) {
@@ -54,16 +69,23 @@ export async function PUT(request, { params }) {
             appletId: workspace.applet,
             userId: user._id,
         };
-        const existing = await AppletData.findOne(query);
-        const nextData = {
-            ...(existing?.data || {}),
-            [keyValidation.sanitizedKey]: body.value,
-        };
-        const appletData = await AppletData.findOneAndUpdate(
-            query,
+        const sizeValidation = validateAppletDataPayload({
+            key: keyValidation.sanitizedKey,
+            value: body.value,
+        });
+        if (!sizeValidation.ok) {
+            return sizeValidation.response;
+        }
+
+        await AppletUserData.findOneAndUpdate(
+            {
+                ...query,
+                key: keyValidation.sanitizedKey,
+            },
             {
                 $set: {
-                    data: nextData,
+                    value: body.value,
+                    valueBytes: sizeValidation.valueBytes,
                 },
             },
             {
@@ -72,10 +94,14 @@ export async function PUT(request, { params }) {
                 runValidators: true,
             },
         );
+        const [legacyDoc, keyedDocs] = await Promise.all([
+            AppletData.findOne(query),
+            AppletUserData.find(query),
+        ]);
 
         return NextResponse.json({
             success: true,
-            data: appletData.data,
+            data: mergeAppletData({ legacyDoc, keyedDocs }),
         });
     } catch (error) {
         console.error("Error storing applet data:", error);
@@ -103,14 +129,56 @@ export async function GET(request, { params }) {
         // Get current user
         const user = await getCurrentUser();
 
-        // Find applet data for this user and applet
-        const appletData = await AppletData.findOne({
+        const query = {
             appletId: workspace.applet,
             userId: user._id,
-        });
+        };
+        const requestUrl = new URL(request.url || "http://localhost");
+        const requestedKey = requestUrl.searchParams.get("key");
+        if (requestUrl.searchParams.has("key")) {
+            const keyValidation = validateMongoDBKey(requestedKey);
+            if (!keyValidation.isValid) {
+                return NextResponse.json(
+                    {
+                        error: "Invalid key format",
+                        details: keyValidation.errors,
+                    },
+                    { status: 400 },
+                );
+            }
+
+            const [legacyDoc, keyedDoc] = await Promise.all([
+                AppletData.findOne(query),
+                AppletUserData.findOne({
+                    ...query,
+                    key: keyValidation.sanitizedKey,
+                }),
+            ]);
+            const legacyData = toPlainData(legacyDoc);
+            const found =
+                Boolean(keyedDoc) ||
+                Object.prototype.hasOwnProperty.call(
+                    legacyData,
+                    keyValidation.sanitizedKey,
+                );
+            const value = keyedDoc
+                ? keyedDoc.value
+                : legacyData[keyValidation.sanitizedKey];
+
+            return NextResponse.json({
+                found,
+                key: keyValidation.sanitizedKey,
+                value: found ? value : undefined,
+            });
+        }
+
+        const [legacyDoc, keyedDocs] = await Promise.all([
+            AppletData.findOne(query),
+            AppletUserData.find(query),
+        ]);
 
         return NextResponse.json({
-            data: appletData ? appletData.data : {},
+            data: mergeAppletData({ legacyDoc, keyedDocs }),
         });
     } catch (error) {
         console.error("Error retrieving applet data:", error);

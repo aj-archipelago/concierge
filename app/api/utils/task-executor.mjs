@@ -2,15 +2,39 @@ import { getClient, SUBSCRIPTIONS } from "../../../jobs/graphql.mjs";
 import { Logger } from "../../../jobs/logger.js";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
 import Task from "../models/task.mjs";
-import { copyTaskToChatMessage } from "./task-utils.mjs";
+import {
+    copyTaskToChatMessage,
+    MISSING_COMPLETION_DATA_MESSAGE,
+    RESULT_DATA_REQUIRED_TASK_TYPES,
+} from "./task-utils.mjs";
 import {
     rememberLatestProgressPayload,
     resolveCompletionPayload,
 } from "./task-progress-state.mjs";
+import {
+    clearTaskCancellation,
+    clearTaskLive,
+    isTaskCancellationRequested,
+    markTaskLive,
+    TASK_LIVE_RENEW_INTERVAL_MS,
+} from "./task-liveness.mjs";
 import { redactSensitiveText } from "./log-redaction.mjs";
+import { formatDbErrorForLog, getDbRetryDelayMs } from "./db-retry.mjs";
+import { getNormalizedYouTubeTranscriptionAccessErrorMessage } from "../../../src/utils/transcriptionErrors.js";
 
 // Remove the Apollo client initialization code and use getClient instead
+const terminalTaskStatuses = new Set([
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+]);
 
+const activeTaskStatusFilter = {
+    $nin: Array.from(terminalTaskStatuses),
+};
+const PROGRESS_WRITE_MIN_INTERVAL_MS = 15_000;
+const PROGRESS_WRITE_MIN_DELTA = 0.05;
 function stringifyForLog(value, maxLength) {
     if (value == null) return null;
     try {
@@ -26,9 +50,51 @@ function stringifyForLog(value, maxLength) {
     }
 }
 
+function getConfiguredJobTimeoutMs(job) {
+    const timeout = Number(job?.opts?.timeout);
+    return Number.isFinite(timeout) && timeout > 0 ? timeout : null;
+}
+
+function getTaskErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    return error.message || error.toString?.() || "";
+}
+
+function getNormalizedTaskStatusText(error, options) {
+    if (!options) return null;
+    return getNormalizedYouTubeTranscriptionAccessErrorMessage(error, options);
+}
+
+function getTaskStatusText(error, options) {
+    const normalizedMessage = getNormalizedTaskStatusText(error, options);
+    if (normalizedMessage) return normalizedMessage;
+    return redactSensitiveText(getTaskErrorMessage(error));
+}
+
+function getSimpleStatusText(info) {
+    if (!info || typeof info !== "string") return null;
+    try {
+        JSON.parse(info);
+        return null;
+    } catch {
+        return info;
+    }
+}
+
+function getTranscriptionErrorContext(jobData) {
+    if (jobData?.type !== "transcribe") return null;
+
+    return {
+        isYoutube: jobData?.metadata?.isYoutube,
+        url: jobData?.metadata?.url,
+    };
+}
+
 export async function executeTask(jobData, job) {
     const { taskId, type } = jobData;
     const logger = new Logger(job);
+    const queueJobId = job?.id?.toString?.() || job?.id || null;
 
     const client = await getClient();
 
@@ -52,7 +118,12 @@ export async function executeTask(jobData, job) {
     }
 
     // Create a job-like object for consistency
-    const taskInfo = { id: taskId, data: jobData, client };
+    const taskInfo = {
+        id: queueJobId || taskId,
+        data: jobData,
+        client,
+        opts: job?.opts || {},
+    };
 
     // Initialize progress tracker
     const progressTracker = new CortexRequestTracker(taskInfo, client, logger);
@@ -67,13 +138,21 @@ export async function executeTask(jobData, job) {
         const cortexRequestId = await handler.startRequest(taskInfo);
 
         if (cortexRequestId) {
-            await Task.findOneAndUpdate({ _id: taskId }, { cortexRequestId });
+            await Task.findOneAndUpdate(
+                {
+                    _id: taskId,
+                    status: activeTaskStatusFilter,
+                },
+                { cortexRequestId },
+            );
 
             return await progressTracker.run(cortexRequestId);
         } else {
-            await Task.findOneAndUpdate(
-                { _id: taskId },
-                { status: "completed", progress: 1 },
+            await progressTracker.updateRequestStatus(
+                "completed",
+                null,
+                null,
+                1,
             );
             return;
         }
@@ -83,7 +162,11 @@ export async function executeTask(jobData, job) {
         );
 
         // Call the handler's handleError method if it exists
-        if (handler.handleError && typeof handler.handleError === "function") {
+        if (
+            handler.handleError &&
+            typeof handler.handleError === "function" &&
+            (await progressTracker.isTaskActive())
+        ) {
             try {
                 await handler.handleError(
                     taskId,
@@ -100,11 +183,16 @@ export async function executeTask(jobData, job) {
             }
         }
 
+        const normalizedStatusText = getNormalizedTaskStatusText(
+            error,
+            getTranscriptionErrorContext(jobData),
+        );
         await progressTracker.updateRequestStatus(
             "failed",
-            redactSensitiveText(
-                `Failed to execute ${type} task: ${error.message} ${error.stack}`,
-            ),
+            normalizedStatusText ||
+                redactSensitiveText(
+                    `Failed to execute ${type} task: ${error.message} ${error.stack}`,
+                ),
         );
         throw error;
     }
@@ -125,16 +213,35 @@ class CortexRequestTracker {
         this.intervals = new Set();
         this.lastDataObject = null;
         this.lastInfoObject = null;
-        this.idleTimeoutMs = CortexRequestTracker.LONG_TIMEOUT_TYPES.has(
+        this.lastProgressPersistedAt = 0;
+        this.lastPersistedProgress = 0;
+        this.lastPersistedStatusText = null;
+        this.progressUpdateChain = Promise.resolve();
+        this.isClosed = false;
+        this.pendingProgressUpdates = new Set();
+        this.settled = false;
+        this.workerId =
+            process.env.WEBSITE_INSTANCE_ID ||
+            process.env.HOSTNAME ||
+            `pid:${process.pid}`;
+        const taskIdleTimeoutMs = CortexRequestTracker.LONG_TIMEOUT_TYPES.has(
             job.data?.type,
         )
             ? 10 * 60 * 1000 // 10 minutes for media generation
             : 5 * 60 * 1000; // 5 minutes for everything else
+        this.idleTimeoutMs = Math.max(
+            taskIdleTimeoutMs,
+            getConfiguredJobTimeoutMs(job) || 0,
+        );
         this.promise = new Promise((resolve, reject) => {
             this.resolve = resolve;
             this.reject = reject;
         });
         this.setupHeartbeat();
+    }
+
+    get errorContext() {
+        return getTranscriptionErrorContext(this.job?.data);
     }
 
     resetIdleTimeout() {
@@ -163,6 +270,8 @@ class CortexRequestTracker {
     }
 
     async handleTimeout() {
+        if (this.settled) return;
+        this.settled = true;
         const timeoutMinutes = Math.round(this.idleTimeoutMs / 60000);
         console.warn(
             `Job ${this.job.id} timed out after ${timeoutMinutes} minutes of inactivity`,
@@ -170,6 +279,7 @@ class CortexRequestTracker {
         const timeoutMsg = `Operation timed out after ${timeoutMinutes} minutes of inactivity`;
 
         this.cleanup();
+        const wasTaskActive = await this.isTaskActive();
         await this.updateRequestStatus("failed", timeoutMsg);
 
         // Call handler's handleError for timeout errors
@@ -177,6 +287,7 @@ class CortexRequestTracker {
             const { type, userId, metadata } = this.job.data;
             const handler = await loadTaskDefinition(type);
             if (
+                wasTaskActive &&
                 handler.handleError &&
                 typeof handler.handleError === "function"
             ) {
@@ -200,32 +311,8 @@ class CortexRequestTracker {
     setupCancellationCheck() {
         const interval = setInterval(async () => {
             try {
-                const updatedRequest = await this.retryDbOperation(() =>
-                    Task.findOne({
-                        _id: this.job.data.taskId,
-                    }),
-                );
-
-                if (updatedRequest?.status === "cancelled") {
-                    // Call handler's cancelRequest method if it exists
-                    try {
-                        const { type } = this.job.data;
-                        const handler = await loadTaskDefinition(type);
-                        if (
-                            handler.cancelRequest &&
-                            typeof handler.cancelRequest === "function"
-                        ) {
-                            await handler.cancelRequest(
-                                this.job.data.taskId,
-                                this.client,
-                            );
-                        }
-                    } catch (error) {
-                        console.error("Error in handler.cancelRequest:", error);
-                        // Don't throw - cancellation check should succeed
-                    }
-                    this.cleanup();
-                    return true; // Indicates cancellation
+                if (await isTaskCancellationRequested(this.job.data.taskId)) {
+                    await this.handleCancellationRequest();
                 }
             } catch (error) {
                 console.error("Error in cancellation check:", error);
@@ -234,6 +321,26 @@ class CortexRequestTracker {
 
         this.intervals.add(interval);
         return interval;
+    }
+
+    async handleCancellationRequest() {
+        if (this.isClosed) return;
+
+        try {
+            const { type } = this.job.data;
+            const handler = await loadTaskDefinition(type);
+            if (
+                handler.cancelRequest &&
+                typeof handler.cancelRequest === "function"
+            ) {
+                await handler.cancelRequest(this.job.data.taskId, this.client);
+            }
+        } catch (error) {
+            console.error("Error in handler.cancelRequest:", error);
+        } finally {
+            this.cleanup();
+            this.resolve({ cancelled: true });
+        }
     }
 
     async resubscribe(cortexRequestId) {
@@ -315,6 +422,21 @@ class CortexRequestTracker {
         this.lastDataObject = latestPayload.dataObject;
         this.lastInfoObject = latestPayload.infoObject;
 
+        try {
+            await this.processProgressData(
+                data?.requestProgress?.data,
+                dataObject,
+                data?.requestProgress?.info,
+                infoObject,
+            );
+        } catch (progressError) {
+            return await this.handleProgressError(
+                progressError,
+                taskId,
+                dataObject,
+            );
+        }
+
         if (data?.requestProgress?.error) {
             // Log the full requestProgress object to see what's available
             console.error(
@@ -390,49 +512,42 @@ class CortexRequestTracker {
     }
 
     async updateProgress(progress, taskId, info) {
-        const currentDoc = await this.retryDbOperation(() =>
-            Task.findOne({ _id: taskId }),
-        );
+        const safeProgress = Math.max(progress, this.lastPersistedProgress);
+        const statusText = getSimpleStatusText(info);
+        const now = Date.now();
+        const shouldPersist =
+            safeProgress >= 1 ||
+            safeProgress - this.lastPersistedProgress >=
+                PROGRESS_WRITE_MIN_DELTA ||
+            (statusText && statusText !== this.lastPersistedStatusText) ||
+            now - this.lastProgressPersistedAt >=
+                PROGRESS_WRITE_MIN_INTERVAL_MS;
 
-        if (currentDoc && progress < currentDoc.progress) {
-            // Only write simple strings to statusText, not parseable objects
-            if (info && typeof info === "string") {
-                try {
-                    // Try to parse - if it parses to an object, don't write to statusText
-                    JSON.parse(info);
-                    // If we get here, it parsed successfully (is an object), so don't write to statusText
-                } catch (parseError) {
-                    // If parsing fails, it's a simple string, safe to write to statusText
-                    await this.retryDbOperation(() =>
-                        Task.findOneAndUpdate(
-                            { _id: taskId },
-                            { statusText: info },
-                        ),
-                    );
-                }
-            }
+        await this.writeLiveHeartbeat({
+            progress: safeProgress,
+            statusText,
+        });
 
-            return currentDoc.progress;
+        if (!shouldPersist) {
+            return safeProgress;
         }
 
-        // Only write simple strings to statusText, not parseable objects
-        const updateData = { progress };
-        if (info && typeof info === "string") {
-            try {
-                // Try to parse - if it parses to an object, don't write to statusText
-                JSON.parse(info);
-                // If we get here, it parsed successfully (is an object), so don't write to statusText
-            } catch (parseError) {
-                // If parsing fails, it's a simple string, safe to write to statusText
-                updateData.statusText = info;
-            }
-        }
+        const updateData = { progress: safeProgress };
+        if (statusText) updateData.statusText = statusText;
 
         await this.retryDbOperation(() =>
-            Task.findOneAndUpdate({ _id: taskId }, updateData, { new: true }),
+            Task.findOneAndUpdate(
+                { _id: taskId, status: activeTaskStatusFilter },
+                updateData,
+                { new: true },
+            ),
         );
 
-        return progress;
+        this.lastProgressPersistedAt = now;
+        this.lastPersistedProgress = safeProgress;
+        if (statusText) this.lastPersistedStatusText = statusText;
+
+        return safeProgress;
     }
 
     async handleProgressError(error, taskId, dataObject) {
@@ -481,7 +596,7 @@ class CortexRequestTracker {
         try {
             const handler = await loadTaskDefinition(type);
 
-            if (handler.handleError) {
+            if (handler.handleError && (await this.isTaskActive())) {
                 await handler.handleError(
                     this.job.data.taskId,
                     errorObj,
@@ -504,7 +619,7 @@ class CortexRequestTracker {
 
         await this.updateRequestStatus(
             "failed",
-            redactSensitiveText(errorMessage),
+            getTaskStatusText(errorObj, this.errorContext),
         );
         this.cleanup();
         return { shouldResolve: true, dataObject };
@@ -514,7 +629,10 @@ class CortexRequestTracker {
         if (data?.requestProgress?.error) {
             await this.updateRequestStatus(
                 "failed",
-                redactSensitiveText(data.requestProgress.error),
+                getTaskStatusText(
+                    data.requestProgress.error,
+                    this.errorContext,
+                ),
             );
             return { shouldResolve: true, dataObject };
         }
@@ -543,7 +661,10 @@ class CortexRequestTracker {
                 );
                 await this.updateRequestStatus(
                     "failed",
-                    redactSensitiveText(errorMessage),
+                    getNormalizedTaskStatusText(
+                        dataObject.error,
+                        this.errorContext,
+                    ) || redactSensitiveText(errorMessage),
                 );
                 return { shouldResolve: true, dataObject };
             }
@@ -580,7 +701,10 @@ class CortexRequestTracker {
                     );
                     await this.updateRequestStatus(
                         "failed",
-                        redactSensitiveText(errorMessage),
+                        getNormalizedTaskStatusText(
+                            dataObject.error,
+                            this.errorContext,
+                        ) || redactSensitiveText(errorMessage),
                     );
                     return { shouldResolve: true, dataObject };
                 }
@@ -604,6 +728,18 @@ class CortexRequestTracker {
                     );
                 }
 
+                if (RESULT_DATA_REQUIRED_TASK_TYPES.has(this.job.data.type)) {
+                    const missingDataError = new Error(
+                        MISSING_COMPLETION_DATA_MESSAGE,
+                    );
+                    missingDataError.code = "MISSING_COMPLETION_DATA";
+                    return await this.handleProgressError(
+                        missingDataError,
+                        taskId,
+                        dataObject,
+                    );
+                }
+
                 await this.updateRequestStatus("completed");
             }
         }
@@ -611,11 +747,39 @@ class CortexRequestTracker {
         return { shouldResolve: true, dataObject };
     }
 
+    async processProgressData(rawData, dataObject, rawInfo, infoObject) {
+        if (!rawData && !dataObject && !rawInfo && !infoObject) {
+            return;
+        }
+
+        const { type, userId, metadata } = this.job.data;
+        const handler = await loadTaskDefinition(type);
+
+        if (handler.handleProgress) {
+            await handler.handleProgress(
+                this.job.data.taskId,
+                rawData,
+                dataObject,
+                rawInfo,
+                infoObject,
+                { ...metadata, userId },
+                this.client,
+            );
+        }
+    }
+
     async processCompletedData(dataObject, infoObject) {
         const { type, userId, metadata } = this.job.data;
         const handler = await loadTaskDefinition(type);
 
         if (handler.handleCompletion) {
+            if (!(await this.isTaskActive())) {
+                this.logger.log(
+                    `[TaskExecutor] Skipping completion side effects for terminal task ${this.job.data.taskId}`,
+                );
+                return dataObject;
+            }
+
             return await handler.handleCompletion(
                 this.job.data.taskId,
                 dataObject,
@@ -625,6 +789,16 @@ class CortexRequestTracker {
             );
         }
         return dataObject;
+    }
+
+    async isTaskActive() {
+        const task = await this.retryDbOperation(() =>
+            Task.findOne({
+                _id: this.job.data.taskId,
+                status: activeTaskStatusFilter,
+            }).select("_id"),
+        );
+        return !!task;
     }
 
     async updateRequestStatus(
@@ -645,15 +819,32 @@ class CortexRequestTracker {
             ...(progress !== null && { progress }),
             lastHeartbeat: new Date(),
         };
+        if (!terminalTaskStatuses.has(status)) {
+            await this.writeLiveHeartbeat({ status, progress, statusText });
+        }
         return await this.retryDbOperation(() =>
-            Task.findOneAndUpdate({ _id: this.job.data.taskId }, update, {
-                new: true,
-            }),
+            Task.findOneAndUpdate(
+                {
+                    _id: this.job.data.taskId,
+                    status: activeTaskStatusFilter,
+                },
+                update,
+                {
+                    new: true,
+                },
+            ),
         );
     }
 
     cleanup() {
+        this.isClosed = true;
         clearTimeout(this.timeoutId);
+        void clearTaskLive(this.job.data.taskId).catch((error) => {
+            console.error("Error clearing task liveness:", error);
+        });
+        void clearTaskCancellation(this.job.data.taskId).catch((error) => {
+            console.error("Error clearing task cancellation request:", error);
+        });
         // Handle both subscription protocols safely
         if (this.subscription) {
             if (typeof this.subscription.close === "function") {
@@ -666,6 +857,21 @@ class CortexRequestTracker {
         this.intervals.clear();
     }
 
+    trackProgressUpdate(promise) {
+        this.pendingProgressUpdates.add(promise);
+        promise.then(
+            () => this.pendingProgressUpdates.delete(promise),
+            () => this.pendingProgressUpdates.delete(promise),
+        );
+        return promise;
+    }
+
+    async waitForPendingProgressUpdates() {
+        while (this.pendingProgressUpdates.size > 0) {
+            await Promise.allSettled([...this.pendingProgressUpdates]);
+        }
+    }
+
     setupSubscription(cortexRequestId) {
         const { REQUEST_PROGRESS } = SUBSCRIPTIONS;
         this.subscription = this.client
@@ -674,38 +880,19 @@ class CortexRequestTracker {
                 variables: { requestIds: [cortexRequestId] },
             })
             .subscribe({
-                next: async (x) => {
-                    this.progressUpdateReceived = true;
-                    this.resetIdleTimeout();
-
-                    try {
-                        const { data } = x;
-                        const { shouldResolve, dataObject } =
-                            await this.handleProgressUpdate(
-                                data,
-                                this.job.data.taskId,
-                            );
-
-                        if (shouldResolve) {
-                            this.cleanup();
-                            this.resolve(dataObject);
-                        }
-                    } catch (error) {
-                        console.error("Error handling progress update:", {
-                            message: redactSensitiveText(error?.message),
-                            stack: redactSensitiveText(error?.stack),
-                        });
-                        await this.updateRequestStatus(
-                            "failed",
-                            redactSensitiveText(
-                                `Failed to process progress update: ${error.message}`,
-                            ),
-                        );
-                        this.cleanup();
-                        this.reject(error);
-                    }
+                next: (x) => {
+                    if (this.settled || this.isClosed) return;
+                    const progressUpdate = this.trackProgressUpdate(
+                        (this.progressUpdateChain =
+                            this.progressUpdateChain.then(() =>
+                                this.handleSubscriptionProgress(x),
+                            )),
+                    );
+                    void progressUpdate;
                 },
                 error: async (error) => {
+                    if (this.settled) return;
+                    this.settled = true;
                     console.error(
                         `Subscription error for ${cortexRequestId}:`,
                         {
@@ -717,9 +904,7 @@ class CortexRequestTracker {
                         this.cleanup();
                         await this.updateRequestStatus(
                             "failed",
-                            redactSensitiveText(
-                                error.message || error.toString(),
-                            ),
+                            getTaskStatusText(error, this.errorContext),
                         );
                     } catch (cleanupError) {
                         console.error("Error during cleanup:", cleanupError);
@@ -727,29 +912,112 @@ class CortexRequestTracker {
                         this.reject(error);
                     }
                 },
-                complete: () => {
+                complete: async () => {
+                    await this.waitForPendingProgressUpdates();
+                    if (this.settled) return;
+                    this.settled = true;
                     this.cleanup();
+                    if (
+                        RESULT_DATA_REQUIRED_TASK_TYPES.has(this.job.data.type)
+                    ) {
+                        const missingDataError = new Error(
+                            MISSING_COMPLETION_DATA_MESSAGE,
+                        );
+                        missingDataError.code = "MISSING_COMPLETION_DATA";
+                        try {
+                            await this.updateRequestStatus(
+                                "failed",
+                                getTaskStatusText(
+                                    missingDataError,
+                                    this.errorContext,
+                                ),
+                            );
+                        } catch (error) {
+                            console.error(
+                                "Error marking incomplete task failed:",
+                                error,
+                            );
+                        }
+                        this.reject(missingDataError);
+                        return;
+                    }
                     this.resolve();
                 },
             });
     }
 
+    async handleSubscriptionProgress(x) {
+        if (this.settled || this.isClosed) return;
+
+        try {
+            this.progressUpdateReceived = true;
+            this.resetIdleTimeout();
+
+            const { data } = x;
+            const { shouldResolve, dataObject } =
+                await this.handleProgressUpdate(data, this.job.data.taskId);
+
+            if (shouldResolve) {
+                this.settled = true;
+                this.cleanup();
+                this.resolve(dataObject);
+            }
+        } catch (error) {
+            console.error("Error handling progress update:", {
+                message: redactSensitiveText(error?.message),
+                stack: redactSensitiveText(error?.stack),
+            });
+
+            this.settled = true;
+            this.cleanup();
+            try {
+                await this.updateRequestStatus(
+                    "failed",
+                    getNormalizedTaskStatusText(error, this.errorContext) ||
+                        redactSensitiveText(
+                            `Failed to process progress update: ${error.message}`,
+                        ),
+                );
+            } catch (statusError) {
+                console.error("Error marking failed progress update:", {
+                    message: redactSensitiveText(statusError?.message),
+                    stack: redactSensitiveText(statusError?.stack),
+                });
+            }
+            this.reject(error);
+        }
+    }
+
     setupHeartbeat() {
+        void this.writeLiveHeartbeat();
         const interval = setInterval(async () => {
             try {
-                await this.retryDbOperation(() =>
-                    Task.findOneAndUpdate(
-                        { _id: this.job.data.taskId },
-                        { lastHeartbeat: new Date() },
-                    ),
-                );
+                await this.writeLiveHeartbeat();
             } catch (error) {
                 console.error("Error updating heartbeat:", error);
             }
-        }, 5000); // 5 seconds
+        }, TASK_LIVE_RENEW_INTERVAL_MS);
 
         this.intervals.add(interval);
         return interval;
+    }
+
+    async writeLiveHeartbeat(state = {}) {
+        if (this.isClosed) return null;
+
+        try {
+            return await markTaskLive(this.job.data.taskId, {
+                type: this.job.data.type,
+                userId:
+                    this.job.data.userId?.toString?.() || this.job.data.userId,
+                jobId: this.job?.id?.toString?.() || this.job?.id || null,
+                workerId: this.workerId,
+                ...state,
+            });
+        } catch (error) {
+            console.error("Error updating task liveness:", error);
+            return null;
+        }
     }
 
     // Add a helper method for DB operations with retries
@@ -762,7 +1030,7 @@ class CortexRequestTracker {
             } catch (error) {
                 lastError = error;
                 console.warn(
-                    `DB operation attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+                    `DB operation attempt ${attempt}/${maxRetries} failed: ${formatDbErrorForLog(error)}`,
                 );
 
                 // Check explicitly for MongoNotConnectedError and other connection issues
@@ -812,7 +1080,7 @@ class CortexRequestTracker {
                 }
 
                 if (attempt < maxRetries) {
-                    const waitTime = Math.min(retryDelay, 30000); // Cap at 30 seconds max
+                    const waitTime = getDbRetryDelayMs(error, retryDelay);
                     await new Promise((resolve) =>
                         setTimeout(resolve, waitTime),
                     );

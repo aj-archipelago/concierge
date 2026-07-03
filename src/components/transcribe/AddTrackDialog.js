@@ -14,6 +14,7 @@ export default function AddTrackDialog({
     addTrackDialogOpen,
     setAddTrackDialogOpen,
     url,
+    videoInformation,
     transcripts,
     onAdd,
     options,
@@ -36,6 +37,7 @@ export default function AddTrackDialog({
                     </DialogDescription>
                     <AddTrackOptions
                         url={url}
+                        videoInformation={videoInformation}
                         transcripts={transcripts}
                         onAdd={(x) => {
                             onAdd(x);

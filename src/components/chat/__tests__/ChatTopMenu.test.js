@@ -1,7 +1,9 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import ChatTopMenu from "../ChatTopMenu";
+
+let userFileCollectionProps = null;
 
 jest.mock("react-i18next", () => ({
     __esModule: true,
@@ -29,7 +31,10 @@ jest.mock(
     "../../../../app/workspaces/[id]/components/UserFileCollection",
     () => ({
         __esModule: true,
-        default: () => null,
+        default: (props) => {
+            userFileCollectionProps = props;
+            return <div data-testid="user-file-collection" />;
+        },
     }),
 );
 
@@ -41,6 +46,10 @@ jest.mock("@/components/ui/tooltip", () => ({
 }));
 
 describe("ChatTopMenu", () => {
+    beforeEach(() => {
+        userFileCollectionProps = null;
+    });
+
     it("shows a visible Files label in full mode", () => {
         render(
             <ChatTopMenu
@@ -108,5 +117,54 @@ describe("ChatTopMenu", () => {
         );
 
         expect(screen.queryByLabelText("Large chat")).not.toBeInTheDocument();
+    });
+
+    it("dispatches selected chat files to the message input attachment bridge", async () => {
+        const eventSpy = jest.fn();
+        window.addEventListener("concierge:chat-files-attach", eventSpy);
+
+        try {
+            render(
+                <ChatTopMenu
+                    displayState="full"
+                    chat={{ _id: "chat-1", messages: [] }}
+                />,
+            );
+
+            fireEvent.click(screen.getByRole("button", { name: /files/i }));
+
+            await waitFor(() => {
+                expect(userFileCollectionProps?.onAttach).toEqual(
+                    expect.any(Function),
+                );
+            });
+
+            userFileCollectionProps.onAttach([
+                {
+                    url: "https://files.example.com/report.pdf",
+                    filename: "report.pdf",
+                    hash: "hash-1",
+                },
+            ]);
+
+            expect(eventSpy).toHaveBeenCalledTimes(1);
+            expect(eventSpy.mock.calls[0][0].detail).toEqual({
+                chatId: "chat-1",
+                files: [
+                    {
+                        url: "https://files.example.com/report.pdf",
+                        filename: "report.pdf",
+                        hash: "hash-1",
+                    },
+                ],
+            });
+            await waitFor(() => {
+                expect(
+                    screen.queryByTestId("user-file-collection"),
+                ).not.toBeInTheDocument();
+            });
+        } finally {
+            window.removeEventListener("concierge:chat-files-attach", eventSpy);
+        }
     });
 });

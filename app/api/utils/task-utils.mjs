@@ -2,12 +2,66 @@ import { Queue } from "bullmq";
 import { getRedisConnection } from "./redis.mjs";
 import Task from "../models/task.mjs";
 import { prepareMessagesForPersistence } from "../chats/persistence.js";
+import { getNormalizedYouTubeTranscriptionAccessErrorMessage } from "../../../src/utils/transcriptionErrors.js";
+import {
+    clearTaskCancellation,
+    getTaskLiveState,
+    mergeTaskLiveState,
+    requestTaskCancellation,
+    TASK_LIVE_STALE_MS,
+} from "./task-liveness.mjs";
 
 const requestProgressQueue = new Queue("task", {
     connection: getRedisConnection(),
 });
 
-const ABANDONED_TASK_THRESHOLD = 30000; // 30 seconds in milliseconds
+const ABANDONED_TASK_THRESHOLD = TASK_LIVE_STALE_MS;
+
+const terminalTaskStatuses = new Set([
+    "completed",
+    "failed",
+    "cancelled",
+    "abandoned",
+]);
+export const RESULT_DATA_REQUIRED_TASK_TYPES = new Set([
+    "subtitle-translate",
+    "transcribe",
+]);
+export const MISSING_COMPLETION_DATA_MESSAGE =
+    "Task completed without returning result data. Please try again.";
+
+const nonRunningJobStates = new Set([
+    "delayed",
+    "paused",
+    "prioritized",
+    "waiting",
+    "waiting-children",
+]);
+
+function getTaskActivityDate(task) {
+    return task?.lastHeartbeat || task?.updatedAt || task?.createdAt || null;
+}
+
+function isTaskStale(task) {
+    const activityDate = getTaskActivityDate(task);
+    if (!activityDate) return true;
+    return (
+        new Date(activityDate).getTime() < Date.now() - ABANDONED_TASK_THRESHOLD
+    );
+}
+
+async function getTaskJobState(task) {
+    if (!task?.jobId) {
+        return { job: null, state: null };
+    }
+
+    const job = await requestProgressQueue.getJob(task.jobId);
+    if (!job) {
+        return { job: null, state: null };
+    }
+
+    return { job, state: await job.getState() };
+}
 
 /**
  * Checks if a task should be marked as abandoned and updates it if necessary
@@ -17,24 +71,37 @@ const ABANDONED_TASK_THRESHOLD = 30000; // 30 seconds in milliseconds
 export async function checkAndUpdateAbandonedTask(task) {
     if (!task) return task;
 
-    if (
-        task.lastHeartbeat &&
-        task.status !== "abandoned" &&
-        task.status !== "completed" &&
-        task.status !== "failed"
-    ) {
-        const abandonedThreshold = new Date(
-            Date.now() - ABANDONED_TASK_THRESHOLD,
-        ); // 30 seconds in milliseconds
-        if (new Date(task.lastHeartbeat) < abandonedThreshold) {
-            task = await Task.findByIdAndUpdate(
-                task._id,
-                {
-                    status: "abandoned",
-                },
-                { new: true },
-            );
+    if (terminalTaskStatuses.has(task.status)) {
+        return task;
+    }
 
+    const liveState = await getTaskLiveState(task._id);
+    if (liveState) {
+        return mergeTaskLiveState(task, liveState);
+    }
+
+    const { state: jobState } = await getTaskJobState(task);
+    if (nonRunningJobStates.has(jobState)) {
+        return task;
+    }
+
+    if (jobState === "active") {
+        return task;
+    }
+
+    if (isTaskStale(task)) {
+        task = await Task.findOneAndUpdate(
+            {
+                _id: task._id,
+                status: { $nin: Array.from(terminalTaskStatuses) },
+            },
+            {
+                status: "abandoned",
+            },
+            { new: true },
+        );
+
+        if (task) {
             // Call handler's handleError method if it exists for abandoned tasks
             // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)
             try {
@@ -78,6 +145,22 @@ const jobStatusToTaskStatus = {
     active: "in_progress",
     delayed: "pending",
 };
+
+function getTranscriptionErrorContext(task) {
+    return {
+        isYoutube: task?.metadata?.isYoutube,
+        url: task?.metadata?.url,
+    };
+}
+
+function normalizeTaskStatusText(message, task) {
+    if (task?.type !== "transcribe") return null;
+
+    return getNormalizedYouTubeTranscriptionAccessErrorMessage(
+        message,
+        getTranscriptionErrorContext(task),
+    );
+}
 
 /**
  * Copies task data to the associated chat message if the task was invoked from a chat
@@ -145,27 +228,61 @@ export async function syncTaskWithBullMQJob(task) {
     const status = await job.getState();
 
     let update = {};
+    const isTerminalTask = terminalTaskStatuses.has(task.status);
+    const normalizedStatusText = normalizeTaskStatusText(task.statusText, task);
 
-    if (
+    if (normalizedStatusText && task.status === "failed") {
+        if (task.statusText !== normalizedStatusText) {
+            update.statusText = normalizedStatusText;
+        }
+    } else if (normalizedStatusText && !isTerminalTask) {
+        update.status = "failed";
+        update.statusText = normalizedStatusText;
+    } else if (
+        status === "completed" &&
+        RESULT_DATA_REQUIRED_TASK_TYPES.has(task.type) &&
+        task.data == null &&
+        !isTerminalTask
+    ) {
+        update.status = "failed";
+        update.statusText = MISSING_COMPLETION_DATA_MESSAGE;
+    } else if (
         jobStatusToTaskStatus[status] &&
         task.status !== jobStatusToTaskStatus[status] &&
-        task.status !== "cancelled"
+        task.status !== "cancelled" &&
+        !isTerminalTask
     ) {
         update.status = jobStatusToTaskStatus[status];
-        update.statusText = job.failedReason;
+        if (job.failedReason) {
+            update.statusText =
+                normalizeTaskStatusText(job.failedReason, task) ||
+                job.failedReason;
+        }
     }
 
-    if (job && job.failedReason && task.status !== "failed") {
+    if (
+        !normalizedStatusText &&
+        job &&
+        job.failedReason &&
+        task.status !== "failed" &&
+        !isTerminalTask
+    ) {
         update.status = "failed";
-        update.statusText = job.failedReason;
+        update.statusText =
+            normalizeTaskStatusText(job.failedReason, task) || job.failedReason;
     }
 
     if (Object.keys(update).length > 0) {
-        await Task.findByIdAndUpdate(task._id, update, { new: true });
+        const updatedTask = await Task.findByIdAndUpdate(task._id, update, {
+            new: true,
+        });
 
-        if (update.status === "failed" || update.status === "completed") {
-            await copyTaskToChatMessage(task);
+        const resultingStatus = update.status || task.status;
+        if (resultingStatus === "failed" || resultingStatus === "completed") {
+            await copyTaskToChatMessage(updatedTask || task);
         }
+
+        return updatedTask || task;
     }
 
     return task;
@@ -241,6 +358,7 @@ export async function retryTask(task) {
     let retried = false;
 
     if (task.jobId) {
+        await clearTaskCancellation(task._id);
         let job = await requestProgressQueue.getJob(task.jobId);
 
         if (!job) return task;
@@ -319,7 +437,7 @@ export async function deleteTask(taskId, userId) {
 
         return true;
     } catch (error) {
-        console.error(`Error deleting task ${taskId}:`, error);
+        console.error("Error deleting task:", taskId, error);
         throw error;
     }
 }
@@ -343,12 +461,15 @@ export async function cancelTask(taskId, userId) {
             throw new Error("Request not found");
         }
 
+        await requestTaskCancellation(taskId);
+
         // Get active jobs for this request
         const jobs = await requestProgressQueue.getJobs(["waiting"]);
         const job = jobs.find((job) => job.data.taskId === taskId);
 
         if (job) {
             await job.remove();
+            await clearTaskCancellation(taskId);
         }
 
         // Update request status

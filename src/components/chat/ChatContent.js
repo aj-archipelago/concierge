@@ -20,8 +20,6 @@ import { QUERIES } from "../../graphql";
 import {
     useUpdateChat,
     useAddMessage,
-    useAddChat,
-    useSetActiveChatId,
     ensureChatInActiveChats,
     getMessageSignature,
     mergeFetchedChatResponse,
@@ -37,17 +35,23 @@ import {
 import { useStreamingMessages } from "../../hooks/useStreamingMessages";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "../../../app/utils/axios-client";
-import { isClientOnlyChatId } from "../../../app/utils/chatClientIds";
 import { useRouter, usePathname } from "next/navigation";
-import { useDispatch, useSelector } from "react-redux";
-import { updateCanvasTab } from "../../stores/chatSlice";
+import { useDispatch, useSelector, useStore } from "react-redux";
+import {
+    updateCanvasTab,
+    updateCanvasTabForChat,
+} from "../../stores/chatSlice";
 import { composeUserDateTimeInfo } from "../../utils/datetimeUtils";
 import {
     CLIENT_SIDE_TOOLS,
     CLIENT_SIDE_TOOL_HANDLERS,
     filterToolsByRoute,
+    getClientSideToolFocusError,
 } from "../../utils/clientSideTools";
-import { getLoadSkillTool } from "../../utils/skills";
+import {
+    buildRelevantSkillReferenceContext,
+    getLoadSkillTool,
+} from "../../utils/skills";
 import { applyBilingualClientSideTools } from "../../utils/applyBilingualClientSideTools";
 import { useSkills } from "../../hooks/useSkills";
 import { usePageContext } from "../../contexts/PageContextProvider";
@@ -72,6 +76,7 @@ import {
     serializeAssistantPayloadItem,
 } from "../../utils/assistantInlinePayload";
 import { useResolvedAgentModel } from "../../hooks/useResolvedAgentModel";
+import { buildHtmlWorkspaceRefreshContent } from "../../utils/canvasWorkspaceRefresh";
 
 const contextMessageCount = 50;
 const LOCAL_SEND_ERROR_CLEAR_DELAY_MS = 4000;
@@ -79,9 +84,11 @@ const STOPPED_STREAM_TOOL_ID_PREFIX = "stopped-stream";
 const STREAM_RETRY_INITIAL_DELAY_MS = 1000;
 const STREAM_RETRY_MAX_DELAY_MS = 10000;
 const HTML_CANVAS_STREAM_REFRESH_MS = 5000;
+const CLIENT_TOOL_HEARTBEAT_INTERVAL_MS = 5000;
+const WAITING_FOR_RESPONSE_SYNC_MS = 2000;
 
-const normalizeContextPathname = (currentPathname, currentChatId) => {
-    if (currentPathname === "/chat/new" || isClientOnlyChatId(currentChatId)) {
+const normalizeContextPathname = (currentPathname) => {
+    if (currentPathname === "/chat/new") {
         return "/chat";
     }
 
@@ -364,6 +371,8 @@ function ChatContent({
     entities,
     entityIconSize,
     instantOnly = false,
+    onCopyAndContinue,
+    copyInProgress = false,
 }) {
     const { t, i18n } = useTranslation();
     const isRTL = i18n.dir() === "rtl";
@@ -375,15 +384,22 @@ function ChatContent({
     const router = useRouter();
     const pathname = usePathname();
     const dispatch = useDispatch();
+    const store = useStore();
     const chatMessagesRef = useRef(null);
+    const mountedRef = useRef(false);
+    const activeChatIdRef = useRef(null);
     const focusTrigger = useSelector((state) => state.chat?.focusTrigger);
     const canvasContent = useSelector((state) => state.chat?.canvasContent);
-    const canvasVisible = useSelector(
-        (state) => state.chat?.canvasVisible ?? true,
-    );
     const activeTabId = useSelector((state) => state.chat?.activeTabId);
     const canvasTabs = useSelector((state) => state.chat?.canvasTabs || []);
     const pathnameRef = useRef(pathname);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     // Keep pathname ref updated to ensure we always have current pathname for context
     useEffect(() => {
@@ -488,11 +504,10 @@ function ChatContent({
         pageContextValue;
     const addMessage = useAddMessage();
     const updateChatHook = useUpdateChat();
-    const setActiveChatId = useSetActiveChatId();
-    const addChat = useAddChat();
     const queryClient = useQueryClient();
     const viewingReadOnlyChat =
-        displayState === "full" && Boolean(viewingChat?.readOnly);
+        displayState === "full" &&
+        Boolean(viewingChat?.readOnly || chat?.readOnly);
     const chatId =
         urlChatId && urlChatId !== "undefined" && urlChatId !== "null"
             ? String(urlChatId)
@@ -504,8 +519,6 @@ function ChatContent({
     const [isServiceUnavailable, setIsServiceUnavailable] = useState(false);
     const [pendingRetrySend, setPendingRetrySend] = useState(null);
     const previousExternalChatIdRef = useRef(chatId);
-    const promotedChatIdRef = useRef(null);
-    const promoteChatPromiseRef = useRef(null);
     const settledMessages = useMemo(
         () => (Array.isArray(chat?.messages) ? chat.messages : []),
         [chat?.messages],
@@ -518,14 +531,8 @@ function ChatContent({
     useEffect(() => {
         if (!chatId) return;
         const previousChatId = previousExternalChatIdRef.current;
-        const promotedChatId = promotedChatIdRef.current;
-        const isPromotion =
-            previousChatId &&
-            previousChatId !== chatId &&
-            promotedChatId &&
-            promotedChatId === chatId;
 
-        if (!isPromotion && previousChatId !== chatId) {
+        if (previousChatId !== chatId) {
             setResolvedChatId(chatId);
             setDraftPair(null);
         }
@@ -534,6 +541,13 @@ function ChatContent({
     }, [chatId]);
 
     const effectiveChatId = resolvedChatId || chatId;
+
+    useEffect(() => {
+        activeChatIdRef.current = effectiveChatId
+            ? String(effectiveChatId)
+            : null;
+    }, [effectiveChatId]);
+
     const renderBaseMessages = draftPair?.baseMessages || settledMessages;
     const pendingUserMessage = draftPair?.userMessage || null;
     const pendingAssistantMessage = draftPair?.assistantMessage || null;
@@ -590,12 +604,12 @@ function ChatContent({
         return () => clearTimeout(timeoutId);
     }, [draftPair]);
 
-    const publicChatOwner = viewingChat?.owner;
+    const publicChatOwner = viewingChat?.owner || chat?.owner;
     const hasMoreMessages = !!chat?.hasMoreMessages;
 
     const syncCommittedChat = useCallback(
-        async (targetChatId, seedMessages = []) => {
-            if (!targetChatId || isClientOnlyChatId(targetChatId)) {
+        async (targetChatId) => {
+            if (!targetChatId) {
                 return null;
             }
 
@@ -606,16 +620,12 @@ function ChatContent({
                 "chat",
                 String(targetChatId),
             ]);
-            const previousChatForNormalization = withSeedMessages(
-                cachedChat,
-                seedMessages,
-            );
             const normalizedChat = normalizeChatForCache(
-                previousChatForNormalization,
+                cachedChat,
                 mergeFetchedChatResponse(
                     queryClient,
                     targetChatId,
-                    previousChatForNormalization,
+                    cachedChat,
                     committedChat,
                 ),
             );
@@ -631,7 +641,6 @@ function ChatContent({
     const loadOlderMessages = useCallback(async () => {
         if (!effectiveChatId || isLoadingOlder) return;
         if (!chat?.hasMoreMessages && !chat?.messagesTruncated) return;
-        if (isClientOnlyChatId(effectiveChatId)) return;
 
         setIsLoadingOlder(true);
         try {
@@ -861,6 +870,49 @@ function ChatContent({
 
     const isStreamingRef = useRef(false);
 
+    const getCanvasSnapshotForChat = useCallback(
+        (targetChatId = effectiveChatId) => {
+            const chatState = store.getState()?.chat || {};
+            const normalizedTargetChatId = targetChatId
+                ? String(targetChatId)
+                : null;
+            const isActiveCanvasChat =
+                normalizedTargetChatId &&
+                chatState.activeCanvasChatId &&
+                String(chatState.activeCanvasChatId) === normalizedTargetChatId;
+
+            if (isActiveCanvasChat) {
+                return {
+                    canvasContent: chatState.canvasContent ?? null,
+                    canvasTabs: Array.isArray(chatState.canvasTabs)
+                        ? chatState.canvasTabs
+                        : [],
+                    activeTabId: chatState.activeTabId ?? null,
+                    canvasVisible:
+                        typeof chatState.canvasVisible === "boolean"
+                            ? chatState.canvasVisible
+                            : true,
+                };
+            }
+
+            const bucket = normalizedTargetChatId
+                ? chatState.canvasByChatId?.[normalizedTargetChatId]
+                : null;
+            return {
+                canvasContent: bucket?.canvasContent ?? null,
+                canvasTabs: Array.isArray(bucket?.canvasTabs)
+                    ? bucket.canvasTabs
+                    : [],
+                activeTabId: bucket?.activeTabId ?? null,
+                canvasVisible:
+                    typeof bucket?.canvasVisible === "boolean"
+                        ? bucket.canvasVisible
+                        : true,
+            };
+        },
+        [effectiveChatId, store],
+    );
+
     // After each server-side tool finishes (and on stream complete) we may
     // need to pull fresh content into the active tab. For article tabs the
     // workspace file is the source of truth — bumping workspaceContentVersion
@@ -868,7 +920,12 @@ function ChatContent({
     // the file body and stuff it into the tab.
     const handleStreamCompleteHtmlFallback = useCallback(
         async ({ source = "tool" } = {}) => {
-            const tab = canvasTabs.find((t) => t.id === activeTabId);
+            const targetChatId = effectiveChatId
+                ? String(effectiveChatId)
+                : null;
+            const snapshot = getCanvasSnapshotForChat(targetChatId);
+            const targetTabId = snapshot.activeTabId;
+            const tab = snapshot.canvasTabs.find((t) => t.id === targetTabId);
             if (!tab) return;
 
             const tabType = tab.content?.type;
@@ -883,10 +940,16 @@ function ChatContent({
             if (isArticleTab) {
                 if (source !== "stream-complete") return;
                 dispatch(
-                    updateCanvasTab({
-                        tabId: activeTabId,
-                        content: { workspaceContentVersion: Date.now() },
-                    }),
+                    targetChatId
+                        ? updateCanvasTabForChat({
+                              chatId: targetChatId,
+                              tabId: targetTabId,
+                              content: { workspaceContentVersion: Date.now() },
+                          })
+                        : updateCanvasTab({
+                              tabId: targetTabId,
+                              content: { workspaceContentVersion: Date.now() },
+                          }),
                 );
                 return;
             }
@@ -899,18 +962,60 @@ function ChatContent({
                 const res = await fetch(`/api/workspace/file?${params}`);
                 if (!res.ok) return;
                 const htmlContent = await res.text();
-                if (!htmlContent) return;
+                const refreshContent = buildHtmlWorkspaceRefreshContent(
+                    tab.content,
+                    htmlContent,
+                );
+                if (!refreshContent) return;
                 dispatch(
-                    updateCanvasTab({
-                        tabId: activeTabId,
-                        content: { htmlContent, htmlStatus: "live" },
-                    }),
+                    targetChatId
+                        ? updateCanvasTabForChat({
+                              chatId: targetChatId,
+                              tabId: targetTabId,
+                              content: refreshContent,
+                          })
+                        : updateCanvasTab({
+                              tabId: targetTabId,
+                              content: refreshContent,
+                          }),
                 );
             } catch {
                 // Best-effort — ignore failures
             }
         },
-        [dispatch, activeTabId, canvasTabs, selectedEntityIdFromProp],
+        [
+            dispatch,
+            effectiveChatId,
+            getCanvasSnapshotForChat,
+            selectedEntityIdFromProp,
+        ],
+    );
+
+    const sendClientToolHeartbeat = useCallback(
+        async (toolInfo) => {
+            const toolCallbackId = toolInfo?.toolCallbackId;
+            const requestId =
+                toolInfo?.requestId || toolInfo?.chatId || "unknown";
+
+            if (!toolCallbackId) {
+                return false;
+            }
+
+            try {
+                const response = await client.mutate({
+                    mutation: MUTATIONS.CLIENT_TOOL_HEARTBEAT,
+                    variables: {
+                        requestId,
+                        toolCallbackId,
+                    },
+                });
+                return response?.data?.clientToolHeartbeat === true;
+            } catch (error) {
+                console.debug("Client tool heartbeat failed:", error);
+                return false;
+            }
+        },
+        [client],
     );
 
     const handleClientSideToolCall = useCallback(
@@ -931,8 +1036,8 @@ function ChatContent({
                           error: errorMessage || "Tool execution failed",
                       });
 
-                try {
-                    await client.mutate({
+                const submitResultMutation = async () => {
+                    const response = await client.mutate({
                         mutation: MUTATIONS.SUBMIT_CLIENT_TOOL_RESULT,
                         variables: {
                             requestId,
@@ -943,23 +1048,22 @@ function ChatContent({
                             success,
                         },
                     });
+                    if (response?.data?.submitClientToolResult !== true) {
+                        throw new Error(
+                            "Server did not accept client tool result",
+                        );
+                    }
+                };
+
+                try {
+                    await submitResultMutation();
                     return true;
                 } catch (error) {
                     try {
                         await new Promise((resolve) =>
                             setTimeout(resolve, 500),
                         );
-                        await client.mutate({
-                            mutation: MUTATIONS.SUBMIT_CLIENT_TOOL_RESULT,
-                            variables: {
-                                requestId,
-                                toolCallbackId,
-                                result: success
-                                    ? JSON.stringify(result)
-                                    : resultData,
-                                success,
-                            },
-                        });
+                        await submitResultMutation();
                         return true;
                     } catch {
                         toast.error(
@@ -968,6 +1072,14 @@ function ChatContent({
                         return false;
                     }
                 }
+            };
+
+            const startHeartbeat = () => {
+                void sendClientToolHeartbeat(toolInfo);
+                const intervalId = setInterval(() => {
+                    void sendClientToolHeartbeat(toolInfo);
+                }, CLIENT_TOOL_HEARTBEAT_INTERVAL_MS);
+                return () => clearInterval(intervalId);
             };
 
             if (!toolCallbackId) {
@@ -985,30 +1097,56 @@ function ChatContent({
                 return;
             }
 
+            const stopHeartbeat = startHeartbeat();
             try {
-                const activeCanvasTabContent = canvasVisible
-                    ? activeTabId && Array.isArray(canvasTabs)
-                        ? canvasTabs.find((tab) => tab.id === activeTabId)
-                              ?.content || {}
-                        : canvasContent || {}
-                    : {};
+                const getActiveCanvasTabContent = () => {
+                    const snapshot = getCanvasSnapshotForChat(effectiveChatId);
+                    if (!snapshot.canvasVisible) {
+                        return {};
+                    }
+                    if (
+                        snapshot.activeTabId &&
+                        Array.isArray(snapshot.canvasTabs)
+                    ) {
+                        return (
+                            snapshot.canvasTabs.find(
+                                (tab) => tab.id === snapshot.activeTabId,
+                            )?.content || {}
+                        );
+                    }
+                    return snapshot.canvasContent || {};
+                };
                 const context = {
                     router,
                     dispatch,
                     isStreaming: isStreamingRef.current,
+                    isActiveChat:
+                        mountedRef.current &&
+                        activeChatIdRef.current === String(effectiveChatId),
                     queryClient,
                     chatId: effectiveChatId,
                     user,
                     serverUrl,
                     t,
                     getEntityId: () => selectedEntityIdFromProp || "",
-                    getActiveTabId: () => activeTabId || null,
-                    getActiveHtmlContent: () => activeCanvasTabContent,
+                    getActiveTabId: () =>
+                        getCanvasSnapshotForChat(effectiveChatId).activeTabId ||
+                        null,
+                    getActiveHtmlContent: getActiveCanvasTabContent,
+                    getCanvasSnapshot: () =>
+                        getCanvasSnapshotForChat(effectiveChatId),
                     confirmAction: confirmToolAction,
                     toolInteraction: {
                         confirm: confirmToolAction,
                     },
                 };
+                const focusError = getClientSideToolFocusError(
+                    toolName,
+                    context,
+                );
+                if (focusError) {
+                    throw new Error(focusError);
+                }
                 const result = await handler(toolInfo, context);
 
                 if (!result.success) {
@@ -1032,10 +1170,13 @@ function ChatContent({
                     );
                     throw error;
                 }
+            } finally {
+                stopHeartbeat();
             }
         },
         [
             client,
+            sendClientToolHeartbeat,
             router,
             dispatch,
             toolHandlers,
@@ -1046,74 +1187,9 @@ function ChatContent({
             t,
             serverUrl,
             selectedEntityIdFromProp,
-            activeTabId,
-            canvasVisible,
-            canvasTabs,
-            canvasContent,
+            getCanvasSnapshotForChat,
         ],
     );
-
-    const handlePromotedChatId = useCallback(
-        (nextChatId) => {
-            const nextId = String(nextChatId);
-            if (isClientOnlyChatId(nextId)) return;
-            promotedChatIdRef.current = nextId;
-            setResolvedChatId(nextId);
-            setActiveChatId.mutate(nextId);
-            // Remove optimistic client-only entry before inserting real one
-            queryClient.setQueryData(["activeChats"], (old = []) =>
-                old.filter((c) => !isClientOnlyChatId(c?._id)),
-            );
-            const promotedChat = queryClient.getQueryData(["chat", nextId]);
-            ensureChatInActiveChats(queryClient, promotedChat);
-            syncChatToListCaches(queryClient, promotedChat);
-            if (window.location.pathname !== `/chat/${nextId}`) {
-                const nextPath = `/chat/${nextId}${window.location.search}`;
-                pathnameRef.current = nextPath;
-                // Use replaceState to avoid a full Next.js server round-trip
-                window.history.replaceState(window.history.state, "", nextPath);
-                window.dispatchEvent(
-                    new CustomEvent("chatIdUpdate", {
-                        detail: { chatId: nextId },
-                    }),
-                );
-            }
-        },
-        [queryClient, setActiveChatId],
-    );
-
-    // Eagerly create a real chat when the user does something that requires
-    // chat-scoped storage (e.g. uploading a file) while still on the "new"
-    // sentinel. Idempotent across concurrent callers.
-    const onPromoteChat = useCallback(async () => {
-        if (!isClientOnlyChatId(effectiveChatId)) {
-            return effectiveChatId;
-        }
-        if (promoteChatPromiseRef.current) {
-            return promoteChatPromiseRef.current;
-        }
-        promoteChatPromiseRef.current = (async () => {
-            try {
-                const created = await addChat.mutateAsync({ messages: [] });
-                const newId = String(created?._id);
-                if (!newId || isClientOnlyChatId(newId)) {
-                    throw new Error("Chat creation returned no id");
-                }
-                handlePromotedChatId(newId);
-                return newId;
-            } catch (err) {
-                promoteChatPromiseRef.current = null;
-                throw err;
-            }
-        })();
-        return promoteChatPromiseRef.current;
-    }, [effectiveChatId, addChat, handlePromotedChatId]);
-
-    useEffect(() => {
-        if (!isClientOnlyChatId(effectiveChatId)) {
-            promoteChatPromiseRef.current = null;
-        }
-    }, [effectiveChatId]);
 
     const handleError = useCallback((error) => {
         if (error?.suppressToast) {
@@ -1158,7 +1234,7 @@ function ChatContent({
     const generateChatTitleIfNeeded = useCallback(
         async (targetChat) => {
             const targetChatId = String(targetChat?._id || "");
-            if (!targetChatId || isClientOnlyChatId(targetChatId)) {
+            if (!targetChatId) {
                 return;
             }
             if (targetChat?.titleSetByUser) {
@@ -1219,54 +1295,37 @@ function ChatContent({
             const targetChatId = String(
                 completedChatId || effectiveChatId || "",
             );
-            if (targetChatId) {
+            const isCurrentChat =
+                mountedRef.current && activeChatIdRef.current === targetChatId;
+
+            if (targetChatId && isCurrentChat) {
                 setResolvedChatId(targetChatId);
             }
 
-            if (targetChatId && payload && assistantMessage) {
-                let seededChat = null;
-                queryClient.setQueryData(
-                    ["chat", targetChatId],
-                    (cachedChat) => {
-                        seededChat = normalizeChatForCache(
-                            cachedChat,
-                            withSeedMessages(
-                                cachedChat || {
-                                    _id: targetChatId,
-                                    messages: [],
-                                },
-                                [assistantMessage],
-                            ),
-                        );
-                        return seededChat;
-                    },
+            if (isCurrentChat) {
+                setDraftPair((currentDraftPair) =>
+                    currentDraftPair
+                        ? {
+                              ...currentDraftPair,
+                              assistantMessage:
+                                  payload && assistantMessage
+                                      ? assistantMessage
+                                      : currentDraftPair.assistantMessage,
+                              isStreaming: false,
+                              waitingForServer: Boolean(payload),
+                          }
+                        : currentDraftPair,
                 );
-                if (seededChat) {
-                    syncChatToListCaches(queryClient, seededChat);
-                }
             }
-
-            setDraftPair((currentDraftPair) =>
-                currentDraftPair
-                    ? {
-                          ...currentDraftPair,
-                          assistantMessage:
-                              payload && assistantMessage
-                                  ? assistantMessage
-                                  : currentDraftPair.assistantMessage,
-                          isStreaming: false,
-                      }
-                    : currentDraftPair,
-            );
             queryClient.setQueryData(["chatSending", targetChatId], null);
 
             try {
-                const committedChat = await syncCommittedChat(
-                    targetChatId,
-                    payload && assistantMessage ? [assistantMessage] : [],
-                );
+                const committedChat = await syncCommittedChat(targetChatId);
                 ensureChatInActiveChats(queryClient, committedChat);
                 syncChatToListCaches(queryClient, committedChat);
+                if (isCurrentChat && !committedChat?.isChatLoading) {
+                    setDraftPair(null);
+                }
                 await generateChatTitleIfNeeded(committedChat);
                 queryClient.invalidateQueries({
                     queryKey: ["activeChats"],
@@ -1282,11 +1341,24 @@ function ChatContent({
                         queryKey: ["chat", targetChatId],
                     });
                 }
+                if (isCurrentChat) {
+                    setDraftPair((currentDraftPair) =>
+                        currentDraftPair
+                            ? {
+                                  ...currentDraftPair,
+                                  isStreaming: false,
+                                  waitingForServer: true,
+                              }
+                            : currentDraftPair,
+                    );
+                }
             }
 
-            await handleStreamCompleteHtmlFallback({
-                source: "stream-complete",
-            });
+            if (isCurrentChat) {
+                await handleStreamCompleteHtmlFallback({
+                    source: "stream-complete",
+                });
+            }
         },
         [
             effectiveChatId,
@@ -1302,25 +1374,31 @@ function ChatContent({
             const targetChatId = String(
                 detachedChatId || effectiveChatId || "",
             );
+            const isCurrentChat =
+                mountedRef.current && activeChatIdRef.current === targetChatId;
             if (targetChatId) {
-                setResolvedChatId(targetChatId);
+                if (isCurrentChat) {
+                    setResolvedChatId(targetChatId);
+                }
                 queryClient.setQueryData(["chatSending", targetChatId], null);
                 queryClient.invalidateQueries({
                     queryKey: ["chat", targetChatId],
                 });
             }
 
-            setDraftPair((currentDraftPair) => ({
-                baseMessages:
-                    queryClient.getQueryData(["chat", targetChatId])
-                        ?.messages ||
-                    currentDraftPair?.baseMessages ||
-                    settledMessages,
-                userMessage: null,
-                assistantMessage: null,
-                isStreaming: false,
-                waitingForServer: true,
-            }));
+            if (isCurrentChat) {
+                setDraftPair((currentDraftPair) => ({
+                    baseMessages:
+                        queryClient.getQueryData(["chat", targetChatId])
+                            ?.messages ||
+                        currentDraftPair?.baseMessages ||
+                        settledMessages,
+                    userMessage: null,
+                    assistantMessage: null,
+                    isStreaming: false,
+                    waitingForServer: true,
+                }));
+            }
         },
         [effectiveChatId, queryClient, settledMessages],
     );
@@ -1339,8 +1417,8 @@ function ChatContent({
         },
         updateChatHook,
         currentEntityId: selectedEntityIdFromProp,
+        onClientSideToolHeartbeat: sendClientToolHeartbeat,
         onClientSideToolCall: handleClientSideToolCall,
-        onChatPromoted: handlePromotedChatId,
         onStreamComplete: handleStreamComplete,
         onStreamDetached: handleStreamDetached,
         onServerToolFinish: handleStreamCompleteHtmlFallback,
@@ -1349,6 +1427,55 @@ function ChatContent({
     useEffect(() => {
         isStreamingRef.current = isStreaming;
     }, [isStreaming]);
+
+    useEffect(() => {
+        if (!isWaitingForServer || isStreaming) return;
+        if (!effectiveChatId) return;
+
+        let cancelled = false;
+        let inFlight = false;
+
+        const reconcileWaitingChat = async () => {
+            if (cancelled || inFlight) return;
+            inFlight = true;
+            try {
+                const committedChat = await syncCommittedChat(effectiveChatId);
+                if (cancelled || !committedChat) return;
+                ensureChatInActiveChats(queryClient, committedChat);
+                syncChatToListCaches(queryClient, committedChat);
+                if (!committedChat.isChatLoading) {
+                    setDraftPair((currentDraftPair) =>
+                        currentDraftPair?.waitingForServer
+                            ? null
+                            : currentDraftPair,
+                    );
+                }
+            } catch {
+                queryClient.invalidateQueries({
+                    queryKey: ["chat", String(effectiveChatId)],
+                });
+            } finally {
+                inFlight = false;
+            }
+        };
+
+        void reconcileWaitingChat();
+        const intervalId = setInterval(
+            reconcileWaitingChat,
+            WAITING_FOR_RESPONSE_SYNC_MS,
+        );
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [
+        effectiveChatId,
+        isStreaming,
+        isWaitingForServer,
+        queryClient,
+        syncCommittedChat,
+    ]);
 
     useEffect(() => {
         if (!isStreaming) return;
@@ -1407,7 +1534,7 @@ function ChatContent({
             waitingForServer: false,
         }));
 
-        if (!targetChatId || isClientOnlyChatId(targetChatId)) {
+        if (!targetChatId) {
             return;
         }
 
@@ -1476,7 +1603,7 @@ function ChatContent({
     const handleSend = useCallback(
         async (sendMessage, overrideMessages, options = {}) => {
             const { retryAttempt = 0 } = options;
-            const currentChatId = effectiveChatId || chatId;
+            let currentChatId = effectiveChatId || chatId;
             const baseMessages = overrideMessages || displayedMessages;
             const optimisticUserMessage =
                 typeof sendMessage === "string" || Array.isArray(sendMessage)
@@ -1515,6 +1642,10 @@ function ChatContent({
                     throw new Error("Chat ID is required");
                 }
 
+                if (String(currentChatId) === "new") {
+                    throw new Error("New chat must be created before sending");
+                }
+
                 optimisticCacheSnapshot = captureOptimisticSendCache(
                     queryClient,
                     currentChatId,
@@ -1533,20 +1664,6 @@ function ChatContent({
                     messages: [...baseMessages, messageToPersist],
                 });
 
-                // Optimistic sidebar + count for brand-new chats
-                if (isClientOnlyChatId(currentChatId)) {
-                    const inFlightChat = queryClient.getQueryData([
-                        "chat",
-                        currentChatId,
-                    ]);
-                    if (inFlightChat) {
-                        ensureChatInActiveChats(queryClient, inFlightChat);
-                    }
-                    queryClient.setQueryData(["totalChatCount"], (old) =>
-                        typeof old === "number" ? old + 1 : old,
-                    );
-                }
-
                 setDraftPair({
                     baseMessages,
                     userMessage: optimisticUserMessage,
@@ -1555,26 +1672,24 @@ function ChatContent({
                 });
                 setIsStreaming(true);
 
-                if (!isClientOnlyChatId(currentChatId)) {
-                    if (isReplay) {
-                        await updateChatHook.mutateAsync({
-                            chatId: currentChatId,
-                            messages: overrideMessages,
-                            allowMessageTruncation: true,
-                            selectedEntityId: selectedEntityIdFromProp,
-                        });
-                    }
-
-                    persistedChat = await addMessage.mutateAsync({
+                if (isReplay) {
+                    await updateChatHook.mutateAsync({
                         chatId: currentChatId,
-                        message: messageToPersist,
-                        skipCacheUpdate: true,
-                    });
-                    syncInFlightChatCache(queryClient, currentChatId, {
-                        fallbackChat: chat,
-                        serverChat: persistedChat,
+                        messages: overrideMessages,
+                        allowMessageTruncation: true,
+                        selectedEntityId: selectedEntityIdFromProp,
                     });
                 }
+
+                persistedChat = await addMessage.mutateAsync({
+                    chatId: currentChatId,
+                    message: messageToPersist,
+                    skipCacheUpdate: true,
+                });
+                syncInFlightChatCache(queryClient, currentChatId, {
+                    fallbackChat: chat,
+                    serverChat: persistedChat,
+                });
 
                 const conversation = baseMessages
                     .slice(-contextMessageCount)
@@ -1664,6 +1779,19 @@ function ChatContent({
                             pageSpecificContext = dynamicContext;
                         }
                     } catch {}
+                }
+
+                const relevantSkillContext = canvasContent?.appletId
+                    ? buildRelevantSkillReferenceContext(
+                          "applets",
+                          "The active canvas contains a Concierge applet.",
+                      )
+                    : "";
+
+                if (relevantSkillContext) {
+                    pageSpecificContext = pageSpecificContext
+                        ? `${pageSpecificContext}\n${relevantSkillContext}`
+                        : relevantSkillContext;
                 }
 
                 // Build combined context using global context mechanism
@@ -1792,7 +1920,7 @@ function ChatContent({
                 let nextBaseMessages = baseMessages;
                 let nextPendingUserMessage = optimisticUserMessage;
 
-                if (persistedChat && !isClientOnlyChatId(currentChatId)) {
+                if (persistedChat) {
                     const cachedChat = queryClient.getQueryData([
                         "chat",
                         String(currentChatId),
@@ -2167,7 +2295,8 @@ function ChatContent({
                     isStreaming={isStreaming}
                     onStopStreaming={stableStopStreaming}
                     onInjectMessage={stableInjectMessage}
-                    onPromoteChat={onPromoteChat}
+                    onCopyAndContinue={onCopyAndContinue}
+                    copyInProgress={copyInProgress}
                 />
             </div>
         );
@@ -2202,6 +2331,8 @@ function ChatContent({
                 onLoadOlder={stableLoadOlder}
                 hasMoreMessages={hasMoreMessages}
                 isLoadingOlder={isLoadingOlder}
+                onCopyAndContinue={onCopyAndContinue}
+                copyInProgress={copyInProgress}
             />
 
             <AlertDialog

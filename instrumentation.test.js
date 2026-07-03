@@ -5,6 +5,7 @@ import Prompt from "./app/api/models/prompt";
 import App, { APP_TYPES, APP_STATUS } from "./app/api/models/app";
 import User from "./app/api/models/user.mjs";
 import { migrateLLMsToModelIds, seedNativeApps } from "./instrumentation";
+import { BUILT_IN_NATIVE_APPS } from "./app/api/apps/native-apps";
 import config from "./config/index";
 
 let mongoServer;
@@ -208,60 +209,14 @@ describe("LLM to Model ID Migration", () => {
 });
 
 describe("Native Apps Seeding", () => {
-    test("should seed native apps with icons", async () => {
+    test("should seed the full sidebar native app set with icons", async () => {
         await seedNativeApps();
 
         const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
 
-        // Should have 6 native apps
-        expect(nativeApps.length).toBe(6);
+        expect(nativeApps.length).toBe(BUILT_IN_NATIVE_APPS.length);
 
-        // Check that each app has the expected properties
-        const expectedApps = [
-            {
-                name: "Translate",
-                slug: "translate",
-                icon: "Globe",
-                description:
-                    "Translate text between multiple languages with AI-powered accuracy",
-            },
-            {
-                name: "Transcribe",
-                slug: "video",
-                icon: "Video",
-                description:
-                    "Transcribe and translate video and audio files with AI-powered accuracy",
-            },
-            {
-                name: "Write",
-                slug: "write",
-                icon: "Pencil",
-                description:
-                    "Write and edit content with AI-powered writing assistance",
-            },
-            {
-                name: "Workspaces",
-                slug: "workspaces",
-                icon: "AppWindow",
-                description:
-                    "Manage your AI workspaces and collaborate on projects",
-            },
-            {
-                name: "Media",
-                slug: "media",
-                icon: "Image",
-                description: "Generate and manage images and media content",
-            },
-            {
-                name: "Jira",
-                slug: "jira",
-                icon: "Bug",
-                description:
-                    "Integrate with Jira for issue tracking and project management",
-            },
-        ];
-
-        expectedApps.forEach((expectedApp) => {
+        BUILT_IN_NATIVE_APPS.forEach((expectedApp) => {
             const app = nativeApps.find((a) => a.slug === expectedApp.slug);
             expect(app).toBeTruthy();
             expect(app.name).toBe(expectedApp.name);
@@ -269,6 +224,7 @@ describe("Native Apps Seeding", () => {
             expect(app.description).toBe(expectedApp.description);
             expect(app.type).toBe(APP_TYPES.NATIVE);
             expect(app.status).toBe(APP_STATUS.ACTIVE);
+            expect(app.listedInStore).toBe(true);
         });
     });
 
@@ -287,6 +243,24 @@ describe("Native Apps Seeding", () => {
         await seedNativeApps();
 
         const nativeApps = await App.find({ type: APP_TYPES.NATIVE });
-        expect(nativeApps.length).toBe(6);
+        expect(nativeApps.length).toBe(BUILT_IN_NATIVE_APPS.length);
+    });
+
+    test("should restore hidden built-ins so Manage Apps can re-add them", async () => {
+        await App.create({
+            name: "Chats",
+            slug: "chat",
+            type: APP_TYPES.NATIVE,
+            status: APP_STATUS.INACTIVE,
+            listedInStore: false,
+            icon: "MessageCircle",
+            description: "Start conversations and return to recent chats.",
+        });
+
+        await seedNativeApps();
+
+        const chatApp = await App.findOne({ slug: "chat" });
+        expect(chatApp.status).toBe(APP_STATUS.ACTIVE);
+        expect(chatApp.listedInStore).toBe(true);
     });
 });

@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
  * @param {Object} options.tree - The folder tree from useUnifiedFileData
  * @param {string|null} options.chatId - If provided, auto-select chats/{chatId} on mount
  * @param {string|undefined} options.defaultSelectedPath - Initial folder path; "" selects All Files
+ * @param {string[]} options.initialExpandedPaths - Folder paths expanded before data loads
  * @param {string|undefined} options.rootPathLabel - Optional label for the real root folder
  * @param {string} options.allFilesPath - Path token for the recursive All Files view
  * @returns {Object} Navigation state and actions
@@ -17,6 +18,7 @@ export function useFolderNavigation({
     tree,
     chatId = null,
     defaultSelectedPath,
+    initialExpandedPaths = [],
     rootPathLabel,
     allFilesPath = "",
 }) {
@@ -25,7 +27,9 @@ export function useFolderNavigation({
     const [selectedPath, setSelectedPath] = useState(
         defaultSelectedPath === undefined ? null : defaultSelectedPath,
     );
-    const [expandedPaths, setExpandedPaths] = useState(new Set());
+    const [expandedPaths, setExpandedPaths] = useState(
+        () => new Set(initialExpandedPaths.filter(Boolean)),
+    );
     const initializedChatIdRef = useRef(null);
 
     // Auto-expand and select chat folder on mount when chatId is provided

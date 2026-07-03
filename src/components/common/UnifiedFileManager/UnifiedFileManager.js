@@ -34,6 +34,7 @@ import {
 } from "@/src/components/common/FileManager";
 import { getDownloadUrl } from "@/src/utils/fileDownloadUtils";
 import { useItemSelection } from "@/src/components/images/hooks/useItemSelection";
+import { useQuery } from "@tanstack/react-query";
 import BulkActionsBar from "@/src/components/common/BulkActionsBar";
 import EmptyState from "@/src/components/common/EmptyState";
 
@@ -44,11 +45,17 @@ import FileContentArea from "./FileContentArea";
 import FileGridView from "./FileGridView";
 import FileToolbar from "./FileToolbar";
 import FileStatusBar from "./FileStatusBar";
+import {
+    applyFileMetadata,
+    buildFileMetadataRequest,
+    buildFolderTitleMap,
+} from "@/src/utils/fileMetadataCatalog";
 
 const SIDEBAR_MIN = 150;
 const SIDEBAR_MAX = 350;
 const SIDEBAR_DEFAULT = 220;
 const VIEW_MODE_KEY = "unified-file-manager-view-mode";
+const PERSISTENCE_KEY_PREFIX = "unified-file-manager-state";
 const MOBILE_BREAKPOINT = 768;
 const ALL_FILES_PATH = "__all_files__";
 const PROCESSING_PREVIEW_STATUSES = new Set([
@@ -66,12 +73,56 @@ const INVALID_FOLDER_SEGMENT_CHARS = new Set([
     "*",
 ]);
 
+function getPersistenceStorageKey(persistenceKey) {
+    return persistenceKey
+        ? `${PERSISTENCE_KEY_PREFIX}:${persistenceKey}`
+        : null;
+}
+
+function readPersistedFileManagerState(persistenceKey) {
+    const storageKey = getPersistenceStorageKey(persistenceKey);
+    if (!storageKey || typeof localStorage === "undefined") return {};
+
+    try {
+        const rawValue = localStorage.getItem(storageKey);
+        if (!rawValue) return {};
+        const parsed = JSON.parse(rawValue);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function writePersistedFileManagerState(persistenceKey, updates) {
+    const storageKey = getPersistenceStorageKey(persistenceKey);
+    if (!storageKey || typeof localStorage === "undefined") return;
+
+    try {
+        const current = readPersistedFileManagerState(persistenceKey);
+        localStorage.setItem(
+            storageKey,
+            JSON.stringify({
+                ...current,
+                ...updates,
+            }),
+        );
+    } catch {
+        // Ignore localStorage errors.
+    }
+}
+
+function getScrollTop(event) {
+    return Number(event?.currentTarget?.scrollTop || 0);
+}
+
 function isProcessingPreviewFile(file) {
     const status = String(file?._mediaItem?.status || file?.status || "")
         .trim()
         .toLowerCase();
     return PROCESSING_PREVIEW_STATUSES.has(status);
 }
+
+const EMPTY_PREVIEW_OPTIONS = Object.freeze({});
 
 function hasInvalidFolderSegmentChars(segment) {
     return Array.from(segment).some(
@@ -241,6 +292,7 @@ function getSearchableFileText(file) {
  * @param {Function} props.onUploadClick - Open upload dialog
  * @param {Function} props.onAttach - When provided, adds an "Attach" bulk action that calls
  *   onAttach(selectedObjects). Used by the chat composer's file collection picker.
+ * @param {Function} props.onFileDragStart - Optional drag-start handler for file cards/rows.
  * @param {string} props.attachLabel - Label for the attach action (default "Attach")
  * @param {Function} props.getBulkActionVisibility - Optional callback that returns
  *   per-action visibility for the current selection, e.g. { attach: false }.
@@ -252,6 +304,7 @@ function getSearchableFileText(file) {
  * @param {boolean} props.isDownloading - Whether download is in progress
  * @param {string} props.containerHeight - CSS height for the container
  * @param {Function|null} props.filterFile - Optional predicate for hiding implementation files
+ * @param {string|null} props.persistenceKey - Optional localStorage key suffix for restoring navigation and scroll position
  */
 export default function UnifiedFileManager({
     contextId,
@@ -271,6 +324,7 @@ export default function UnifiedFileManager({
     renderPreviewDialog,
     renderFileOverlay,
     renderFileStatus,
+    onFileDragStart,
     augmentedFiles = [],
     storageTarget = null,
     defaultSelectedPath,
@@ -281,6 +335,7 @@ export default function UnifiedFileManager({
     isDownloading = false,
     containerHeight = "60vh",
     filterFile = null,
+    persistenceKey = null,
 }) {
     const { t } = useTranslation();
     const direction =
@@ -289,6 +344,22 @@ export default function UnifiedFileManager({
             : "ltr";
     const [isMobile, setIsMobile] = useState(false);
     const [showMobileFolders, setShowMobileFolders] = useState(false);
+    const persistedState = useMemo(
+        () => readPersistedFileManagerState(persistenceKey),
+        [persistenceKey],
+    );
+    const initialSelectedPath =
+        defaultSelectedPath === undefined
+            ? persistedState.selectedPath
+            : defaultSelectedPath;
+    const initialExpandedPaths = Array.isArray(persistedState.expandedPaths)
+        ? persistedState.expandedPaths
+        : [];
+    const sidebarScrollRef = useRef(null);
+    const contentScrollRef = useRef(null);
+    const restoredSidebarScrollRef = useRef(false);
+    const restoredContentScrollRef = useRef(false);
+    const restoredSelectionRef = useRef(false);
 
     // View mode (persisted in localStorage)
     const [viewMode, setViewMode] = useState(() => {
@@ -393,6 +464,41 @@ export default function UnifiedFileManager({
         storageTarget,
         filterFile,
     });
+    const folderPaths = useMemo(() => collectFolderPaths(tree), [tree]);
+    const metadataRequest = useMemo(
+        () => buildFileMetadataRequest({ folderPaths, files: allFiles }),
+        [folderPaths, allFiles],
+    );
+    const metadataKey = useMemo(
+        () => [
+            ...metadataRequest.folderPaths,
+            "|",
+            ...metadataRequest.blobPaths,
+        ],
+        [metadataRequest],
+    );
+    const { data: fileCatalog = { folders: {}, files: {} } } = useQuery({
+        queryKey: ["fileMetadata", metadataKey],
+        enabled:
+            metadataRequest.folderPaths.length > 0 ||
+            metadataRequest.blobPaths.length > 0,
+        staleTime: 1000 * 60 * 5,
+        queryFn: async () => {
+            const response = await fetch("/api/files/metadata", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(metadataRequest),
+            });
+            if (!response.ok) {
+                throw new Error("Failed to load file metadata");
+            }
+            return response.json();
+        },
+    });
+    const enrichedChatTitleMap = useMemo(
+        () => buildFolderTitleMap(chatTitleMap, fileCatalog.folders),
+        [chatTitleMap, fileCatalog.folders],
+    );
 
     // Navigation hook
     const allFilesPath = rootFolderLabel ? ALL_FILES_PATH : "";
@@ -407,7 +513,8 @@ export default function UnifiedFileManager({
     } = useFolderNavigation({
         tree,
         chatId,
-        defaultSelectedPath,
+        defaultSelectedPath: initialSelectedPath,
+        initialExpandedPaths,
         rootPathLabel: rootFolderLabel,
         allFilesPath,
     });
@@ -421,9 +528,13 @@ export default function UnifiedFileManager({
                   ? collectAllFiles(tree)
                   : getFilesForPath(selectedPath);
 
+        const enrichedFiles = filesInFolder.map((file) =>
+            applyFileMetadata(file, fileCatalog.files),
+        );
+
         // Deduplicate — same content hash can appear in multiple scopes
         const seen = new Set();
-        const deduped = filesInFolder.filter((file) => {
+        const deduped = enrichedFiles.filter((file) => {
             const key = file?.blobPath || file?._id || file?.hash || file?.url;
             if (!key || seen.has(key)) return false;
             seen.add(key);
@@ -438,7 +549,14 @@ export default function UnifiedFileManager({
               });
 
         return sortFilesByMostRecent(visibleFiles);
-    }, [allFilesPath, tree, selectedPath, getFilesForPath, filterText]);
+    }, [
+        allFilesPath,
+        tree,
+        selectedPath,
+        getFilesForPath,
+        fileCatalog.files,
+        filterText,
+    ]);
 
     // File ID helper
     const getFileId = useCallback((file) => createFileId(file), []);
@@ -472,6 +590,116 @@ export default function UnifiedFileManager({
             allFilesPath,
         });
     }, [allFilesPath, onFolderChange, selectedPath]);
+
+    useEffect(() => {
+        restoredSidebarScrollRef.current = false;
+        restoredContentScrollRef.current = false;
+        restoredSelectionRef.current = false;
+    }, [persistenceKey]);
+
+    useEffect(() => {
+        if (!persistenceKey || selectedPath == null) return;
+        writePersistedFileManagerState(persistenceKey, {
+            selectedPath,
+            expandedPaths: [...expandedPaths],
+        });
+    }, [expandedPaths, persistenceKey, selectedPath]);
+
+    useEffect(() => {
+        if (!persistenceKey || restoredSidebarScrollRef.current) return;
+        const node = sidebarScrollRef.current;
+        if (!node) return;
+        node.scrollTop = Number(persistedState.sidebarScrollTop || 0);
+        restoredSidebarScrollRef.current = true;
+    }, [isMobile, persistenceKey, persistedState.sidebarScrollTop, tree]);
+
+    useEffect(() => {
+        if (!persistenceKey || restoredContentScrollRef.current) return;
+        const node = contentScrollRef.current;
+        if (!node) return;
+        node.scrollTop = Number(persistedState.contentScrollTop || 0);
+        restoredContentScrollRef.current = true;
+    }, [
+        currentFiles.length,
+        effectiveViewMode,
+        persistenceKey,
+        persistedState.contentScrollTop,
+        selectedPath,
+    ]);
+
+    useEffect(() => {
+        if (
+            !persistenceKey ||
+            restoredSelectionRef.current ||
+            selectedPath == null ||
+            (loading && allFiles.length === 0)
+        ) {
+            return;
+        }
+
+        const persistedSelectedIds = Array.isArray(
+            persistedState.selectedFileIds,
+        )
+            ? persistedState.selectedFileIds
+            : [];
+        const selectedIdSet = new Set(persistedSelectedIds);
+        const restoredObjects = currentFiles.filter((file) =>
+            selectedIdSet.has(getFileId(file)),
+        );
+        const restoredIds = new Set(
+            restoredObjects.map((file) => getFileId(file)),
+        );
+        const restoredLastSelectedId =
+            persistedState.lastSelectedFileId &&
+            restoredIds.has(persistedState.lastSelectedFileId)
+                ? persistedState.lastSelectedFileId
+                : restoredObjects.length > 0
+                  ? getFileId(restoredObjects[restoredObjects.length - 1])
+                  : null;
+
+        setSelectedIds(restoredIds);
+        setSelectedObjects(restoredObjects);
+        setLastSelectedId(restoredLastSelectedId);
+        restoredSelectionRef.current = true;
+    }, [
+        currentFiles,
+        getFileId,
+        loading,
+        allFiles.length,
+        persistenceKey,
+        persistedState.lastSelectedFileId,
+        persistedState.selectedFileIds,
+        selectedPath,
+        setLastSelectedId,
+        setSelectedIds,
+        setSelectedObjects,
+    ]);
+
+    useEffect(() => {
+        if (!persistenceKey || !restoredSelectionRef.current) return;
+        writePersistedFileManagerState(persistenceKey, {
+            selectedFileIds: [...selectedIds],
+            lastSelectedFileId: lastSelectedId,
+        });
+    }, [lastSelectedId, persistenceKey, selectedIds]);
+
+    const handleSidebarScroll = useCallback(
+        (event) => {
+            writePersistedFileManagerState(persistenceKey, {
+                sidebarScrollTop: getScrollTop(event),
+            });
+        },
+        [persistenceKey],
+    );
+
+    const handleContentScroll = useCallback(
+        (event) => {
+            writePersistedFileManagerState(persistenceKey, {
+                contentScrollTop: getScrollTop(event),
+            });
+        },
+        [persistenceKey],
+    );
 
     // Select all
     const allSelected =
@@ -542,17 +770,25 @@ export default function UnifiedFileManager({
 
     // Preview
     const [previewFile, setPreviewFile] = useState(null);
-    const [previewOptions, setPreviewOptions] = useState({});
+    const [previewOptions, setPreviewOptions] = useState(EMPTY_PREVIEW_OPTIONS);
     const handlePreview = useCallback((file, options = {}) => {
         if (isProcessingPreviewFile(file)) {
             return;
         }
         setPreviewFile(file);
-        setPreviewOptions(options || {});
+        setPreviewOptions(
+            options && Object.keys(options).length > 0
+                ? options
+                : EMPTY_PREVIEW_OPTIONS,
+        );
     }, []);
     const handleClosePreview = useCallback(() => {
-        setPreviewFile(null);
-        setPreviewOptions({});
+        setPreviewFile((current) => (current == null ? current : null));
+        setPreviewOptions((current) =>
+            current && Object.keys(current).length > 0
+                ? EMPTY_PREVIEW_OPTIONS
+                : current,
+        );
     }, []);
 
     // Delete confirmation
@@ -602,7 +838,6 @@ export default function UnifiedFileManager({
         handleDeleteRequest(selectedObjects);
     }, [selectedObjects, handleDeleteRequest]);
 
-    const folderPaths = useMemo(() => collectFolderPaths(tree), [tree]);
     const moveFolderOptions = useMemo(() => {
         const options = new Set();
         for (const path of folderPaths) {
@@ -884,7 +1119,7 @@ export default function UnifiedFileManager({
                 onViewModeChange={handleViewModeChange}
                 onUploadClick={onUploadClick}
                 onRefresh={reloadFiles}
-                chatTitleMap={chatTitleMap}
+                chatTitleMap={enrichedChatTitleMap}
                 isMobile={isMobile}
                 showMobileFolders={showMobileFolders}
                 onToggleMobileFolders={() =>
@@ -893,10 +1128,14 @@ export default function UnifiedFileManager({
             />
 
             {isMobile && showMobileFolders && (
-                <div className="max-h-64 flex-shrink-0 overflow-y-auto border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-700 dark:bg-gray-900">
+                <div
+                    ref={sidebarScrollRef}
+                    onScroll={handleSidebarScroll}
+                    className="max-h-64 flex-shrink-0 overflow-y-auto border-b border-gray-200 bg-white px-2 py-2 dark:border-gray-700 dark:bg-gray-900"
+                >
                     <SidebarFolderTree
                         tree={tree}
-                        chatTitleMap={chatTitleMap}
+                        chatTitleMap={enrichedChatTitleMap}
                         totalFileCount={totalFileCount}
                         isExpanded={isExpanded}
                         isSelected={isSelected}
@@ -916,12 +1155,14 @@ export default function UnifiedFileManager({
                     <>
                         {/* Sidebar */}
                         <div
+                            ref={sidebarScrollRef}
+                            onScroll={handleSidebarScroll}
                             className="flex-shrink-0 overflow-y-auto overflow-x-hidden border-e border-gray-200 dark:border-gray-700"
                             style={{ width: `${sidebarWidth}px` }}
                         >
                             <SidebarFolderTree
                                 tree={tree}
-                                chatTitleMap={chatTitleMap}
+                                chatTitleMap={enrichedChatTitleMap}
                                 totalFileCount={totalFileCount}
                                 isExpanded={isExpanded}
                                 isSelected={isSelected}
@@ -975,6 +1216,9 @@ export default function UnifiedFileManager({
                             enableFilenameEdit={!!onUpdateMetadata}
                             renderFileOverlay={renderFileOverlay}
                             renderFileStatus={renderFileStatus}
+                            onFileDragStart={onFileDragStart}
+                            scrollContainerRef={contentScrollRef}
+                            onScroll={handleContentScroll}
                         />
                     ) : (
                         <FileContentArea
@@ -995,6 +1239,9 @@ export default function UnifiedFileManager({
                             filterText={filterText}
                             isMobile={isMobile}
                             renderFileStatus={renderFileStatus}
+                            onFileDragStart={onFileDragStart}
+                            scrollContainerRef={contentScrollRef}
+                            onScroll={handleContentScroll}
                         />
                     )}
                 </div>

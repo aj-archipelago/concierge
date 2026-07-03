@@ -27,6 +27,8 @@ const KNOWN_CLIENT_TOOLS = [
     "DeleteAutomation",
     "ViewAutomationHtml",
     "UpdateAppletMetadata",
+    "GenerateAppletMetadata",
+    "GenerateAppletImage",
     "UnpublishApplet",
     "GetAppletVersionSource",
     "CopyAppletVersionToDraft",

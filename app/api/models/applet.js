@@ -118,6 +118,34 @@ export const appletSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        migratedFromWorkspaceId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Workspace",
+            required: false,
+        },
+        migratedFromAppletVersion: {
+            type: Number,
+            required: false,
+        },
+        migratedAt: {
+            type: Date,
+            required: false,
+        },
+        migrationStatus: {
+            type: String,
+            enum: ["pending", "migrated", "failed"],
+            required: false,
+        },
+        migrationError: {
+            type: String,
+            required: false,
+        },
+        migrationWarnings: [
+            {
+                type: String,
+                required: false,
+            },
+        ],
         sdkSuspendedAt: {
             type: Date,
             required: false,
@@ -139,6 +167,7 @@ export const appletSchema = new mongoose.Schema(
 // add index on owner
 appletSchema.index({ owner: 1 });
 appletSchema.index({ owner: 1, version: 1, updatedAt: -1 });
+appletSchema.index({ migratedFromWorkspaceId: 1 });
 
 // Create the Workspace model from the schema
 const Applet = mongoose.models.Applet || mongoose.model("Applet", appletSchema);

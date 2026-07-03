@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Task from "../../models/task.mjs";
+import Notification from "../../models/notification.mjs";
 import { getCurrentUser } from "../../utils/auth";
 import { deleteTask } from "../../utils/task-utils.mjs";
 
@@ -11,7 +12,6 @@ export async function POST(req) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - days);
 
-        // Find all tasks that match our criteria
         const tasksToDelete = await Task.find({
             owner: user._id,
             createdAt: { $lt: cutoffDate },
@@ -20,17 +20,21 @@ export async function POST(req) {
             },
         });
 
-        // Delete each task using our utility method
         let deletedCount = 0;
         for (const task of tasksToDelete) {
             try {
                 await deleteTask(task._id, user._id);
                 deletedCount++;
             } catch (error) {
-                console.error(`Error deleting task ${task._id}:`, error);
-                // Continue with other tasks even if one fails
+                console.error("Error deleting task:", task._id, error);
             }
         }
+
+        const notificationResult = await Notification.deleteMany({
+            owner: user._id,
+            createdAt: { $lt: cutoffDate },
+        });
+        deletedCount += notificationResult.deletedCount || 0;
 
         return NextResponse.json({
             success: true,

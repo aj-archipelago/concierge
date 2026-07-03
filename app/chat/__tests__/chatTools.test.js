@@ -5,11 +5,14 @@ import {
     handleGetApplet,
     handleGetAppletState,
     handleGetAppletVersionSource,
+    handleGenerateAppletImage,
+    handleGenerateAppletMetadata,
     handleListApplets,
     handleOpenAppletDraft,
     handlePublishAppletVersion,
     handleCopyAppletVersionToDraft,
     handleSaveAppletDraftAsVersion,
+    handleSetHomeApplet,
     handleUnpublishApplet,
     handleUpdateAppletMetadata,
 } from "../chatTools";
@@ -28,14 +31,27 @@ describe("chat applet tools", () => {
         const updateApplet = CHAT_CONTEXTUAL_TOOLS.find(
             (tool) => tool.function.name === "UpdateAppletMetadata",
         );
+        const generateMetadata = CHAT_CONTEXTUAL_TOOLS.find(
+            (tool) => tool.function.name === "GenerateAppletMetadata",
+        );
+        const generateImage = CHAT_CONTEXTUAL_TOOLS.find(
+            (tool) => tool.function.name === "GenerateAppletImage",
+        );
         const unpublishApplet = CHAT_CONTEXTUAL_TOOLS.find(
             (tool) => tool.function.name === "UnpublishApplet",
         );
 
         expect(toolNames).toEqual(
-            expect.arrayContaining(["UpdateAppletMetadata"]),
+            expect.arrayContaining([
+                "SetHomeApplet",
+                "UpdateAppletMetadata",
+                "GenerateAppletMetadata",
+                "GenerateAppletImage",
+            ]),
         );
-        expect(updateApplet.function.description).toContain("rename (`name`)");
+        expect(updateApplet.function.description).toContain(
+            "rename with `name`",
+        );
         expect(updateApplet.function.description).toContain(
             "SaveAppletDraftAsVersion",
         );
@@ -43,12 +59,66 @@ describe("chat applet tools", () => {
             "publishToAppStore",
         );
         expect(updateApplet.function.parameters.properties).toHaveProperty(
+            "appImageAlt",
+        );
+        expect(updateApplet.function.parameters.properties).toHaveProperty(
+            "appImageLightUrl",
+        );
+        expect(updateApplet.function.parameters.properties).toHaveProperty(
+            "appImageDarkUrl",
+        );
+        expect(updateApplet.function.parameters.properties).toHaveProperty(
+            "appMetadataGeneratedAt",
+        );
+        expect(updateApplet.function.parameters.properties).toHaveProperty(
             "clearSdkSuspension",
         );
         expect(updateApplet.function.parameters.properties).not.toHaveProperty(
             "unpublish",
         );
+        expect(generateMetadata.function.description).toContain(
+            "applet-specific metadata endpoint",
+        );
+        expect(generateImage.function.description).toContain(
+            "applet-specific image endpoint",
+        );
+        expect(generateImage.function.parameters.properties).toHaveProperty(
+            "waitForResult",
+        );
+        expect(generateImage.function.parameters.properties).toHaveProperty(
+            "styleCues",
+        );
+        expect(generateImage.function.parameters.properties).not.toHaveProperty(
+            "model",
+        );
         expect(unpublishApplet).toBeTruthy();
+    });
+
+    test("SetHomeApplet sets the active applet as the home page", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ homeAppletId: "applet123" }),
+        });
+
+        const result = await handleSetHomeApplet(
+            { toolArgs: { userMessage: "Set this as home" } },
+            {
+                getActiveHtmlContent: () => ({
+                    appletId: "applet123",
+                    title: "Dashboard",
+                }),
+            },
+        );
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            "/api/users/me/home-applet",
+            expect.objectContaining({
+                method: "PUT",
+                body: JSON.stringify({ appletId: "applet123" }),
+            }),
+        );
+        expect(result.success).toBe(true);
+        expect(result.data.homeAppletId).toBe("applet123");
     });
 
     test("ListApplets in list mode returns Mongo applets with editable workspace paths", async () => {
@@ -126,6 +196,64 @@ describe("chat applet tools", () => {
         expect(result.data.applets[0].name).toBe("Weather Applet");
     });
 
+    test("ListApplets returns searchable applet card metadata", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                applets: [
+                    {
+                        _id: "applet123",
+                        name: "Untitled",
+                        publishedVersionIndex: null,
+                        workspacePath: "/workspace/files/applets/weather.html",
+                        app: {
+                            _id: "app123",
+                            appletId: "applet123",
+                            name: "Storm Desk",
+                            slug: "storm-desk",
+                            description: "Track storm coverage",
+                            icon: "CloudSun",
+                            imageUrl: "https://images.example/storm.webp",
+                            imageAlt: "Storm dashboard",
+                            badgeLabel: "Weather desk",
+                            category: "weather",
+                            tags: ["storm", "newsroom"],
+                            metadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+                            listedInStore: false,
+                            status: "active",
+                        },
+                    },
+                ],
+            }),
+        });
+
+        const result = await handleListApplets({
+            toolArgs: {
+                query: "newsroom",
+                userMessage: "List newsroom applets",
+            },
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.data.count).toBe(1);
+        expect(result.data.applets[0].appMetadata).toMatchObject({
+            name: "Storm Desk",
+            slug: "storm-desk",
+            description: "Track storm coverage",
+            icon: "CloudSun",
+            imageUrl: "https://images.example/storm.webp",
+            imageAlt: "Storm dashboard",
+            badgeLabel: "Weather desk",
+            category: "weather",
+            tags: ["storm", "newsroom"],
+            metadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+            listedInStore: false,
+            privateUrl: "/apps/private/applet123",
+        });
+        expect(result.data.description).toContain("Card name: Storm Desk");
+        expect(result.data.description).toContain("not listed in app store");
+    });
+
     test("GetApplet returns the applet record with versions", async () => {
         global.fetch.mockResolvedValueOnce({
             ok: true,
@@ -135,6 +263,22 @@ describe("chat applet tools", () => {
                 publishedVersionIndex: 0,
                 workspacePath: "/workspace/files/applets/weather.html",
                 filePath: "https://blob/weather.html",
+                app: {
+                    _id: "app123",
+                    appletId: "applet123",
+                    name: "Storm Desk",
+                    slug: "storm-desk",
+                    description: "Track storm coverage",
+                    icon: "CloudSun",
+                    imageUrl: "https://images.example/storm.webp",
+                    imageAlt: "Storm dashboard",
+                    badgeLabel: "Weather desk",
+                    category: "weather",
+                    tags: ["storm", "newsroom"],
+                    metadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+                    listedInStore: true,
+                    status: "active",
+                },
                 htmlVersions: [
                     {
                         timestamp: "2026-01-01T00:00:00.000Z",
@@ -161,6 +305,15 @@ describe("chat applet tools", () => {
         expect(result.data.versions).toHaveLength(2);
         expect(result.data.versions[0].isPublished).toBe(true);
         expect(result.data.publishedVersionIndex).toBe(0);
+        expect(result.data.appMetadata).toMatchObject({
+            name: "Storm Desk",
+            slug: "storm-desk",
+            imageUrl: "https://images.example/storm.webp",
+            imageAlt: "Storm dashboard",
+            badgeLabel: "Weather desk",
+            tags: ["storm", "newsroom"],
+            appStoreUrl: "/apps/storm-desk",
+        });
         expect(result.data.requestedVersion).toBeUndefined();
     });
 
@@ -375,6 +528,18 @@ describe("chat applet tools", () => {
                     name: "Weather Applet",
                     workspacePath: "/workspace/files/applets/weather.html",
                     publishedVersionIndex: null,
+                    app: {
+                        _id: "app123",
+                        appletId: "applet123",
+                        name: "Storm Desk",
+                        slug: "storm-desk",
+                        imageUrl: "https://images.example/storm.webp",
+                        imageAlt: "Storm dashboard",
+                        badgeLabel: "Weather desk",
+                        category: "weather",
+                        tags: ["storm", "newsroom"],
+                        listedInStore: false,
+                    },
                     htmlVersions: [
                         {
                             content:
@@ -404,8 +569,14 @@ describe("chat applet tools", () => {
 
         expect(result.success).toBe(true);
         expect(result.data.draft.matchesLatestVersion).toBe(true);
+        expect(result.data.appMetadata).toMatchObject({
+            name: "Storm Desk",
+            slug: "storm-desk",
+            imageAlt: "Storm dashboard",
+            listedInStore: false,
+        });
         expect(result.data.recommendedAction).toBe(
-            "PublishAppletVersion when ready",
+            "No publish action needed unless the user asks to make a saved version live",
         );
         expect(global.fetch.mock.calls[1][0]).toBe(
             "/api/workspace/file?entityId=entity123&path=%2Fworkspace%2Ffiles%2Fapplets%2Fweather.html",
@@ -434,6 +605,10 @@ describe("chat applet tools", () => {
             .mockResolvedValueOnce({
                 ok: true,
                 text: async () => "<html><body>draft</body></html>",
+            })
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 404,
             });
 
         const result = await handleGetAppletState(
@@ -452,8 +627,76 @@ describe("chat applet tools", () => {
         expect(result.success).toBe(true);
         expect(result.data.draft.matchesLatestVersion).toBeNull();
         expect(result.data.draft.matchesPublishedVersion).toBeNull();
+        expect(result.data.versions.publishedComparison).toMatchObject({
+            version: 1,
+            workspacePath:
+                "/workspace/files/applets/versions/applet123/v000001.html",
+            readError: "Failed to fetch file from workspace (404)",
+        });
         expect(result.data.recommendedAction).toBe(
-            "Republish Draft or repair the externalized published version content",
+            "Publish a saved version by number, or repair the externalized published version content",
+        );
+    });
+
+    test("GetAppletState compares Draft against the concrete external version artifact", async () => {
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    name: "Source Researcher",
+                    workspacePath: "/workspace/files/applets/ask.html",
+                    publishedVersionIndex: 0,
+                    htmlVersions: [
+                        {
+                            content:
+                                "<html><body>Researching your question</body></html>",
+                            contentBlobPath:
+                                "applets/versions/applet123/v000008.html",
+                            contentHash: "stale-metadata-hash",
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () =>
+                    "<html><body>Researching your question</body></html>",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () =>
+                    "<html><body>Preparing an source-grounded answer</body></html>",
+            });
+
+        const result = await handleGetAppletState(
+            {
+                toolArgs: { userMessage: "Check state" },
+            },
+            {
+                getEntityId: () => "entity123",
+                getActiveHtmlContent: () => ({
+                    appletId: "applet123",
+                    workspacePath: "/workspace/files/applets/ask.html",
+                }),
+            },
+        );
+
+        expect(result.success).toBe(true);
+        expect(result.data.draft.matchesLatestVersion).toBe(false);
+        expect(result.data.draft.matchesPublishedVersion).toBe(false);
+        expect(result.data.versions.latestComparison).toMatchObject({
+            version: 1,
+            source: "/workspace/files/applets/versions/applet123/v000008.html",
+            workspacePath:
+                "/workspace/files/applets/versions/applet123/v000008.html",
+            contentHash: "stale-metadata-hash",
+        });
+        expect(result.data.recommendedAction).toBe(
+            "SaveAppletDraftAsVersion to checkpoint Draft",
+        );
+        expect(global.fetch.mock.calls[2][0]).toBe(
+            "/api/workspace/file?entityId=entity123&path=%2Fworkspace%2Ffiles%2Fapplets%2Fversions%2Fapplet123%2Fv000008.html",
         );
     });
 
@@ -497,6 +740,51 @@ describe("chat applet tools", () => {
             "/api/canvas-applets/applet123",
             { method: "DELETE" },
         );
+    });
+
+    test("DeleteApplet closes a matching non-active canvas tab after deletion", async () => {
+        window.confirm.mockReturnValue(true);
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ success: true }),
+        });
+        const dispatch = jest.fn();
+
+        const result = await handleDeleteApplet(
+            {
+                toolArgs: {
+                    appletId: "applet-delete",
+                    appletName: "Old Calculator",
+                },
+            },
+            {
+                chatId: "chat-1",
+                dispatch,
+                getActiveHtmlContent: () => ({
+                    appletId: "applet-active",
+                    title: "Current Calculator",
+                }),
+                getCanvasSnapshot: () => ({
+                    activeTabId: "tab-active",
+                    canvasTabs: [
+                        {
+                            id: "tab-delete",
+                            content: { appletId: "applet-delete" },
+                        },
+                        {
+                            id: "tab-active",
+                            content: { appletId: "applet-active" },
+                        },
+                    ],
+                }),
+            },
+        );
+
+        expect(result.success).toBe(true);
+        expect(dispatch).toHaveBeenCalledWith({
+            type: "chat/closeCanvasTabForChat",
+            payload: { chatId: "chat-1", tabId: "tab-delete" },
+        });
     });
 
     test("DeleteApplet uses toolInteraction.confirm when available", async () => {
@@ -653,6 +941,177 @@ describe("chat applet tools", () => {
         );
     });
 
+    test("UpdateAppletMetadata forwards all applet card metadata fields without publishing", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                _id: "applet123",
+                name: "Weather Applet",
+                app: {
+                    name: "Storm Desk",
+                    slug: "storm-desk",
+                    listedInStore: false,
+                },
+            }),
+        });
+
+        const result = await handleUpdateAppletMetadata({
+            toolArgs: {
+                appletId: "applet123",
+                appName: "Storm Desk",
+                appSlug: "storm-desk",
+                appDescription: "Track storm coverage",
+                appIcon: "CloudSun",
+                appImageUrl: "https://images.example/storm.webp",
+                appImageLightUrl: "https://images.example/storm-light.webp",
+                appImageDarkUrl: "https://images.example/storm-dark.webp",
+                appImageAlt: "Storm dashboard",
+                appBadgeLabel: "Weather desk",
+                appTags: ["Storm", "Newsroom"],
+                appCategory: "weather",
+                appMetadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+                userMessage: "Update card metadata",
+            },
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.data.updatedFields).toEqual([
+            "appName",
+            "appSlug",
+            "appDescription",
+            "appIcon",
+            "appImageUrl",
+            "appImageLightUrl",
+            "appImageDarkUrl",
+            "appImageAlt",
+            "appBadgeLabel",
+            "appTags",
+            "appCategory",
+            "appMetadataGeneratedAt",
+        ]);
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+            appName: "Storm Desk",
+            appSlug: "storm-desk",
+            appDescription: "Track storm coverage",
+            appIcon: "CloudSun",
+            appImageUrl: "https://images.example/storm.webp",
+            appImageLightUrl: "https://images.example/storm-light.webp",
+            appImageDarkUrl: "https://images.example/storm-dark.webp",
+            appImageAlt: "Storm dashboard",
+            appBadgeLabel: "Weather desk",
+            appTags: ["Storm", "Newsroom"],
+            appCategory: "weather",
+            appMetadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+        });
+    });
+
+    test("GenerateAppletMetadata uses the applet-specific endpoint and applies the result", async () => {
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    source: "cortex",
+                    metadata: {
+                        name: "Storm Ops",
+                        slug: "storm-ops",
+                        description: "Track active storm coverage.",
+                        icon: "CloudSun",
+                        badgeLabel: "Weather desk",
+                        category: "weather",
+                        tags: ["weather", "newsroom"],
+                        imageAlt: "Storm command center",
+                    },
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    app: {
+                        name: "Storm Ops",
+                        slug: "storm-ops",
+                        listedInStore: false,
+                    },
+                }),
+            });
+
+        const result = await handleGenerateAppletMetadata({
+            toolArgs: {
+                appletId: "applet123",
+                userMessage: "Generate applet metadata",
+            },
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.data.source).toBe("cortex");
+        expect(global.fetch).toHaveBeenNthCalledWith(
+            1,
+            "/api/canvas-applets/applet123/metadata/generate",
+            { method: "POST" },
+        );
+        expect(global.fetch).toHaveBeenNthCalledWith(
+            2,
+            "/api/canvas-applets/applet123",
+            expect.objectContaining({
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+        expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
+            appMetadata: expect.objectContaining({
+                name: "Storm Ops",
+                slug: "storm-ops",
+                imageAlt: "Storm command center",
+            }),
+        });
+    });
+
+    test("GenerateAppletImage starts applet-specific image generation without generic media tools", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                taskId: "task-1",
+                jobId: "job-1",
+                model: "gemini-flash-31-image",
+                prompt: "Applet card prompt",
+            }),
+        });
+
+        const result = await handleGenerateAppletImage({
+            toolArgs: {
+                appletId: "applet123",
+                metadata: {
+                    name: "Storm Ops",
+                    description: "Track active storm coverage.",
+                },
+                model: "oai-gpt55",
+                waitForResult: false,
+                styleCues: "noir glassmorphism",
+                userMessage: "Generate applet image",
+            },
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.data.taskId).toBe("task-1");
+        expect(result.data.metadataUpdated).toBe(false);
+        expect(global.fetch).toHaveBeenCalledWith(
+            "/api/canvas-applets/applet123/image/generate",
+            expect.objectContaining({
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+            }),
+        );
+        const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+        expect(requestBody).toMatchObject({
+            metadata: {
+                name: "Storm Ops",
+                description: "Track active storm coverage.",
+            },
+            styleCues: "noir glassmorphism",
+        });
+        expect(requestBody).not.toHaveProperty("model");
+    });
+
     test("UpdateAppletMetadata renames the active applet and updates the open canvas tab title", async () => {
         const dispatch = jest.fn();
         global.fetch.mockResolvedValueOnce({
@@ -782,6 +1241,14 @@ describe("chat applet tools", () => {
         global.fetch
             .mockResolvedValueOnce({
                 ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    name: "Weather Applet",
+                    workspacePath: "/workspace/files/applets/weather.html",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
                 text: async () => "<html>saved file</html>",
             })
             .mockResolvedValueOnce({
@@ -840,6 +1307,14 @@ describe("chat applet tools", () => {
         global.fetch
             .mockResolvedValueOnce({
                 ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    name: "Weather Applet",
+                    workspacePath: "/workspace/files/applets/weather.html",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
                 text: async () => "<html>draft</html>",
             })
             .mockResolvedValueOnce({
@@ -869,15 +1344,140 @@ describe("chat applet tools", () => {
         );
 
         expect(result.success).toBe(true);
-        expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toMatchObject({
+        expect(global.fetch.mock.calls[0][0]).toBe(
+            "/api/canvas-applets/applet123",
+        );
+        expect(JSON.parse(global.fetch.mock.calls[2][1].body)).toMatchObject({
             saveVersion: true,
         });
-        expect(JSON.parse(global.fetch.mock.calls[1][1].body).html).toEqual(
+        expect(JSON.parse(global.fetch.mock.calls[2][1].body).html).toEqual(
             expect.stringContaining("<html>draft</html>"),
         );
     });
 
+    test("SaveAppletDraftAsVersion prefers the registry Draft path over stale active canvas context", async () => {
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    name: "Text AI Launcher",
+                    workspacePath:
+                        "/workspace/files/applets/text-ai-launcher.html",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => "<html>Text AI Launcher draft</html>",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "applet123",
+                    name: "Text AI Launcher",
+                    versionSaved: true,
+                    latestVersionIndex: 3,
+                }),
+            });
+
+        const result = await handleSaveAppletDraftAsVersion(
+            {
+                toolArgs: {
+                    userMessage: "Save Draft",
+                },
+            },
+            {
+                getEntityId: () => "entity123",
+                getActiveHtmlContent: () => ({
+                    appletId: "applet123",
+                    title: "Text AI Launcher",
+                    workspacePath:
+                        "/workspace/files/applets/ai-pulse-command-center.backup.html",
+                }),
+            },
+        );
+
+        expect(result.success).toBe(true);
+        expect(global.fetch.mock.calls[1][0]).toBe(
+            "/api/workspace/file?entityId=entity123&path=%2Fworkspace%2Ffiles%2Fapplets%2Ftext-ai-launcher.html",
+        );
+        const updateBody = JSON.parse(global.fetch.mock.calls[2][1].body);
+        expect(updateBody.html).toContain("Text AI Launcher draft");
+        expect(updateBody.html).not.toContain("AI Pulse");
+    });
+
+    test("SaveAppletDraftAsVersion reads the target applet workspace when appletId differs from the active canvas", async () => {
+        global.fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "target-launcher",
+                    name: "Text AI Launcher",
+                    workspacePath:
+                        "/workspace/files/applets/text-ai-launcher.html",
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => "<html>launcher draft</html>",
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    _id: "target-launcher",
+                    name: "Text AI Launcher",
+                    versionSaved: true,
+                    latestVersionIndex: 4,
+                }),
+            });
+
+        const result = await handleSaveAppletDraftAsVersion(
+            {
+                toolArgs: {
+                    appletId: "target-launcher",
+                    userMessage: "Save launcher",
+                },
+            },
+            {
+                getEntityId: () => "entity123",
+                getActiveHtmlContent: () => ({
+                    appletId: "active-ai-pulse",
+                    title: "AI Pulse Command Center",
+                    workspacePath: "/workspace/files/applets/ai-pulse.html",
+                }),
+            },
+        );
+
+        expect(result.success).toBe(true);
+        expect(global.fetch.mock.calls[0][0]).toBe(
+            "/api/canvas-applets/target-launcher",
+        );
+        expect(global.fetch.mock.calls[1][0]).toBe(
+            "/api/workspace/file?entityId=entity123&path=%2Fworkspace%2Ffiles%2Fapplets%2Ftext-ai-launcher.html",
+        );
+        expect(global.fetch.mock.calls[2][0]).toBe(
+            "/api/canvas-applets/target-launcher",
+        );
+
+        const fetchedUrls = global.fetch.mock.calls.map(([url]) => String(url));
+        expect(
+            fetchedUrls.some((url) =>
+                url.includes("%2Fworkspace%2Ffiles%2Fapplets%2Fai-pulse.html"),
+            ),
+        ).toBe(false);
+
+        const updateBody = JSON.parse(global.fetch.mock.calls[2][1].body);
+        expect(updateBody.saveVersion).toBe(true);
+        expect(updateBody.html).toEqual(
+            expect.stringContaining("<html>launcher draft</html>"),
+        );
+        expect(updateBody.html).not.toEqual(
+            expect.stringContaining("AI Pulse Command Center"),
+        );
+    });
+
     test("PublishAppletVersion with a version publishes the immutable saved version without reading Draft", async () => {
+        const dispatch = jest.fn();
         global.fetch
             .mockResolvedValueOnce({
                 ok: true,
@@ -907,6 +1507,8 @@ describe("chat applet tools", () => {
                 },
             },
             {
+                dispatch,
+                getActiveTabId: () => "tab-1",
                 getActiveHtmlContent: () => ({
                     appletId: "applet123",
                     workspacePath: "/workspace/files/applets/weather.html",
@@ -922,6 +1524,19 @@ describe("chat applet tools", () => {
         expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toEqual({
             publishVersion: 1,
         });
+        expect(dispatch.mock.calls[0][0]).toMatchObject({
+            type: "chat/updateCanvasTab",
+            payload: {
+                tabId: "tab-1",
+                content: expect.objectContaining({
+                    appletId: "applet123",
+                    appletVersionKey: expect.any(Number),
+                }),
+            },
+        });
+        expect(dispatch.mock.calls[0][0].payload.content).not.toHaveProperty(
+            "appletActiveVersionIndex",
+        );
     });
 
     test("UnpublishApplet clears the published version", async () => {

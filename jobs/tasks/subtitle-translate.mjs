@@ -105,24 +105,25 @@ class SubtitleTranslateHandler extends BaseTask {
             },
         );
 
-        // Save translation to user state
-        try {
-            const { userId } = metadata;
-            await this.handleTranslationCompletion(
-                userId,
-                dataObject,
-                metadata.format,
-                metadata,
-            );
-            console.debug(
-                `[SubtitleTranslateHandler] Translation saved to user state for ${userId}`,
-            );
-        } catch (error) {
-            console.error(
-                `[SubtitleTranslateHandler] Error saving translation to state:`,
-                error,
-            );
-            // Don't throw the error as we still want to return the translation
+        if (!metadata.skipUserState) {
+            try {
+                const { userId } = metadata;
+                await this.handleTranslationCompletion(
+                    userId,
+                    dataObject,
+                    metadata.format,
+                    metadata,
+                );
+                console.debug(
+                    `[SubtitleTranslateHandler] Translation saved to user state for ${userId}`,
+                );
+            } catch (error) {
+                console.error(
+                    `[SubtitleTranslateHandler] Error saving translation to state:`,
+                    error,
+                );
+                // Don't throw the error as we still want to return the translation
+            }
         }
 
         return dataObject;

@@ -5,6 +5,17 @@ import { LanguageContext } from "../../../contexts/LanguageProvider";
 import TranscribeVideo from "../AddTrackOptions";
 
 const mockMutateAsync = jest.fn(async () => ({ taskId: "task-1" }));
+const mockUpdateUserStateNow = jest.fn(async (value) =>
+    typeof value === "function"
+        ? value({
+              transcribe: {
+                  videoInformation: {
+                      videoUrl: "https://example.com/audio.mp3",
+                  },
+              },
+          })
+        : value,
+);
 
 jest.mock("../../../App", () => {
     const React = require("react");
@@ -33,20 +44,27 @@ jest.mock("react-i18next", () => ({
     useTranslation: () => ({ t: (key) => key }),
 }));
 
-const renderTranscribeVideo = () =>
+const renderTranscribeVideo = (props = {}) =>
     render(
-        <AuthContext.Provider value={{ debouncedUpdateUserState: jest.fn() }}>
+        <AuthContext.Provider
+            value={{
+                debouncedUpdateUserState: jest.fn(),
+                updateUserStateNow: mockUpdateUserStateNow,
+            }}
+        >
             <ServerContext.Provider
                 value={{
                     neuralspaceEnabled: true,
                     xaiTranscribeEnabled: true,
                     xaiTranscribeDefaultEnabled: false,
+                    maiTranscribeEnabled: true,
                 }}
             >
                 <LanguageContext.Provider value={{ direction: "ltr" }}>
                     <TranscribeVideo
                         url="https://example.com/audio.mp3"
                         onClose={jest.fn()}
+                        {...props}
                     />
                 </LanguageContext.Provider>
             </ServerContext.Provider>
@@ -58,14 +76,20 @@ const submitSelection = async ({
     format = "vtt",
     transcriptionType = "phraseLevel",
     wordsPerLine,
+    language,
 }) => {
     renderTranscribeVideo();
 
-    const [modelSelect, formatSelect, transcriptionTypeSelect] =
+    const [modelSelect, formatSelect, transcriptionTypeSelect, languageSelect] =
         screen.getAllByRole("combobox");
 
-    fireEvent.change(modelSelect, { target: { value: model } });
+    if (model) {
+        fireEvent.change(modelSelect, { target: { value: model } });
+    }
     fireEvent.change(formatSelect, { target: { value: format } });
+    if (language) {
+        fireEvent.change(languageSelect, { target: { value: language } });
+    }
 
     if (format === "vtt") {
         fireEvent.change(transcriptionTypeSelect, {
@@ -90,6 +114,7 @@ const submitSelection = async ({
 describe("AddTrackOptions TranscribeVideo", () => {
     beforeEach(() => {
         mockMutateAsync.mockClear();
+        mockUpdateUserStateNow.mockClear();
     });
 
     test.each([
@@ -117,6 +142,16 @@ describe("AddTrackOptions TranscribeVideo", () => {
             "Gemini",
             {
                 modelOption: "Gemini",
+                wordTimestamped: false,
+                maxLineWidth: undefined,
+                maxLineCount: undefined,
+                maxWordsPerLine: undefined,
+            },
+        ],
+        [
+            "MAI-Transcribe-1.5",
+            {
+                modelOption: "MAI-Transcribe-1.5",
                 wordTimestamped: false,
                 maxLineWidth: undefined,
                 maxLineCount: undefined,
@@ -195,7 +230,7 @@ describe("AddTrackOptions TranscribeVideo", () => {
         ["Gemini", "horizontal", { maxLineWidth: 35, maxLineCount: 1 }],
         ["Gemini", "vertical", { maxLineWidth: 25, maxLineCount: 1 }],
     ])(
-        "submits Gemini %s subtitles without word timestamps",
+        "submits %s %s subtitles without word timestamps",
         async (model, transcriptionType, expected) => {
             const payload = await submitSelection({ model, transcriptionType });
 
@@ -208,6 +243,22 @@ describe("AddTrackOptions TranscribeVideo", () => {
         },
     );
 
+    test("keeps MAI subtitles at phrase level", async () => {
+        const payload = await submitSelection({
+            model: "MAI-Transcribe-1.5",
+            transcriptionType: "horizontal",
+        });
+
+        expect(payload).toMatchObject({
+            modelOption: "MAI-Transcribe-1.5",
+            responseFormat: "vtt",
+            wordTimestamped: false,
+            maxLineWidth: undefined,
+            maxLineCount: undefined,
+            maxWordsPerLine: undefined,
+        });
+    });
+
     test.each([
         ["Plain Text transcript", ""],
         ["Formatted Transcript", "formatted"],
@@ -218,6 +269,58 @@ describe("AddTrackOptions TranscribeVideo", () => {
         expect(payload).toMatchObject({
             modelOption: "Whisper",
             responseFormat: format,
+        });
+    });
+
+    test.each([
+        ["Urdu", "ur"],
+        ["Punjabi", "pa"],
+        ["Hindi", "hi"],
+    ])(
+        "submits %s as the transcription language hint",
+        async (_label, code) => {
+            const payload = await submitSelection({
+                model: "Whisper",
+                language: code,
+            });
+
+            expect(payload).toMatchObject({
+                type: "transcribe",
+                language: code,
+                modelOption: "Whisper",
+            });
+        },
+    );
+
+    test("persists the active video snapshot before queueing background transcription", async () => {
+        renderTranscribeVideo();
+
+        fireEvent.click(screen.getByRole("button", { name: /Transcribe/ }));
+
+        await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+
+        expect(mockUpdateUserStateNow).toHaveBeenCalledTimes(1);
+        expect(mockUpdateUserStateNow.mock.invocationCallOrder[0]).toBeLessThan(
+            mockMutateAsync.mock.invocationCallOrder[0],
+        );
+
+        const stateUpdate = mockUpdateUserStateNow.mock.calls[0][0];
+        expect(
+            stateUpdate({
+                transcribe: {
+                    videoInformation: {
+                        videoUrl: "https://example.com/audio.mp3",
+                    },
+                },
+            }),
+        ).toMatchObject({
+            transcribe: {
+                url: "https://example.com/audio.mp3",
+                videoInformation: {
+                    videoUrl: "https://example.com/audio.mp3",
+                },
+                transcripts: [],
+            },
         });
     });
 });

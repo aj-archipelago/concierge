@@ -6,6 +6,10 @@ import {
     injectAppletIdMeta,
     injectAppletMetaTags,
 } from "../../src/utils/appletHtmlUtils";
+import {
+    generateAndApplyAppletImage,
+    generateAndApplyAppletMetadata,
+} from "../../src/utils/appletAssetGeneration";
 
 /**
  * Contextual tool definitions for chat pages
@@ -18,7 +22,7 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "ListApplets",
             description:
-                "List the user's Concierge applets from the `/api/canvas-applets` registry, optionally filtered by `query`. Use this to find applet IDs and current Draft workspace paths. Do not use media asset APIs for applet metadata; Mongo applet IDs only belong to this Concierge applet registry.",
+                "List the user's Concierge applets from the `/api/canvas-applets` registry, optionally filtered by `query`. Use this to find applet IDs and current Draft workspace paths. Do not use Cortex MAM/media asset APIs for applet metadata; Mongo applet IDs only belong to this Concierge applet registry.",
             descriptionAr:
                 "اعرض تطبيقات Concierge من سجل `/api/canvas-applets` مع إمكانية التصفية بـ `query`. استخدمه للعثور على معرفات التطبيقات ومسارات ملفات المسودة.",
             parameters: {
@@ -45,7 +49,7 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "GetApplet",
             description:
-                "Read one Concierge applet record from the `/api/canvas-applets` registry. Returns metadata, immutable saved version summaries, published version pointer, app-store status, and editable Draft workspace file path. This does not return saved version HTML; external saved versions include a workspacePath under `/workspace/files/...` when available, so read or diff that workspace file instead of downloading blob URLs. Use GetAppletVersionSource for one version's source metadata, or CopyAppletVersionToDraft to make a version editable.",
+                "Read one Concierge applet record from the `/api/canvas-applets` registry. Returns applet metadata, directory/sidebar/app-store card metadata (`appMetadata`: name, slug, description, icon, imageUrl, imageAlt, badgeLabel, tags, category, metadataGeneratedAt, listedInStore), immutable saved version summaries, published version pointer, and editable Draft workspace file path. This does not return saved version HTML; external saved versions include a workspacePath under `/workspace/files/...` when available, so read or diff that workspace file instead of downloading blob URLs. Use GetAppletVersionSource for one version's source metadata, or CopyAppletVersionToDraft to make a version editable.",
             descriptionAr:
                 "اقرأ سجل تطبيق Concierge واحداً: البيانات، ملخص الإصدارات الثابتة، مؤشر المنشور، حالة متجر التطبيقات، ومسار ملف المسودة القابل للتحرير. عندما يتوفر workspacePath لإصدار محفوظ، اقرأه أو قارنه من مساحة العمل بدلاً من تنزيل روابط blob.",
             parameters: {
@@ -67,11 +71,43 @@ export const CHAT_CONTEXTUAL_TOOLS = [
     },
     {
         type: "function",
+        icon: "🏠",
+        function: {
+            name: "SetHomeApplet",
+            description:
+                "Set one Concierge applet as the user's Home page, or clear the Home applet. appletId defaults to the active canvas applet. The Home page renders the applet's mutable Draft, so publishing is not required for ordinary Home-only updates. If the user asked you to create a homepage/launchpad/launcher applet that opens other applets, first save Draft as a version, publish that saved version locally, then call SetHomeApplet.",
+            descriptionAr:
+                "عيّن تطبيق Concierge واحداً كصفحة رئيسية للمستخدم، أو امسح تطبيق الصفحة الرئيسية. appletId اختياري ويستخدم التطبيق النشط في اللوحة افتراضياً. عند إنشاء صفحة رئيسية أو لوحة تشغيل لتطبيقات أخرى، احفظ المسودة كإصدار ثم انشر ذلك الإصدار محلياً قبل تعيينها كصفحة رئيسية.",
+            parameters: {
+                type: "object",
+                properties: {
+                    appletId: {
+                        type: "string",
+                        description:
+                            "Optional Mongo applet ID. If omitted, the currently active canvas applet is used.",
+                    },
+                    clear: {
+                        type: "boolean",
+                        description:
+                            "Set true to clear the current Home applet instead of setting one.",
+                    },
+                    userMessage: {
+                        type: "string",
+                        description:
+                            "A user-friendly message about updating the Home applet",
+                    },
+                },
+                required: ["userMessage"],
+            },
+        },
+    },
+    {
+        type: "function",
         icon: "🔎",
         function: {
             name: "GetAppletState",
             description:
-                "Return the current state of one applet in Draft/Version terms. Draft is the mutable workspace HTML file. Saved versions are immutable checkpoints. Published applets point at one saved version. This tool reports the Draft workspace path, saved version count, latest saved version, published version, whether Draft differs from the latest saved version, and the recommended next action. appletId defaults to the active canvas applet.",
+                "Return the current state of one applet in Draft/Version terms plus the current directory/sidebar/app-store card metadata (`appMetadata`). Draft is the mutable workspace HTML file. Saved versions are immutable checkpoints. Published applets point at one saved version. This tool reports the Draft workspace path, saved version count, latest saved version, published version, whether Draft differs from the latest saved version, and the recommended next action. appletId defaults to the active canvas applet.",
             descriptionAr:
                 "اعرض حالة تطبيق واحد بمفاهيم المسودة/الإصدارات. المسودة هي ملف HTML القابل للتحرير في المساحة؛ الإصدارات المحفوظة نقاط ثابتة؛ والمنشور يشير إلى إصدار محفوظ واحد.",
             parameters: {
@@ -98,9 +134,9 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "SaveAppletDraftAsVersion",
             description:
-                "Snapshot the current Draft workspace HTML as a new immutable applet version. Use this after editing an applet's workspace file with the workspace shell when the user wants a saved checkpoint. This does not publish. If Draft matches the latest saved version, no duplicate version is created. appletId defaults to the active canvas applet.",
+                "Checkpoint the current Draft workspace HTML as a new immutable applet version without publishing. Use this after meaningful edits when the user wants a saved checkpoint. This never changes the live published version; if Draft matches the latest saved version, no duplicate is created. For homepage/launchpad/launcher applets that open other applets, save a version before publishing locally and setting Home. appletId defaults to the active canvas applet.",
             descriptionAr:
-                "احفظ مسودة HTML الحالية كإصدار ثابت جديد للتطبيق. لا ينشر التطبيق ولا ينشئ نسخة مكررة إذا كانت المسودة تطابق آخر إصدار محفوظ.",
+                "احفظ مسودة HTML الحالية كإصدار ثابت جديد للتطبيق. لا ينشر التطبيق ولا ينشئ نسخة مكررة إذا كانت المسودة تطابق آخر إصدار محفوظ. لتطبيقات الصفحة الرئيسية أو لوحات التشغيل التي تفتح تطبيقات أخرى، احفظ إصداراً قبل النشر المحلي وتعيين الصفحة الرئيسية.",
             parameters: {
                 type: "object",
                 properties: {
@@ -125,9 +161,9 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "PublishAppletVersion",
             description:
-                "Publish an immutable applet version. If `version` is provided, publishes that saved version. If `version` is omitted, snapshots the current Draft workspace HTML as a new immutable version when needed, then publishes that version. Publishing never points directly at mutable Draft. appletId defaults to the active canvas applet.",
+                "Promote a saved immutable applet version to the live published link. Use only when the user explicitly asks to publish, ship, make live, or update the public version, plus the special case where you created a homepage/launchpad/launcher applet that opens other applets and need to publish the saved version locally before SetHomeApplet. Prefer passing a 1-indexed `version` number. If `version` is omitted, this snapshots current Draft if needed and publishes that new version; use that shortcut only when the user explicitly wants current Draft live now. Publishing never points directly at mutable Draft. appletId defaults to the active canvas applet.",
             descriptionAr:
-                "انشر إصداراً ثابتاً من التطبيق. إذا لم يُمرر رقم إصدار، تُحفظ المسودة الحالية كإصدار عند الحاجة ثم يُنشر ذلك الإصدار.",
+                "انشر إصداراً ثابتاً من التطبيق. استخدمه أيضاً عند إنشاء صفحة رئيسية أو لوحة تشغيل لتطبيقات أخرى وتحتاج إلى نشر الإصدار المحفوظ محلياً قبل تعيينه كصفحة رئيسية. إذا لم يُمرر رقم إصدار، تُحفظ المسودة الحالية كإصدار عند الحاجة ثم يُنشر ذلك الإصدار.",
             parameters: {
                 type: "object",
                 properties: {
@@ -139,7 +175,7 @@ export const CHAT_CONTEXTUAL_TOOLS = [
                     version: {
                         type: ["number", "null"],
                         description:
-                            "Optional 1-indexed saved version to publish. Omit to publish Draft by first snapshotting it if needed.",
+                            "Preferred: 1-indexed saved version to publish. Omit only to publish current Draft immediately by first snapshotting it if needed.",
                     },
                     userMessage: {
                         type: "string",
@@ -216,7 +252,7 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "UpdateAppletMetadata",
             description:
-                "Update residual Concierge applet metadata that is not Draft/version content. Use this for rename (`name`), relink to a different existing workspace HTML file (`workspacePath`), publish/update app-store metadata (`publishToAppStore: true, appName, appSlug, appDescription`), remove from the app store (`publishToAppStore: false`), or clear a temporary SDK suspension after fixing runaway applet code (`clearSdkSuspension: true`). Do not use this for normal applet content workflow: edit Draft with the workspace shell, use SaveAppletDraftAsVersion for checkpoints, CopyAppletVersionToDraft for rollbacks, and PublishAppletVersion for direct-link publishing. appletId defaults to the active canvas applet.",
+                "Update applet metadata, not Draft/version content. Normal use: rename with `name`; update directory/sidebar metadata with `appName`, `appSlug`, `appDescription`, `appIcon`, `appImageUrl`, `appImageLightUrl`, `appImageDarkUrl`, `appImageAlt`, `appBadgeLabel`, `appTags`, `appCategory`, or `appMetadataGeneratedAt`; add/update the public app-store listing only with `publishToAppStore: true`; remove it from the app store with `publishToAppStore: false`. Advanced use: relink `workspacePath` or clear `clearSdkSuspension`. For applet content, edit Draft with the workspace shell; use SaveAppletDraftAsVersion for checkpoints, CopyAppletVersionToDraft for rollbacks, and PublishAppletVersion only for explicit live version promotion. appletId defaults to the active canvas applet.",
             descriptionAr:
                 "حدّث بيانات التطبيق المتبقية مثل الاسم والربط وبيانات متجر التطبيقات. لا تستخدمها لحفظ المسودة أو استعادة الإصدارات أو النشر المباشر؛ استخدم الأدوات المخصصة لذلك.",
             parameters: {
@@ -239,17 +275,62 @@ export const CHAT_CONTEXTUAL_TOOLS = [
                     appName: {
                         type: "string",
                         description:
-                            "Optional app store name to set when publishing to the app store.",
+                            "Optional directory/sidebar/app-store card name. Can be set without publishing.",
                     },
                     appSlug: {
                         type: "string",
                         description:
-                            "Optional app store slug to set when publishing to the app store.",
+                            "Optional directory/sidebar/app-store card slug. Can be set without publishing.",
                     },
                     appDescription: {
                         type: "string",
+                        description: "Optional app directory description.",
+                    },
+                    appIcon: {
+                        type: "string",
                         description:
-                            "Optional app store description to set when publishing to the app store.",
+                            "Optional Lucide icon name for app directory cards and sidebar entries.",
+                    },
+                    appImageUrl: {
+                        type: "string",
+                        description:
+                            "Optional default/light image URL for app directory cards.",
+                    },
+                    appImageLightUrl: {
+                        type: "string",
+                        description:
+                            "Optional light-mode image URL for app directory cards.",
+                    },
+                    appImageDarkUrl: {
+                        type: "string",
+                        description:
+                            "Optional dark-mode image URL for app directory cards.",
+                    },
+                    appImageAlt: {
+                        type: "string",
+                        description:
+                            "Optional alt text for the app directory card image.",
+                    },
+                    appBadgeLabel: {
+                        type: "string",
+                        description:
+                            "Optional short label shown over image-backed app cards.",
+                    },
+                    appTags: {
+                        type: "array",
+                        items: { type: "string" },
+                        description:
+                            "Optional app directory tags used for search and card chips.",
+                    },
+                    appCategory: {
+                        type: "string",
+                        description:
+                            "Optional app directory category used for search and card chips.",
+                    },
+                    appMetadataGeneratedAt: {
+                        type: "string",
+                        description:
+                            "Optional ISO timestamp recording when applet card metadata was generated.",
                     },
                     publishToAppStore: {
                         type: "boolean",
@@ -265,6 +346,95 @@ export const CHAT_CONTEXTUAL_TOOLS = [
                         type: "string",
                         description:
                             "A user-friendly message about updating applet metadata",
+                    },
+                },
+                required: ["userMessage"],
+            },
+        },
+    },
+    {
+        type: "function",
+        icon: "✨",
+        function: {
+            name: "GenerateAppletMetadata",
+            description:
+                "Generate and apply Concierge applet card/sidebar metadata for an existing applet using the applet-specific metadata endpoint and prompt. Use this instead of generic media APIs or hand-written metadata when the user wants applet name, slug, description, icon, badge, category, tags, alt text, or image prompt refreshed from the applet's current HTML. This updates metadata only; it never publishes, checkpoints, or changes Draft HTML. appletId defaults to the active canvas applet.",
+            descriptionAr:
+                "ولّد وطبّق بيانات بطاقة/شريط تطبيق Concierge باستخدام نقطة النهاية الخاصة بالتطبيق. يحدّث البيانات فقط ولا ينشر ولا يحفظ إصداراً ولا يغيّر HTML المسودة.",
+            parameters: {
+                type: "object",
+                properties: {
+                    appletId: {
+                        type: "string",
+                        description:
+                            "Optional Mongo applet ID. If omitted, the currently active canvas applet is used.",
+                    },
+                    userMessage: {
+                        type: "string",
+                        description:
+                            "A user-friendly message about generating applet metadata",
+                    },
+                },
+                required: ["userMessage"],
+            },
+        },
+    },
+    {
+        type: "function",
+        icon: "🖼️",
+        function: {
+            name: "GenerateAppletImage",
+            description:
+                "Generate light-mode and dark-mode applet-directory card artwork using the applet-specific image endpoint, style prompt, output folder, and media pipeline. Generated applet assets are stored under applets/assets/<appletId>. By default this waits for the generated image URLs and writes them back to applet card/sidebar metadata; set waitForResult false only when you want to start the background tasks and return the task IDs immediately. Use this instead of CreateMedia for applet card images. appletId defaults to the active canvas applet.",
+            descriptionAr:
+                "ولّد صورتي بطاقة تطبيق للوضع الفاتح والداكن باستخدام نقطة نهاية الصور الخاصة بالتطبيق ومسار الوسائط المخصص. تُحفظ أصول التطبيق ضمن applets/assets/<appletId>. افتراضياً ينتظر روابط الصور ويحدّث بيانات بطاقة التطبيق.",
+            parameters: {
+                type: "object",
+                properties: {
+                    appletId: {
+                        type: "string",
+                        description:
+                            "Optional Mongo applet ID. If omitted, the currently active canvas applet is used.",
+                    },
+                    prompt: {
+                        type: "string",
+                        description:
+                            "Optional full image prompt override. Prefer styleCues when you only want to influence look and feel.",
+                    },
+                    styleCues: {
+                        type: "string",
+                        description:
+                            "Optional additive visual styling cues for palette, medium, lighting, mood, composition, or materials. These are appended to the applet metadata prompt and are ignored by the manual Generate Images UI when left blank.",
+                    },
+                    metadata: {
+                        type: "object",
+                        description:
+                            "Optional applet card metadata override to guide the image generator, such as name, description, badgeLabel, category, tags, imageAlt, or imagePrompt.",
+                    },
+                    quality: {
+                        type: "string",
+                        description:
+                            "Optional generation quality override, for example draft.",
+                    },
+                    aspectRatio: {
+                        type: "string",
+                        description:
+                            "Optional aspect ratio override. Applet cards default to 16:9.",
+                    },
+                    waitForResult: {
+                        type: "boolean",
+                        description:
+                            "Optional. Defaults to true. Set false to only start the background image task and return taskId/jobId.",
+                    },
+                    updateMetadata: {
+                        type: "boolean",
+                        description:
+                            "Optional. Defaults to true when waiting for a result. Set false to return the image URL without writing it to applet metadata.",
+                    },
+                    userMessage: {
+                        type: "string",
+                        description:
+                            "A user-friendly message about generating applet card artwork",
                     },
                 },
                 required: ["userMessage"],
@@ -336,7 +506,7 @@ export const CHAT_CONTEXTUAL_TOOLS = [
         function: {
             name: "CopyAppletVersionToDraft",
             description:
-                "Copy one immutable saved Concierge applet version into the editable Draft workspace file. Use this whenever the user says restore, roll back, use v5, go back to version N, or make an older version editable. This does not mutate the saved version and does not create a new version number. After restore, Draft is active in the canvas; call SaveAppletDraftAsVersion only if the user wants a new saved checkpoint, or PublishAppletVersion if they want to ship it.",
+                "Copy one immutable saved Concierge applet version into the editable Draft workspace file. Use this whenever the user says restore, roll back, use v5, go back to version N, or make an older version editable. This does not mutate the saved version and does not create a new version number. After restore, Draft is active in the canvas; call SaveAppletDraftAsVersion only if the user wants a new saved checkpoint, or PublishAppletVersion { version } only if they ask to make a saved version live.",
             descriptionAr:
                 "انسخ إصداراً ثابتاً محفوظاً من التطبيق إلى ملف المسودة القابل للتحرير. لا يغير الإصدار المحفوظ ولا ينشئ رقم إصدار جديداً.",
             parameters: {
@@ -492,6 +662,40 @@ function getActiveAppletContext(context) {
     };
 }
 
+function getCanvasSnapshot(context) {
+    if (typeof context?.getCanvasSnapshot === "function") {
+        const snapshot = context.getCanvasSnapshot() || {};
+        return {
+            canvasContent: snapshot.canvasContent || null,
+            canvasTabs: Array.isArray(snapshot.canvasTabs)
+                ? snapshot.canvasTabs
+                : [],
+            activeTabId: snapshot.activeTabId || null,
+        };
+    }
+
+    const activeHtmlContent = getActiveHtmlContent(context);
+    const activeTabId =
+        typeof context?.getActiveTabId === "function"
+            ? context.getActiveTabId()
+            : null;
+    return {
+        canvasContent: activeHtmlContent || null,
+        canvasTabs: activeHtmlContent
+            ? [{ id: activeTabId, content: activeHtmlContent }]
+            : [],
+        activeTabId,
+    };
+}
+
+function findCanvasTabForApplet(snapshot, appletId) {
+    if (!appletId) return null;
+    const normalizedAppletId = String(appletId);
+    return (snapshot.canvasTabs || []).find(
+        (tab) => String(tab?.content?.appletId || "") === normalizedAppletId,
+    );
+}
+
 function normalizeVersionRequest(version) {
     if (version == null || version === "") {
         return null;
@@ -565,19 +769,24 @@ async function syncActiveAppletCanvas(
     }
 
     const dispatch = context.dispatch;
+    const chatId = context?.chatId ? String(context.chatId) : null;
     const activeTabId = context?.getActiveTabId
         ? context.getActiveTabId()
         : null;
-    const { refreshActiveHtmlCanvas: refreshCanvasAction, updateCanvasTab } =
-        await import("../../src/stores/chatSlice");
+    const {
+        refreshActiveHtmlCanvas,
+        refreshHtmlCanvasForChat,
+        updateCanvasTab,
+        updateCanvasTabForChat,
+    } = await import("../../src/stores/chatSlice");
 
     if (activeTabId) {
         const nextTabContent = {
             appletId,
+            appletVersionKey: Date.now(),
         };
 
         if (versionSaved || versionDeleted) {
-            nextTabContent.appletVersionKey = Date.now();
             if (typeof latestVersionIndex === "number") {
                 nextTabContent.appletVersionCount = latestVersionIndex + 1;
                 if (versionSaved) {
@@ -611,15 +820,29 @@ async function syncActiveAppletCanvas(
         }
 
         dispatch(
-            updateCanvasTab({
-                tabId: activeTabId,
-                content: nextTabContent,
-            }),
+            chatId
+                ? updateCanvasTabForChat({
+                      chatId,
+                      tabId: activeTabId,
+                      content: nextTabContent,
+                  })
+                : updateCanvasTab({
+                      tabId: activeTabId,
+                      content: nextTabContent,
+                  }),
         );
     }
 
     if (htmlContent) {
-        dispatch(refreshCanvasAction({ htmlContent }));
+        dispatch(
+            chatId
+                ? refreshHtmlCanvasForChat({
+                      chatId,
+                      tabId: activeTabId,
+                      htmlContent,
+                  })
+                : refreshActiveHtmlCanvas({ htmlContent }),
+        );
     }
 }
 
@@ -682,6 +905,117 @@ function getVersionContentState(version) {
     };
 }
 
+async function resolveVersionContentForComparison(
+    versionState,
+    entityId,
+    cache = new Map(),
+) {
+    if (!versionState) {
+        return { html: null, readError: null, source: null };
+    }
+
+    const source =
+        versionState.storage === "external"
+            ? versionState.workspacePath ||
+              versionState.contentBlobPath ||
+              versionState.contentUrl ||
+              "external"
+            : "inline";
+
+    if (versionState.storage === "external" && versionState.workspacePath) {
+        if (!entityId) {
+            return {
+                html: null,
+                readError: "entityId is required for applet version access",
+                source,
+            };
+        }
+        if (!cache.has(versionState.workspacePath)) {
+            cache.set(
+                versionState.workspacePath,
+                readWorkspaceHtml({
+                    entityId,
+                    path: versionState.workspacePath,
+                })
+                    .then((html) => ({ html, readError: null }))
+                    .catch((error) => ({
+                        html: null,
+                        readError: error?.message || String(error),
+                    })),
+            );
+        }
+        const result = await cache.get(versionState.workspacePath);
+        return { ...result, source };
+    }
+
+    if (versionState.contentAvailable) {
+        return { html: versionState.html, readError: null, source };
+    }
+
+    return { html: null, readError: null, source };
+}
+
+async function sha256Hex(value) {
+    const subtle = typeof window !== "undefined" ? window.crypto?.subtle : null;
+    if (
+        typeof value !== "string" ||
+        typeof TextEncoder === "undefined" ||
+        !subtle?.digest
+    ) {
+        return null;
+    }
+    const bytes = new TextEncoder().encode(value);
+    const digest = await subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+}
+
+function normalizeAppletToolMetadata(app) {
+    if (!app) return null;
+    const appletId = app.appletId || null;
+    const listedInStore =
+        typeof app.listedInStore === "boolean" ? app.listedInStore : null;
+    const slug = app.slug || null;
+
+    return {
+        appId: app._id || app.id || null,
+        appletId,
+        name: app.name || null,
+        slug,
+        description: app.description || null,
+        icon: app.icon || null,
+        badgeLabel: app.badgeLabel || null,
+        imageUrl: app.imageUrl || null,
+        imageAlt: app.imageAlt || null,
+        tags: Array.isArray(app.tags) ? app.tags : [],
+        category: app.category || null,
+        metadataGeneratedAt: app.metadataGeneratedAt || null,
+        status: app.status || null,
+        listedInStore,
+        appStoreUrl: slug && listedInStore !== false ? `/apps/${slug}` : null,
+        privateUrl: appletId ? `/apps/private/${appletId}` : null,
+    };
+}
+
+function describeAppletMetadata(metadata) {
+    if (!metadata) return null;
+    const details = [
+        metadata.name ? `Card name: ${metadata.name}` : null,
+        metadata.slug ? `slug: ${metadata.slug}` : null,
+        metadata.category ? `category: ${metadata.category}` : null,
+        metadata.tags?.length ? `tags: ${metadata.tags.join(", ")}` : null,
+        metadata.imageUrl ? "image: set" : null,
+        metadata.icon ? `icon: ${metadata.icon}` : null,
+        metadata.listedInStore === true
+            ? `listed in app store at ${metadata.appStoreUrl}`
+            : metadata.listedInStore === false
+              ? "not listed in app store"
+              : null,
+    ].filter(Boolean);
+    return details.length ? details.join(" — ") : null;
+}
+
 async function listApplets(query) {
     const response = await fetch("/api/canvas-applets");
     if (!response.ok) {
@@ -692,7 +1026,18 @@ async function listApplets(query) {
     const allApplets = Array.isArray(data?.applets) ? data.applets : [];
     const filtered = query
         ? allApplets.filter((applet) =>
-              (applet.name || "").toLowerCase().includes(query),
+              [
+                  applet.name,
+                  applet.app?.name,
+                  applet.app?.slug,
+                  applet.app?.description,
+                  applet.app?.category,
+                  ...(Array.isArray(applet.app?.tags) ? applet.app.tags : []),
+              ]
+                  .filter(Boolean)
+                  .join(" ")
+                  .toLowerCase()
+                  .includes(query),
           )
         : allApplets;
 
@@ -710,18 +1055,23 @@ async function listApplets(query) {
         };
     }
 
-    const applets = filtered.map((applet) => ({
-        id: applet._id,
-        name: applet.name || "Untitled Applet",
-        version: applet.version || 1,
-        published: applet.publishedVersionIndex != null,
-        publishedVersionIndex: applet.publishedVersionIndex ?? null,
-        filePath: applet.filePath || null,
-        workspacePath: applet.workspacePath || null,
-        fileHash: applet.fileHash || null,
-        fileBlobPath: applet.fileBlobPath || null,
-        updatedAt: applet.updatedAt || null,
-    }));
+    const applets = filtered.map((applet) => {
+        const metadata = normalizeAppletToolMetadata(applet.app);
+        return {
+            id: applet._id,
+            name: applet.name || "Untitled Applet",
+            version: applet.version || 1,
+            published: applet.publishedVersionIndex != null,
+            publishedVersionIndex: applet.publishedVersionIndex ?? null,
+            filePath: applet.filePath || null,
+            workspacePath: applet.workspacePath || null,
+            fileHash: applet.fileHash || null,
+            fileBlobPath: applet.fileBlobPath || null,
+            updatedAt: applet.updatedAt || null,
+            appMetadata: metadata,
+            appStore: metadata,
+        };
+    });
 
     const appletList = applets
         .map((applet, index) => {
@@ -740,6 +1090,12 @@ async function listApplets(query) {
                 details.push(
                     "Editable file will be created on first GetApplet detail fetch",
                 );
+            }
+            const metadataDescription = describeAppletMetadata(
+                applet.appMetadata,
+            );
+            if (metadataDescription) {
+                details.push(metadataDescription);
             }
             return `${index + 1}. **${applet.name}** — ${details.join(" — ")}`;
         })
@@ -793,9 +1149,11 @@ async function getAppletDetail({ appletId, context, activeApplet }) {
                 const publishedState = getVersionContentState(
                     applet.htmlVersions?.[publishedVersionIndex],
                 );
-                const publishedHtml = publishedState.contentAvailable
-                    ? publishedState.html
-                    : null;
+                const { html: publishedHtml } =
+                    await resolveVersionContentForComparison(
+                        publishedState,
+                        entityId,
+                    );
                 workspaceMatchesPublished =
                     publishedHtml != null &&
                     publishedHtml === normalizedWorkspaceHtml;
@@ -806,15 +1164,9 @@ async function getAppletDetail({ appletId, context, activeApplet }) {
         }
     }
 
-    const app = applet.app || null;
-    const appStore = app
-        ? {
-              status: app.status || null,
-              slug: app.slug || null,
-              name: app.name || null,
-              url: app.slug ? `/apps/${app.slug}` : null,
-          }
-        : null;
+    const appMetadata = normalizeAppletToolMetadata(applet.app);
+    const appStore = appMetadata;
+    const metadataDescription = describeAppletMetadata(appMetadata);
 
     const summaryLines = [
         `Applet "${applet.name || "Untitled Applet"}" (id: ${appletId}).`,
@@ -823,9 +1175,11 @@ async function getAppletDetail({ appletId, context, activeApplet }) {
         publishedVersionIndex != null
             ? `Published version: ${publishedVersionIndex + 1}.`
             : "Not currently published.",
-        appStore
-            ? `Published to app store as "${appStore.name}" at ${appStore.url}.`
-            : "Not in the app store.",
+        appMetadata?.listedInStore === true
+            ? `Listed in the app store as "${appMetadata.name}" at ${appMetadata.appStoreUrl}.`
+            : appMetadata
+              ? `Directory/sidebar metadata exists (${metadataDescription}).`
+              : "No directory/sidebar metadata is set.",
         hasUnpublishedChanges === true
             ? "Workspace file has unpublished changes."
             : hasUnpublishedChanges === false
@@ -844,6 +1198,7 @@ async function getAppletDetail({ appletId, context, activeApplet }) {
             versions,
             publishedVersionIndex,
             hasUnpublishedChanges,
+            appMetadata,
             appStore,
             description: summaryLines.join(" "),
         },
@@ -979,34 +1334,64 @@ export async function handleGetAppletState(toolInfo, context) {
     const normalizedDraftHtml = draftHtml
         ? normalizeAppletDraftHtmlForVersioning(applet, draftHtml)
         : "";
+    const versionContentCache = new Map();
+    const latestResolved =
+        latest.number != null
+            ? await resolveVersionContentForComparison(
+                  latest,
+                  entityId,
+                  versionContentCache,
+              )
+            : { html: null, readError: null, source: null };
     const draftMatchesLatest =
-        latest.contentAvailable && normalizedDraftHtml
-            ? normalizedDraftHtml === latest.html
+        latestResolved.html != null && normalizedDraftHtml
+            ? normalizedDraftHtml === latestResolved.html
             : null;
     const publishedState =
         publishedVersionIndex != null
             ? getVersionContentState(versions[publishedVersionIndex])
             : null;
+    const publishedResolved =
+        publishedState != null
+            ? publishedVersionIndex === latest.index
+                ? latestResolved
+                : await resolveVersionContentForComparison(
+                      publishedState,
+                      entityId,
+                      versionContentCache,
+                  )
+            : { html: null, readError: null, source: null };
     const draftMatchesPublished =
         publishedVersionIndex != null &&
-        publishedState?.contentAvailable &&
+        publishedResolved.html != null &&
         normalizedDraftHtml
-            ? normalizedDraftHtml === publishedState.html
+            ? normalizedDraftHtml === publishedResolved.html
             : null;
+    const publishedContentUnavailable =
+        publishedVersionIndex != null &&
+        publishedState &&
+        publishedResolved.html == null;
+    const [
+        draftContentHash,
+        latestResolvedContentHash,
+        publishedResolvedContentHash,
+    ] = await Promise.all([
+        sha256Hex(normalizedDraftHtml),
+        sha256Hex(latestResolved.html),
+        sha256Hex(publishedResolved.html),
+    ]);
     const recommendedAction = !workspacePath
         ? "OpenAppletDraft"
         : draftReadError
           ? "Fix workspace file access"
-          : publishedVersionIndex != null &&
-              publishedState &&
-              !publishedState.contentAvailable
-            ? "Republish Draft or repair the externalized published version content"
+          : publishedContentUnavailable
+            ? "Publish a saved version by number, or repair the externalized published version content"
             : draftMatchesLatest === false
-              ? "SaveAppletDraftAsVersion to checkpoint Draft, or PublishAppletVersion to snapshot and publish it"
+              ? "SaveAppletDraftAsVersion to checkpoint Draft"
               : publishedVersionIndex == null
-                ? "PublishAppletVersion when ready"
+                ? "No publish action needed unless the user asks to make a saved version live"
                 : draftMatchesPublished === false
-                  ? "PublishAppletVersion when ready"
+                  ? "No publish action needed unless the user asks to promote a saved version"
                   : "No applet state action needed";
 
     return {
@@ -1018,17 +1403,45 @@ export async function handleGetAppletState(toolInfo, context) {
                 workspacePath,
                 readable: !draftReadError,
                 readError: draftReadError,
+                contentHash: draftContentHash,
+                contentLength: normalizedDraftHtml.length,
                 matchesLatestVersion: draftMatchesLatest,
                 matchesPublishedVersion: draftMatchesPublished,
             },
             versions: {
                 count: versions.length,
                 latestVersion: latest.number,
+                latestComparison: latest.number
+                    ? {
+                          version: latest.number,
+                          source: latestResolved.source,
+                          workspacePath: latest.workspacePath || null,
+                          contentBlobPath: latest.contentBlobPath || null,
+                          contentHash: latest.contentHash || null,
+                          resolvedContentHash: latestResolvedContentHash,
+                          readError: latestResolved.readError || null,
+                      }
+                    : null,
                 publishedVersion:
                     publishedVersionIndex != null
                         ? publishedVersionIndex + 1
                         : null,
+                publishedComparison:
+                    publishedVersionIndex != null
+                        ? {
+                              version: publishedVersionIndex + 1,
+                              source: publishedResolved.source,
+                              workspacePath:
+                                  publishedState?.workspacePath || null,
+                              contentBlobPath:
+                                  publishedState?.contentBlobPath || null,
+                              contentHash: publishedState?.contentHash || null,
+                              resolvedContentHash: publishedResolvedContentHash,
+                              readError: publishedResolved.readError || null,
+                          }
+                        : null,
             },
+            appMetadata: normalizeAppletToolMetadata(applet.app),
             appStore: applet.app || null,
             recommendedAction,
             description:
@@ -1090,6 +1503,48 @@ export async function handleGetApplet(toolInfo, context) {
     }
 }
 
+export async function handleSetHomeApplet(toolInfo, context) {
+    const toolArgs = getToolArgs(toolInfo);
+    const activeApplet = getActiveAppletContext(context);
+    const clear = toolArgs.clear === true;
+    const appletId = (toolArgs.appletId || activeApplet.appletId || "").trim();
+
+    if (!clear && !appletId) {
+        throw new Error(
+            "Applet ID is required when no applet is active in the canvas.",
+        );
+    }
+
+    try {
+        const response = await fetch("/api/users/me/home-applet", {
+            method: clear ? "DELETE" : "PUT",
+            headers: { "Content-Type": "application/json" },
+            ...(clear ? {} : { body: JSON.stringify({ appletId }) }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(
+                data.error ||
+                    `Failed to update home applet (${response.status})`,
+            );
+        }
+
+        const data = await response.json();
+        return {
+            success: true,
+            data: {
+                homeAppletId: data.homeAppletId || null,
+                description: data.homeAppletId
+                    ? `Home page now uses applet ${data.homeAppletId}.`
+                    : "Home applet cleared. Home page will use the default digest.",
+            },
+        };
+    } catch (error) {
+        throw new Error(`Failed to update home applet: ${error.message}`);
+    }
+}
+
 export async function handleGetAppletVersionSource(toolInfo, context) {
     const toolArgs = getToolArgs(toolInfo);
     const { appletId, activeApplet } = resolveRequestedAppletId(
@@ -1118,7 +1573,8 @@ export async function handleGetAppletVersionSource(toolInfo, context) {
 async function handleAppletUpdate(toolInfo, context) {
     const toolArgs = getToolArgs(toolInfo);
     const activeApplet = getActiveAppletContext(context);
-    const appletId = (toolArgs.appletId || activeApplet.appletId || "").trim();
+    const explicitAppletId = (toolArgs.appletId || "").trim();
+    const appletId = (explicitAppletId || activeApplet.appletId || "").trim();
     const { userMessage } = toolArgs;
 
     if (!appletId) {
@@ -1133,6 +1589,15 @@ async function handleAppletUpdate(toolInfo, context) {
         "appName",
         "appSlug",
         "appDescription",
+        "appIcon",
+        "appImageUrl",
+        "appImageLightUrl",
+        "appImageDarkUrl",
+        "appImageAlt",
+        "appBadgeLabel",
+        "appTags",
+        "appCategory",
+        "appMetadataGeneratedAt",
         "publishToAppStore",
         "publish",
         "unpublish",
@@ -1178,15 +1643,9 @@ async function handleAppletUpdate(toolInfo, context) {
         updatedFields.push("name");
     }
 
-    const hasAppStoreMetadata =
-        hasOwn(toolArgs, "appName") ||
-        hasOwn(toolArgs, "appSlug") ||
-        hasOwn(toolArgs, "appDescription");
     const publishToAppStore = hasOwn(toolArgs, "publishToAppStore")
         ? toolArgs.publishToAppStore === true
-        : hasAppStoreMetadata
-          ? true
-          : undefined;
+        : undefined;
 
     if (publishToAppStore !== undefined) {
         requestBody.publishToAppStore = publishToAppStore;
@@ -1203,6 +1662,44 @@ async function handleAppletUpdate(toolInfo, context) {
     if (hasOwn(toolArgs, "appDescription")) {
         requestBody.appDescription = toolArgs.appDescription;
         updatedFields.push("appDescription");
+    }
+    if (hasOwn(toolArgs, "appIcon")) {
+        requestBody.appIcon = toolArgs.appIcon;
+        updatedFields.push("appIcon");
+    }
+    if (hasOwn(toolArgs, "appImageUrl")) {
+        requestBody.appImageUrl = toolArgs.appImageUrl;
+        updatedFields.push("appImageUrl");
+    }
+    if (hasOwn(toolArgs, "appImageLightUrl")) {
+        requestBody.appImageLightUrl = toolArgs.appImageLightUrl;
+        updatedFields.push("appImageLightUrl");
+    }
+    if (hasOwn(toolArgs, "appImageDarkUrl")) {
+        requestBody.appImageDarkUrl = toolArgs.appImageDarkUrl;
+        updatedFields.push("appImageDarkUrl");
+    }
+    if (hasOwn(toolArgs, "appImageAlt")) {
+        requestBody.appImageAlt = toolArgs.appImageAlt;
+        updatedFields.push("appImageAlt");
+    }
+    if (hasOwn(toolArgs, "appBadgeLabel")) {
+        requestBody.appBadgeLabel = toolArgs.appBadgeLabel;
+        updatedFields.push("appBadgeLabel");
+    }
+    if (hasOwn(toolArgs, "appTags")) {
+        requestBody.appTags = Array.isArray(toolArgs.appTags)
+            ? toolArgs.appTags
+            : [];
+        updatedFields.push("appTags");
+    }
+    if (hasOwn(toolArgs, "appCategory")) {
+        requestBody.appCategory = toolArgs.appCategory;
+        updatedFields.push("appCategory");
+    }
+    if (hasOwn(toolArgs, "appMetadataGeneratedAt")) {
+        requestBody.appMetadataGeneratedAt = toolArgs.appMetadataGeneratedAt;
+        updatedFields.push("appMetadataGeneratedAt");
     }
     if (hasOwn(toolArgs, "publish")) {
         requestBody.publish = toolArgs.publish === true;
@@ -1242,19 +1739,23 @@ async function handleAppletUpdate(toolInfo, context) {
             requestBody.publish === true ||
             requestBody.saveVersion === true);
 
-    let targetWorkspacePath =
-        providedWorkspacePath || activeApplet.workspacePath;
+    const canUseActiveWorkspace =
+        !explicitAppletId || explicitAppletId === activeApplet.appletId;
+    let targetWorkspacePath = providedWorkspacePath || null;
     let appletRecord = null;
 
     if (
         isRestoreRequest ||
         isPublishVersionRequest ||
         isDeleteVersionRequest ||
-        (!targetWorkspacePath && needsWorkspaceHtml)
+        (needsWorkspaceHtml && !providedWorkspacePath)
     ) {
         appletRecord = await fetchAppletRecord(appletId);
         targetWorkspacePath =
             targetWorkspacePath || appletRecord.workspacePath || null;
+    }
+    if (!targetWorkspacePath && canUseActiveWorkspace) {
+        targetWorkspacePath = activeApplet.workspacePath;
     }
 
     if (providedWorkspacePath) {
@@ -1365,6 +1866,7 @@ async function handleAppletUpdate(toolInfo, context) {
             savedVersionNumber: updatedApplet.versionSaved
                 ? latestVersionNumber
                 : null,
+            appMetadata: normalizeAppletToolMetadata(updatedApplet.app),
             description:
                 `Updated "${appletName}" (${updatedFields.join(", ")}). ${updateSummary.join(" ")} ${userMessage || ""}`.trim(),
         },
@@ -1535,6 +2037,97 @@ export async function handleUpdateAppletMetadata(toolInfo, context) {
     return handleAppletUpdate(toolInfo, context);
 }
 
+export async function handleGenerateAppletMetadata(toolInfo, context) {
+    const toolArgs = getToolArgs(toolInfo);
+    const { appletId } = resolveRequestedAppletId(toolArgs, context);
+
+    try {
+        const result = await generateAndApplyAppletMetadata(appletId);
+        await syncActiveAppletCanvas(context, { appletId });
+
+        return {
+            success: true,
+            data: {
+                appletId,
+                source: result.source || "heuristic",
+                metadata: result.metadata,
+                appMetadata: normalizeAppletToolMetadata(result.applet?.app),
+                updatedFields: Object.keys(result.metadata || {}),
+                description:
+                    "Generated and applied applet card/sidebar metadata without publishing or changing Draft HTML.",
+            },
+        };
+    } catch (error) {
+        throw new Error(`Failed to generate applet metadata: ${error.message}`);
+    }
+}
+
+export async function handleGenerateAppletImage(toolInfo, context) {
+    const toolArgs = getToolArgs(toolInfo);
+    const { appletId } = resolveRequestedAppletId(toolArgs, context);
+    const waitForResult = toolArgs.waitForResult !== false;
+    const updateMetadata = toolArgs.updateMetadata !== false && waitForResult;
+    let metadata =
+        toolArgs.metadata &&
+        typeof toolArgs.metadata === "object" &&
+        !Array.isArray(toolArgs.metadata)
+            ? toolArgs.metadata
+            : null;
+
+    try {
+        if (!metadata) {
+            const applet = await fetchAppletRecord(appletId);
+            metadata = normalizeAppletToolMetadata(applet.app) || {
+                name: applet.name || "Untitled Applet",
+            };
+        }
+
+        const result = await generateAndApplyAppletImage({
+            appletId,
+            metadata,
+            prompt: toolArgs.prompt,
+            styleCues: toolArgs.styleCues,
+            quality: toolArgs.quality,
+            aspectRatio: toolArgs.aspectRatio,
+            waitForResult,
+            updateMetadata,
+            onLightMetadataUpdated: () =>
+                syncActiveAppletCanvas(context, { appletId }),
+        });
+
+        if (result.metadataUpdated) {
+            await syncActiveAppletCanvas(context, { appletId });
+        }
+
+        return {
+            success: true,
+            data: {
+                appletId,
+                taskId: result.taskId,
+                jobId: result.jobId || null,
+                lightTaskId: result.lightTaskId || null,
+                lightJobId: result.lightJobId || null,
+                lightPending: !!result.lightPending,
+                lightError: result.lightError || null,
+                variants: result.variants || null,
+                model: result.model || null,
+                prompt: result.prompt || null,
+                imageUrl: result.imageUrl || null,
+                imageLightUrl: result.imageLightUrl || null,
+                imageDarkUrl: result.imageDarkUrl || null,
+                metadataUpdated: result.metadataUpdated,
+                description: waitForResult
+                    ? result.metadataUpdated
+                        ? "Generated dark applet card artwork, applied it to applet metadata, and queued the light companion image to fill in when ready."
+                        : "Generated dark applet card artwork without updating applet metadata."
+                    : "Started applet card artwork generation in the background.",
+            },
+        };
+    } catch (error) {
+        throw new Error(`Failed to generate applet image: ${error.message}`);
+    }
+}
+
 export async function handleOpenAppletDraft(toolInfo, context) {
     const toolArgs = getToolArgs(toolInfo);
     const { appletId, activeApplet } = resolveRequestedAppletId(
@@ -1568,23 +2161,29 @@ export async function handleOpenAppletDraft(toolInfo, context) {
                 htmlContent: draftHtml,
             });
         } else {
-            const { openCanvas } = await import("../../src/stores/chatSlice");
+            const { openCanvas, openCanvasForChat } = await import(
+                "../../src/stores/chatSlice"
+            );
+            const chatId = context?.chatId ? String(context.chatId) : null;
+            const canvas = {
+                type: "html",
+                title: appletName,
+                filename: appletName,
+                url: applet.filePath || null,
+                workspacePath,
+                htmlContent: draftHtml,
+                htmlStatus: "live",
+                appletId,
+                fileHash: applet.fileHash || null,
+                blobPath: applet.fileBlobPath || null,
+                appletActiveVersionIndex: null,
+                appletActiveVersionNumber: null,
+                appletIsViewingDraft: true,
+            };
             context.dispatch(
-                openCanvas({
-                    type: "html",
-                    title: appletName,
-                    filename: appletName,
-                    url: applet.filePath || null,
-                    workspacePath,
-                    htmlContent: draftHtml,
-                    htmlStatus: "live",
-                    appletId,
-                    fileHash: applet.fileHash || null,
-                    blobPath: applet.fileBlobPath || null,
-                    appletActiveVersionIndex: null,
-                    appletActiveVersionNumber: null,
-                    appletIsViewingDraft: true,
-                }),
+                chatId
+                    ? openCanvasForChat({ chatId, canvas })
+                    : openCanvas(canvas),
             );
         }
     }
@@ -1670,16 +2269,28 @@ export async function handleDeleteApplet(toolInfo, context) {
         throw new Error(errorMessage);
     }
 
-    if (isActive && context?.dispatch) {
-        const { closeCanvas, closeCanvasTab, incrementFileBrowserRefresh } =
-            await import("../../src/stores/chatSlice");
-        const activeTabId = context?.getActiveTabId
-            ? context.getActiveTabId()
-            : null;
-        if (activeTabId) {
-            context.dispatch(closeCanvasTab(activeTabId));
-        } else {
-            context.dispatch(closeCanvas());
+    if (context?.dispatch) {
+        const {
+            closeCanvas,
+            closeCanvasForChat,
+            closeCanvasTab,
+            closeCanvasTabForChat,
+            incrementFileBrowserRefresh,
+        } = await import("../../src/stores/chatSlice");
+        const chatId = context?.chatId ? String(context.chatId) : null;
+        const snapshot = getCanvasSnapshot(context);
+        const deletedTab = findCanvasTabForApplet(snapshot, appletId);
+        const activeTabId = deletedTab?.id || snapshot.activeTabId || null;
+        if (deletedTab?.id || (isActive && activeTabId)) {
+            context.dispatch(
+                chatId
+                    ? closeCanvasTabForChat({ chatId, tabId: activeTabId })
+                    : closeCanvasTab(activeTabId),
+            );
+        } else if (isActive) {
+            context.dispatch(
+                chatId ? closeCanvasForChat({ chatId }) : closeCanvas(),
+            );
         }
         context.dispatch(incrementFileBrowserRefresh());
     }
@@ -1744,14 +2355,13 @@ export async function handleSearchChats(toolInfo, context) {
             title: chat.title || "Untitled Chat",
             updatedAt: chat.updatedAt,
             messageCount: chat.messages?.length || 0,
-            isUnused: chat.isUnused || false,
         }));
 
         // Create a formatted list string
         const chatsList = formattedChats
             .map(
                 (chat, index) =>
-                    `${index + 1}. **${chat.title}** (ID: ${chat.id})${chat.messageCount > 0 ? ` - ${chat.messageCount} message${chat.messageCount !== 1 ? "s" : ""}` : ""}${chat.isUnused ? " [Unused]" : ""}`,
+                    `${index + 1}. **${chat.title}** (ID: ${chat.id})${chat.messageCount > 0 ? ` - ${chat.messageCount} message${chat.messageCount !== 1 ? "s" : ""}` : ""}`,
             )
             .join("\n");
 
@@ -1881,12 +2491,15 @@ export async function handleGetChatContent(toolInfo, context) {
 export const CHAT_TOOL_HANDLERS = {
     listapplets: handleListApplets,
     getapplet: handleGetApplet,
+    sethomeapplet: handleSetHomeApplet,
     getappletstate: handleGetAppletState,
     openappletdraft: handleOpenAppletDraft,
     saveappletdraftasversion: handleSaveAppletDraftAsVersion,
     publishappletversion: handlePublishAppletVersion,
     deleteappletversion: handleDeleteAppletVersion,
     updateappletmetadata: handleUpdateAppletMetadata,
+    generateappletmetadata: handleGenerateAppletMetadata,
+    generateappletimage: handleGenerateAppletImage,
     unpublishapplet: handleUnpublishApplet,
     getappletversionsource: handleGetAppletVersionSource,
     copyappletversiontodraft: handleCopyAppletVersionToDraft,

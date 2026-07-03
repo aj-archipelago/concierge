@@ -305,6 +305,13 @@ describe("media_generate speech parameter wiring", () => {
             /speaker2VoiceName\s*:\s*settings\.speaker2VoiceName/,
         );
         expect(builderMatch[0]).toMatch(/voice\s*:\s*settings\.voice/);
+        expect(builderMatch[0]).toMatch(/voiceScript\s*:/);
+        expect(builderMatch[0]).toMatch(/voiceLanguage\s*:/);
+        expect(builderMatch[0]).toMatch(/voicePrompt\s*:/);
+        expect(builderMatch[0]).toMatch(/videoPrompt\s*:/);
+        expect(builderMatch[0]).toMatch(/strengthNegativePrompt\s*:/);
+        expect(builderMatch[0]).toMatch(/disableSafetyFilter\s*:/);
+        expect(builderMatch[0]).toMatch(/disablePromptUpsampling\s*:/);
         expect(builderMatch[0]).toMatch(/stability\s*:\s*settings\.stability/);
         expect(builderMatch[0]).toMatch(/similarityBoost\s*:/);
         expect(builderMatch[0]).toMatch(/style\s*:\s*settings\.style/);
@@ -337,6 +344,13 @@ describe("media_generate speech parameter wiring", () => {
             expect(query).toMatch(/\$speaker2Name\s*:\s*String/);
             expect(query).toMatch(/\$speaker2VoiceName\s*:\s*String/);
             expect(query).toMatch(/\$voice\s*:\s*String/);
+            expect(query).toMatch(/\$voiceScript\s*:\s*String/);
+            expect(query).toMatch(/\$voiceLanguage\s*:\s*String/);
+            expect(query).toMatch(/\$voicePrompt\s*:\s*String/);
+            expect(query).toMatch(/\$videoPrompt\s*:\s*String/);
+            expect(query).toMatch(/\$strengthNegativePrompt\s*:\s*Float/);
+            expect(query).toMatch(/\$disableSafetyFilter\s*:\s*Boolean/);
+            expect(query).toMatch(/\$disablePromptUpsampling\s*:\s*Boolean/);
             expect(query).toMatch(/\$stability\s*:\s*Float/);
             expect(query).toMatch(/\$similarityBoost\s*:\s*Float/);
             expect(query).toMatch(/\$style\s*:\s*Float/);
@@ -363,6 +377,19 @@ describe("media_generate speech parameter wiring", () => {
                 /speaker2VoiceName\s*:\s*\$speaker2VoiceName/,
             );
             expect(query).toMatch(/voice\s*:\s*\$voice/);
+            expect(query).toMatch(/voiceScript\s*:\s*\$voiceScript/);
+            expect(query).toMatch(/voiceLanguage\s*:\s*\$voiceLanguage/);
+            expect(query).toMatch(/voicePrompt\s*:\s*\$voicePrompt/);
+            expect(query).toMatch(/videoPrompt\s*:\s*\$videoPrompt/);
+            expect(query).toMatch(
+                /strengthNegativePrompt\s*:\s*\$strengthNegativePrompt/,
+            );
+            expect(query).toMatch(
+                /disableSafetyFilter\s*:\s*\$disableSafetyFilter/,
+            );
+            expect(query).toMatch(
+                /disablePromptUpsampling\s*:\s*\$disablePromptUpsampling/,
+            );
             expect(query).toMatch(/stability\s*:\s*\$stability/);
             expect(query).toMatch(/similarityBoost\s*:\s*\$similarityBoost/);
             expect(query).toMatch(/style\s*:\s*\$style/);
@@ -396,7 +423,53 @@ describe("media_generate input audio reference wiring", () => {
         expect(src).toMatch(/pickInputAudioMetadataFields/);
         expect(src).toMatch(/modelMeta\?\.mediaDefaults\?\.inputAudio/);
         expect(src).toMatch(/hasInputAudio/);
+        expect(src).toMatch(/hasSatisfiedPromptlessInputMode/);
+        expect(src).toMatch(/mediaInputModes/);
     });
+});
+
+describe("media_generate upscaling parameter wiring", () => {
+    test("worker buildMediaVariables forwards upscaling controls", () => {
+        const src = read("jobs/tasks/media-generation.mjs");
+        const builderMatch = src.match(
+            /function\s+buildMediaVariables\([^)]*\)\s*{[\s\S]*?\n}/,
+        );
+
+        expect(builderMatch).toBeTruthy();
+        expect(builderMatch[0]).toMatch(/processingType\s*:/);
+        expect(builderMatch[0]).toMatch(/scene\s*:\s*settings\.scene/);
+        expect(builderMatch[0]).toMatch(/targetResolution\s*:/);
+        expect(builderMatch[0]).toMatch(/targetFps\s*:/);
+        expect(builderMatch[0]).toMatch(/enhanceModel\s*:/);
+        expect(builderMatch[0]).toMatch(/upscaleFactor\s*:/);
+        expect(builderMatch[0]).toMatch(/subjectDetection\s*:/);
+        expect(builderMatch[0]).toMatch(/faceEnhancement\s*:/);
+    });
+
+    for (const file of ["jobs/graphql.mjs", "src/graphql.js"]) {
+        test(`MEDIA_GENERATE in ${file} declares and passes upscaling variables`, () => {
+            const src = read(file);
+            const queryMatch = src.match(
+                /MEDIA_GENERATE\s*=\s*gql`([\s\S]*?)`/,
+            );
+            expect(queryMatch).toBeTruthy();
+            const query = queryMatch[1];
+            expect(query).toMatch(/\$processingType\s*:\s*String/);
+            expect(query).toMatch(/\$targetResolution\s*:\s*String/);
+            expect(query).toMatch(/\$targetFps\s*:\s*Int/);
+            expect(query).toMatch(/\$enhanceModel\s*:\s*String/);
+            expect(query).toMatch(/\$faceEnhancement\s*:\s*Boolean/);
+            expect(query).toMatch(/\$faceEnhancementCreativity\s*:\s*Int/);
+            expect(query).toMatch(/processingType\s*:\s*\$processingType/);
+            expect(query).toMatch(/targetResolution\s*:\s*\$targetResolution/);
+            expect(query).toMatch(/targetFps\s*:\s*\$targetFps/);
+            expect(query).toMatch(/enhanceModel\s*:\s*\$enhanceModel/);
+            expect(query).toMatch(/faceEnhancement\s*:\s*\$faceEnhancement/);
+            expect(query).toMatch(
+                /faceEnhancementCreativity\s*:\s*\$faceEnhancementCreativity/,
+            );
+        });
+    }
 });
 
 describe("media_generate output folder wiring", () => {
@@ -406,6 +479,8 @@ describe("media_generate output folder wiring", () => {
         expect(src).toMatch(/function\s+getMediaFolderTargetBlobPath/);
         expect(src).toMatch(/moveUploadedMediaToOutputFolder/);
         expect(src).toMatch(/metadata\.outputFolder/);
+        expect(src).toMatch(/metadata\.storageTarget/);
+        expect(src).toMatch(/resolveStorageTarget/);
         expect(src).toMatch(/targetBlobPath/);
         expect(src).toMatch(/outputFolder:\s*metadata\.outputFolder/);
     });
@@ -427,6 +502,16 @@ describe("media_generate output folder wiring", () => {
         expect(src).toMatch(
             /getGeneratedMediaFilename\(\s*prompt,\s*extension,\s*\{\s*uniqueSuffix:\s*filenameSuffix\s*\|\|\s*mediaHash,\s*\}\s*\)/,
         );
+    });
+
+    test("worker stores a non-empty prompt for promptless reference generations", () => {
+        const src = read("jobs/tasks/media-generation.mjs");
+
+        expect(src).toMatch(/const\s+REFERENCE_MEDIA_PROMPT/);
+        expect(src).toMatch(
+            /function\s+getMediaItemPrompt\(metadata\s*=\s*\{\}\)/,
+        );
+        expect(src).toMatch(/prompt:\s*getMediaItemPrompt\(metadata\)/);
     });
 });
 

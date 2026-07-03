@@ -217,7 +217,11 @@ function isContentEffectivelyEmpty(content) {
  * @param {string|null} workspacePath - e.g. "/workspace/files/articles/foo.html"
  * @param {number|null} contentVersion - bump to force a reload from the file
  */
-export function useArticleEditor(workspacePath, contentVersion) {
+export function useArticleEditor(
+    workspacePath,
+    contentVersion,
+    { sharedArticleId = null, readOnly = false } = {},
+) {
     const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const { serverUrl } = useContext(ServerContext);
@@ -247,14 +251,26 @@ export function useArticleEditor(workspacePath, contentVersion) {
 
         (async () => {
             try {
-                const params = new URLSearchParams({ path: workspacePath });
-                const res = await fetch(`/api/workspace/file?${params}`, {
-                    signal,
-                });
+                const res = sharedArticleId
+                    ? await fetch(`/api/articles/${sharedArticleId}/content`, {
+                          signal,
+                      })
+                    : await fetch(
+                          `/api/workspace/file?${new URLSearchParams({ path: workspacePath })}`,
+                          { signal },
+                      );
 
                 if (signal.aborted) return;
 
                 if (res.status === 404) {
+                    if (sharedArticleId) {
+                        throw new Error(
+                            t(
+                                "This article may have been deleted, or you may not have access to it.",
+                            ),
+                        );
+                    }
+
                     // File doesn't exist yet — empty editor at this path.
                     dispatch({
                         type: "LOAD_SUCCESS",
@@ -306,7 +322,7 @@ export function useArticleEditor(workspacePath, contentVersion) {
         return () => {
             abortRef.current?.abort();
         };
-    }, [workspacePath, contentVersion, t]);
+    }, [workspacePath, contentVersion, sharedArticleId, t]);
 
     // New article tabs can open before the agent's workspace write has landed.
     // Keep checking briefly while the editor is still empty so the draft appears
@@ -450,6 +466,36 @@ export function useArticleEditor(workspacePath, contentVersion) {
                 cur.featuredImageUrl,
             );
             const filename = deriveFilenameFromWorkspacePath(workspacePath);
+
+            if (sharedArticleId && !readOnly) {
+                const res = await fetch(
+                    `/api/articles/${sharedArticleId}/content`,
+                    {
+                        method: "PUT",
+                        headers: { "Content-Type": "text/html; charset=utf-8" },
+                        body: html,
+                        signal,
+                    },
+                );
+                if (signal.aborted) return null;
+                if (!res.ok) {
+                    throw new Error(
+                        `Failed to save article (${res.status} ${res.statusText})`,
+                    );
+                }
+                const payload = await res.json();
+                dispatch({
+                    type: "SAVE_SUCCESS",
+                    payload: {
+                        fileHash: payload.fileHash || cur.fileHash,
+                        blobPath: payload.blobPath || cur.blobPath,
+                        filename: payload.filename || filename,
+                    },
+                });
+                toast.success(t("Article saved successfully"));
+                return payload;
+            }
+
             const blob = new Blob([html], { type: "text/html" });
             const file = new File([blob], filename, { type: "text/html" });
 
@@ -484,7 +530,7 @@ export function useArticleEditor(workspacePath, contentVersion) {
             dispatch({ type: "SAVE_ERROR" });
             throw err;
         }
-    }, [workspacePath, baseContextId, serverUrl, t]);
+    }, [workspacePath, baseContextId, serverUrl, sharedArticleId, readOnly, t]);
 
     const deleteFile = useCallback(
         async (file) => {
@@ -544,11 +590,11 @@ export function useArticleEditor(workspacePath, contentVersion) {
             isDirty: hasChanges,
             isLoading: state.isLoading,
             isSaving: state.isSaving,
-            canSave: hasChanges && !state.isSaving,
-            canRevert: hasChanges && !state.isSaving,
+            canSave: !readOnly && hasChanges && !state.isSaving,
+            canRevert: !readOnly && hasChanges && !state.isSaving,
             isNewStory,
         }),
-        [hasChanges, state.isLoading, state.isSaving, isNewStory],
+        [hasChanges, state.isLoading, state.isSaving, isNewStory, readOnly],
     );
 
     const operations = useMemo(
@@ -580,5 +626,6 @@ export function useArticleEditor(workspacePath, contentVersion) {
         documentStatus,
         hasChanges,
         isNewStory,
+        readOnly,
     };
 }

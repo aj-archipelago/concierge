@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getTextProxyUrl } from "../../../utils/proxyUrl";
 
 /**
@@ -21,8 +21,11 @@ export function useContentLoader({
     inlineContent,
     isActive = true,
     emptyError = "No URL provided",
+    fetchOptions,
+    reloadKey,
 }) {
     const [content, setContentState] = useState(inlineContent ?? null);
+    const contentRef = useRef(inlineContent ?? null);
     const [contentKey, setContentKey] = useState(0);
     const [loading, setLoading] = useState(!inlineContent);
     const [error, setError] = useState(null);
@@ -30,6 +33,16 @@ export function useContentLoader({
     const bumpContentKey = useCallback(() => {
         setContentKey((k) => k + 1);
     }, []);
+
+    const setContentIfChanged = useCallback(
+        (nextContent) => {
+            if (contentRef.current === nextContent) return;
+            contentRef.current = nextContent;
+            setContentState(nextContent);
+            bumpContentKey();
+        },
+        [bumpContentKey],
+    );
 
     const loadContent = useCallback(async () => {
         if (!url) {
@@ -45,36 +58,43 @@ export function useContentLoader({
 
         try {
             const fetchUrl = getTextProxyUrl(url);
-            const response = await fetch(fetchUrl);
+            const response = await fetch(fetchUrl, fetchOptions);
             if (!response.ok) {
                 throw new Error(`Failed to load: ${response.statusText}`);
             }
             const text = await response.text();
-            setContentState(text);
-            bumpContentKey();
+            setContentIfChanged(text);
         } catch (err) {
             setError(err.message || "Failed to load");
         } finally {
             setLoading(false);
         }
-    }, [url, inlineContent, emptyError, bumpContentKey]);
+    }, [url, inlineContent, emptyError, setContentIfChanged, fetchOptions]);
 
     // Use inline content when provided
     useEffect(() => {
         if (inlineContent) {
-            setContentState(inlineContent);
-            bumpContentKey();
+            setContentIfChanged(inlineContent);
             setLoading(false);
             setError(null);
         }
-    }, [inlineContent, bumpContentKey]);
+    }, [inlineContent, setContentIfChanged]);
+
+    useEffect(() => {
+        if (!url && !inlineContent) {
+            contentRef.current = null;
+            setContentState(null);
+            setLoading(false);
+            setError(emptyError);
+        }
+    }, [url, inlineContent, emptyError]);
 
     // Fetch from URL when active and no inline content
     useEffect(() => {
         if (url && isActive && !inlineContent) {
             loadContent();
         }
-    }, [url, isActive, inlineContent, loadContent]);
+    }, [url, isActive, inlineContent, loadContent, reloadKey]);
 
     return {
         loading,

@@ -194,6 +194,28 @@ export function isSupportedFileUrl(url) {
     return Boolean(url);
 }
 
+export function isBlobStorageUrl(url) {
+    if (!url) {
+        return false;
+    }
+
+    try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+
+        if (hostname === "127.0.0.1" || hostname === "localhost") {
+            return ["http:", "https:"].includes(urlObj.protocol);
+        }
+
+        return (
+            urlObj.protocol === "https:" &&
+            hostname.endsWith(".blob.core.windows.net")
+        );
+    } catch {
+        return false;
+    }
+}
+
 export function getYoutubeVideoId(url) {
     try {
         const urlObj = new URL(url);
@@ -304,7 +326,22 @@ export const getVideoDuration = (file) => {
     return new Promise((resolve, reject) => {
         const video = document.createElement("video");
         video.preload = "metadata";
-        const objectUrl = URL.createObjectURL(file);
+        let objectUrl;
+        try {
+            const mediaBlob = file.slice(
+                0,
+                file.size,
+                file.type || "application/octet-stream",
+            );
+            const parsedObjectUrl = new URL(URL.createObjectURL(mediaBlob));
+            if (parsedObjectUrl.protocol !== "blob:") {
+                throw new Error("Video object URL must use the blob protocol");
+            }
+            objectUrl = parsedObjectUrl.href;
+        } catch (error) {
+            reject(error);
+            return;
+        }
         const timeout = setTimeout(() => {
             URL.revokeObjectURL(objectUrl);
             reject(new Error("Video metadata load timed out"));

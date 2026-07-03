@@ -2,8 +2,11 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import PublishedAppletView from "@/src/components/PublishedAppletView";
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export default function PublishedAppletPage() {
+    const { t } = useTranslation();
     const { id } = useParams();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -46,8 +49,15 @@ export default function PublishedAppletPage() {
     // Show loading while we determine if we should redirect or render
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-screen">
-                <span>Loading...</span>
+            <div
+                className="flex h-screen items-center justify-center"
+                role="status"
+                aria-label={t("Loading applet...")}
+            >
+                <Loader2
+                    className="h-8 w-8 animate-spin text-gray-400 dark:text-gray-500"
+                    aria-hidden="true"
+                />
             </div>
         );
     }

@@ -1,13 +1,11 @@
 import { getCurrentUser } from "../../utils/auth";
-import App, { APP_TYPES, APP_STATUS } from "../../models/app";
+import { reconcileUserApps, SIDEBAR_APPS_SCHEMA_VERSION } from "./sidebar-apps";
 
 export async function GET() {
     const user = await getCurrentUser(false); // Get the mongoose object, not JSON
 
-    // Initialize user's apps if they don't have any
-    if (!user.apps || user.apps.length === 0) {
-        await initializeUserApps(user);
-    }
+    await reconcileUserApps(user);
+
     // Populate app details
     await user.populate("apps.appId");
 
@@ -22,8 +20,9 @@ export async function PUT(request) {
         const data = await request.json();
 
         // Update user fields
-        if (data.apps) {
+        if (Array.isArray(data.apps)) {
             user.apps = data.apps;
+            user.sidebarAppsVersion = SIDEBAR_APPS_SCHEMA_VERSION;
         }
 
         await user.save();
@@ -40,40 +39,6 @@ export async function PUT(request) {
             { status: 500 },
         );
     }
-}
-
-async function initializeUserApps(user) {
-    // Get the default apps (excluding Home and Chat as they're core navigation)
-    const defaultAppSlugs = [
-        "translate",
-        "video",
-        "write",
-        "workspaces",
-        "media",
-        "jira",
-    ];
-
-    // Find the active apps by slug
-    const apps = await App.find({
-        slug: { $in: defaultAppSlugs },
-        type: APP_TYPES.NATIVE,
-        status: APP_STATUS.ACTIVE,
-    });
-
-    // Create the apps array with order
-    const userApps = apps.map((app, index) => ({
-        appId: app._id,
-        order: index,
-        addedAt: new Date(),
-    }));
-
-    // Update the user with the default apps
-    user.apps = userApps;
-    await user.save();
-
-    console.log(
-        `Initialized ${userApps.length} default apps for user ${user.userId}`,
-    );
 }
 
 // don't want nextjs to cache this endpoint

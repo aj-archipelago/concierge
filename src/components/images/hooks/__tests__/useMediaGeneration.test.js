@@ -105,6 +105,37 @@ describe("useMediaGeneration input image helpers", () => {
         ).toBe(true);
         expect(
             hasUsableInputAudioUrl({
+                type: "file",
+                mimeType: "audio/wav",
+                url: "https://display.example/a",
+            }),
+        ).toBe(true);
+        expect(
+            hasUsableInputAudioUrl({
+                type: "file",
+                blobPath: "media/Voice Shenanigans/dialogue.wav",
+                url: "https://display.example/download",
+            }),
+        ).toBe(true);
+        expect(
+            hasUsableInputAudioUrl({
+                type: "file",
+                converted: {
+                    url: "https://display.example/converted",
+                    blobPath: "media/Voice Shenanigans/dialogue.wav",
+                },
+            }),
+        ).toBe(true);
+        expect(
+            hasUsableInputAudioUrl({
+                type: "file",
+                image_url: {
+                    url: "https://display.example/dialogue.wav",
+                },
+            }),
+        ).toBe(true);
+        expect(
+            hasUsableInputAudioUrl({
                 type: "image",
                 url: "https://display.example/a.png",
             }),
@@ -116,10 +147,11 @@ describe("useMediaGeneration input image helpers", () => {
         const taskData = {};
         const audio = {
             type: "audio",
-            url: "https://display.example/source.wav",
-            azureUrl: "https://azure.example/source.wav?stale=sas",
-            blobPath: "media/source.wav",
-            hash: "hash-source",
+            converted: {
+                url: "https://azure.example/source.wav?stale=sas",
+                blobPath: "media/source.wav",
+                hash: "hash-source",
+            },
         };
 
         expect(getInputAudioUrl(audio)).toBe(
@@ -524,6 +556,115 @@ describe("useMediaGeneration settings snapshot", () => {
                 inputAudioBlobPath: "media/source.wav",
                 inputAudioHash: "hash-source",
                 settings: expectedSettings,
+            }),
+        );
+    });
+
+    test("queues promptless avatar video with selected image and audio inputs", async () => {
+        mockMediaModels = [
+            {
+                modelId: "replicate-p-video-avatar",
+                preferredUrlFormat: "azure",
+                mediaDefaults: {
+                    inputImages: [1, 1],
+                    inputAudio: [0, 1],
+                },
+                mediaInputModes: [
+                    {
+                        key: "audioTrack",
+                        promptRequired: false,
+                        requires: {
+                            inputImages: [1, 1],
+                            inputAudio: [1, 1],
+                        },
+                    },
+                ],
+            },
+        ];
+        const runTask = {
+            mutateAsync: jest.fn().mockResolvedValue({ taskId: "task-avatar" }),
+        };
+        const createMediaItem = {
+            mutateAsync: jest.fn().mockResolvedValue({}),
+        };
+        const promptRef = { current: { focus: jest.fn() } };
+        const inputAudio = {
+            type: "file",
+            mimeType: "audio/wav",
+            url: "https://display.example/dialogue.wav",
+            azureUrl: "https://azure.example/dialogue.wav?stale=sas",
+            blobPath: "media/dialogue.wav",
+            hash: "hash-dialogue",
+        };
+
+        const view = renderHook(() =>
+            useMediaGeneration({
+                selectedModel: "replicate-p-video-avatar",
+                outputType: "video",
+                settings: {
+                    models: {
+                        "replicate-p-video-avatar": {
+                            type: "video",
+                        },
+                    },
+                },
+                runTask,
+                createMediaItem,
+                promptRef,
+                setLoading: jest.fn(),
+            }),
+        );
+
+        await act(async () => {
+            await view.result.current.handleModifySelected({
+                prompt: "",
+                selectedImagesObjects: [
+                    {
+                        type: "image",
+                        url: "https://display.example/avatar.png",
+                        azureUrl: "https://azure.example/avatar.png?stale=sas",
+                        blobPath: "media/avatar.png",
+                        hash: "hash-avatar",
+                    },
+                ],
+                outputType: "video",
+                selectedModel: "replicate-p-video-avatar",
+                settings: {
+                    models: {
+                        "replicate-p-video-avatar": {
+                            type: "video",
+                        },
+                    },
+                },
+                runTask,
+                createMediaItem,
+                promptRef,
+                inputAudio,
+                allowPromptlessGeneration: true,
+            });
+        });
+
+        expect(runTask.mutateAsync).toHaveBeenCalledWith(
+            expect.objectContaining({
+                prompt: "",
+                displayPrompt: "Media generation from references",
+                outputType: "video",
+                model: "replicate-p-video-avatar",
+                inputImageUrl: "https://azure.example/avatar.png?stale=sas",
+                inputAudioUrl: "https://azure.example/dialogue.wav?stale=sas",
+                inputAudioBlobPath: "media/dialogue.wav",
+                inputAudioHash: "hash-dialogue",
+            }),
+        );
+        expect(createMediaItem.mutateAsync).toHaveBeenCalledWith(
+            expect.objectContaining({
+                prompt: "Media generation from references",
+                type: "video",
+                model: "replicate-p-video-avatar",
+                inputImageUrl: "https://display.example/avatar.png",
+                inputAudioUrl: "https://display.example/dialogue.wav",
+                inputAudioBlobPath: "media/dialogue.wav",
+                inputAudioHash: "hash-dialogue",
             }),
         );
     });

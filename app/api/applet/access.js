@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Applet from "../models/applet.js";
 import App, { APP_STATUS, APP_TYPES } from "../models/app.js";
 import Workspace from "../models/workspace.js";
+import { resolveShareAccess } from "../utils/shareAccess.js";
 
 export async function validateAppletAccess(appletId, user) {
     if (!user?._id) {
@@ -32,7 +33,27 @@ export async function validateAppletAccess(appletId, user) {
     }
 
     if (applet.version === 2) {
-        if (applet.publishedVersionIndex != null) {
+        const publicApp = await App.findOne({
+            type: APP_TYPES.APPLET,
+            status: APP_STATUS.ACTIVE,
+            appletId: applet._id,
+            listedInStore: { $ne: false },
+        })
+            .select("_id")
+            .lean();
+
+        if (publicApp && applet.publishedVersionIndex != null) {
+            return null;
+        }
+
+        const access = await resolveShareAccess({
+            entityType: "applet",
+            entityId: applet._id,
+            userId: user._id,
+            ownerId: applet.owner,
+        });
+
+        if (access.canAccess) {
             return null;
         }
 

@@ -40,6 +40,8 @@ const ChatMessages = React.memo(
             onLoadOlder,
             hasMoreMessages,
             isLoadingOlder,
+            onCopyAndContinue,
+            copyInProgress = false,
         },
         ref,
     ) {
@@ -138,6 +140,8 @@ const ChatMessages = React.memo(
                         isStreaming={isStreaming}
                         onStopStreaming={onStopStreaming}
                         onInjectMessage={onInjectMessage}
+                        onCopyAndContinue={onCopyAndContinue}
+                        copyInProgress={copyInProgress}
                     />
                 </div>
             </div>

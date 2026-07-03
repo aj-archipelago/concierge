@@ -18,41 +18,52 @@ import { LanguageContext } from "../contexts/LanguageProvider";
 import { ProgressProvider } from "../contexts/ProgressContext";
 import { ThemeContext } from "../contexts/ThemeProvider";
 import { setChatBoxPosition, focusChatInput } from "../stores/chatSlice";
+import { shouldRenderAppletWithoutChrome } from "../utils/appletChrome";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
 import { cn } from "@/lib/utils";
-import { shouldForceCollapse } from "./Sidebar";
 import config from "../../config";
 
 const ROUTES_WITHOUT_SIDEBAR = ["/wp-editor"];
+const SIDEBAR_PIN_STORAGE_KEY = "concierge-sidebar-pinned";
+
+function getInitialSidebarPinned() {
+    if (typeof window === "undefined") {
+        return false;
+    }
+
+    try {
+        return window.localStorage.getItem(SIDEBAR_PIN_STORAGE_KEY) === "true";
+    } catch {
+        return false;
+    }
+}
 
 export default function Layout({ children, initialActiveChats }) {
     const [showPortal, setShowPortal] = useState(false);
     const [portalTab, setPortalTab] = useState("discover");
     const [portalSubTab, setPortalSubTab] = useState("connectors");
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarPinned, setSidebarPinned] = useState(getInitialSidebarPinned);
+    const [sidebarEditMode, setSidebarEditMode] = useState(false);
+    const [sidebarInteractionExpanded, setSidebarInteractionExpanded] =
+        useState(false);
     const [showTos, setShowTos] = useState(false);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
-    const canvasVisible = useSelector((state) => state.chat?.canvasVisible);
-    const canvasContent = useSelector((state) => state.chat?.canvasContent);
     const dispatch = useDispatch();
     const { user } = useContext(AuthContext);
     const pathname = usePathname();
-    // Canvas only renders inside chat — only treat it as "open" (and force
-    // sidebar collapse) when the user is actually on a /chat route.
-    const isCanvasOpen = !!(
-        canvasVisible &&
-        canvasContent &&
-        pathname?.startsWith("/chat")
-    );
     const searchParams = useSearchParams();
     const { theme } = useContext(ThemeContext);
     const { direction, language } = useContext(LanguageContext);
     const { getLogo, getSidebarLogo, siteTitle } = config.global;
     const contentRef = useRef(null);
     const openChatHandledRef = useRef(false);
+    const shouldRenderChromeFreeApplet = shouldRenderAppletWithoutChrome(
+        pathname,
+        searchParams,
+    );
 
     const openPortal = (tab = "discover", subTab = "connectors") => {
         setPortalTab(tab);
@@ -62,6 +73,7 @@ export default function Layout({ children, initialActiveChats }) {
     const closePortal = () => setShowPortal(false);
 
     const showChatbox =
+        !shouldRenderChromeFreeApplet &&
         statePosition !== "closed" &&
         pathname !== "/chat" &&
         !pathname?.startsWith("/write");
@@ -94,6 +106,7 @@ export default function Layout({ children, initialActiveChats }) {
         // Only handle if openChat=true and we haven't already handled it for this navigation
         // Don't open docked chat on Write page since it already has its own chat
         if (
+            !shouldRenderChromeFreeApplet &&
             openChat === "true" &&
             pathname !== "/chat" &&
             !pathname.startsWith("/chat/") &&
@@ -119,7 +132,7 @@ export default function Layout({ children, initialActiveChats }) {
             // Reset flag when openChat is not present or on chat pages
             openChatHandledRef.current = false;
         }
-    }, [searchParams, pathname, dispatch]);
+    }, [searchParams, pathname, dispatch, shouldRenderChromeFreeApplet]);
 
     // Add viewport height fix for mobile browsers
     useEffect(() => {
@@ -139,18 +152,39 @@ export default function Layout({ children, initialActiveChats }) {
         return () => window.removeEventListener("resize", setViewportHeight);
     }, []);
 
-    // Update toggle handler to use the helper function
-    const handleToggleCollapse = () => {
-        if (!shouldForceCollapse(pathname)) {
-            setSidebarCollapsed(!sidebarCollapsed);
-        }
+    const handleToggleSidebarPin = () => {
+        setSidebarPinned((currentValue) => {
+            const nextValue = !currentValue;
+            try {
+                window.localStorage.setItem(
+                    SIDEBAR_PIN_STORAGE_KEY,
+                    nextValue ? "true" : "false",
+                );
+            } catch {
+                // Ignore localStorage errors; the in-memory state still updates.
+            }
+            return nextValue;
+        });
     };
 
-    const isCollapsed =
-        shouldForceCollapse(pathname) || sidebarCollapsed || isCanvasOpen;
+    const isCollapsed = !sidebarPinned && !sidebarEditMode;
+    const isSidebarVisuallyExpanded =
+        !isCollapsed || sidebarInteractionExpanded;
+    const shouldReserveExpandedSidebar = !isCollapsed;
 
     if (ROUTES_WITHOUT_SIDEBAR.includes(pathname)) {
         return <>{children}</>;
+    }
+
+    if (shouldRenderChromeFreeApplet) {
+        return (
+            <div
+                className="h-screen min-h-screen w-full bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100"
+                dir={direction}
+            >
+                {children}
+            </div>
+        );
     }
 
     return (
@@ -233,6 +267,14 @@ export default function Layout({ children, initialActiveChats }) {
                                         <Sidebar
                                             ref={contentRef}
                                             isMobile={true}
+                                            isPinned={sidebarPinned}
+                                            onTogglePin={handleToggleSidebarPin}
+                                            isEditingSidebar={sidebarEditMode}
+                                            onToggleSidebarEdit={() =>
+                                                setSidebarEditMode(
+                                                    (value) => !value,
+                                                )
+                                            }
                                             initialActiveChats={
                                                 initialActiveChats
                                             }
@@ -247,13 +289,21 @@ export default function Layout({ children, initialActiveChats }) {
                     <div
                         className={cn(
                             "hidden lg:fixed lg:inset-y-0 lg:z-[41] lg:flex lg:flex-col transition-all duration-300",
-                            isCollapsed ? "lg:w-16" : "lg:w-56",
+                            isSidebarVisuallyExpanded ? "lg:w-56" : "lg:w-16",
                         )}
                     >
                         <Sidebar
                             ref={contentRef}
                             isCollapsed={isCollapsed}
-                            onToggleCollapse={handleToggleCollapse}
+                            isPinned={sidebarPinned}
+                            onTogglePin={handleToggleSidebarPin}
+                            isEditingSidebar={sidebarEditMode}
+                            onInteractionExpandedChange={
+                                setSidebarInteractionExpanded
+                            }
+                            onToggleSidebarEdit={() =>
+                                setSidebarEditMode((value) => !value)
+                            }
                             initialActiveChats={initialActiveChats}
                         />
                     </div>
@@ -261,7 +311,9 @@ export default function Layout({ children, initialActiveChats }) {
                     <div
                         className={cn(
                             "transition-all duration-300",
-                            isCollapsed ? "lg:ps-16" : "lg:ps-56",
+                            shouldReserveExpandedSidebar
+                                ? "lg:ps-56"
+                                : "lg:ps-16",
                         )}
                     >
                         <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">

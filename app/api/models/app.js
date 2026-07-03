@@ -41,6 +41,10 @@ export const appSchema = new mongoose.Schema(
             enum: Object.values(APP_STATUS),
             default: APP_STATUS.ACTIVE,
         },
+        listedInStore: {
+            type: Boolean,
+            default: true,
+        },
         workspaceId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Workspace",
@@ -59,6 +63,40 @@ export const appSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        badgeLabel: {
+            type: String,
+            required: false,
+        },
+        imageUrl: {
+            type: String,
+            required: false,
+        },
+        imageLightUrl: {
+            type: String,
+            required: false,
+        },
+        imageDarkUrl: {
+            type: String,
+            required: false,
+        },
+        imageAlt: {
+            type: String,
+            required: false,
+        },
+        category: {
+            type: String,
+            required: false,
+        },
+        tags: [
+            {
+                type: String,
+                required: false,
+            },
+        ],
+        metadataGeneratedAt: {
+            type: Date,
+            required: false,
+        },
     },
     {
         timestamps: true,
@@ -72,7 +110,10 @@ if (mongoose.models) {
     appSchema.index({ workspaceId: 1 });
     appSchema.index({ appletId: 1 });
     appSchema.index({ status: 1 });
+    appSchema.index({ listedInStore: 1 });
     appSchema.index({ name: 1 });
+    appSchema.index({ tags: 1 });
+    appSchema.index({ category: 1 });
 }
 
 // Create the App model from the schema

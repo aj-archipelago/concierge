@@ -9,6 +9,8 @@ import {
     uploadBufferToMediaService,
 } from "../utils/media-service-utils.js";
 import { createAutomationStorageTarget } from "../../../src/utils/storageTargets.js";
+import { resolveShareAccess } from "../utils/shareAccess.js";
+import User from "../models/user.mjs";
 
 export const AUTOMATION_MD = "AUTOMATION.md";
 export const AUTOMATION_TASK_TYPE = "automation-run";
@@ -664,7 +666,8 @@ export async function listAutomationSupportingFiles(userContextId, slug) {
         const name = file.name || file.filename || "";
         return (
             !name.endsWith(`/${AUTOMATION_MD}`) &&
-            file.filename !== AUTOMATION_MD
+            file.filename !== AUTOMATION_MD &&
+            !name.includes("/outputs/")
         );
     });
 }
@@ -686,6 +689,51 @@ export async function findAutomationForUser(idOrSlug, ownerId) {
         ? { _id: idOrSlug, owner: ownerId }
         : { slug: String(idOrSlug || "").toLowerCase(), owner: ownerId };
     return Automation.findOne(query);
+}
+
+/**
+ * Look up an automation by id or slug without owner filter, then check share
+ * access. Returns { automation, isOwner, role } when the caller can read it,
+ * or null otherwise.
+ */
+export async function findAutomationForViewer(idOrSlug, userId) {
+    const query = mongoose.Types.ObjectId.isValid(idOrSlug)
+        ? { _id: idOrSlug }
+        : { slug: String(idOrSlug || "").toLowerCase() };
+    const automation = await Automation.findOne(query);
+    if (!automation) return null;
+
+    const access = await resolveShareAccess({
+        entityType: "automation",
+        entityId: automation._id,
+        userId,
+        ownerId: automation.owner,
+    });
+    if (!access.canAccess) return null;
+
+    return { automation, isOwner: access.isOwner, role: access.role };
+}
+
+/**
+ * Same as findAutomationForViewer, but requires owner or editor role.
+ */
+export async function findAutomationForEditor(idOrSlug, userId) {
+    const found = await findAutomationForViewer(idOrSlug, userId);
+    if (!found) return null;
+    if (!found.isOwner && found.role !== "editor") return null;
+    return found;
+}
+
+export async function resolveAutomationStorageContextId(
+    automation,
+    user,
+    isOwner,
+) {
+    if (isOwner) return user.contextId;
+    const owner = await User.findById(automation.owner)
+        .select("contextId")
+        .lean();
+    return owner?.contextId || null;
 }
 
 /**

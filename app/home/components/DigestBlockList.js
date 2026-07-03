@@ -22,13 +22,7 @@ import {
     rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-    GripVertical,
-    PlusIcon,
-    SettingsIcon,
-    Sparkles,
-    X,
-} from "lucide-react";
+import { GripVertical, PlusIcon, SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Loader from "../../components/loader";
@@ -39,7 +33,7 @@ import {
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
 import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
-import { useAutomations } from "../../../src/hooks/useAutomations";
+import EditDigestBlock from "./EditDigestBlock";
 
 export default function DigestBlockList() {
     const { data: digest } = useCurrentUserDigest();
@@ -254,120 +248,6 @@ function DigestEditor({ value, onChange, onCancel }) {
                     {t("Cancel")}
                 </button>
             </div>
-        </div>
-    );
-}
-
-function EditDigestBlock({ value, onChange }) {
-    const { t } = useTranslation();
-    const { data: automations = [] } = useAutomations();
-
-    const initialMode = value.automationId ? "automation" : "prompt";
-    const [mode, setMode] = useState(initialMode);
-
-    useEffect(() => {
-        setMode(value.automationId ? "automation" : "prompt");
-    }, [value.automationId]);
-
-    const setSourceMode = (nextMode) => {
-        setMode(nextMode);
-        if (nextMode === "prompt") {
-            onChange({ ...value, automationId: null });
-        } else {
-            onChange({ ...value, prompt: "" });
-        }
-    };
-
-    return (
-        <div>
-            <input
-                placeholder={t("Title")}
-                className="lb-input font-semibold mb-3"
-                value={value.title}
-                onChange={(e) => {
-                    onChange({
-                        ...value,
-                        title: e.target.value,
-                    });
-                }}
-            />
-            <div className="mb-3 inline-flex rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-0.5 text-xs">
-                <button
-                    type="button"
-                    onClick={() => setSourceMode("prompt")}
-                    className={classNames(
-                        "px-3 py-1 rounded-sm",
-                        mode === "prompt"
-                            ? "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200"
-                            : "text-gray-600 dark:text-gray-300",
-                    )}
-                >
-                    {t("Prompt")}
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setSourceMode("automation")}
-                    className={classNames(
-                        "px-3 py-1 rounded-sm inline-flex items-center gap-1",
-                        mode === "automation"
-                            ? "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-200"
-                            : "text-gray-600 dark:text-gray-300",
-                    )}
-                >
-                    <Sparkles className="h-3 w-3" />
-                    {t("Automation")}
-                </button>
-            </div>
-            {mode === "prompt" ? (
-                <textarea
-                    placeholder={t("Prompt")}
-                    className="lb-input"
-                    rows={6}
-                    value={value.prompt || ""}
-                    onChange={(e) => {
-                        onChange({
-                            ...value,
-                            prompt: e.target.value,
-                        });
-                    }}
-                />
-            ) : automations.length === 0 ? (
-                <div className="rounded-md border border-dashed border-gray-300 dark:border-gray-600 px-3 py-4 text-xs text-gray-500 dark:text-gray-400">
-                    {t("No automations yet.")}{" "}
-                    <a
-                        href="/automations"
-                        className="text-sky-600 dark:text-sky-400 hover:underline"
-                    >
-                        {t("Create one")}
-                    </a>
-                </div>
-            ) : (
-                <>
-                    <select
-                        className="lb-input"
-                        value={value.automationId || ""}
-                        onChange={(e) => {
-                            onChange({
-                                ...value,
-                                automationId: e.target.value || null,
-                            });
-                        }}
-                    >
-                        <option value="">{t("Select an automation...")}</option>
-                        {automations.map((automation) => (
-                            <option key={automation._id} value={automation._id}>
-                                {automation.name}
-                                {automation.producesHtml ? " · HTML" : ""}
-                            </option>
-                        ))}
-                    </select>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {t(
-                            "This widget will display the automation's most recent run.",
-                        )}
-                    </p>
-                </>
-            )}
         </div>
     );
 }

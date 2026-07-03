@@ -12,7 +12,7 @@ import {
     createAssistantToolEventItem,
     updateAssistantThinkingDuration,
     upsertAssistantToolEvent,
-} from "../../../src/utils/assistantInlinePayload";
+} from "../../../src/utils/assistantInlinePayload.js";
 
 export class StreamAccumulator {
     constructor() {

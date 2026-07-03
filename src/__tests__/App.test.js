@@ -147,6 +147,7 @@ describe("App Component", () => {
     // Setup for all tests
     const mockRefetch = jest.fn();
     const mockMutate = jest.fn();
+    const mockMutateAsync = jest.fn();
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -159,7 +160,11 @@ describe("App Component", () => {
             data: { preferences: { theme: "light" } },
             refetch: mockRefetch,
         });
-        useUpdateUserState.mockReturnValue({ mutate: mockMutate });
+        mockMutateAsync.mockResolvedValue({});
+        useUpdateUserState.mockReturnValue({
+            mutate: mockMutate,
+            mutateAsync: mockMutateAsync,
+        });
 
         // Reset useDebounce to pass through values by default
         useDebounce.mockImplementation((val) => val);
@@ -282,27 +287,7 @@ describe("App Component", () => {
             React.useState.mockRestore();
         });
 
-        it("should update server when client state changes", async () => {
-            // Setup for testing debounce
-            let debouncedValue = null;
-            useDebounce.mockImplementation((value) => {
-                debouncedValue = value;
-                return value;
-            });
-
-            // Setup state mock
-            const setUserStateMock = jest.fn();
-            let userStateValue = null;
-
-            const originalUseState = React.useState;
-            jest.spyOn(React, "useState").mockImplementation((initialValue) => {
-                if (initialValue === null) {
-                    return [userStateValue, setUserStateMock];
-                }
-                return originalUseState(initialValue);
-            });
-
-            // Render component
+        it("should not update server while hydrating unchanged server state", async () => {
             render(
                 <LanguageProvider>
                     <App
@@ -316,35 +301,94 @@ describe("App Component", () => {
                 </LanguageProvider>,
             );
 
-            // Simulate state update
-            const updatedState = { preferences: { theme: "dark" } };
-            userStateValue = updatedState;
-
-            // Trigger useEffect that watches debouncedUserState
-            // eslint-disable-next-line testing-library/no-unnecessary-act
-            act(() => {
-                // Force re-render by updating a prop
-                render(
-                    <LanguageProvider>
-                        <App
-                            language="en"
-                            theme="dark" // Changed prop to force re-render
-                            serverUrl="http://example.com"
-                            graphQLPublicEndpoint="http://example.com/graphql"
-                        >
-                            Test Content
-                        </App>
-                    </LanguageProvider>,
-                );
-            });
-
-            // Check if updateUserState.mutate was called with the updated state
             await waitFor(() => {
-                expect(mockMutate).toHaveBeenCalledWith(debouncedValue);
+                expect(useUserState().data).toEqual({
+                    preferences: { theme: "light" },
+                });
             });
 
-            // Restore original useState
-            React.useState.mockRestore();
+            expect(mockMutate).not.toHaveBeenCalled();
+        });
+
+        it("normalizes missing server user state so canvas persistence can start", async () => {
+            let capturedContextValue = null;
+            const originalProvider = AuthContext.Provider;
+            AuthContext.Provider = ({ value, children }) => {
+                capturedContextValue = value;
+                return React.createElement(originalProvider, {
+                    value,
+                    children,
+                });
+            };
+
+            useUserState.mockReturnValue({
+                data: null,
+                refetch: mockRefetch,
+            });
+
+            render(
+                <LanguageProvider>
+                    <App
+                        language="en"
+                        theme="light"
+                        serverUrl="http://example.com"
+                        graphQLPublicEndpoint="http://example.com/graphql"
+                    >
+                        Test Content
+                    </App>
+                </LanguageProvider>,
+            );
+
+            await waitFor(() => {
+                expect(capturedContextValue?.userState).toEqual({});
+            });
+            expect(mockMutate).not.toHaveBeenCalled();
+
+            AuthContext.Provider = originalProvider;
+        });
+
+        it("should update server when client state changes", async () => {
+            let capturedContextValue = null;
+            const originalProvider = AuthContext.Provider;
+            AuthContext.Provider = ({ value, children }) => {
+                capturedContextValue = value;
+                return React.createElement(originalProvider, {
+                    value,
+                    children,
+                });
+            };
+
+            render(
+                <LanguageProvider>
+                    <App
+                        language="en"
+                        theme="light"
+                        serverUrl="http://example.com"
+                        graphQLPublicEndpoint="http://example.com/graphql"
+                    >
+                        Test Content
+                    </App>
+                </LanguageProvider>,
+            );
+
+            await waitFor(() => {
+                expect(capturedContextValue?.userState).toEqual({
+                    preferences: { theme: "light" },
+                });
+            });
+
+            mockMutate.mockClear();
+
+            const updatedState = { preferences: { theme: "dark" } };
+            await act(async () => {
+                capturedContextValue.debouncedUpdateUserState(updatedState);
+            });
+
+            await waitFor(() => {
+                expect(mockMutate).toHaveBeenCalledWith(updatedState);
+            });
+
+            AuthContext.Provider = originalProvider;
         });
 
         it("should call refetch and set refetchCalled when refetchUserState is called", async () => {
@@ -431,6 +475,58 @@ describe("App Component", () => {
             expect(capturedContextValue.userState).toEqual(updatedServerState);
 
             // Restore the original provider
+            AuthContext.Provider = originalProvider;
+        });
+
+        it("should persist user state immediately when requested", async () => {
+            const serverState = { preferences: { theme: "light" } };
+            useUserState.mockReturnValue({
+                data: serverState,
+                refetch: mockRefetch,
+            });
+
+            let capturedContextValue = null;
+            const originalProvider = AuthContext.Provider;
+            AuthContext.Provider = ({ value, children }) => {
+                capturedContextValue = value;
+                return React.createElement(originalProvider, {
+                    value,
+                    children,
+                });
+            };
+
+            render(
+                <LanguageProvider>
+                    <App
+                        language="en"
+                        theme="light"
+                        serverUrl="http://example.com"
+                        graphQLPublicEndpoint="http://example.com/graphql"
+                    >
+                        Test Content
+                    </App>
+                </LanguageProvider>,
+            );
+
+            await waitFor(() => {
+                expect(capturedContextValue.userState).toEqual(serverState);
+            });
+
+            await act(async () => {
+                await capturedContextValue.updateUserStateNow({
+                    transcribe: { url: "https://example.com/video.mp4" },
+                });
+            });
+
+            expect(mockMutateAsync).toHaveBeenCalledWith({
+                preferences: { theme: "light" },
+                transcribe: { url: "https://example.com/video.mp4" },
+            });
+            expect(mockMutate).not.toHaveBeenCalledWith({
+                preferences: { theme: "light" },
+                transcribe: { url: "https://example.com/video.mp4" },
+            });
+
             AuthContext.Provider = originalProvider;
         });
     });

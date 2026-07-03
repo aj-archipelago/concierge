@@ -52,6 +52,20 @@ jest.mock("../models/applet-data", () => {
     };
 });
 
+jest.mock("../models/applet-user-data", () => {
+    const mockFind = jest.fn();
+    const mockFindOne = jest.fn();
+    const mockFindOneAndUpdate = jest.fn();
+    return {
+        __esModule: true,
+        default: {
+            find: mockFind,
+            findOne: mockFindOne,
+            findOneAndUpdate: mockFindOneAndUpdate,
+        },
+    };
+});
+
 jest.mock("mongoose", () => ({
     __esModule: true,
     default: {
@@ -96,6 +110,10 @@ describe("Canvas Applet Data Routes", () => {
             }),
         });
         Applet.updateOne.mockResolvedValue({});
+
+        const AppletUserData = require("../models/applet-user-data").default;
+        AppletUserData.find.mockResolvedValue([]);
+        AppletUserData.findOne.mockResolvedValue(null);
     });
 
     describe("GET", () => {
@@ -125,6 +143,85 @@ describe("Canvas Applet Data Routes", () => {
 
             expect(response.status).toBe(200);
             expect(response.data).toEqual({ counter: 42, name: "test" });
+        });
+
+        test("should merge legacy and keyed data with keyed values winning", async () => {
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: { counter: 1, legacyOnly: true },
+            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.find.mockResolvedValue([
+                { key: "counter", value: 42 },
+                { key: "keyedOnly", value: "yes" },
+            ]);
+
+            const response = await GET(
+                { url: "https://example.com" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.data).toEqual({
+                counter: 42,
+                legacyOnly: true,
+                keyedOnly: "yes",
+            });
+        });
+
+        test("should return one keyed value when key query is provided", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "settings",
+            });
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: { settings: { theme: "light" } },
+            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.findOne.mockResolvedValue({
+                key: "settings",
+                value: { theme: "dark" },
+            });
+
+            const response = await GET(
+                { url: "https://example.com?key=settings" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response).toMatchObject({
+                found: true,
+                key: "settings",
+                value: { theme: "dark" },
+            });
+        });
+
+        test("should fall back to legacy data when key query has no keyed doc", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "settings",
+            });
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: { settings: { theme: "light" } },
+            });
+
+            const response = await GET(
+                { url: "https://example.com?key=settings" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response).toMatchObject({
+                found: true,
+                key: "settings",
+                value: { theme: "light" },
+            });
         });
 
         test("should return 401 for unauthenticated user", async () => {
@@ -212,9 +309,11 @@ describe("Canvas Applet Data Routes", () => {
             AppletData.findOne.mockResolvedValue({
                 data: { existing: "value" },
             });
-            AppletData.findOneAndUpdate.mockResolvedValue({
-                data: { existing: "value", counter: 42 },
-            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.find.mockResolvedValue([
+                { key: "counter", value: 42 },
+            ]);
 
             const request = {
                 json: () => Promise.resolve({ key: "counter", value: 42 }),
@@ -228,11 +327,83 @@ describe("Canvas Applet Data Routes", () => {
             expect(response.success).toBe(true);
             expect(response.data).toEqual({ existing: "value", counter: 42 });
 
-            expect(AppletData.findOneAndUpdate).toHaveBeenCalledWith(
-                { appletId: "applet123", userId: "user123" },
-                { $set: { data: { existing: "value", counter: 42 } } },
+            expect(AppletUserData.findOneAndUpdate).toHaveBeenCalledWith(
+                {
+                    appletId: "applet123",
+                    userId: "user123",
+                    key: "counter",
+                },
+                { $set: { value: 42, valueBytes: 2 } },
                 { new: true, upsert: true, runValidators: true },
             );
+        });
+
+        test("should reject oversized values before writing", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "segments",
+            });
+
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: { existing: "value" },
+            });
+
+            const request = {
+                json: () =>
+                    Promise.resolve({
+                        key: "segments",
+                        value: "x".repeat(2 * 1024 * 1024 + 1),
+                    }),
+            };
+
+            const response = await PUT(request, {
+                params: { id: "applet123" },
+            });
+
+            expect(response.status).toBe(413);
+            expect(response.code).toBe("APPLET_DATA_VALUE_TOO_LARGE");
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            expect(AppletUserData.findOneAndUpdate).not.toHaveBeenCalled();
+        });
+
+        test("should allow multiple keys even when merged data exceeds one row limit", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "newKey",
+            });
+
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: {
+                    first: "x".repeat(900 * 1024),
+                    second: "y".repeat(900 * 1024),
+                },
+            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.find.mockResolvedValue([
+                { key: "newKey", value: "z".repeat(400 * 1024) },
+            ]);
+
+            const request = {
+                json: () =>
+                    Promise.resolve({
+                        key: "newKey",
+                        value: "z".repeat(400 * 1024),
+                    }),
+            };
+
+            const response = await PUT(request, {
+                params: { id: "applet123" },
+            });
+
+            expect(response.status).toBe(200);
+            expect(response.data.newKey).toHaveLength(400 * 1024);
+            expect(AppletUserData.findOneAndUpdate).toHaveBeenCalled();
         });
 
         test("should return 400 when key is missing", async () => {

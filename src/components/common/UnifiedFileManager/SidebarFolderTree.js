@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ChevronRight,
@@ -55,6 +55,7 @@ function SidebarFolderNode({
     onSelect,
     expandedPaths,
     selectedPath,
+    selectedFolderRef,
 }) {
     const { t } = useTranslation();
     const childFolders = useMemo(
@@ -70,6 +71,7 @@ function SidebarFolderNode({
     return (
         <div>
             <button
+                ref={selected ? selectedFolderRef : null}
                 onClick={(e) => {
                     e.stopPropagation();
                     onSelect(node.path);
@@ -125,6 +127,7 @@ function SidebarFolderNode({
                             onSelect={onSelect}
                             expandedPaths={expandedPaths}
                             selectedPath={selectedPath}
+                            selectedFolderRef={selectedFolderRef}
                         />
                     ))}
                 </div>
@@ -163,6 +166,7 @@ export default function SidebarFolderTree({
     allFilesPath = "",
 }) {
     const { t } = useTranslation();
+    const selectedFolderRef = useRef(null);
     const topFolders = useMemo(
         () => Object.keys(tree.children).sort(),
         [tree.children],
@@ -172,10 +176,18 @@ export default function SidebarFolderTree({
     const rootFileCount = tree.files?.length || 0;
     const allFilesLabel = t("All Files");
 
+    useEffect(() => {
+        selectedFolderRef.current?.scrollIntoView?.({
+            block: "nearest",
+            inline: "nearest",
+        });
+    }, [selectedPath]);
+
     return (
         <div className="flex flex-col overflow-y-auto overflow-x-hidden py-1 min-w-0">
             {rootFolderLabel && (
                 <button
+                    ref={rootSelected ? selectedFolderRef : null}
                     onClick={() => onSelect("")}
                     className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded text-sm transition-colors min-w-0 overflow-hidden ${
                         rootSelected
@@ -200,6 +212,7 @@ export default function SidebarFolderTree({
 
             {/* "All Files" recursive entry */}
             <button
+                ref={allFilesSelected ? selectedFolderRef : null}
                 onClick={() => onSelect(allFilesPath)}
                 className={`w-full flex items-center gap-1.5 py-1.5 px-2 rounded text-sm transition-colors min-w-0 overflow-hidden ${
                     allFilesSelected
@@ -232,6 +245,7 @@ export default function SidebarFolderTree({
                     onSelect={onSelect}
                     expandedPaths={expandedPaths}
                     selectedPath={selectedPath}
+                    selectedFolderRef={selectedFolderRef}
                 />
             ))}
         </div>

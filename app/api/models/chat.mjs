@@ -80,10 +80,6 @@ const chatSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
         },
-        isUnused: {
-            type: Boolean,
-            default: true,
-        },
         title: {
             type: String,
             default: "Chat",

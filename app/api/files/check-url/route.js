@@ -5,7 +5,8 @@ import { resolveAuthorizedMediaRouting } from "../../utils/file-route-utils.js";
 import {
     extractBlobPathFromUrl,
     extractHashFromBlobUrl,
-    isAllowedBlobDomain,
+    fetchAllowedBlobUrl,
+    validateAllowedBlobUrl,
 } from "../../utils/llm-file-utils.js";
 
 function validateProbeUrl(rawUrl) {
@@ -21,8 +22,13 @@ function validateProbeUrl(rawUrl) {
     if (parsed.username || parsed.password) {
         return { ok: false, reason: "Invalid URL format" };
     }
-    if (!isAllowedBlobDomain(parsed.hostname)) {
-        return { ok: false, reason: "URL is not from an allowed domain" };
+    try {
+        validateAllowedBlobUrl(parsed.toString());
+    } catch (error) {
+        return {
+            ok: false,
+            reason: error.message || "URL is not from an allowed domain",
+        };
     }
     return { ok: true };
 }
@@ -52,10 +58,7 @@ function normalizeResolvedMediaFile(file) {
     }
 
     try {
-        const parsedUrl = new URL(file.url);
-        if (!isAllowedBlobDomain(parsedUrl.hostname)) {
-            return file;
-        }
+        validateAllowedBlobUrl(file.url);
     } catch {
         return file;
     }
@@ -94,9 +97,8 @@ async function checkRawUrlExists(fileUrl) {
 
     try {
         // Try HEAD first (most efficient)
-        const headResponse = await fetch(url.toString(), {
+        const headResponse = await fetchAllowedBlobUrl(url.toString(), {
             method: "HEAD",
-            redirect: "follow",
             signal: controller.signal,
         });
 
@@ -116,7 +118,7 @@ async function checkRawUrlExists(fileUrl) {
         const getTimeoutId = setTimeout(() => getController.abort(), 5000);
 
         try {
-            const getResponse = await fetch(url.toString(), {
+            const getResponse = await fetchAllowedBlobUrl(url.toString(), {
                 method: "GET",
                 headers: {
                     // Request only first byte to check existence
@@ -124,7 +126,6 @@ async function checkRawUrlExists(fileUrl) {
                     // instead of partial content (206). The 5-second timeout limits impact.
                     Range: "bytes=0-0",
                 },
-                redirect: "follow",
                 signal: getController.signal,
             });
 

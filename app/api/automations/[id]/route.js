@@ -6,10 +6,13 @@ import {
     automationEffectiveEnabled,
     calculateNextRunAt,
     deleteAutomationFolder,
+    findAutomationForEditor,
     findAutomationForUser,
+    findAutomationForViewer,
     listAutomationSupportingFiles,
     normalizeSchedule,
     readAutomationContent,
+    resolveAutomationStorageContextId,
     serializeAutomation,
     writeAutomationContent,
 } from "../utils";
@@ -64,19 +67,35 @@ export async function GET(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForViewer(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
             );
         }
 
+        const { automation, isOwner, role } = found;
+
+        // Automation files are stored under the owner's contextId, so viewers
+        // need to read from the owner's storage, not their own.
+        const ownerContextId = await resolveAutomationStorageContextId(
+            automation,
+            user,
+            isOwner,
+        );
+
         const [content, files, homeWidget] = await Promise.all([
-            readAutomationContent(user.contextId, automation.slug),
-            listAutomationSupportingFiles(user.contextId, automation.slug),
-            findHomeWidget(user._id, automation._id),
+            ownerContextId
+                ? readAutomationContent(ownerContextId, automation.slug)
+                : Promise.resolve(""),
+            ownerContextId
+                ? listAutomationSupportingFiles(ownerContextId, automation.slug)
+                : Promise.resolve([]),
+            isOwner
+                ? findHomeWidget(user._id, automation._id)
+                : Promise.resolve({ block: null }),
         ]);
 
         return NextResponse.json(
@@ -84,6 +103,9 @@ export async function GET(request, { params }) {
                 content,
                 files,
                 pinnedToHome: Boolean(homeWidget.block),
+                isOwner,
+                shareRole: role,
+                readOnly: !isOwner && role !== "editor",
             }),
         );
     } catch (error) {
@@ -95,12 +117,25 @@ export async function PUT(request, { params }) {
     params = await params;
     try {
         const user = await getCurrentUser();
-        const automation = await findAutomationForUser(params.id, user._id);
+        const found = await findAutomationForEditor(params.id, user._id);
 
-        if (!automation) {
+        if (!found) {
             return NextResponse.json(
                 { error: "Automation not found" },
                 { status: 404 },
+            );
+        }
+
+        const { automation, isOwner, role } = found;
+        const storageContextId = await resolveAutomationStorageContextId(
+            automation,
+            user,
+            isOwner,
+        );
+        if (!storageContextId) {
+            return NextResponse.json(
+                { error: "Automation storage is unavailable" },
+                { status: 500 },
             );
         }
 
@@ -158,7 +193,7 @@ export async function PUT(request, { params }) {
         if (body.content !== undefined) {
             savedContent = String(body.content || "");
             const uploadResult = await writeAutomationContent(
-                user.contextId,
+                storageContextId,
                 automation.slug,
                 savedContent,
             );
@@ -172,7 +207,7 @@ export async function PUT(request, { params }) {
 
         await automation.save();
 
-        if (body.pinnedToHome !== undefined) {
+        if (isOwner && body.pinnedToHome !== undefined) {
             await setHomeWidget(
                 user._id,
                 automation,
@@ -180,10 +215,9 @@ export async function PUT(request, { params }) {
             );
         }
 
-        const { block: homeBlock } = await findHomeWidget(
-            user._id,
-            automation._id,
-        );
+        const { block: homeBlock } = isOwner
+            ? await findHomeWidget(user._id, automation._id)
+            : { block: null };
 
         return NextResponse.json(
             serializeAutomation(automation, {
@@ -191,6 +225,9 @@ export async function PUT(request, { params }) {
                     ? { content: savedContent }
                     : {}),
                 pinnedToHome: Boolean(homeBlock),
+                isOwner,
+                shareRole: role,
+                readOnly: false,
             }),
         );
     } catch (error) {

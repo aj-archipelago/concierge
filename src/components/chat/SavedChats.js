@@ -32,6 +32,7 @@ import {
     useSearchChats,
     useSearchContent,
     useTotalChatCount,
+    useAddChat,
 } from "../../../app/queries/chats";
 import { getChatIdString, isValidObjectId } from "../../utils/helper";
 import { useItemSelection } from "../images/hooks/useItemSelection";
@@ -136,6 +137,7 @@ function SavedChats({ displayState, initialChats = null }) {
     const pathname = usePathname();
     const dispatch = useDispatch();
     const updateChat = useUpdateChat();
+    const addChat = useAddChat();
     const [chatViewMode, setChatViewMode] = useState(() => {
         if (typeof window === "undefined") return CHAT_LIST_VIEW;
         try {
@@ -242,7 +244,9 @@ function SavedChats({ displayState, initialChats = null }) {
                 return chats;
             }
 
-            return chats.filter((chat) => Boolean(chat?.isPublic));
+            return chats.filter((chat) =>
+                Boolean(chat?.isShared ?? chat?.isPublic),
+            );
         },
         [showSharedOnly],
     );
@@ -1009,12 +1013,24 @@ function SavedChats({ displayState, initialChats = null }) {
         shouldVirtualize,
     ]);
 
-    const handleCreateNewChat = useCallback(() => {
+    const handleCreateNewChat = useCallback(async () => {
         if (isCreatingNewChat) return;
         setIsCreatingNewChat(true);
-        startNewChat({ pathname, router, dispatch });
-        setIsCreatingNewChat(false);
-    }, [isCreatingNewChat, pathname, router, dispatch]);
+        try {
+            await startNewChat({
+                router,
+                dispatch,
+                createChat: () =>
+                    addChat.mutateAsync({
+                        messages: [],
+                    }),
+            });
+        } catch (error) {
+            console.error("Error creating new chat:", error);
+        } finally {
+            setIsCreatingNewChat(false);
+        }
+    }, [isCreatingNewChat, router, dispatch, addChat]);
 
     const handleDelete = async (chatId) => {
         try {
@@ -1097,11 +1113,10 @@ function SavedChats({ displayState, initialChats = null }) {
 
         const chatId = getChatIdString(chat._id);
         const isSelected = selectedIds.has(chatId);
-        const previewText =
-            chat?.lastMessagePreview || (chat?.isUnused ? t("Empty chat") : "");
-        const timeLabel = chat?.createdAt
-            ? dayjs(chat.createdAt).fromNow()
-            : "";
+        const previewText = chat?.lastMessagePreview || "";
+        const displayTime =
+            chat?.lastMessageAt || chat?.updatedAt || chat?.createdAt;
+        const timeLabel = displayTime ? dayjs(displayTime).fromNow() : "";
 
         return (
             <div
@@ -1186,7 +1201,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                 >
                                     {t(chat.title) || t("New Chat")}
                                 </span>
-                                {chat.isPublic && (
+                                {(chat.isShared ?? chat.isPublic) && (
                                     <Users className="w-3 h-3 text-sky-500 flex-shrink-0" />
                                 )}
                             </>
