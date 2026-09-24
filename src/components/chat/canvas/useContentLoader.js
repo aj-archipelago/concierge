@@ -3,104 +3,120 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getTextProxyUrl } from "../../../utils/proxyUrl";
 
-/**
- * Hook for loading content from a URL or inline source.
- * Handles loading state, error state, retry, and inline content updates.
- *
- * Used by HtmlPreviewTabContent and other canvas tabs that fetch or receive content.
- *
- * @param {Object} options
- * @param {string|null} options.url - URL to fetch (when no inlineContent)
- * @param {string|null} options.inlineContent - Pre-loaded content (takes precedence)
- * @param {boolean} options.isActive - Only fetch when tab is active
- * @param {string} [options.emptyError] - Error message when neither url nor inlineContent
- * @returns {{ loading: boolean, error: string|null, content: string|null, contentKey: number, retry: () => void }}
- */
+/** Load active canvas content, retaining its identity across retries and races. */
 export function useContentLoader({
     url,
+    fileHash,
     inlineContent,
     isActive = true,
-    emptyError = "No URL provided",
+    emptyError = "No content available",
+    failureError = "Could not load content",
     fetchOptions,
     reloadKey,
 }) {
-    const [content, setContentState] = useState(inlineContent ?? null);
-    const contentRef = useRef(inlineContent ?? null);
-    const [contentKey, setContentKey] = useState(0);
-    const [loading, setLoading] = useState(!inlineContent);
-    const [error, setError] = useState(null);
-
-    const bumpContentKey = useCallback(() => {
-        setContentKey((k) => k + 1);
-    }, []);
-
-    const setContentIfChanged = useCallback(
-        (nextContent) => {
-            if (contentRef.current === nextContent) return;
-            contentRef.current = nextContent;
-            setContentState(nextContent);
-            bumpContentKey();
-        },
-        [bumpContentKey],
-    );
+    const source = JSON.stringify([url || null, fileHash || null]);
+    const [state, setState] = useState({
+        source,
+        content: inlineContent || null,
+        loading: !inlineContent && !!(url || fileHash),
+        error: null,
+        contentKey: 0,
+    });
+    const requestRef = useRef(null);
 
     const loadContent = useCallback(async () => {
-        if (!url) {
-            if (!inlineContent) {
-                setError(emptyError);
-            }
-            setLoading(false);
+        requestRef.current?.abort();
+        const controller = new AbortController();
+        requestRef.current = controller;
+        const current = () =>
+            requestRef.current === controller && !controller.signal.aborted;
+        const commit = (content, error = null) => {
+            if (!current()) return;
+            setState((previous) => ({
+                source,
+                content,
+                error,
+                loading: false,
+                contentKey:
+                    previous.contentKey +
+                    Number(
+                        previous.source !== source ||
+                            previous.content !== content,
+                    ),
+            }));
+        };
+        if (inlineContent) {
+            commit(inlineContent);
             return;
         }
-
-        setLoading(true);
-        setError(null);
-
+        if (!url && !fileHash) {
+            commit(null, emptyError);
+            return;
+        }
+        setState((previous) => ({
+            ...previous,
+            source,
+            content: previous.source === source ? previous.content : null,
+            loading: true,
+            error: null,
+        }));
         try {
-            const fetchUrl = getTextProxyUrl(url);
-            const response = await fetch(fetchUrl, fetchOptions);
-            if (!response.ok) {
-                throw new Error(`Failed to load: ${response.statusText}`);
+            let resolvedUrl = url;
+            // Legacy saved tabs may have only a file hash. Resolve it under the
+            // current user's authorization, without relying on an expired URL.
+            if (!resolvedUrl && fileHash) {
+                const lookup = await fetch("/api/files/check-url", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hash: fileHash }),
+                    signal: controller.signal,
+                });
+                if (!lookup.ok) throw new Error(failureError);
+                const resolved = await lookup.json();
+                if (!resolved.exists || !resolved.file?.url)
+                    throw new Error(failureError);
+                resolvedUrl = resolved.file.url;
             }
+            if (!current()) return;
+            const response = await fetch(
+                getTextProxyUrl(resolvedUrl, { refresh: true }),
+                {
+                    ...fetchOptions,
+                    signal: controller.signal,
+                },
+            );
+            if (!response.ok) throw new Error(failureError);
             const text = await response.text();
-            setContentIfChanged(text);
-        } catch (err) {
-            setError(err.message || "Failed to load");
-        } finally {
-            setLoading(false);
+            if (!text.trim()) throw new Error(failureError);
+            commit(text);
+        } catch {
+            // Abort/obsolete completions must not replace a newer preview or
+            // leak raw network errors (including signed URLs) into the UI.
+            if (current()) commit(null, failureError);
         }
-    }, [url, inlineContent, emptyError, setContentIfChanged, fetchOptions]);
+    }, [
+        source,
+        url,
+        fileHash,
+        inlineContent,
+        emptyError,
+        failureError,
+        fetchOptions,
+    ]);
 
-    // Use inline content when provided
     useEffect(() => {
-        if (inlineContent) {
-            setContentIfChanged(inlineContent);
-            setLoading(false);
-            setError(null);
-        }
-    }, [inlineContent, setContentIfChanged]);
+        if (inlineContent || (!url && !fileHash) || isActive) loadContent();
+        return () => requestRef.current?.abort();
+    }, [loadContent, isActive, reloadKey, inlineContent, url, fileHash]);
 
-    useEffect(() => {
-        if (!url && !inlineContent) {
-            contentRef.current = null;
-            setContentState(null);
-            setLoading(false);
-            setError(emptyError);
-        }
-    }, [url, inlineContent, emptyError]);
-
-    // Fetch from URL when active and no inline content
-    useEffect(() => {
-        if (url && isActive && !inlineContent) {
-            loadContent();
-        }
-    }, [url, isActive, inlineContent, loadContent, reloadKey]);
-
+    const matchesSource = state.source === source;
     return {
-        loading,
-        error,
-        content,
-        contentKey,
+        loading: matchesSource
+            ? state.loading
+            : !!(isActive && (url || fileHash)),
+        error: matchesSource ? state.error : null,
+        content: matchesSource ? state.content : null,
+        contentKey: state.contentKey,
         retry: loadContent,
     };
 }

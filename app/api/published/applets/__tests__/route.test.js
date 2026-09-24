@@ -84,6 +84,16 @@ describe("GET /api/published/applets/[id]", () => {
         const body = await response.json();
         expect(body.applet.publishedHtml).toBe("<html></html>");
         expect(body.meta).toBeNull();
+        expect(App.findOne).toHaveBeenNthCalledWith(1, {
+            appletId: "507f1f77bcf86cd799439011",
+            status: "active",
+            listedInStore: { $ne: false },
+        });
+        expect(App.findOne).toHaveBeenNthCalledWith(2, {
+            appletId: "507f1f77bcf86cd799439011",
+            status: "active",
+            listedInStore: { $ne: false },
+        });
     });
 
     it("does not treat private active app records as public listings", async () => {
@@ -162,7 +172,12 @@ describe("GET /api/published/applets/[id]", () => {
         });
 
         expect(response.status).toBe(200);
-        expect(resolveShareAccess).toHaveBeenCalled();
+        expect(resolveShareAccess).toHaveBeenCalledWith({
+            entityType: "published_applet",
+            entityId: "507f1f77bcf86cd799439011",
+            userId: undefined,
+            ownerId: "owner-1",
+        });
     });
 
     it("requires share access for private published applets", async () => {
@@ -196,6 +211,64 @@ describe("GET /api/published/applets/[id]", () => {
         });
 
         expect(response.status).toBe(401);
+        expect(resolveShareAccess).toHaveBeenCalledTimes(1);
+        expect(resolveShareAccess).toHaveBeenCalledWith({
+            entityType: "published_applet",
+            entityId: "507f1f77bcf86cd799439011",
+            userId: "viewer-1",
+            ownerId: "owner-1",
+        });
+        expect(App.findOne).toHaveBeenCalledWith({
+            appletId: "507f1f77bcf86cd799439011",
+            status: "active",
+            listedInStore: { $ne: false },
+        });
+    });
+
+    it("does not authorize private published applets through draft applet shares", async () => {
+        Applet.findOne.mockReturnValue({
+            select: jest.fn(() => ({
+                lean: jest.fn(async () => ({
+                    _id: "507f1f77bcf86cd799439011",
+                    owner: "owner-1",
+                    name: "Budget tracker",
+                    publishedVersionIndex: 0,
+                    htmlVersions: [{ contentBlobPath: "blob/path" }],
+                })),
+            })),
+        });
+        App.findOne.mockReturnValue({
+            select: jest.fn(() => ({
+                lean: jest.fn(async () => null),
+            })),
+        });
+        getCurrentUser.mockResolvedValue({ _id: "viewer-1" });
+        resolveShareAccess
+            .mockResolvedValueOnce({
+                canAccess: false,
+                isOwner: false,
+                role: null,
+            })
+            .mockResolvedValueOnce({
+                canAccess: true,
+                isOwner: false,
+                role: "viewer",
+            });
+
+        const response = await GET(new Request("http://localhost"), {
+            params: Promise.resolve({
+                id: "507f1f77bcf86cd799439011",
+            }),
+        });
+
+        expect(response.status).toBe(401);
+        expect(resolveShareAccess).toHaveBeenCalledTimes(1);
+        expect(resolveShareAccess).toHaveBeenCalledWith({
+            entityType: "published_applet",
+            entityId: "507f1f77bcf86cd799439011",
+            userId: "viewer-1",
+            ownerId: "owner-1",
+        });
     });
 
     it("allows recipients to load private published applets", async () => {

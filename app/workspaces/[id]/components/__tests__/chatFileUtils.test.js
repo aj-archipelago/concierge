@@ -45,8 +45,12 @@ describe("chatFileUtils", () => {
         });
 
         it("should handle missing hash gracefully", async () => {
-            await deleteFileFromCloud(null);
-            await deleteFileFromCloud(undefined);
+            await expect(deleteFileFromCloud(null)).rejects.toThrow(
+                "Missing file location",
+            );
+            await expect(deleteFileFromCloud(undefined)).rejects.toThrow(
+                "Missing file location",
+            );
 
             expect(global.fetch).not.toHaveBeenCalled();
         });
@@ -59,11 +63,7 @@ describe("chatFileUtils", () => {
                 text: jest.fn().mockResolvedValue("File not found"),
             });
 
-            const consoleSpy = jest.spyOn(console, "warn").mockImplementation();
-            await deleteFileFromCloud("hash123");
-
-            expect(consoleSpy).toHaveBeenCalled();
-            consoleSpy.mockRestore();
+            await expect(deleteFileFromCloud("hash123")).rejects.toThrow("404");
         });
     });
 
@@ -273,12 +273,11 @@ describe("chatFileUtils", () => {
                 url: "https://example.com/file.pdf",
             };
 
-            const result = await purgeFile({
-                fileObj: fileWithoutHash,
-                t: mockT,
+            await expect(
+                purgeFile({ fileObj: fileWithoutHash, t: mockT }),
+            ).rejects.toMatchObject({
+                results: { cloudDeleted: 0, failedFiles: [fileWithoutHash] },
             });
-
-            expect(result.cloudDeleted).toBe(false);
         });
 
         it("should return error for invalid file object", async () => {
@@ -327,7 +326,7 @@ describe("chatFileUtils", () => {
 
             expect(mockUpdateChatHook.mutateAsync).toHaveBeenCalled();
             const updatedMessages =
-                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messages;
+                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messageUpdates;
             const placeholder1 = JSON.parse(updatedMessages[0].payload[0]);
             expect(placeholder1.isDeletedFile).toBe(true);
         });
@@ -409,12 +408,11 @@ describe("chatFileUtils", () => {
                 },
             ];
 
-            const result = await purgeFiles({
-                fileObjs: filesWithoutHash,
-                t: mockT,
+            await expect(
+                purgeFiles({ fileObjs: filesWithoutHash, t: mockT }),
+            ).rejects.toMatchObject({
+                results: { cloudDeleted: 0, failedFiles: filesWithoutHash },
             });
-
-            expect(result.cloudDeleted).toBe(0);
         });
 
         it("should return error for invalid input", async () => {
@@ -451,7 +449,7 @@ describe("chatFileUtils", () => {
 
             expect(getFilename).toHaveBeenCalled();
             const updatedMessages =
-                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messages;
+                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messageUpdates;
             const placeholder = JSON.parse(updatedMessages[0].payload[0]);
             expect(placeholder.deletedFilename).toBe("custom-file1.pdf");
         });
@@ -481,7 +479,7 @@ describe("chatFileUtils", () => {
             });
 
             const updatedMessages =
-                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messages;
+                mockUpdateChatHook.mutateAsync.mock.calls[0][0].messageUpdates;
             // Should not modify already deleted files
             const payload = JSON.parse(updatedMessages[0].payload[0]);
             expect(payload.hideFromClient).toBe(true);

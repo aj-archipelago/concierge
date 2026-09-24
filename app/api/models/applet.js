@@ -12,6 +12,14 @@ export const appletSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        widgetHtml: {
+            type: String,
+            required: false,
+        },
+        widgetHtmlUpdatedAt: {
+            type: Date,
+            required: false,
+        },
         htmlVersions: [
             {
                 content: {
@@ -117,6 +125,11 @@ export const appletSchema = new mongoose.Schema(
         filePath: {
             type: String,
             required: false,
+        },
+        agentContext: {
+            type: String,
+            required: false,
+            match: /^applet-shared:[A-Fa-f0-9]{24}$/,
         },
         migratedFromWorkspaceId: {
             type: mongoose.Schema.Types.ObjectId,

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import Workspace from "../../models/workspace";
 import WorkspaceMembership from "../../models/workspace-membership";
 import { getCurrentUser } from "../../utils/auth";
+import { resolveShareAccess } from "../../utils/shareAccess";
 
 export async function getWorkspace(id) {
     let workspace;
@@ -25,13 +26,32 @@ export async function getWorkspace(id) {
         });
     }
 
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(false);
 
-    if (!workspace) {
+    if (!workspace || !user?._id) {
         return;
     }
 
-    // Migration: Generate contextKey for existing workspaces without one
+    const access = await resolveShareAccess({
+        entityType: "workspace",
+        entityId: workspace._id,
+        userId: user._id,
+        ownerId: workspace.owner,
+    });
+
+    let membership = null;
+    if (!access.isOwner) {
+        membership = await WorkspaceMembership.findOne({
+            user: user._id,
+            workspace: workspace._id,
+        }).lean();
+    }
+
+    if (!access.canAccess && !membership) {
+        return;
+    }
+
+    // Migration: Generate contextKey for accessible existing workspaces without one.
     if (!workspace.contextKey) {
         console.log(
             `Workspace ${workspace._id} has no contextKey, generating one`,
@@ -47,16 +67,14 @@ export async function getWorkspace(id) {
         }
     }
 
-    let membership;
-    if (!workspace.owner?.equals(user._id)) {
-        // check if user is a member of the workspace
-        membership = await WorkspaceMembership.findOne({
-            user: user._id,
-            workspace: workspace._id,
-        });
-    }
-
     workspace = workspace.toJSON();
+    workspace.isOwner = access.isOwner;
+    workspace.shareRole = workspace.isOwner
+        ? "editor"
+        : access.canAccess || membership
+          ? "viewer"
+          : null;
+    workspace.readOnly = !workspace.isOwner;
     workspace.joined = !!membership;
     return workspace;
 }

@@ -343,3 +343,63 @@ describe("InlineAssistantPayload inline user tool event", () => {
         );
     });
 });
+
+// Native disclosure ancestry verifies that errors stay outside collapsed details.
+/* eslint-disable testing-library/no-container, testing-library/no-node-access, testing-library/prefer-presence-queries */
+it("keeps one media card per task with completed setup collapsed and errors visible", () => {
+    const mediaTask = {
+        taskId: "a".repeat(24),
+        type: "image",
+        model: "model",
+        name: "Model A",
+    };
+    const { container } = render(
+        <InlineAssistantPayload
+            items={[
+                JSON.stringify({
+                    type: "tool_event",
+                    callId: "lookup",
+                    status: "completed",
+                    userMessage: "Finding models",
+                }),
+                JSON.stringify({
+                    type: "tool_event",
+                    callId: "generate",
+                    status: "completed",
+                    userMessage: "Generating",
+                    mediaTask,
+                }),
+                JSON.stringify({
+                    type: "tool_event",
+                    callId: "retry",
+                    status: "completed",
+                    userMessage: "Recovering receipt",
+                    mediaTask,
+                }),
+                JSON.stringify({ type: "text", text: "On their way." }),
+                JSON.stringify({
+                    type: "tool_event",
+                    callId: "lookup-2",
+                    status: "completed",
+                    userMessage: "Read settings",
+                }),
+                JSON.stringify({ type: "text", text: "Results below." }),
+                JSON.stringify({
+                    type: "tool_event",
+                    callId: "error",
+                    status: "failed",
+                    userMessage: "Another model failed",
+                    error: "Provider unavailable",
+                }),
+            ]}
+            message={{ id: "m" }}
+        />,
+    );
+    expect(screen.getAllByText("Model A")).toHaveLength(1);
+    expect(container.querySelectorAll("details")).toHaveLength(1);
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Finding models").closest("details")).toBeTruthy();
+    expect(
+        screen.getByText("Another model failed").closest("details"),
+    ).toBeNull();
+});

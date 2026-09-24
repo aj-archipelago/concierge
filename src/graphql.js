@@ -41,11 +41,16 @@ const getClient = (serverUrl, useBlueGraphQL, options = {}) => {
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
+        ...(options.fetch ? { fetch: options.fetch } : {}),
     });
 
     const wsLink = new GraphQLWsLink(
         createClient({
-            url: graphqlEndpoint.replace("http", "ws"),
+            url: graphqlEndpoint
+                .replace("http", "ws")
+                .replace(/\/graphql(-blue)?$/, (match) =>
+                    serverUrl ? `${match}-ws` : match,
+                ),
         }),
     );
 
@@ -226,6 +231,7 @@ const SYS_ENTITY_AGENT = gql`
     query StartAgent(
         $chatHistory: [MultiMessage]!
         $fileAccessPlan: [FileAccessTargetInput]
+        $agentContext: String
         $contextId: String
         $contextKey: String
         $text: String
@@ -239,12 +245,14 @@ const SYS_ENTITY_AGENT = gql`
         $model: String
         $userInfo: String
         $clientSideTools: String
+        $agentToolsToken: String
         $mcpConfig: String
         $mcpAvailableServers: String
     ) {
         sys_entity_agent(
             chatHistory: $chatHistory
             fileAccessPlan: $fileAccessPlan
+            agentContext: $agentContext
             contextId: $contextId
             contextKey: $contextKey
             text: $text
@@ -258,6 +266,7 @@ const SYS_ENTITY_AGENT = gql`
             model: $model
             userInfo: $userInfo
             clientSideTools: $clientSideTools
+            agentToolsToken: $agentToolsToken
             mcpConfig: $mcpConfig
             mcpAvailableServers: $mcpAvailableServers
         ) {
@@ -283,7 +292,7 @@ const SOURCE_QA = gql`
         $skipAnswerSynthesis: Boolean
         $stream: Boolean
     ) {
-        ask_aj(
+        source_qa(
             text: $text
             contextInfo: $contextInfo
             language: $language
@@ -309,7 +318,7 @@ const SOURCE_QA_INITIAL_QUESTIONS = gql`
         $language: String
         $prewarmAnswers: Boolean
     ) {
-        ask_aj_initial_questions(
+        source_qa_initial_questions(
             language: $language
             prewarmAnswers: $prewarmAnswers
         ) {
@@ -334,48 +343,6 @@ const SYS_ENTITY_UPDATE = gql`
             name: $name
             secrets: $secrets
             reasoningEffort: $reasoningEffort
-        ) {
-            result
-        }
-    }
-`;
-
-const COGNITIVE_INSERT = gql`
-    query CognitiveInsert(
-        $text: String
-        $file: String
-        $contextId: String
-        $docId: String
-        $chatId: String
-        $privateData: Boolean
-        $async: Boolean
-    ) {
-        cognitive_insert(
-            text: $text
-            file: $file
-            contextId: $contextId
-            docId: $docId
-            chatId: $chatId
-            privateData: $privateData
-            async: $async
-        ) {
-            result
-        }
-    }
-`;
-
-const COGNITIVE_DELETE = gql`
-    query CognitiveDelete(
-        $text: String
-        $contextId: String
-        $docId: String
-        $chatId: String
-    ) {
-        cognitive_delete(
-            text: $text
-            contextId: $contextId
-            docId: $docId
-            chatId: $chatId
         ) {
             result
         }
@@ -436,23 +403,6 @@ const GRAMMAR = gql`
 const GRAMMAR_AR = gql`
     query GrammarAr($text: String!, $async: Boolean) {
         grammar_ar(text: $text, async: $async) {
-            result
-        }
-    }
-`;
-const GREETING = gql`
-    query Greeting(
-        $text: String!
-        $async: Boolean
-        $contextId: String
-        $aiName: String
-    ) {
-        greeting(
-            text: $text
-            async: $async
-            contextId: $contextId
-            aiName: $aiName
-        ) {
             result
         }
     }
@@ -588,6 +538,70 @@ const TRANSCRIBE_MAI_15 = gql`
         $contextId: String
     ) {
         transcribe_mai_15(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_GEMINI_35 = gql`
+    query TranscribeGemini35(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_gemini_35(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_SCRIBE_V2 = gql`
+    query TranscribeScribeV2(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_scribe_v2(
             file: $file
             text: $text
             language: $language
@@ -1292,6 +1306,25 @@ const MEDIA_GENERATE = gql`
         $lyricsOptimizer: Boolean
         $audioUrl: String
         $inputAudioUrl: String
+        $inputAudio: [String]
+        $fps: Int
+        $generationMode: String
+        $watermark: Boolean
+        $matchInputImage: Boolean
+        $enablePromptExpansion: Boolean
+        $layerDecomposition: Boolean
+        $styleId: String
+        $styleMatch: String
+        $sourceUrl: String
+        $sourceLanguage: String
+        $targetLanguage: String
+        $cloningStrength: Int
+        $background: String
+        $outputCompression: Int
+        $promptUpsampler: String
+        $draft: Boolean
+        $autoAspectRatio: Boolean
+        $webGrounding: Boolean
         $audioFormat: String
         $sampleRate: Int
         $bitrate: Int
@@ -1374,6 +1407,25 @@ const MEDIA_GENERATE = gql`
             lyricsOptimizer: $lyricsOptimizer
             audioUrl: $audioUrl
             inputAudioUrl: $inputAudioUrl
+            inputAudio: $inputAudio
+            fps: $fps
+            generationMode: $generationMode
+            watermark: $watermark
+            matchInputImage: $matchInputImage
+            enablePromptExpansion: $enablePromptExpansion
+            layerDecomposition: $layerDecomposition
+            styleId: $styleId
+            styleMatch: $styleMatch
+            sourceUrl: $sourceUrl
+            sourceLanguage: $sourceLanguage
+            targetLanguage: $targetLanguage
+            cloningStrength: $cloningStrength
+            background: $background
+            outputCompression: $outputCompression
+            promptUpsampler: $promptUpsampler
+            draft: $draft
+            autoAspectRatio: $autoAspectRatio
+            webGrounding: $webGrounding
             audioFormat: $audioFormat
             sampleRate: $sampleRate
             bitrate: $bitrate
@@ -1497,8 +1549,20 @@ const AZURE_VIDEO_TRANSLATE = gql`
 `;
 
 const SYS_GET_ENTITIES = gql`
-    query Sys_get_entities($userId: String, $fresh: String) {
-        sys_get_entities(userId: $userId, fresh: $fresh) {
+    query Sys_get_entities(
+        $userId: String
+        $fresh: String
+        $entityId: String
+        $query: String
+        $offset: Int
+    ) {
+        sys_get_entities(
+            userId: $userId
+            fresh: $fresh
+            entityId: $entityId
+            query: $query
+            offset: $offset
+        ) {
             result
         }
     }
@@ -1570,8 +1634,6 @@ const AI_TEXT_EDIT = gql`
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
     CHAT_TITLE,
-    COGNITIVE_DELETE,
-    COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
@@ -1597,7 +1659,6 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
-    GREETING,
     GRAMMAR,
     GRAMMAR_AR,
     SPELLING,
@@ -1616,6 +1677,8 @@ const QUERIES = {
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
     TRANSCRIBE_MAI_15,
+    TRANSCRIBE_GEMINI_35,
+    TRANSCRIBE_SCRIBE_V2,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     TRANSLATE,
@@ -1691,8 +1754,6 @@ export {
     getClient,
     SYS_MODEL_METADATA,
     AZURE_VIDEO_TRANSLATE,
-    COGNITIVE_INSERT,
-    COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_READ_MEMORY,
     SYS_SAVE_MEMORY,
@@ -1740,6 +1801,8 @@ export {
     REMOVE_CONTENT,
     JIRA_STORY,
     TRANSCRIBE_MAI_15,
+    TRANSCRIBE_GEMINI_35,
+    TRANSCRIBE_SCRIBE_V2,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     VISION,

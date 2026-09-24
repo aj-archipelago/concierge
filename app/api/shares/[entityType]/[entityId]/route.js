@@ -6,8 +6,11 @@ import Chat from "../../../models/chat.mjs";
 import { getEntityOwner } from "../../../utils/shareAccess";
 import {
     legacyHydratedShareShape,
+    normalizeShareLink,
+    normalizeShareRole,
     sanitizeShareRecipients,
     upsertEntityShare,
+    VIEWER_ONLY_SHARE_ENTITY_TYPES,
 } from "../../../utils/shareHelpers";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +66,28 @@ function defaultShareShape(entityType, entityId) {
     };
 }
 
+function serializeShareResponse({ entityType, entityId, share }) {
+    return {
+        entityType,
+        entityId,
+        link: normalizeShareLink(entityType, share.link),
+        recipients: (share.recipients || []).map((r) => ({
+            userId: r.userId?._id || r.userId,
+            role: normalizeShareRole(entityType, r.role),
+            addedAt: r.addedAt,
+            user: r.userId?._id
+                ? {
+                      _id: r.userId._id,
+                      name: r.userId.name,
+                      username: r.userId.username,
+                      profilePicture: r.userId.profilePicture,
+                  }
+                : null,
+        })),
+        updatedAt: share.updatedAt,
+    };
+}
+
 function sanitizeRecipientsBody(raw, { ownerId, entityType }) {
     try {
         return sanitizeShareRecipients(raw, { ownerId, entityType });
@@ -81,7 +106,7 @@ function sanitizeLinkBody(raw, { entityType }) {
     if (!SHARE_ROLES.includes(role)) {
         throw new Error("Invalid link role");
     }
-    if (entityType === "chat") {
+    if (VIEWER_ONLY_SHARE_ENTITY_TYPES.has(entityType)) {
         role = "viewer";
     }
     return { enabled, role };
@@ -120,27 +145,9 @@ export async function GET(req, { params }) {
             return NextResponse.json(defaultShareShape(entityType, entityId));
         }
 
-        const recipients = (share.recipients || []).map((r) => ({
-            userId: r.userId?._id || r.userId,
-            role: r.role,
-            addedAt: r.addedAt,
-            user: r.userId?._id
-                ? {
-                      _id: r.userId._id,
-                      name: r.userId.name,
-                      username: r.userId.username,
-                      profilePicture: r.userId.profilePicture,
-                  }
-                : null,
-        }));
-
-        return NextResponse.json({
-            entityType,
-            entityId,
-            link: share.link || { enabled: false, role: "viewer" },
-            recipients,
-            updatedAt: share.updatedAt,
-        });
+        return NextResponse.json(
+            serializeShareResponse({ entityType, entityId, share }),
+        );
     } catch (error) {
         return handleError(error);
     }
@@ -187,25 +194,11 @@ export async function PUT(req, { params }) {
             .populate("recipients.userId", "name username profilePicture")
             .lean();
 
-        const sanitized = {
+        const sanitized = serializeShareResponse({
             entityType,
             entityId,
-            link: share.link,
-            recipients: (share.recipients || []).map((r) => ({
-                userId: r.userId?._id || r.userId,
-                role: r.role,
-                addedAt: r.addedAt,
-                user: r.userId?._id
-                    ? {
-                          _id: r.userId._id,
-                          name: r.userId.name,
-                          username: r.userId.username,
-                          profilePicture: r.userId.profilePicture,
-                      }
-                    : null,
-            })),
-            updatedAt: share.updatedAt,
-        };
+            share,
+        });
 
         // Keep legacy chat public flag in sync with link sharing.
         if (link !== undefined && entityType === "chat") {

@@ -2,12 +2,18 @@ import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DigestBlock from "./DigestBlock";
+import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
 
 jest.mock("next/navigation", () => ({
     __esModule: true,
     useRouter: () => ({
         push: jest.fn(),
     }),
+}));
+
+jest.mock("@tanstack/react-query", () => ({
+    __esModule: true,
+    useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
 
 jest.mock("react-i18next", () => ({
@@ -32,15 +38,16 @@ jest.mock("../../../src/contexts/LanguageProvider", () => {
 
 jest.mock("../../../src/components/chat/ChatMessage", () => ({
     __esModule: true,
-    convertMessageToMarkdown: ({ payload }) => <div>{payload}</div>,
+    convertMessageToMarkdown: jest.fn(({ payload }) => <div>{payload}</div>),
 }));
 
 jest.mock("../../../src/components/automations/AutomationHtmlFrame", () => ({
     __esModule: true,
-    default: ({ automationId }) => (
+    default: ({ automationId, variant }) => (
         <div
             data-testid="automation-html-frame"
             data-automation-id={automationId}
+            data-variant={variant || "full"}
         />
     ),
 }));
@@ -70,7 +77,72 @@ jest.mock("../../queries/notifications", () => ({
     useTask: () => ({ data: null }),
 }));
 
-describe("DigestBlock fullscreen", () => {
+describe("DigestBlock", () => {
+    it("names failed automation cards even when the saved title is empty", () => {
+        render(
+            <DigestBlock
+                block={{
+                    _id: "block",
+                    title: "",
+                    automationId: "automation",
+                    automation: {
+                        _id: "automation",
+                        name: "AI morning brief",
+                        enabled: true,
+                    },
+                    automationRun: { status: "failed" },
+                }}
+            />,
+        );
+        expect(
+            screen.getByRole("heading", { name: "AI morning brief" }),
+        ).toBeInTheDocument();
+    });
+
+    it("passes automation sources through to the Markdown renderer", () => {
+        const tool = JSON.stringify({
+            citations: [{ searchResultId: "id", url: "https://example.com" }],
+        });
+        render(
+            <DigestBlock
+                block={{
+                    _id: "block",
+                    title: "Report",
+                    automationId: "auto",
+                    automationRun: {
+                        taskId: "run",
+                        status: "completed",
+                        summary: "Claim :cd_source[id]",
+                        tool,
+                    },
+                }}
+            />,
+        );
+        expect(convertMessageToMarkdown).toHaveBeenCalledWith({
+            payload: "Claim :cd_source[id]",
+            tool,
+        });
+    });
+    it("renders report widgets with dashboard card chrome", () => {
+        render(
+            <DigestBlock
+                block={{
+                    _id: "digest-1",
+                    title: "Daily Digest",
+                    prompt: "Summarize",
+                    content: JSON.stringify({ payload: "Digest body" }),
+                    updatedAt: "2026-06-16T00:00:00.000Z",
+                }}
+            />,
+        );
+
+        expect(screen.getByTestId("home-digest-block")).toHaveClass(
+            "rounded-2xl",
+            "flex",
+            "flex-col",
+        );
+    });
+
     it("opens prompt digest content from the fullscreen button", () => {
         render(
             <DigestBlock
@@ -84,7 +156,7 @@ describe("DigestBlock fullscreen", () => {
             />,
         );
 
-        fireEvent.click(screen.getByTitle("Full screen"));
+        fireEvent.click(screen.getByTitle("Open report"));
 
         const dialog = screen.getByRole("dialog", { name: "Daily Digest" });
         expect(dialog).toBeInTheDocument();
@@ -109,7 +181,7 @@ describe("DigestBlock fullscreen", () => {
             />,
         );
 
-        fireEvent.click(screen.getByTitle("Full screen"));
+        fireEvent.click(screen.getByTitle("Open report"));
 
         const dialog = screen.getByRole("dialog", {
             name: "Nightly Automation",
@@ -118,5 +190,30 @@ describe("DigestBlock fullscreen", () => {
         expect(
             within(dialog).getByTestId("automation-html-frame"),
         ).toHaveAttribute("data-automation-id", "automation-1");
+        expect(
+            within(dialog).getByTestId("automation-html-frame"),
+        ).toHaveAttribute("data-variant", "full");
+    });
+
+    it("renders the compact widget HTML in the home tile", () => {
+        render(
+            <DigestBlock
+                block={{
+                    _id: "automation-block-1",
+                    title: "Nightly Automation",
+                    automationId: "automation-1",
+                    automationRun: {
+                        _id: "run-1",
+                        taskId: "task-1",
+                        status: "completed",
+                        hasHtmlOutput: true,
+                        completedAt: "2026-06-16T00:00:00.000Z",
+                    },
+                }}
+            />,
+        );
+
+        const frames = screen.getAllByTestId("automation-html-frame");
+        expect(frames[0]).toHaveAttribute("data-variant", "widget");
     });
 });

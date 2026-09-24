@@ -1,4 +1,6 @@
 "use client";
+import { CurrentEntityProvider } from "./contexts/CurrentEntityContext";
+
 import { ApolloProvider } from "@apollo/client";
 import React, {
     useCallback,
@@ -25,6 +27,7 @@ import "./App.scss";
 import StoreProvider from "./StoreProvider";
 import { LanguageContext, LanguageProvider } from "./contexts/LanguageProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
+import { TourProvider } from "./contexts/TourContext";
 import { AutoTranscribeProvider } from "./contexts/AutoTranscribeContext";
 import Layout from "./layout/Layout";
 import "./tailwind.css";
@@ -83,6 +86,59 @@ function getUserStateSignature(value) {
     return JSON.stringify(value);
 }
 
+function BootstrapScreen({ language, state, isRetrying, onRetry }) {
+    const isError = state === "error";
+    const t = (key) => i18next.t(key, { lng: language });
+
+    return (
+        <main
+            dir={language === "ar" ? "rtl" : "ltr"}
+            className="flex min-h-[100dvh] w-full items-center justify-center bg-gray-50 px-4 py-8 text-gray-900 dark:bg-gray-950 dark:text-gray-100"
+        >
+            <section
+                className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-8"
+                role={isError ? "alert" : "status"}
+                aria-live={isError ? "assertive" : "polite"}
+            >
+                {!isError && (
+                    <div
+                        className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-sky-100 border-t-sky-600 dark:border-sky-950 dark:border-t-sky-400"
+                        aria-hidden="true"
+                    />
+                )}
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    {t(
+                        isError
+                            ? "bootstrap.errorTitle"
+                            : "bootstrap.loadingTitle",
+                    )}
+                </h1>
+                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                    {t(
+                        isError
+                            ? "bootstrap.errorMessage"
+                            : "bootstrap.loadingMessage",
+                    )}
+                </p>
+                {isError && (
+                    <button
+                        type="button"
+                        className="mt-6 min-h-11 rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:bg-sky-500 dark:hover:bg-sky-400 dark:focus:ring-offset-gray-900"
+                        disabled={isRetrying}
+                        onClick={onRetry}
+                    >
+                        {t(
+                            isRetrying
+                                ? "bootstrap.retrying"
+                                : "bootstrap.retry",
+                        )}
+                    </button>
+                )}
+            </section>
+        </main>
+    );
+}
+
 const App = ({
     children,
     language,
@@ -93,12 +149,21 @@ const App = ({
     xaiTranscribeEnabled,
     xaiTranscribeDefaultEnabled,
     maiTranscribeEnabled,
+    gemini35TranscribeEnabled,
+    scribeV2TranscribeEnabled,
     transcribeDefaultModelOption,
     transcribeAlternateModelOption,
+    realtimeAudio,
     useBlueGraphQL,
     initialActiveChats,
 }) => {
-    const { data: currentUser } = useCurrentUser();
+    const currentUserQuery = useCurrentUser();
+    const {
+        data: currentUser,
+        isError: isCurrentUserError,
+        isFetching: isCurrentUserFetching,
+        refetch: refetchCurrentUser,
+    } = currentUserQuery;
     const { data: serverUserState, refetch: refetchServerUserState } =
         useUserState();
     const updateUserState = useUpdateUserState();
@@ -181,6 +246,18 @@ const App = ({
         });
     }, []);
 
+    // Stable so the TourProvider context value doesn't churn on every render
+    // (which would re-render the whole app tree and can trigger effect loops).
+    const handleCompleteTour = useCallback(
+        (id) => {
+            const prevCompleted = userStateRef.current?.toursCompleted || {};
+            debouncedUpdateUserState({
+                toursCompleted: { ...prevCompleted, [id]: true },
+            });
+        },
+        [debouncedUpdateUserState],
+    );
+
     const updateUserStateNow = useCallback(
         async (value) => {
             const nextState = mergeUserStateUpdate(userStateRef.current, value);
@@ -235,8 +312,11 @@ const App = ({
             xaiTranscribeEnabled,
             xaiTranscribeDefaultEnabled,
             maiTranscribeEnabled,
+            gemini35TranscribeEnabled,
+            scribeV2TranscribeEnabled,
             transcribeDefaultModelOption,
             transcribeAlternateModelOption,
+            realtimeAudio,
         }),
         [
             graphQLPublicEndpoint,
@@ -245,8 +325,11 @@ const App = ({
             xaiTranscribeEnabled,
             xaiTranscribeDefaultEnabled,
             maiTranscribeEnabled,
+            gemini35TranscribeEnabled,
+            scribeV2TranscribeEnabled,
             transcribeDefaultModelOption,
             transcribeAlternateModelOption,
+            realtimeAudio,
         ],
     );
 
@@ -259,7 +342,19 @@ const App = ({
     }, [serverUrl, useBlueGraphQL, userScopedApolloKey]);
 
     if (!currentUser || !apolloClient) {
-        return null;
+        const bootstrapFailed =
+            isCurrentUserError ||
+            (!currentUserQuery.isLoading && !currentUser) ||
+            (currentUser && !apolloClient);
+
+        return (
+            <BootstrapScreen
+                language={language}
+                state={bootstrapFailed ? "error" : "loading"}
+                isRetrying={isCurrentUserFetching}
+                onRetry={() => refetchCurrentUser?.()}
+            />
+        );
     }
 
     return (
@@ -275,21 +370,36 @@ const App = ({
                                     <AuthContext.Provider
                                         value={authContextValue}
                                     >
-                                        <ThemeProvider savedTheme={theme}>
-                                            <LanguageProvider
-                                                savedLanguage={language}
+                                        <CurrentEntityProvider>
+                                            <TourProvider
+                                                completed={
+                                                    userState?.toursCompleted
+                                                }
+                                                onCompleteTour={
+                                                    handleCompleteTour
+                                                }
                                             >
-                                                <Layout
-                                                    initialActiveChats={
-                                                        initialActiveChats
-                                                    }
+                                                <ThemeProvider
+                                                    savedTheme={theme}
                                                 >
-                                                    <Body>{children}</Body>
-                                                </Layout>
-                                                <AuthErrorDialog />
-                                                <AuthLoadingOverlay />
-                                            </LanguageProvider>
-                                        </ThemeProvider>
+                                                    <LanguageProvider
+                                                        savedLanguage={language}
+                                                    >
+                                                        <Layout
+                                                            initialActiveChats={
+                                                                initialActiveChats
+                                                            }
+                                                        >
+                                                            <Body>
+                                                                {children}
+                                                            </Body>
+                                                        </Layout>
+                                                        <AuthErrorDialog />
+                                                        <AuthLoadingOverlay />
+                                                    </LanguageProvider>
+                                                </ThemeProvider>
+                                            </TourProvider>
+                                        </CurrentEntityProvider>
                                     </AuthContext.Provider>
                                 </CurrentUserContext.Provider>
                             </React.StrictMode>

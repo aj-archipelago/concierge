@@ -2,6 +2,12 @@ import Task from "../models/task.mjs";
 import Notification from "../models/notification.mjs";
 import UserState from "../models/user-state.mjs";
 import { migrateTasks } from "./task-migration.mjs";
+import {
+    linkLegacyTeamNotifications,
+    teamInboxSnapshot,
+    inboxAttentionRank,
+    hydrateTeamInboxItems,
+} from "./team-inbox.mjs";
 
 function fortyEightHoursAgo() {
     return new Date(Date.now() - 48 * 60 * 60 * 1000);
@@ -32,10 +38,12 @@ function parseUserState(serializedState) {
 export async function ensureInboxMigrations(user) {
     const userStateObject = await UserState.findOne({ user: user._id });
     const userState = parseUserState(userStateObject?.serializedState);
+    let userStateChanged = false;
 
     if (!userState.tasksMigrated) {
         await migrateTasks(user._id);
         userState.tasksMigrated = true;
+        userStateChanged = true;
     }
 
     if (!userState.shareNotificationsMigrated) {
@@ -63,6 +71,17 @@ export async function ensureInboxMigrations(user) {
         }
 
         userState.shareNotificationsMigrated = true;
+        userStateChanged = true;
+    }
+
+    if (!userState.teamNotificationsLinked) {
+        await linkLegacyTeamNotifications(user._id);
+        userState.teamNotificationsLinked = true;
+        userStateChanged = true;
+    }
+
+    if (!userStateChanged) {
+        return;
     }
 
     await UserState.findOneAndUpdate(
@@ -95,16 +114,23 @@ export function normalizeTaskForInbox(task) {
     };
 }
 
-export async function getInboxCounts(userId) {
+export async function getInboxCounts(userId, { teamUnreadCount } = {}) {
     const timeFilter = buildInboxTimeFilter(false);
 
-    const unreadNotificationCount = await Notification.countDocuments({
+    const individualCount = await Notification.countDocuments({
+        assistantRootId: null,
         owner: userId,
         read: { $ne: true },
         ...timeFilter,
     });
 
-    return { unreadNotificationCount, activeTaskCount: 0 };
+    const unreadTeams =
+        teamUnreadCount ??
+        (await teamInboxSnapshot(userId, { includeViews: false })).unreadCount;
+    return {
+        unreadNotificationCount: individualCount + unreadTeams,
+        activeTaskCount: 0,
+    };
 }
 
 export async function markNotificationsRead(
@@ -115,7 +141,6 @@ export async function markNotificationsRead(
         owner: userId,
         read: { $ne: true },
         dismissed: { $ne: true },
-        ...buildInboxTimeFilter(false),
     };
 
     if (!all) {
@@ -142,22 +167,26 @@ export async function listInboxItems(
 
     const taskMatch = {
         owner: userId,
-        type: { $ne: "resource-shared" },
+        type: { $nin: ["resource-shared", "build-digest"] },
+        assistantTeamRevision: { $not: { $gt: 0 } },
+        assistantDepth: { $not: { $gt: 0 } },
         ...timeFilter,
     };
     const notificationMatch = {
         owner: userId,
+        assistantRootId: null,
         ...timeFilter,
     };
 
+    const teamSnapshot = await teamInboxSnapshot(userId, { showDismissed });
     const [taskItems, notificationItems, taskTotal, notificationTotal, counts] =
         await Promise.all([
             Task.find(taskMatch)
-                .sort({ createdAt: -1 })
+                .sort({ createdAt: -1, _id: -1 })
                 .limit(perCollectionLimit)
                 .lean(),
             Notification.find(notificationMatch)
-                .sort({ createdAt: -1 })
+                .sort({ createdAt: -1, _id: -1 })
                 .limit(perCollectionLimit)
                 .lean(),
             Task.countDocuments(taskMatch),
@@ -167,25 +196,34 @@ export async function listInboxItems(
                       unreadNotificationCount: 0,
                       activeTaskCount: 0,
                   })
-                : getInboxCounts(userId),
+                : getInboxCounts(userId, {
+                      teamUnreadCount: teamSnapshot.unreadCount,
+                  }),
         ]);
 
     const combinedItems = [
+        ...teamSnapshot.items,
         ...taskItems.map(normalizeTaskForInbox),
         ...notificationItems.map(normalizeNotificationForInbox),
     ].sort((a, b) => {
-        const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
-        const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-        return bTime - aTime;
+        const bTime =
+            new Date(b.team ? b.updatedAt : b.createdAt).getTime() || 0;
+        const aTime =
+            new Date(a.team ? a.updatedAt : a.createdAt).getTime() || 0;
+        return (
+            inboxAttentionRank(a) - inboxAttentionRank(b) ||
+            bTime - aTime ||
+            String(b._id).localeCompare(String(a._id))
+        );
     });
 
-    const total = taskTotal + notificationTotal;
+    const total = taskTotal + notificationTotal + teamSnapshot.items.length;
     const pageItems = combinedItems.slice(skip, skip + limit + 1);
     const hasMore = pageItems.length > limit;
     const requests = hasMore ? pageItems.slice(0, limit) : pageItems;
 
     return {
-        requests,
+        requests: await hydrateTeamInboxItems(userId, requests),
         hasMore,
         total,
         ...counts,

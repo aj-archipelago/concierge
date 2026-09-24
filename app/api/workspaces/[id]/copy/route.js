@@ -1,8 +1,33 @@
 import Prompt from "../../../models/prompt";
 import Workspace from "../../../models/workspace";
+import WorkspaceMembership from "../../../models/workspace-membership";
 import Applet from "../../../models/applet";
 import { getCurrentUser } from "../../../utils/auth";
+import { resolveShareAccess } from "../../../utils/shareAccess";
 import { createWorkspace } from "../../db";
+
+async function loadCopyableWorkspace(id, user) {
+    const workspace = await Workspace.findById(id);
+    if (!workspace) {
+        return null;
+    }
+
+    const access = await resolveShareAccess({
+        entityType: "workspace",
+        entityId: workspace._id,
+        userId: user?._id,
+        ownerId: workspace.owner,
+    });
+    if (access.canAccess) {
+        return workspace;
+    }
+
+    const membership = await WorkspaceMembership.exists({
+        user: user._id,
+        workspace: workspace._id,
+    });
+    return membership ? workspace : null;
+}
 
 export async function POST(req, { params }) {
     params = await params;
@@ -10,7 +35,10 @@ export async function POST(req, { params }) {
     const user = await getCurrentUser();
 
     // make a copy of the workspace and all prompts
-    const workspace = await Workspace.findById(id);
+    const workspace = await loadCopyableWorkspace(id, user);
+    if (!workspace) {
+        return Response.json({ error: "Workspace not found" }, { status: 404 });
+    }
 
     const prompts = await Prompt.find({ _id: { $in: workspace.prompts } });
     const newPrompts = [];

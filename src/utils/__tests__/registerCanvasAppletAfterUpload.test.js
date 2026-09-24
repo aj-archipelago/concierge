@@ -23,20 +23,28 @@ describe("registerCanvasAppletAfterUpload", () => {
         global.fetch = jest.fn();
     });
 
-    it("returns null appletId and original html when POST is not ok", async () => {
-        global.fetch.mockResolvedValueOnce({ ok: false, status: 500 });
-
-        const r = await registerCanvasAppletAfterUpload({
-            taggedHtml,
-            filename: "app.html",
-            appletName: "My App",
-            contextId: "ctx",
-            initialUploadResult: initialUpload,
+    it("preserves registry error and uploaded file for recovery", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: false,
+            status: 404,
+            json: async () => ({
+                error: "Workspace file not found for this applet link",
+            }),
         });
-
-        expect(r.appletId).toBeNull();
-        expect(r.html).toBe(taggedHtml);
-        expect(r.effectiveUpload).toBe(initialUpload);
+        await expect(
+            registerCanvasAppletAfterUpload({
+                taggedHtml,
+                filename: "app.html",
+                appletName: "My App",
+                contextId: "ctx",
+                initialUploadResult: initialUpload,
+            }),
+        ).rejects.toMatchObject({
+            message: "Workspace file not found for this applet link",
+            status: 404,
+            appletId: null,
+            effectiveUpload: initialUpload,
+        });
         expect(uploadFileToMediaHelper).not.toHaveBeenCalled();
     });
 
@@ -49,7 +57,6 @@ describe("registerCanvasAppletAfterUpload", () => {
             .mockResolvedValueOnce({ ok: true });
 
         uploadFileToMediaHelper.mockResolvedValueOnce({
-            hash: "h2",
             url: "https://blob/second",
             displayFilename: "app.html",
             name: "/workspace/app.html",
@@ -67,7 +74,7 @@ describe("registerCanvasAppletAfterUpload", () => {
         expect(r.html).toContain('name="applet-id"');
         expect(r.html).toContain('content="applet-abc"');
         expect(r.effectiveUpload.url).toBe("https://blob/second");
-        expect(r.effectiveUpload.hash).toBe("h2");
+        expect(r.effectiveUpload.hash).toBeUndefined();
 
         expect(global.fetch).toHaveBeenCalledTimes(2);
         const [postUrl, postOpts] = global.fetch.mock.calls[0];
@@ -97,10 +104,13 @@ describe("registerCanvasAppletAfterUpload", () => {
                 ok: true,
                 json: async () => ({ _id: "applet-abc" }),
             })
-            .mockResolvedValueOnce({ ok: false });
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 413,
+                json: async () => ({ error: "Version too large" }),
+            });
 
         uploadFileToMediaHelper.mockResolvedValueOnce({
-            hash: "h2",
             url: "https://blob/second",
         });
 
@@ -112,7 +122,11 @@ describe("registerCanvasAppletAfterUpload", () => {
                 contextId: "ctx",
                 initialUploadResult: initialUpload,
             }),
-        ).rejects.toThrow("Failed to save registered applet HTML");
+        ).rejects.toMatchObject({
+            message: "Version too large",
+            appletId: "applet-abc",
+            effectiveUpload: { url: "https://blob/second" },
+        });
         expect(errorSpy).toHaveBeenCalled();
     });
 });

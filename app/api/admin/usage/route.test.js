@@ -1,157 +1,61 @@
-/**
- * @jest-environment node
- */
-
-/* eslint-disable import/first */
-
-const mockAggregate = jest.fn();
-const mockConnect = jest.fn();
-const mockCollection = jest.fn(() => ({
-    aggregate: mockAggregate,
-}));
-
-jest.mock("mongodb", () => ({
-    MongoClient: jest.fn().mockImplementation(() => ({
-        connect: mockConnect,
-        db: () => ({
-            collection: mockCollection,
-        }),
-    })),
-}));
-
-jest.mock("next/server", () => ({
-    NextResponse: {
-        json: jest.fn((body, init) => ({ body, init })),
-    },
-}));
-
+/** @jest-environment node */
+import { GET } from "./route";
+const mockUser = jest.fn();
+const mockCollection = {};
+const mockGetCollection = jest.fn();
+const mockQuery = jest.fn();
 jest.mock("../../utils/auth", () => ({
-    getCurrentUser: jest.fn(),
+    getCurrentUser: () => mockUser(),
+    handleError: jest.fn(),
 }));
-
-import { getCurrentUser } from "../../utils/auth";
-
-function createRequest(search = "") {
-    return {
-        nextUrl: new URL(`http://localhost/api/admin/usage${search}`),
-    };
-}
-
-describe("admin usage route", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        getCurrentUser.mockResolvedValue({ _id: "admin-1", role: "admin" });
-        process.env.MONGO_URI = "mongodb://127.0.0.1:27017/test";
-        mockAggregate.mockReturnValue({
-            toArray: jest.fn().mockResolvedValue([]),
-        });
-    });
-
-    it("requires an admin user", async () => {
-        getCurrentUser.mockResolvedValue({ _id: "user-1", role: "user" });
-        const { GET } = await import("./route");
-
-        const response = await GET(createRequest());
-
-        expect(response.init).toEqual({ status: 403 });
-        expect(mockCollection).not.toHaveBeenCalled();
-    });
-
-    it("filters raw usage through the indexed timestamp field", async () => {
-        const { GET } = await import("./route");
-
-        await GET(
-            createRequest(
-                "?startDate=2026-05-01T00%3A00%3A00.000Z&endDate=2026-05-08T00%3A00%3A00.000Z&groupBy=api_key_id",
-            ),
-        );
-
-        const pipeline = mockAggregate.mock.calls[0][0];
-
-        expect(pipeline[0]).toEqual({
-            $match: {
-                timestamp: {
-                    $gte: new Date("2026-05-01T00:00:00.000Z"),
-                    $lte: new Date("2026-05-08T00:00:00.000Z"),
-                },
-            },
-        });
-        expect(pipeline[0]).not.toHaveProperty("$addFields");
-    });
-
-    it("uses Cosmos-compatible operators for 15-minute buckets", async () => {
-        const { GET } = await import("./route");
-
-        await GET(createRequest("?groupBy=15m"));
-
-        const pipeline = mockAggregate.mock.calls[0][0];
-        const firstGroup = pipeline.find((stage) => stage.$group?._id?.group);
-        const bucket = firstGroup.$group._id.group;
-
-        expect(JSON.stringify(bucket)).not.toContain("$dateTrunc");
-        expect(bucket).toEqual({
-            $dateToString: {
-                format: "%Y-%m-%d %H:%M",
-                date: {
-                    $dateFromParts: {
-                        year: { $year: "$timestamp" },
-                        month: { $month: "$timestamp" },
-                        day: { $dayOfMonth: "$timestamp" },
-                        hour: { $hour: "$timestamp" },
-                        minute: {
-                            $subtract: [
-                                { $minute: "$timestamp" },
-                                { $mod: [{ $minute: "$timestamp" }, 15] },
-                            ],
-                        },
-                    },
-                },
-                timezone: "UTC",
-            },
-        });
-    });
-
-    it("keeps provider total tokens separate from billable metered tokens", async () => {
-        const { GET } = await import("./route");
-
-        await GET(createRequest("?groupBy=api_key_id"));
-
-        const pipeline = mockAggregate.mock.calls[0][0];
-        const firstGroup = pipeline.find((stage) => stage.$group?._id?.model);
-        const secondGroup = pipeline.find(
-            (stage) => stage.$group?.model_breakdown,
-        );
-        const addFields = pipeline.find((stage) => stage.$addFields);
-
-        expect(firstGroup.$group.total_tokens).toEqual({
-            $sum: "$total_tokens",
-        });
-        expect(secondGroup.$group.total_tokens).toEqual({
-            $sum: "$total_tokens",
-        });
-        expect(secondGroup.$group.model_breakdown.$push).toMatchObject({
-            total_tokens: {
-                $cond: [
-                    { $gt: [{ $ifNull: ["$total_tokens", 0] }, 0] },
-                    { $ifNull: ["$total_tokens", 0] },
-                    {
-                        $add: [
-                            { $ifNull: ["$input_tokens", 0] },
-                            { $ifNull: ["$output_tokens", 0] },
-                        ],
-                    },
-                ],
-            },
-            metered_tokens: {
-                $add: [
-                    { $ifNull: ["$input_tokens", 0] },
-                    { $ifNull: ["$output_tokens", 0] },
-                    { $ifNull: ["$cache_creation_input_tokens", 0] },
-                    { $ifNull: ["$cache_read_input_tokens", 0] },
-                ],
-            },
-        });
-        expect(addFields.$addFields).toHaveProperty("total_tokens");
-        expect(addFields.$addFields).toHaveProperty("metered_tokens");
-    });
+jest.mock("./database", () => ({
+    getTokenUsageCollection: () => mockGetCollection(),
+}));
+jest.mock("./usageQuery", () => ({
+    ...jest.requireActual("./usageQuery"),
+    queryUsage: (...args) => mockQuery(...args),
+}));
+jest.mock("next/server", () => ({
+    NextResponse: { json: (body, init) => ({ body, init }) },
+}));
+const request = (query) => ({
+    nextUrl: new URL(`http://localhost/api/admin/usage?${query}`),
+});
+beforeEach(() => {
+    jest.clearAllMocks();
+    mockUser.mockResolvedValue({ role: "admin" });
+    mockGetCollection.mockResolvedValue(mockCollection);
+    mockQuery.mockResolvedValue({ byModel: [], byKey: [], byDay: [] });
+});
+it("requires an administrator before touching usage data", async () => {
+    mockUser.mockResolvedValue({ role: "user" });
+    expect((await GET(request(""))).init.status).toBe(403);
+    expect(mockGetCollection).not.toHaveBeenCalled();
+});
+it.each([
+    "startDate=invalid",
+    "startDate=2026-01-01&endDate=2026-05-01",
+    "groupBy=unsupported",
+    "startDate=2026-06-02&endDate=2026-06-01",
+])("rejects an invalid or unbounded query: %s", async (query) => {
+    expect((await GET(request(query))).init.status).toBe(400);
+    expect(mockGetCollection).not.toHaveBeenCalled();
+});
+it("serves one consistent overview rather than three independent aggregates", async () => {
+    const response = await GET(
+        request("startDate=2026-06-01&endDate=2026-06-08&groupBy=overview"),
+    );
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockQuery).toHaveBeenCalledWith(
+        mockCollection,
+        expect.objectContaining({ groupBy: "overview" }),
+    );
+    expect(response.body).toEqual({ byModel: [], byKey: [], byDay: [] });
+    expect(response.init.headers["Cache-Control"]).toBe("private, no-store");
+});
+it("returns an explicit failure instead of incomplete totals", async () => {
+    mockQuery.mockRejectedValue(new Error("database query failed"));
+    const response = await GET(request(""));
+    expect(response.init.status).toBe(503);
+    expect(response.body.error).toBeTruthy();
 });

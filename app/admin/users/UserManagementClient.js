@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../../src/layout/PageHeader";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -101,7 +102,7 @@ export default function UserManagementClient({
 
     return (
         <div className="p-4">
-            <h1 className="text-2xl font-bold mb-6">User Management</h1>
+            <PageHeader titleKey="User Management" />
 
             {/* Search Form */}
             <div className="mb-6">

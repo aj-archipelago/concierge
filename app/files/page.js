@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../src/layout/PageHeader";
 import { Loader2 } from "lucide-react";
 import { useContext } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,11 +20,7 @@ export default function FilesPage() {
             dir={direction}
             className="flex h-full min-h-0 flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100"
         >
-            <header className="shrink-0 border-b border-gray-200 px-4 py-3 dark:border-gray-700 sm:px-6">
-                <h1 className="text-lg font-semibold leading-7">
-                    {t("Files")}
-                </h1>
-            </header>
+            <PageHeader title={t("Files")} />
             <section className="min-h-0 flex-1 p-2 sm:p-4">
                 {isLoading || !contextId ? (
                     <div className="flex h-full min-h-64 items-center justify-center">

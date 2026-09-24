@@ -1,7 +1,7 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "./redis.mjs";
 import Task from "../models/task.mjs";
-import { prepareMessagesForPersistence } from "../chats/persistence.js";
+import { isBoundedBackgroundTask } from "./background-policy.mjs";
 import { getNormalizedYouTubeTranscriptionAccessErrorMessage } from "../../../src/utils/transcriptionErrors.js";
 import {
     clearTaskCancellation,
@@ -22,6 +22,7 @@ const terminalTaskStatuses = new Set([
     "failed",
     "cancelled",
     "abandoned",
+    "waiting",
 ]);
 export const RESULT_DATA_REQUIRED_TASK_TYPES = new Set([
     "subtitle-translate",
@@ -70,6 +71,10 @@ async function getTaskJobState(task) {
  */
 export async function checkAndUpdateAbandonedTask(task) {
     if (!task) return task;
+
+    // The durable handoff outbox repairs pending continuation enqueues. Do not
+    // classify an interrupted enqueue as abandoned before its next minute tick.
+    if (task.status === "pending" && task.assistantTurn > 0) return task;
 
     if (terminalTaskStatuses.has(task.status)) {
         return task;
@@ -178,39 +183,10 @@ export async function copyTaskToChatMessage(task) {
         return;
     }
 
-    // Find the message with this taskId
-    const messageIndex = chat.messages.findIndex(
-        (msg) => msg.taskId?.toString() === task._id.toString(),
+    const { updateChatMessageByTaskId } = await import(
+        "../chats/message-store.js"
     );
-
-    console.log(`Message index: ${messageIndex} ${task._id}`);
-    if (messageIndex === -1) {
-        return;
-    }
-
-    // Create a new messages array with the updated task
-    const updatedMessages = [...chat.messages];
-    updatedMessages[messageIndex] = {
-        ...updatedMessages[messageIndex]?.toObject(),
-        task: task.toObject(),
-    };
-
-    const prepared = prepareMessagesForPersistence(updatedMessages);
-    const updateData = {
-        messages: prepared.messages,
-        messageStorageBytes: prepared.messageStorageBytes,
-    };
-    if (prepared.messagesCompacted) {
-        updateData.messagesCompacted = true;
-        updateData.messagesCompactedAt = new Date();
-    }
-
-    // Update the entire messages array using findOneAndUpdate
-    await Chat.findOneAndUpdate(
-        { _id: task.invokedFrom.chatId },
-        { $set: updateData },
-        { new: true },
-    );
+    await updateChatMessageByTaskId(chat, task._id, task);
 }
 
 /**
@@ -226,6 +202,15 @@ export async function syncTaskWithBullMQJob(task) {
 
     if (!job) return task;
     const status = await job.getState();
+    // BullMQ marks a job active before admission claims execution. Polling
+    // must not turn that pickup into evidence of an interrupted prior run,
+    // or reset a running task when its queue receipt is deferred.
+    const workerOwnsExecutionState =
+        isBoundedBackgroundTask(task.type) || task.type === "assistant-run";
+    const queueCanSetStatus =
+        !workerOwnsExecutionState ||
+        status === "completed" ||
+        status === "failed";
 
     let update = {};
     const isTerminalTask = terminalTaskStatuses.has(task.status);
@@ -247,6 +232,7 @@ export async function syncTaskWithBullMQJob(task) {
         update.status = "failed";
         update.statusText = MISSING_COMPLETION_DATA_MESSAGE;
     } else if (
+        queueCanSetStatus &&
         jobStatusToTaskStatus[status] &&
         task.status !== jobStatusToTaskStatus[status] &&
         task.status !== "cancelled" &&
@@ -304,36 +290,10 @@ export async function removeTaskFromChatMessage(task) {
         return;
     }
 
-    const messageIndex = chat.messages.findIndex(
-        (msg) => msg.taskId?.toString() === task._id.toString(),
+    const { updateChatMessageByTaskId } = await import(
+        "../chats/message-store.js"
     );
-    if (messageIndex === -1) {
-        return;
-    }
-
-    // Create a new messages array with the task removed
-    const updatedMessages = [...chat.messages];
-    updatedMessages[messageIndex] = {
-        ...updatedMessages[messageIndex]?.toObject(),
-        task: undefined,
-    };
-
-    const prepared = prepareMessagesForPersistence(updatedMessages);
-    const updateData = {
-        messages: prepared.messages,
-        messageStorageBytes: prepared.messageStorageBytes,
-    };
-    if (prepared.messagesCompacted) {
-        updateData.messagesCompacted = true;
-        updateData.messagesCompactedAt = new Date();
-    }
-
-    // Update the entire messages array using findOneAndUpdate
-    await Chat.findOneAndUpdate(
-        { _id: task.invokedFrom.chatId },
-        { $set: updateData },
-        { new: true },
-    );
+    await updateChatMessageByTaskId(chat, task._id, null);
 }
 
 /**
@@ -478,6 +438,19 @@ export async function cancelTask(taskId, userId) {
             { status: "cancelled" },
             { new: true },
         );
+
+        // Stop the whole handoff tree when its originating task is cancelled.
+        // Marking the root first prevents the scheduler from starting more work.
+        if (String(task.assistantRootId || "") === String(task._id)) {
+            const children = await Task.find({
+                owner: userId,
+                assistantRootId: task._id,
+                _id: { $ne: task._id },
+                status: { $in: ["pending", "in_progress", "waiting"] },
+            });
+            for (const child of children)
+                await cancelTask(String(child._id), userId);
+        }
 
         // Call handler's cancelRequest method if it exists
         // This allows task-specific cleanup (e.g., updating MediaItem for media-generation)

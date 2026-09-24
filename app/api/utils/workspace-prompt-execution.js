@@ -1,4 +1,4 @@
-import { getClient, QUERIES } from "../../../src/graphql";
+import { getClient, QUERIES } from "./cortex-client.js";
 import Applet from "../models/applet";
 import Workspace from "../models/workspace";
 import { buildWorkspacePromptVariables } from "./llm-file-utils";

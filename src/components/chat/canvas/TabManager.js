@@ -30,6 +30,7 @@ export default function TabManager({
     chatTitleMap,
     refreshKey,
     isMobile,
+    editorLayout,
     onCloseCanvas,
 }) {
     return (
@@ -71,6 +72,10 @@ export default function TabManager({
                                 onContentChange={onTabUpdate}
                                 isActive={isActive}
                                 onCloseCanvas={onCloseCanvas}
+                                onBrowseFiles={() =>
+                                    onTabUpdate(tab.id, { type: "empty" })
+                                }
+                                editorLayout={editorLayout}
                             />
                         );
                         break;

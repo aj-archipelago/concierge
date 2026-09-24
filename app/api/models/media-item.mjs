@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
-const MAX_INPUT_IMAGE_REFERENCES = 14;
-const MAX_INPUT_VIDEO_REFERENCES = 1;
+const MAX_INPUT_IMAGE_REFERENCES = 30;
+const MAX_INPUT_VIDEO_REFERENCES = 10;
 const inputImageUrlFields = Object.fromEntries(
     Array.from({ length: MAX_INPUT_IMAGE_REFERENCES }, (_, index) => [
         index === 0 ? "inputImageUrl" : `inputImageUrl${index + 1}`,
@@ -91,6 +91,10 @@ const mediaItemSchema = new mongoose.Schema(
         inputAudioUrl: String,
         inputAudioBlobPath: String,
         inputAudioHash: String,
+        inputAudios: {
+            type: [{ url: String, blobPath: String, hash: String, _id: false }],
+            default: undefined,
+        },
         // Metadata
         created: {
             type: Number,
@@ -104,6 +108,11 @@ const mediaItemSchema = new mongoose.Schema(
         },
         // Settings used for generation
         settings: mongoose.Schema.Types.Mixed,
+        outputFiles: {
+            type: [mongoose.Schema.Types.Mixed],
+            default: undefined,
+        },
+        providerMetadata: mongoose.Schema.Types.Mixed,
         // Tags for organization and filtering
         tags: {
             type: [String],

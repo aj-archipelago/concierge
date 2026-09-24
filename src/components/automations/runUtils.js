@@ -27,6 +27,20 @@ export function getRunOutput(run) {
     );
 }
 
+export function isFailedRun(run) {
+    return run?.status === "failed" || run?.status === "abandoned";
+}
+
+export function getRunFailureDetails(run) {
+    return [
+        ...new Set(
+            [run?.error, run?.statusText, run?.data?.summary]
+                .map(stringifyRunOutput)
+                .filter(Boolean),
+        ),
+    ].join("\n\n");
+}
+
 export function truncatePreview(text, maxLength = RUN_PREVIEW_LENGTH) {
     const normalized = String(text || "")
         .replace(/\s+/g, " ")
@@ -37,6 +51,7 @@ export function truncatePreview(text, maxLength = RUN_PREVIEW_LENGTH) {
 }
 
 export function hasHtmlOutput(run) {
+    if (run?.outputExpiredAt) return false;
     return Boolean(
         run?.automation?.htmlOutputPath || run?.automation?.hasHtmlOutput,
     );

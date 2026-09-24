@@ -21,7 +21,7 @@ describe("globalContext", () => {
         expect(context).toContain("`articles`");
         expect(context).toContain("`applets`");
         expect(context).toContain(
-            "do not call **CreateApplet** to edit an existing applet",
+            "Do not call **CreateApplet** to edit an existing applet",
         );
         expect(context).not.toContain("<!DOCTYPE html>");
         expect(context).not.toContain('<meta id="featuredImage"');

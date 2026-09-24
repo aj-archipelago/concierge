@@ -1,10 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import PageHeader from "../../layout/PageHeader";
+import { HeaderAction } from "../../layout/HeaderControls";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { LanguageContext } from "../../contexts/LanguageProvider.js";
 import { useTranslation } from "react-i18next";
-import { Loader2, Save, Settings2, Sliders, Zap } from "lucide-react";
+import {
+    ArrowLeft,
+    Loader2,
+    Save,
+    Settings2,
+    Sliders,
+    Zap,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import classNames from "../../../app/utils/class-names";
 import OverviewTab from "./tabs/OverviewTab";
@@ -21,11 +30,12 @@ import {
 } from "../../hooks/useAutomations";
 import { hasHtmlOutput } from "./runUtils";
 import ShareButton from "@/components/share/ShareButton";
+import { retainedRunLimit } from "../../utils/taskOutputRetention.js";
 
-const EMPTY_CONTENT = `# Automation\n\nDescribe what Concierge should do when this automation runs.\n`;
+const EMPTY_CONTENT = `# Task\n\nDescribe what your colleague should do for this task.\n`;
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-const ACTIVE_RUN_STATUSES = new Set(["pending", "in_progress"]);
+const ACTIVE_RUN_STATUSES = new Set(["pending", "in_progress", "waiting"]);
 
 function getMutationErrorMessage(err, fallback) {
     const data = err?.response?.data;
@@ -41,7 +51,7 @@ const DEFAULT_FORM = {
     description: "",
     enabled: false,
     producesHtml: false,
-    pinnedToSidebar: false,
+    retainedRuns: 30,
     pinnedToHome: false,
     timezone: "UTC",
     schedule: {
@@ -92,6 +102,7 @@ function normalizeFormSchedule(schedule = {}) {
 
     return {
         ...DEFAULT_FORM.schedule,
+        watchPath: schedule.watchPath || "",
         ...schedule,
         times,
         time: times[0],
@@ -107,6 +118,7 @@ function normalizeFormSchedule(schedule = {}) {
 
 function buildPayload(form) {
     return {
+        entityId: form.entityId || null,
         name: form.name || "",
         slug: form.slug || "",
         description: form.description || "",
@@ -114,14 +126,20 @@ function buildPayload(form) {
         schedule: normalizeFormSchedule(form.schedule),
         timezone: form.timezone || "UTC",
         producesHtml: Boolean(form.producesHtml),
-        pinnedToSidebar: Boolean(form.producesHtml && form.pinnedToSidebar),
+        retainedRuns: retainedRunLimit(form.retainedRuns),
         pinnedToHome: Boolean(form.pinnedToHome),
         content: form.content || "",
     };
 }
 
-export default function AutomationEditor({ selectedId, onDeleted }) {
+export default function AutomationEditor({
+    selectedId,
+    onDeleted,
+    onDone,
+    headerInApp = false,
+}) {
     const { t } = useTranslation();
+    const { direction } = useContext(LanguageContext);
     const [form, setForm] = useState(DEFAULT_FORM);
     const [baseline, setBaseline] = useState(buildPayload(DEFAULT_FORM));
     const [error, setError] = useState("");
@@ -306,53 +324,55 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
 
     return (
         <div className="space-y-4">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h1 className="truncate text-xl font-semibold text-gray-900 dark:text-gray-100">
-                                {form.name || t("Automation")}
-                            </h1>
-                            <Badge
-                                variant={form.enabled ? "default" : "secondary"}
-                                className={classNames(
-                                    form.enabled &&
-                                        "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-200",
-                                )}
-                            >
-                                {form.enabled ? t("Enabled") : t("Disabled")}
-                            </Badge>
-                        </div>
-                        {form.description && (
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                {form.description}
-                            </p>
+            <div
+                className={
+                    headerInApp
+                        ? ""
+                        : "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4"
+                }
+            >
+                <PageHeader
+                    title={form.name || t("Automation")}
+                    description={form.description}
+                    enabled={headerInApp}
+                >
+                    <Badge
+                        variant={form.enabled ? "default" : "secondary"}
+                        className={classNames(
+                            form.enabled &&
+                                "bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-200",
                         )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {isOwner && automation?._id && (
-                            <ShareButton
-                                entityType="automation"
-                                entityId={automation._id}
-                            />
-                        )}
-                        {!readOnly && (
-                            <Button
-                                type="button"
-                                onClick={handleSave}
-                                disabled={!isDirty || isSaving}
-                                variant={isDirty ? "default" : "secondary"}
-                            >
-                                {isSaving ? (
-                                    <Loader2 className="me-1.5 h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Save className="me-1.5 h-4 w-4" />
-                                )}
-                                {t("Save changes")}
-                            </Button>
-                        )}
-                    </div>
-                </div>
+                    >
+                        {form.enabled ? t("Enabled") : t("Disabled")}
+                    </Badge>
+                    {onDone && (
+                        <HeaderAction
+                            icon={ArrowLeft}
+                            iconClassName="rtl:rotate-180"
+                            label={t("Back to results")}
+                            onClick={onDone}
+                            data-testid="automation-done-editing-button"
+                        />
+                    )}
+                    {isOwner && automation?._id && (
+                        <ShareButton
+                            entityType="automation"
+                            entityId={automation._id}
+                        />
+                    )}
+                    {!readOnly && (
+                        <HeaderAction
+                            icon={isSaving ? Loader2 : Save}
+                            iconClassName={
+                                isSaving ? "animate-spin" : undefined
+                            }
+                            label={t("Save changes")}
+                            onClick={handleSave}
+                            disabled={!isDirty || isSaving}
+                            variant="default"
+                        />
+                    )}
+                </PageHeader>
 
                 {error && (
                     <div className="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-300">
@@ -361,7 +381,11 @@ export default function AutomationEditor({ selectedId, onDeleted }) {
                 )}
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs
+                dir={direction}
+                value={activeTab}
+                onValueChange={setActiveTab}
+            >
                 <TabsList>
                     <TabsTrigger value="overview">
                         <Zap className="me-1.5 h-3.5 w-3.5" />

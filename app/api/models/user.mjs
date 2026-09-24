@@ -163,6 +163,10 @@ const userSchema = new mongoose.Schema(
             required: false,
             default: false,
         },
+        homeLegacyDigestsMigrated: {
+            type: Boolean,
+            required: false,
+        },
         lastActiveAt: {
             type: Date,
             required: false,

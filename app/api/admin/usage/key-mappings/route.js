@@ -4,14 +4,9 @@ import ApiKeyMapping from "../../../models/apiKeyMapping.mjs";
 
 export async function GET() {
     try {
-        const currentUser = await getCurrentUser();
-
-        if (!currentUser || currentUser.role !== "admin") {
-            return NextResponse.json(
-                { error: "Unauthorized" },
-                { status: 403 },
-            );
-        }
+        const user = await getCurrentUser();
+        if (user?.role !== "admin")
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
         const mappings = await ApiKeyMapping.find(
             {},
@@ -23,7 +18,9 @@ export async function GET() {
             map[m.apiKeyHash] = m.label;
         }
 
-        return NextResponse.json(map);
+        return NextResponse.json(map, {
+            headers: { "Cache-Control": "private, no-store" },
+        });
     } catch (error) {
         return handleError(error);
     }

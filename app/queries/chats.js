@@ -316,6 +316,60 @@ export const syncInFlightChatCache = (
     return nextChat;
 };
 
+export const commitStreamCompleteAssistant = (
+    queryClient,
+    chatId,
+    assistantMessage,
+) => {
+    if (!queryClient || !chatId || !assistantMessage) return null;
+
+    const id = String(chatId);
+    const chatKey = ["chat", id];
+    const previousChat = queryClient.getQueryData(chatKey);
+    if (!previousChat) return null;
+
+    const previousMessages = Array.isArray(previousChat.messages)
+        ? previousChat.messages
+        : [];
+    const lastMessage = previousMessages.at(-1);
+    const lastClientId = String(lastMessage?._clientId || "");
+    const nextClientId = String(assistantMessage?._clientId || "");
+    const shouldReplaceLast =
+        (nextClientId && lastClientId === nextClientId) ||
+        (isLocalOnlyMessage(lastMessage) &&
+            lastClientId.startsWith("stream-end:"));
+    const nextMessages = shouldReplaceLast
+        ? [...previousMessages.slice(0, -1), assistantMessage]
+        : [...previousMessages, assistantMessage];
+
+    const nextChat = normalizeChatForCache(previousChat, {
+        ...previousChat,
+        messages: nextMessages,
+        isChatLoading: false,
+    });
+    queryClient.setQueryData(chatKey, nextChat);
+    syncChatToListCaches(queryClient, nextChat);
+    return nextChat;
+};
+
+export const chatContainsAssistantMessage = (chat, assistantMessage) => {
+    if (!assistantMessage) return true;
+    if (!Array.isArray(chat?.messages)) return false;
+
+    const clientId = String(assistantMessage._clientId || "");
+    const replacementKey = getLocalOptimisticReplacementKey(assistantMessage);
+
+    return chat.messages.some((message) => {
+        if (clientId && String(message?._clientId || "") === clientId) {
+            return true;
+        }
+        return (
+            message?.sender === "concierge" &&
+            getLocalOptimisticReplacementKey(message) === replacementKey
+        );
+    });
+};
+
 const mergeChatIntoArray = (items, nextChat) => {
     if (!Array.isArray(items) || !nextChat?._id) {
         return items;
@@ -337,6 +391,19 @@ const mergeChatIntoArray = (items, nextChat) => {
     return changed ? nextItems : items;
 };
 
+const sortActiveChats = (chats) => {
+    if (!Array.isArray(chats)) return chats;
+    return [...chats].sort((a, b) => {
+        const aPinned = a?.pinned ? 1 : 0;
+        const bPinned = b?.pinned ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+        return (
+            new Date(b?.updatedAt || 0).getTime() -
+            new Date(a?.updatedAt || 0).getTime()
+        );
+    });
+};
+
 const syncChatToActiveChats = (
     queryClient,
     nextChat,
@@ -346,12 +413,21 @@ const syncChatToActiveChats = (
 
     queryClient.setQueryData(["activeChats"], (oldData = []) => {
         if (!Array.isArray(oldData)) {
-            return insertIfMissing ? [nextChat] : oldData;
+            return insertIfMissing && !nextChat.archived ? [nextChat] : oldData;
         }
+
+        if (nextChat.archived) {
+            return oldData.filter(
+                (chat) => String(chat?._id) !== String(nextChat._id),
+            );
+        }
+
         const merged = mergeChatIntoArray(oldData, nextChat);
-        return insertIfMissing && merged === oldData
-            ? [nextChat, ...oldData]
-            : merged;
+        const withInsert =
+            insertIfMissing && merged === oldData
+                ? [nextChat, ...oldData]
+                : merged;
+        return sortActiveChats(withInsert);
     });
 };
 
@@ -489,6 +565,27 @@ const mergeVisibleMessages = (cachedMessages, serverMessages) => {
 
     return mergedMessages;
 };
+
+export const mergeOlderChatPage = (cachedChat, olderPage) => {
+    const cachedMessages = Array.isArray(cachedChat?.messages)
+        ? cachedChat.messages
+        : [];
+    const olderMessages = Array.isArray(olderPage?.messages)
+        ? olderPage.messages
+        : [];
+
+    return {
+        ...(cachedChat || {}),
+        ...(olderPage || {}),
+        messages: mergeVisibleMessages(olderMessages, cachedMessages),
+    };
+};
+
+export const buildStreamFailureRecoveryUpdate = (selectedEntityId) => ({
+    isChatLoading: false,
+    activeSubscriptionId: null,
+    selectedEntityId,
+});
 
 export const mergeFetchedChatResponse = (
     queryClient,
@@ -960,7 +1057,9 @@ export function useGetChatById(
 
             const cachedForFetch = queryClient.getQueryData(["chat", chatId]);
             const shouldLimit =
-                !cachedForFetch || cachedForFetch.messagesTruncated !== false;
+                !cachedForFetch ||
+                cachedForFetch.messageStorageMode === "external" ||
+                cachedForFetch.messagesTruncated !== false;
             const chatUrl = shouldLimit
                 ? `/api/chats/${String(chatId)}?limit=${DEFAULT_CHAT_MESSAGES_LIMIT}`
                 : `/api/chats/${String(chatId)}`;
@@ -1112,28 +1211,44 @@ export function useUpdateChat() {
             const previousActiveChats = queryClient.getQueryData([
                 "activeChats",
             ]);
+            const { messageUpdates, appendMessage, ...chatFieldUpdates } =
+                updateData;
             let expectedChatData = normalizeChatForCache(previousChat, {
                 ...previousChat,
-                ...updateData,
+                ...chatFieldUpdates,
             });
 
             if (Object.prototype.hasOwnProperty.call(updateData, "messages")) {
-                const { messages, ...otherUpdates } = updateData;
+                const { messages, ...otherUpdates } = chatFieldUpdates;
                 const nextMessages = Array.isArray(messages) ? messages : [];
-                const clearStorageStatus =
-                    nextMessages.length === 0
-                        ? {
-                              messageStorageBytes: 0,
-                              messagesCompacted: false,
-                              messagesCompactedAt: null,
-                          }
-                        : {};
-
                 expectedChatData = normalizeChatForCache(previousChat, {
                     ...previousChat,
                     ...otherUpdates,
-                    ...clearStorageStatus,
                     messages: nextMessages,
+                });
+            } else if (Array.isArray(messageUpdates)) {
+                const updatesById = new Map(
+                    messageUpdates
+                        .filter((message) => message?._id)
+                        .map((message) => [String(message._id), message]),
+                );
+                const nextMessages = (previousChat?.messages || []).map(
+                    (message) =>
+                        updatesById.get(String(message?._id)) || message,
+                );
+                expectedChatData = normalizeChatForCache(previousChat, {
+                    ...previousChat,
+                    ...chatFieldUpdates,
+                    messages: nextMessages,
+                });
+            } else if (appendMessage) {
+                expectedChatData = normalizeChatForCache(previousChat, {
+                    ...previousChat,
+                    ...chatFieldUpdates,
+                    messages: mergeVisibleMessages(
+                        previousChat?.messages || [],
+                        [appendMessage],
+                    ),
                 });
             }
 
@@ -1176,17 +1291,36 @@ export function useUpdateChat() {
                 variables || {},
                 "messages",
             );
+            const hasIncrementalMessageUpdate =
+                Array.isArray(variables?.messageUpdates) ||
+                Boolean(variables?.appendMessage);
+            const mergedIncrementalMessages =
+                hasIncrementalMessageUpdate &&
+                Array.isArray(cachedChat?.messages) &&
+                Array.isArray(updatedChat?.messages)
+                    ? mergeVisibleMessages(
+                          cachedChat.messages,
+                          updatedChat.messages,
+                      )
+                    : null;
             const nextChat = normalizeChatForCache(
                 cachedChat,
-                !hasMessageUpdate && cachedChat
+                hasIncrementalMessageUpdate && cachedChat
                     ? {
                           ...cachedChat,
                           ...updatedChat,
-                          messages: Array.isArray(cachedChat?.messages)
-                              ? cachedChat.messages
-                              : updatedChat.messages,
+                          messages:
+                              mergedIncrementalMessages || cachedChat.messages,
                       }
-                    : updatedChat,
+                    : !hasMessageUpdate && cachedChat
+                      ? {
+                            ...cachedChat,
+                            ...updatedChat,
+                            messages: Array.isArray(cachedChat?.messages)
+                                ? cachedChat.messages
+                                : updatedChat.messages,
+                        }
+                      : updatedChat,
             );
 
             // Check if a newer mutation has happened (queries use separate timestamp key)

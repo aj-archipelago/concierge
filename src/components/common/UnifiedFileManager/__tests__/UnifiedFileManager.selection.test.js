@@ -11,6 +11,8 @@ import "@testing-library/jest-dom";
 
 import UnifiedFileManager from "../UnifiedFileManager";
 
+let mockSelectedPath = "";
+const mockRemoveFiles = jest.fn();
 const mockReloadFiles = jest.fn();
 const mockMoveFilesOptimistically = jest.fn();
 const mockRevertToSnapshot = jest.fn();
@@ -177,7 +179,8 @@ jest.mock("../useUnifiedFileData", () => {
             reloadFiles: mockReloadFiles,
             totalFileCount: files.length,
             getFilesRecursive: () => files,
-            removeFileOptimistically: jest.fn(),
+            getFilesForPath: () => files,
+            removeFileOptimistically: mockRemoveFiles,
             renameFileOptimistically: jest.fn(),
             moveFilesOptimistically: mockMoveFilesOptimistically,
             getSnapshot: jest.fn(() => files),
@@ -189,7 +192,7 @@ jest.mock("../useUnifiedFileData", () => {
 jest.mock("../useFolderNavigation", () => ({
     __esModule: true,
     useFolderNavigation: () => ({
-        selectedPath: "",
+        selectedPath: mockSelectedPath,
         expandedPaths: new Set(),
         selectFolder: jest.fn(),
         toggleExpanded: jest.fn(),
@@ -206,8 +209,9 @@ jest.mock("../SidebarFolderTree", () => ({
 
 jest.mock("../FileToolbar", () => ({
     __esModule: true,
-    default: ({ filterText, onFilterChange }) => (
+    default: ({ filterText, onFilterChange, onUploadClick }) => (
         <div data-testid="file-toolbar">
+            <button onClick={onUploadClick}>Upload</button>
             <input
                 aria-label="Filter files"
                 value={filterText}
@@ -360,6 +364,7 @@ function renderWithQueryClient(ui) {
 
 describe("UnifiedFileManager shift selection", () => {
     beforeEach(() => {
+        mockSelectedPath = "";
         window.localStorage.clear();
         mockReloadFiles.mockClear();
         mockMoveFilesOptimistically.mockClear();
@@ -518,6 +523,32 @@ describe("UnifiedFileManager shift selection", () => {
         ).toBeVisible();
     });
 
+    it("restores failed deletions while keeping confirmed deletions removed", async () => {
+        const deletedFiles = [{ _id: "newest", displayFilename: "Newest.txt" }];
+        const error = Object.assign(new Error("partial failure"), {
+            results: { deletedFiles },
+        });
+        const onDelete = jest.fn().mockRejectedValue(error);
+        renderWithQueryClient(
+            <UnifiedFileManager
+                contextId="ctx-1"
+                onDelete={onDelete}
+                containerHeight="400px"
+            />,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Newest.txt" }));
+        fireEvent.click(
+            within(screen.getByTestId("bulk-actions")).getByRole("button", {
+                name: "Delete",
+            }),
+        );
+        fireEvent.click(
+            screen.getAllByRole("button", { name: "Delete" }).at(-1),
+        );
+        await waitFor(() => expect(mockRevertToSnapshot).toHaveBeenCalled());
+        expect(mockRemoveFiles).toHaveBeenLastCalledWith(deletedFiles);
+    });
+
     it("explains the move destination clearly", () => {
         renderWithQueryClient(
             <UnifiedFileManager
@@ -565,5 +596,29 @@ describe("UnifiedFileManager shift selection", () => {
 
         expect(mockRevertToSnapshot).toHaveBeenCalledTimes(1);
         expect(await screen.findByText("Move failed")).toBeInTheDocument();
+    });
+    it("passes the currently selected folder to Upload", () => {
+        const onUploadClick = jest.fn();
+        mockSelectedPath = "chats/chat-2/photos";
+        const view = renderWithQueryClient(
+            <UnifiedFileManager
+                contextId="ctx-1"
+                onUploadClick={onUploadClick}
+            />,
+        );
+        fireEvent.click(screen.getByText("Upload"));
+        expect(onUploadClick).toHaveBeenLastCalledWith("chats/chat-2/photos");
+        mockSelectedPath = "global";
+        view.rerender(
+            <QueryClientProvider client={new QueryClient()}>
+                <UnifiedFileManager
+                    contextId="ctx-1"
+                    onUploadClick={onUploadClick}
+                />
+            </QueryClientProvider>,
+        );
+        fireEvent.click(screen.getByText("Upload"));
+        expect(onUploadClick).toHaveBeenLastCalledWith("global");
+        view.unmount();
     });
 });

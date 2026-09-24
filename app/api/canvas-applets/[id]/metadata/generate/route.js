@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { getCurrentUser } from "../../../../utils/auth";
 import { generateAppletMetadata } from "../../../registry";
-import { getClient } from "../../../../../../src/graphql";
+import { getClient } from "../../../../utils/cortex-client.js";
 import { buildWorkspacePromptVariables } from "../../../../utils/llm-file-utils.js";
 import { executeRunWorkspacePrompt } from "../../../../utils/run-workspace-prompt.js";
 

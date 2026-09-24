@@ -71,5 +71,19 @@ describe("automation agent MCP wiring", () => {
             "The previous run's HTML output is attached",
         );
         expect(taskSource).toContain("latestHtmlOutputPath");
+        expect(taskSource).toContain("widgetHtml");
+        expect(taskSource).toContain("widget.html");
+        expect(taskSource).toContain("buildAutomationHtmlOutputContract");
+    });
+
+    it("uses $set/$unset for automation output updates instead of mixing forms", () => {
+        const taskSource = read("jobs/tasks/automation-run.mjs");
+
+        expect(taskSource).toContain("automationOutputUpdate.$set");
+        expect(taskSource).toContain("automationOutputUpdate.$unset");
+        expect(taskSource).toContain("$set: {\n                lastRunAt:");
+        expect(taskSource).not.toContain(
+            "automationOutputUpdate.latestWidgetHtmlOutputPath =",
+        );
     });
 });

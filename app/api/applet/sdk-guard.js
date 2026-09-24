@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import Applet from "../models/applet.js";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const ONE_MINUTE_MS = 60 * 1000;
 const TEN_SECONDS_MS = 10 * 1000;
 
 const activeRequests = new Map();
 const rateWindows = new Map();
 const limitStrikes = new Map();
+let leaseSeq = 0;
+
+export const APPLET_SDK_DEFAULT_MAX_HOLD_MS = FIVE_MINUTES_MS;
 
 export const APPLET_SDK_LIMITS = {
     agentChat: {
@@ -19,6 +23,7 @@ export const APPLET_SDK_LIMITS = {
         concurrent: 3,
         maxPerWindow: 12,
         windowMs: ONE_MINUTE_MS,
+        maxHoldMs: 295000,
     },
     modelGenerate: {
         concurrent: 3,
@@ -58,6 +63,13 @@ export const APPLET_SDK_STRIKE_WINDOW_MS = TEN_SECONDS_MS;
 
 function nowMs() {
     return Date.now();
+}
+
+function maxHoldMsFor(limits) {
+    const maxHoldMs = Number(limits?.maxHoldMs);
+    return Number.isFinite(maxHoldMs) && maxHoldMs > 0
+        ? maxHoldMs
+        : APPLET_SDK_DEFAULT_MAX_HOLD_MS;
 }
 
 function suspensionPayload(applet, now = nowMs()) {
@@ -106,6 +118,76 @@ function responseInitFrom(response) {
     };
 }
 
+function clearLeaseTimer(lease) {
+    if (!lease?.timeoutId) return;
+    clearTimeout(lease.timeoutId);
+    lease.timeoutId = null;
+}
+
+function getLiveLeases(key, now = nowMs()) {
+    const leases = activeRequests.get(key) || [];
+    const live = [];
+    const expired = [];
+    for (const lease of leases) {
+        if (lease.expiresAt <= now) {
+            expired.push(lease);
+        } else {
+            live.push(lease);
+        }
+    }
+
+    if (live.length === 0) {
+        activeRequests.delete(key);
+    } else {
+        activeRequests.set(key, live);
+    }
+
+    for (const lease of expired) {
+        clearLeaseTimer(lease);
+        lease.onExpire?.();
+    }
+
+    return live;
+}
+
+function addLease(key, maxHoldMs, onExpire, now = nowMs()) {
+    leaseSeq += 1;
+    const lease = {
+        id: leaseSeq,
+        expiresAt: now + maxHoldMs,
+        timeoutId: null,
+        onExpire,
+    };
+    lease.timeoutId = setTimeout(() => {
+        lease.timeoutId = null;
+        onExpire();
+    }, maxHoldMs);
+    lease.timeoutId.unref?.();
+
+    const leases = activeRequests.get(key) || [];
+    leases.push(lease);
+    activeRequests.set(key, leases);
+    return lease;
+}
+
+function removeLease(key, leaseId) {
+    const leases = activeRequests.get(key) || [];
+    const remaining = [];
+    for (const lease of leases) {
+        if (lease.id === leaseId) {
+            clearLeaseTimer(lease);
+            continue;
+        }
+        remaining.push(lease);
+    }
+
+    if (remaining.length === 0) {
+        activeRequests.delete(key);
+    } else {
+        activeRequests.set(key, remaining);
+    }
+}
+
 function holdReleaseUntilStreamCloses(response, release) {
     const reader = response.body.getReader();
     let released = false;
@@ -114,6 +196,10 @@ function holdReleaseUntilStreamCloses(response, release) {
         if (released) return;
         released = true;
         release();
+    };
+
+    const cancelReader = () => {
+        reader.cancel("sdk-guard-lease-released").catch(() => {});
     };
 
     const stream = new ReadableStream({
@@ -140,7 +226,10 @@ function holdReleaseUntilStreamCloses(response, release) {
         },
     });
 
-    return new Response(stream, responseInitFrom(response));
+    return {
+        response: new Response(stream, responseInitFrom(response)),
+        cancelReader,
+    };
 }
 
 async function getActiveSuspension(appletId, now = nowMs()) {
@@ -235,6 +324,7 @@ export async function withAppletSdkGuard({
     api,
     limits,
     run,
+    signal,
 }) {
     const activeSuspension = await getActiveSuspension(appletId);
     if (activeSuspension) {
@@ -242,8 +332,9 @@ export async function withAppletSdkGuard({
     }
 
     const key = `${userId || "anonymous"}:${appletId}:${api}`;
-    const activeCount = activeRequests.get(key) || 0;
-    if (activeCount >= limits.concurrent) {
+    const now = nowMs();
+    const liveLeases = getLiveLeases(key, now);
+    if (liveLeases.length >= limits.concurrent) {
         const suspension = await recordLimitStrike(
             appletId,
             api,
@@ -262,7 +353,7 @@ export async function withAppletSdkGuard({
         );
     }
 
-    if (!takeWindowSlot(key, limits)) {
+    if (!takeWindowSlot(key, limits, now)) {
         const suspension = await recordLimitStrike(appletId, api, "rate");
         if (suspension) {
             return jsonGuardError(suspension, 403);
@@ -277,23 +368,42 @@ export async function withAppletSdkGuard({
         );
     }
 
-    activeRequests.set(key, activeCount + 1);
+    const maxHoldMs = maxHoldMsFor(limits);
     let released = false;
+    let cancelHeldStream = null;
+    let lease = null;
+
     const release = () => {
         if (released) return;
         released = true;
-        const nextCount = (activeRequests.get(key) || 1) - 1;
-        if (nextCount <= 0) {
-            activeRequests.delete(key);
-        } else {
-            activeRequests.set(key, nextCount);
+        if (signal) {
+            signal.removeEventListener("abort", release);
         }
+        if (lease) {
+            removeLease(key, lease.id);
+        }
+        cancelHeldStream?.();
     };
+
+    lease = addLease(key, maxHoldMs, release, now);
+
+    if (signal) {
+        if (signal.aborted) {
+            release();
+        } else {
+            signal.addEventListener("abort", release, { once: true });
+        }
+    }
 
     try {
         const result = await run();
         if (isStreamingResponse(result)) {
-            return holdReleaseUntilStreamCloses(result, release);
+            const held = holdReleaseUntilStreamCloses(result, release);
+            cancelHeldStream = held.cancelReader;
+            if (released) {
+                held.cancelReader();
+            }
+            return held.response;
         }
         release();
         return result;
@@ -304,7 +414,13 @@ export async function withAppletSdkGuard({
 }
 
 export function clearAppletSdkGuardStateForTests() {
+    for (const leases of activeRequests.values()) {
+        for (const lease of leases) {
+            clearLeaseTimer(lease);
+        }
+    }
     activeRequests.clear();
     rateWindows.clear();
     limitStrikes.clear();
+    leaseSeq = 0;
 }

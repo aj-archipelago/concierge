@@ -47,6 +47,7 @@ function createRequest(body) {
 
 describe("POST /api/applet/source-qa/initial-questions", () => {
     beforeEach(() => {
+        process.env.CORTEX_SOURCE_QA_ENABLED = "true";
         jest.clearAllMocks();
         const { getCurrentUser } = require("../utils/auth");
         getCurrentUser.mockResolvedValue({
@@ -57,14 +58,14 @@ describe("POST /api/applet/source-qa/initial-questions", () => {
         mockValidateAppletAccess.mockResolvedValue(null);
         mockQuery.mockResolvedValue({
             data: {
-                ask_aj_initial_questions: {
+                source_qa_initial_questions: {
                     result: JSON.stringify({
                         language: "en",
                         sets: [["Question 1?", "Question 2?", "Question 3?"]],
                         questions: [
                             {
                                 question: "Question 1?",
-                                answerCacheKey: "askaj:answer:v1:abc",
+                                answerCacheKey: "sourceqa:answer:v1:abc",
                             },
                         ],
                         cache: { hit: false },

@@ -60,7 +60,13 @@ jest.mock("../utils/media-service-utils", () => ({
     deleteMediaFile: jest.fn(),
 }));
 
+jest.mock("../utils/shareHelpers", () => ({
+    deleteEntityShare: jest.fn(),
+}));
+
 jest.mock("../../../src/utils/storageTargets", () => ({
+    getStorageContextId: ({ storageTarget }) =>
+        storageTarget.userContextId || "concierge-published-applets",
     createAppletGlobalStorageTarget: jest.fn((userContextId) => ({
         kind: "applet-global",
         userContextId,
@@ -100,6 +106,7 @@ describe("deleteCanvasAppletArtifacts", () => {
             require("../models/applet-shared-file").default;
         const File = require("../models/file").default;
         const { deleteMediaFile } = require("../utils/media-service-utils");
+        const { deleteEntityShare } = require("../utils/shareHelpers");
         const {
             createAppletGlobalStorageTarget,
             createAppletUserStorageTarget,
@@ -173,6 +180,11 @@ describe("deleteCanvasAppletArtifacts", () => {
         expect(AppletSharedDataRevision.deleteMany).toHaveBeenCalledWith({
             appletId: "applet123",
         });
+        expect(deleteEntityShare).toHaveBeenCalledWith("applet", "applet123");
+        expect(deleteEntityShare).toHaveBeenCalledWith(
+            "published_applet",
+            "applet123",
+        );
         expect(File.deleteMany).toHaveBeenCalledWith({
             _id: {
                 $in: ["file-1", "file-2", "file-main"],
@@ -340,6 +352,15 @@ describe("deleteCanvasAppletArtifacts", () => {
         );
 
         expect(deleteMediaFile).toHaveBeenCalledWith({
+            storageAuthorization: expect.objectContaining({
+                targets: [
+                    {
+                        owner: "ctx123",
+                        path: "applets/versions/applet123/v000002.html",
+                        actions: ["delete"],
+                    },
+                ],
+            }),
             blobPath: "applets/versions/applet123/v000002.html",
             hash: "hash-v2",
             fallbackToHash: false,
@@ -388,6 +409,15 @@ describe("deleteCanvasAppletArtifacts", () => {
         );
 
         expect(deleteMediaFile).toHaveBeenCalledWith({
+            storageAuthorization: expect.objectContaining({
+                targets: [
+                    {
+                        owner: "concierge-published-applets",
+                        path: "applets/published/applet123/current.html",
+                        actions: ["delete"],
+                    },
+                ],
+            }),
             blobPath: "applets/published/applet123/current.html",
             hash: "published-hash",
             storageTarget: { kind: "applet-published" },

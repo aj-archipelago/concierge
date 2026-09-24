@@ -1,12 +1,10 @@
 import { BSON } from "bson";
+import { CHAT_MESSAGE_TARGET_BYTES } from "../../constants/chats.js";
 
 const MAX_PERSISTED_CITATIONS = 20;
 const MAX_CITATION_CONTENT_LENGTH = 12_000;
-export const CHAT_DOCUMENT_LIMIT_BYTES = 2_000_000;
-export const CHAT_STORAGE_WARNING_BYTES = Math.floor(
-    CHAT_DOCUMENT_LIMIT_BYTES * 0.9,
-);
-const CHAT_MESSAGES_TARGET_BYTES = CHAT_STORAGE_WARNING_BYTES;
+const PAYLOAD_TRUNCATION_NOTICE =
+    "\n\n[This message was too large to save in full and was truncated.]";
 const CITATION_FIELD_WHITELIST = [
     "content",
     "date",
@@ -143,46 +141,152 @@ export function sanitizeMessagesForPersistence(messages) {
     });
 }
 
-function estimateMessagesBytes(messages) {
+function estimateMessageBytes(message) {
     try {
-        return BSON.calculateObjectSize({ messages });
+        return BSON.calculateObjectSize({ message });
     } catch {
-        return Buffer.byteLength(JSON.stringify({ messages }));
+        return Buffer.byteLength(JSON.stringify({ message }));
     }
 }
 
-export function prepareMessagesForPersistence(
-    messages,
-    { targetBytes = CHAT_MESSAGES_TARGET_BYTES } = {},
+function truncateStringPayload(value, maxChars) {
+    if (typeof value !== "string" || value.length <= maxChars) {
+        return value;
+    }
+    const keepChars = Math.max(0, maxChars - PAYLOAD_TRUNCATION_NOTICE.length);
+    return `${value.slice(0, keepChars)}${PAYLOAD_TRUNCATION_NOTICE}`;
+}
+
+function truncatePayloadItem(item, maxChars) {
+    if (typeof item !== "string") {
+        return item;
+    }
+    try {
+        const parsed = JSON.parse(item);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            return truncateStringPayload(item, maxChars);
+        }
+        if (parsed.type === "thinking") {
+            return JSON.stringify({
+                ...parsed,
+                text: "",
+            });
+        }
+        if (typeof parsed.text === "string") {
+            return JSON.stringify({
+                ...parsed,
+                text: truncateStringPayload(parsed.text, maxChars),
+            });
+        }
+        return truncateStringPayload(item, maxChars);
+    } catch {
+        return truncateStringPayload(item, maxChars);
+    }
+}
+
+function truncateMessageToFit(message, targetBytes) {
+    if (!message || typeof message !== "object") {
+        return message;
+    }
+
+    let nextMessage = { ...message };
+    let size = estimateMessageBytes(nextMessage);
+    if (size <= targetBytes) {
+        return nextMessage;
+    }
+
+    if (typeof nextMessage.payload === "string") {
+        let maxChars = Math.max(
+            1_000,
+            Math.floor(nextMessage.payload.length / 2),
+        );
+        while (size > targetBytes && maxChars >= 500) {
+            nextMessage = {
+                ...nextMessage,
+                payload: truncateStringPayload(nextMessage.payload, maxChars),
+            };
+            size = estimateMessageBytes(nextMessage);
+            maxChars = Math.floor(maxChars / 2);
+        }
+        return nextMessage;
+    }
+
+    if (!Array.isArray(nextMessage.payload)) {
+        return nextMessage;
+    }
+
+    const withoutThinking = nextMessage.payload.filter((item) => {
+        try {
+            return JSON.parse(item)?.type !== "thinking";
+        } catch {
+            return true;
+        }
+    });
+    nextMessage = { ...nextMessage, payload: withoutThinking };
+    size = estimateMessageBytes(nextMessage);
+    if (size <= targetBytes) {
+        return nextMessage;
+    }
+
+    let maxChars = 20_000;
+    while (size > targetBytes && maxChars >= 500) {
+        const itemMaxChars = maxChars;
+        nextMessage = {
+            ...nextMessage,
+            payload: nextMessage.payload.map((item) =>
+                truncatePayloadItem(item, itemMaxChars),
+            ),
+        };
+        size = estimateMessageBytes(nextMessage);
+        maxChars = Math.floor(maxChars / 2);
+    }
+    return nextMessage;
+}
+
+export function prepareMessageForPersistence(
+    message,
+    { targetBytes = CHAT_MESSAGE_TARGET_BYTES } = {},
 ) {
-    const sanitizedMessages = sanitizeMessagesForPersistence(messages || []);
-    const initialBytes = estimateMessagesBytes(sanitizedMessages);
+    const sanitized = sanitizeMessagesForPersistence([message])[0];
+    if (!sanitized) return { message: sanitized, wasTruncated: false };
+
+    const initialBytes = estimateMessageBytes(sanitized);
     if (initialBytes <= targetBytes) {
-        return {
-            messages: sanitizedMessages,
-            messageStorageBytes: initialBytes,
-            messagesCompacted: false,
-            messagesDropped: 0,
+        return { message: sanitized, wasTruncated: false };
+    }
+
+    // These fields are useful UI caches, not the canonical response. Drop them
+    // before touching user-visible message content.
+    const bounded = {
+        ...sanitized,
+        ephemeralContent: null,
+        toolCalls: null,
+        task: sanitized.taskId ? undefined : sanitized.task,
+        tool: null,
+    };
+    let truncated = truncateMessageToFit(bounded, targetBytes);
+
+    // Mixed metadata can still defeat size estimates. Always leave a valid,
+    // explicit message instead of repeatedly shrinking the surrounding chat.
+    if (estimateMessageBytes(truncated) > targetBytes) {
+        truncated = {
+            _id: bounded._id,
+            payload: Array.isArray(bounded.payload)
+                ? [
+                      JSON.stringify({
+                          type: "text",
+                          text: PAYLOAD_TRUNCATION_NOTICE.trim(),
+                      }),
+                  ]
+                : PAYLOAD_TRUNCATION_NOTICE.trim(),
+            sender: bounded.sender,
+            sentTime: bounded.sentTime,
+            direction: bounded.direction,
+            position: bounded.position,
+            taskId: bounded.taskId,
+            isServerGenerated: bounded.isServerGenerated,
         };
     }
 
-    let messagesForPersistence = [...sanitizedMessages];
-    let droppedCount = 0;
-    let messageStorageBytes = initialBytes;
-
-    while (
-        messagesForPersistence.length > 1 &&
-        messageStorageBytes > targetBytes
-    ) {
-        messagesForPersistence.shift();
-        droppedCount += 1;
-        messageStorageBytes = estimateMessagesBytes(messagesForPersistence);
-    }
-
-    return {
-        messages: messagesForPersistence,
-        messageStorageBytes,
-        messagesCompacted: droppedCount > 0,
-        messagesDropped: droppedCount,
-    };
+    return { message: truncated, wasTruncated: true };
 }

@@ -1,7 +1,10 @@
 import { useCallback, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { syncInFlightChatCache } from "../../app/queries/chats";
+import {
+    commitStreamCompleteAssistant,
+    syncInFlightChatCache,
+} from "../../app/queries/chats";
 import {
     appendAssistantThinkingSummary,
     appendAssistantTextChunk,
@@ -16,7 +19,13 @@ import {
 
 const STREAM_KEY = (chatId) => ["stream", chatId];
 const FRAME_FALLBACK_MS = 16;
+const CLIENT_TOOL_HEARTBEAT_INTERVAL_MS = 5000;
 const streamSessions = new Map();
+
+function peekStreamSession(chatId) {
+    if (!chatId) return null;
+    return streamSessions.get(String(chatId)) || null;
+}
 
 function getStreamSession(chatId) {
     if (!chatId) return null;
@@ -29,7 +38,9 @@ function getStreamSession(chatId) {
             processing: false,
             queueScheduled: false,
             processedTools: new Set(),
-            ackedClientTools: new Set(),
+            clientToolHeartbeats: new Map(),
+            pendingClientTools: new Map(),
+            activeSubscriptionId: null,
             reader: null,
             callbacks: {},
             chatSnapshot: null,
@@ -42,7 +53,79 @@ function getStreamSession(chatId) {
 
 function deleteStreamSession(chatId) {
     if (!chatId) return;
-    streamSessions.delete(String(chatId));
+    const key = String(chatId);
+    const session = streamSessions.get(key);
+    session?.clientToolHeartbeats?.forEach((stop) => stop());
+    session?.clientToolHeartbeats?.clear();
+    streamSessions.delete(key);
+}
+
+function resolveClientToolInfo(session, info = {}) {
+    const requestId =
+        info.requestId ||
+        session?.activeSubscriptionId ||
+        session?.chatSnapshot?.activeSubscriptionId ||
+        session?.queryClient?.getQueryData?.(["chat", session.chatId])
+            ?.activeSubscriptionId ||
+        null;
+    return {
+        ...info,
+        chatId: info.chatId || session?.chatId || null,
+        ...(requestId ? { requestId: String(requestId) } : {}),
+    };
+}
+
+function startClientToolHeartbeat(session, info) {
+    const toolCallbackId = info?.toolCallbackId;
+    if (!session || !toolCallbackId) return () => {};
+
+    const existing = session.clientToolHeartbeats?.get(toolCallbackId);
+    if (existing) return existing;
+
+    const sendHeartbeat = () => {
+        const toolInfo = resolveClientToolInfo(session, info);
+        Promise.resolve(
+            session.callbacks?.onClientSideToolHeartbeat?.(toolInfo),
+        ).catch(() => {});
+    };
+    const intervalId = setInterval(
+        sendHeartbeat,
+        CLIENT_TOOL_HEARTBEAT_INTERVAL_MS,
+    );
+    const stop = () => {
+        clearInterval(intervalId);
+        session.clientToolHeartbeats?.delete(toolCallbackId);
+    };
+
+    session.clientToolHeartbeats ||= new Map();
+    session.clientToolHeartbeats.set(toolCallbackId, stop);
+    sendHeartbeat();
+    return stop;
+}
+
+function dispatchClientSideTool(session, info) {
+    const toolInfo = resolveClientToolInfo(session, info);
+    startClientToolHeartbeat(session, toolInfo);
+    const toolHandler = session.callbacks?.onClientSideToolCall;
+    if (!toolHandler) {
+        session.pendingClientTools ||= new Map();
+        session.pendingClientTools.set(toolInfo.toolCallbackId, toolInfo);
+        return;
+    }
+    session.pendingClientTools?.delete(toolInfo.toolCallbackId);
+    Promise.resolve(toolHandler(toolInfo))
+        .catch(() => {})
+        .finally(() => {
+            session.clientToolHeartbeats?.get(toolInfo.toolCallbackId)?.();
+        });
+}
+
+function flushPendingClientTools(session) {
+    if (!session?.pendingClientTools?.size) return;
+    if (!session.callbacks?.onClientSideToolCall) return;
+    for (const pending of [...session.pendingClientTools.values()]) {
+        dispatchClientSideTool(session, pending);
+    }
 }
 
 function isCurrentStreamSessionRun(chatId, session, streamRunId) {
@@ -113,8 +196,26 @@ export const hasActiveStream = (queryClient, chatId) => {
     return !!state?.reader && state?.isStreaming !== false;
 };
 
+export function mergeStreamCache(current, updates = {}) {
+    const base =
+        current && typeof current === "object" && !Array.isArray(current)
+            ? current
+            : {};
+    return {
+        ...base,
+        ...updates,
+        isStreaming:
+            updates.isStreaming !== undefined
+                ? updates.isStreaming
+                : !!base.isStreaming,
+        reader:
+            updates.reader !== undefined ? updates.reader : base.reader || null,
+    };
+}
+
 export function useStreamingMessages({
     chat,
+    currentEntityId = chat?.selectedEntityId,
     updateChatHook,
     onClientSideToolCall,
     onClientSideToolHeartbeat,
@@ -137,6 +238,7 @@ export function useStreamingMessages({
             onStreamDetached,
             onServerToolFinish,
         };
+        flushPendingClientTools(session);
     }, [
         chatId,
         chat,
@@ -163,10 +265,11 @@ export function useStreamingMessages({
     // Only subscribe to isStreaming changes — display values are read by useStreamingDisplay
     const { data: isStreaming = false } = useQuery({
         queryKey: STREAM_KEY(chatId),
-        queryFn: () => queryClient.getQueryData(STREAM_KEY(chatId)) || {},
+        queryFn: () => ({ isStreaming: false }),
         select: (data) => !!data?.isStreaming,
-        enabled: !!chatId,
+        enabled: false,
         staleTime: Infinity,
+        gcTime: Infinity,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
@@ -175,12 +278,13 @@ export function useStreamingMessages({
     const setStream = useCallback(
         (updates) => {
             getMirroredStreamChatIds().forEach((targetChatId) => {
-                const current =
-                    queryClient.getQueryData(STREAM_KEY(targetChatId)) || {};
-                queryClient.setQueryData(STREAM_KEY(targetChatId), {
-                    ...current,
-                    ...updates,
-                });
+                const current = queryClient.getQueryData(
+                    STREAM_KEY(targetChatId),
+                );
+                queryClient.setQueryData(
+                    STREAM_KEY(targetChatId),
+                    mergeStreamCache(current, updates),
+                );
             });
         },
         [getMirroredStreamChatIds, queryClient],
@@ -194,6 +298,7 @@ export function useStreamingMessages({
         queryClient.setQueryData(STREAM_KEY(chatId), {
             ...current,
             chatId,
+            entityId: currentEntityId,
             isStreaming: true,
             reader: current.reader || null,
             streamingContent: current.streamingContent || "",
@@ -207,7 +312,7 @@ export function useStreamingMessages({
             isThinking: true,
             startTime: current.startTime || Date.now(),
         });
-    }, [chatId, queryClient]);
+    }, [chatId, currentEntityId, queryClient]);
 
     const clearStream = useCallback(() => {
         getMirroredStreamChatIds().forEach((targetChatId) => {
@@ -254,6 +359,7 @@ export function useStreamingMessages({
                 success,
                 error,
                 presentation,
+                mediaTask,
             } = toolMessage;
             const toolEventMap = getToolEventMap(state);
             const existingMeta = toolEventMap.get(callId);
@@ -287,7 +393,7 @@ export function useStreamingMessages({
             }
 
             if (type === "finish") {
-                const toolEvent = {
+                const toolEvent = createAssistantToolEventItem({
                     ...(existingItem ||
                         createAssistantToolEventItem({
                             callId,
@@ -304,7 +410,10 @@ export function useStreamingMessages({
                     error,
                     presentation:
                         presentation || existingItem?.presentation || "default",
-                };
+                    mediaTask: success
+                        ? mediaTask || existingItem?.mediaTask
+                        : null,
+                });
                 const nextInline = upsertAssistantToolEvent(
                     getStreamInlineItems(state),
                     toolEvent,
@@ -357,10 +466,7 @@ export function useStreamingMessages({
                     !session.processedTools.has(info.toolCallbackId)
                 ) {
                     session.processedTools.add(info.toolCallbackId);
-                    const toolHandler = session.callbacks?.onClientSideToolCall;
-                    if (toolHandler) {
-                        Promise.resolve(toolHandler(info)).catch(() => {});
-                    }
+                    dispatchClientSideTool(session, info);
                 }
 
                 if (info.toolMessage) {
@@ -474,7 +580,10 @@ export function useStreamingMessages({
             session.processing = false;
             session.queueScheduled = false;
             session.processedTools = new Set();
-            session.ackedClientTools = new Set();
+            session.terminalStatus = null;
+            session.pendingClientTools = new Map();
+            session.clientToolHeartbeats?.forEach((stop) => stop());
+            session.clientToolHeartbeats = new Map();
             session.reader = reader;
             session.streamRunId = (session.streamRunId || 0) + 1;
             const streamRunId = session.streamRunId;
@@ -506,6 +615,10 @@ export function useStreamingMessages({
             queryClient.setQueryData(STREAM_KEY(chatId), {
                 ...pendingState,
                 chatId,
+                entityId:
+                    pendingState.entityId ||
+                    session.chatSnapshot?.selectedEntityId ||
+                    null,
                 isStreaming: true,
                 reader,
                 streamingContent: pendingState.streamingContent || "",
@@ -521,6 +634,7 @@ export function useStreamingMessages({
                 startTime: pendingState.startTime || Date.now(),
             });
 
+            let outcome = "done";
             const endStream = async () => {
                 if (endStreamPromise) {
                     return endStreamPromise;
@@ -577,16 +691,28 @@ export function useStreamingMessages({
                               direction: "incoming",
                               position: "single",
                               entityId:
+                                  s?.entityId ||
                                   session.chatSnapshot?.selectedEntityId ||
                                   null,
                               isServerGenerated: true,
                               _id: null,
                               _clientId: `stream-end:${targetChatId}:${Date.now()}`,
-                              tool: null,
+                              tool: session.terminalStatus
+                                  ? JSON.stringify({
+                                        streamStatus: session.terminalStatus,
+                                    })
+                                  : null,
                               taskId: null,
                               task: null,
                           }
                         : null;
+                    if (assistantMessage) {
+                        commitStreamCompleteAssistant(
+                            queryClient,
+                            targetChatId,
+                            assistantMessage,
+                        );
+                    }
                     session.callbacks?.onStreamComplete?.({
                         chatId: targetChatId,
                         payload,
@@ -594,7 +720,12 @@ export function useStreamingMessages({
                         content,
                         thinkingContent,
                         thinkingDuration: duration,
+                        outcome,
                     });
+
+                    // Native tools can publish inbox messages during this turn.
+                    // Refresh once on completion, without waiting for the poll.
+                    queryClient.invalidateQueries({ queryKey: ["inbox"] });
 
                     // 4. Background reconciliation — server version replaces the
                     //    pending assistant row with the persisted message once the
@@ -619,6 +750,8 @@ export function useStreamingMessages({
 
                 return endStreamPromise;
             };
+
+            session.endStream = endStream;
 
             (async () => {
                 try {
@@ -659,6 +792,8 @@ export function useStreamingMessages({
                                         "chat",
                                         targetId,
                                     ]);
+                                    session.activeSubscriptionId =
+                                        d.subscriptionId;
                                     if (cached) {
                                         syncInFlightChatCache(
                                             queryClient,
@@ -672,6 +807,11 @@ export function useStreamingMessages({
                                     }
                                 } else if (event === "error") {
                                     cancelled = true;
+                                    session.terminalStatus =
+                                        d?.code === "CHAT_MESSAGE_SAVE_FAILED"
+                                            ? "save_failed"
+                                            : "interrupted";
+                                    outcome = "error";
                                     toast.error(d?.error || "Error");
                                     await endStream();
                                     break;
@@ -702,18 +842,19 @@ export function useStreamingMessages({
                                         if (
                                             info?.clientSideTool &&
                                             info.toolCallbackId &&
-                                            !session.ackedClientTools.has(
+                                            !session.processedTools.has(
                                                 info.toolCallbackId,
                                             )
                                         ) {
-                                            session.ackedClientTools.add(
+                                            session.processedTools.add(
                                                 info.toolCallbackId,
                                             );
-                                            Promise.resolve(
-                                                session.callbacks?.onClientSideToolHeartbeat?.(
-                                                    info,
-                                                ),
-                                            ).catch(() => {});
+                                            // Tool execution must not wait for text paint,
+                                            // which browsers can suspend in a background tab.
+                                            dispatchClientSideTool(
+                                                session,
+                                                info,
+                                            );
                                         }
                                     }
                                     if (!session.processing) {
@@ -792,14 +933,14 @@ export function useStreamingMessages({
     }, [isStreaming, queryClient, chatId, setStream]);
 
     useEffect(() => {
-        if (
-            isStreaming &&
-            hasActiveStream(queryClient, chatId) &&
-            chat?.isChatLoading === false
-        ) {
-            clearStream();
+        if (!isStreaming || chat?.isChatLoading !== false || !chatId) {
+            return;
         }
-    }, [isStreaming, chat?.isChatLoading, queryClient, chatId, clearStream]);
+        const session = peekStreamSession(chatId);
+        if (typeof session?.endStream === "function") {
+            void session.endStream();
+        }
+    }, [isStreaming, chat?.isChatLoading, chatId]);
 
     return {
         isStreaming,
@@ -820,12 +961,12 @@ export function useStreamingMessages({
 // Lightweight hook for components that only need streaming display values.
 // Subscribes to all streaming state changes (every SSE chunk).
 export function useStreamingDisplay(chatId) {
-    const queryClient = useQueryClient();
     const { data: streamState = {} } = useQuery({
         queryKey: STREAM_KEY(chatId),
-        queryFn: () => queryClient.getQueryData(STREAM_KEY(chatId)) || {},
-        enabled: !!chatId,
+        queryFn: () => ({ isStreaming: false }),
+        enabled: false,
         staleTime: Infinity,
+        gcTime: Infinity,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,

@@ -1,5 +1,7 @@
 # Concierge
 
+See the [unreleased platform refresh and upgrade guide](docs/platform-refresh.md).
+
 [![License: MIT](https://img.shields.io/badge/license-MIT-2f855a.svg)](LICENSE)
 [![Built on Cortex](https://img.shields.io/badge/built%20on-Cortex-2563eb.svg)](https://github.com/aj-archipelago/cortex)
 [![Next.js](https://img.shields.io/badge/Next.js-app-111827.svg)](package.json)
@@ -129,6 +131,10 @@ Concierge reads runtime configuration from environment variables and `config/def
 | `NEXT_PUBLIC_BASE_PATH`         | Optional          | Base path when Concierge is hosted below a subpath.                                                                       |
 | `NEXT_PUBLIC_AMPLITUDE_API_KEY` | Optional          | Enables browser analytics.                                                                                                |
 | `MAX_FILE_SIZE`                 | Optional          | Upload validation limit in bytes.                                                                                         |
+
+### Privacy and terms notices
+
+The default notices describe basic data handling and ask users to review AI output and tool permissions. They are not a complete privacy policy or terms for your deployment. Configure `global.getPrivacyContent` and `global.getTosContent` in `app.config/config/index.js` with your operator contact details, retention policy, provider disclosures and applicable terms before inviting users.
 
 ### Auth
 

@@ -14,6 +14,15 @@ export function getUserAppletId(userApp) {
     return toPickerIdString(app.appletId);
 }
 
+/**
+ * `/api/apps` returns a bare array. Tolerate a wrapped `{ apps }` shape too.
+ */
+export function getAppsCatalogList(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.apps)) return payload.apps;
+    return [];
+}
+
 function getAppAuthorName(app) {
     if (!app?.author) return null;
     if (typeof app.author === "object") {
@@ -54,4 +63,42 @@ export function normalizeAppletPickerApplet(applet) {
         updatedAt:
             app.updatedAt || applet.updatedAt || applet.createdAt || null,
     };
+}
+
+/**
+ * Map a marketplace `/api/apps` applet record into picker shape.
+ * Native apps are ignored — they belong in the built-ins section elsewhere.
+ */
+export function normalizeStoreAppForPicker(app) {
+    if (!app || app.type !== "applet") return null;
+
+    const raw = app.appletId;
+    const appletId = toPickerIdString(raw);
+    if (!appletId) return null;
+
+    const populated = raw && typeof raw === "object" ? raw : {};
+    return normalizeAppletPickerApplet({
+        _id: appletId,
+        version: 2,
+        publishedVersionIndex: populated.publishedVersionIndex,
+        htmlVersions: populated.htmlVersions,
+        name: populated.name,
+        app,
+    });
+}
+
+export function normalizeStoreAppsForPicker(appsPayload) {
+    return getAppsCatalogList(appsPayload)
+        .map(normalizeStoreAppForPicker)
+        .filter(Boolean);
+}
+
+export function mergePickerApplets(...lists) {
+    const byId = new Map();
+    lists.flat().forEach((applet) => {
+        if (applet?.appletId && !byId.has(applet.appletId)) {
+            byId.set(applet.appletId, applet);
+        }
+    });
+    return [...byId.values()];
 }

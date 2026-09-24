@@ -17,10 +17,13 @@ import {
     ASSISTANT_PAYLOAD_ITEM_TYPES,
     buildLegacyInlineAssistantPayloadItems,
     parseAssistantPayloadItem,
+    getAssistantMediaTasks,
 } from "../../utils/assistantInlinePayload";
 import UserAvatar from "../UserAvatar";
 import CopyButton from "../CopyButton";
+import ChatStreamNotice from "./ChatStreamNotice";
 import MediaCard from "./MediaCard";
+import AssistantMediaGallery from "./AssistantMediaGallery";
 import { convertMessageToMarkdown } from "./ChatMessage";
 import { CurrentUserContext } from "../../App";
 
@@ -414,10 +417,19 @@ const ToolEventGroup = React.memo(function ToolEventGroup({
     currentUser = null,
     showErrors = false,
     onToggleErrors = null,
+    compact = false,
 }) {
+    const { t } = useTranslation();
     const collapsedItems = collapseToolEvents(items);
+    const canCollapse =
+        compact &&
+        items.every(
+            (item) =>
+                item.status === "completed" &&
+                item.presentation !== "inline_user",
+        );
 
-    return (
+    const content = (
         <div className="tool-call-box my-1">
             <div className="flex flex-col gap-1">
                 {collapsedItems.map(({ item, count }, index) => (
@@ -432,6 +444,16 @@ const ToolEventGroup = React.memo(function ToolEventGroup({
                 ))}
             </div>
         </div>
+    );
+    return canCollapse ? (
+        <details className="text-xs text-gray-500 dark:text-gray-400">
+            <summary className="min-h-10 cursor-pointer py-3">
+                {t("chat.media.details")}
+            </summary>
+            {content}
+        </details>
+    ) : (
+        content
     );
 });
 
@@ -659,6 +681,7 @@ export const InlineAssistantPayload = React.memo(
             ? items.filter(Boolean)
             : [];
         const stableMessageId = getStableAssistantMessageId(message);
+        const mediaTasks = getAssistantMediaTasks(normalizedItems);
 
         if (!normalizedItems.length) {
             return null;
@@ -692,9 +715,22 @@ export const InlineAssistantPayload = React.memo(
         const blocks = buildChronologicalBlocks(chronologicalItems);
         const bodyBlocks = [];
         const footerBlocks = [];
+        const completedMediaSteps = [];
         const markdownFinalRender = !isStreaming;
 
         blocks.forEach((block) => {
+            if (
+                mediaTasks.length > 0 &&
+                block.type === "tool_group" &&
+                block.items.every(
+                    (item) =>
+                        item.status === "completed" &&
+                        item.presentation !== "inline_user",
+                )
+            ) {
+                completedMediaSteps.push(...block.items);
+                return;
+            }
             if (
                 block.type === "item" &&
                 isSummaryOnlyThinkingItem(block.parsed)
@@ -815,6 +851,14 @@ export const InlineAssistantPayload = React.memo(
                         })}
                     </div>
                 ) : null}
+                <AssistantMediaGallery receipts={mediaTasks} onLoad={onLoad} />
+                {completedMediaSteps.length > 0 && (
+                    <ToolEventGroup
+                        items={completedMediaSteps}
+                        compact
+                        currentUser={currentUser}
+                    />
+                )}
                 {footerBlocks.map((block) => (
                     <div
                         key={block.key}
@@ -1155,6 +1199,7 @@ const BotMessage = ({
                         ref={(el) => messageRef(el, stableMessageId)}
                     >
                         <React.Fragment key={`md-${stableMessageId}`}>
+                            <ChatStreamNotice message={message} />
                             {message.taskId && task ? (
                                 <TaskPlaceholder
                                     message={message}

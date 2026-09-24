@@ -2,7 +2,11 @@
  * @jest-environment node
  */
 
-import { computeIsShared, legacyHydratedShareShape } from "../shareHelpers.js";
+import {
+    computeIsShared,
+    legacyHydratedShareShape,
+    sanitizeShareRecipients,
+} from "../shareHelpers.js";
 
 describe("shareHelpers", () => {
     describe("computeIsShared", () => {
@@ -51,6 +55,27 @@ describe("shareHelpers", () => {
                 link: { enabled: true, role: "viewer" },
                 recipients: [],
             });
+        });
+    });
+
+    describe("sanitizeShareRecipients", () => {
+        it("forces workspace and published applet recipients to viewer", () => {
+            const ownerId = "507f191e810c19729de860ea";
+            const userId = "507f191e810c19729de860eb";
+
+            expect(
+                sanitizeShareRecipients([{ userId, role: "editor" }], {
+                    ownerId,
+                    entityType: "workspace",
+                }),
+            ).toEqual([{ userId, role: "viewer" }]);
+
+            expect(
+                sanitizeShareRecipients([{ userId, role: "editor" }], {
+                    ownerId,
+                    entityType: "published_applet",
+                }),
+            ).toEqual([{ userId, role: "viewer" }]);
         });
     });
 });

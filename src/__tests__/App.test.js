@@ -1,4 +1,10 @@
-import { act, render, waitFor } from "@testing-library/react";
+import {
+    act,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+} from "@testing-library/react";
 import React from "react";
 import {
     useCurrentUser,
@@ -129,10 +135,21 @@ jest.mock("dayjs", () => {
 });
 
 // Create a mock for i18next
-jest.mock("i18next", () => ({
-    language: "en",
-    changeLanguage: jest.fn(),
-}));
+jest.mock("i18next", () => {
+    const translations = {
+        "bootstrap.loadingTitle": "Starting Concierge",
+        "bootstrap.loadingMessage": "Loading your workspace...",
+        "bootstrap.errorTitle": "We couldn't load your workspace",
+        "bootstrap.errorMessage": "Check your connection and try again.",
+        "bootstrap.retry": "Retry",
+        "bootstrap.retrying": "Retrying...",
+    };
+    return {
+        language: "en",
+        changeLanguage: jest.fn(),
+        t: jest.fn((key) => translations[key] || key),
+    };
+});
 
 // Import App after all mocks are set up
 // eslint-disable-next-line import/first
@@ -146,6 +163,7 @@ process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-api-key";
 describe("App Component", () => {
     // Setup for all tests
     const mockRefetch = jest.fn();
+    const mockCurrentUserRefetch = jest.fn();
     const mockMutate = jest.fn();
     const mockMutateAsync = jest.fn();
 
@@ -155,6 +173,10 @@ describe("App Component", () => {
         // Default mock implementations
         useCurrentUser.mockReturnValue({
             data: { id: "user1", name: "Test User" },
+            isLoading: false,
+            isError: false,
+            isFetching: false,
+            refetch: mockCurrentUserRefetch,
         });
         useUserState.mockReturnValue({
             data: { preferences: { theme: "light" } },
@@ -168,6 +190,59 @@ describe("App Component", () => {
 
         // Reset useDebounce to pass through values by default
         useDebounce.mockImplementation((val) => val);
+    });
+
+    describe("Bootstrap state", () => {
+        it("shows a localized loading state instead of a blank screen", () => {
+            useCurrentUser.mockReturnValue({
+                data: undefined,
+                isLoading: true,
+                isError: false,
+                isFetching: true,
+                refetch: mockCurrentUserRefetch,
+            });
+
+            render(
+                <App
+                    language="en"
+                    theme="light"
+                    serverUrl="http://example.com"
+                    graphQLPublicEndpoint="http://example.com/graphql"
+                >
+                    Test Content
+                </App>,
+            );
+
+            expect(screen.getByRole("status").textContent).toContain(
+                "Starting Concierge",
+            );
+            expect(screen.getByText("Loading your workspace...")).toBeTruthy();
+        });
+
+        it("shows a retry action when current-user bootstrap fails", () => {
+            useCurrentUser.mockReturnValue({
+                data: undefined,
+                isLoading: false,
+                isError: true,
+                isFetching: false,
+                refetch: mockCurrentUserRefetch,
+            });
+
+            render(
+                <App
+                    language="ar"
+                    theme="dark"
+                    serverUrl="http://example.com"
+                    graphQLPublicEndpoint="http://example.com/graphql"
+                >
+                    Test Content
+                </App>,
+            );
+
+            expect(screen.getByRole("main")).toHaveProperty("dir", "rtl");
+            fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+            expect(mockCurrentUserRefetch).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe("User State Management", () => {

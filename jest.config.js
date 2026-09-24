@@ -20,6 +20,7 @@ const projects = process.env.CI
                   "<rootDir>/app/api/**/*.test.js",
                   "<rootDir>/jobs/**/*.test.js",
                   "<rootDir>/config/**/*.test.js",
+                  "<rootDir>/scripts/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -38,6 +39,8 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^(?:\\.\\.?/)*config/default/locales/(.*)$":
+                      "<rootDir>/config/default/locales/$1",
                   "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
@@ -106,6 +109,8 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^(?:\\.\\.?/)*config/default/locales/(.*)$":
+                      "<rootDir>/config/default/locales/$1",
                   "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
@@ -139,7 +144,10 @@ const projects = process.env.CI
                   "/node_modules/(?!(vfile|vfile-.*|unist-.*|unified|bail|is-plain-obj|trough|remark-.*|mdast-util-.*|micromark.*|decode-named-character-reference|character-entities|property-information|hast-util-.*|hast-util-to-jsx-runtime|space-separated-tokens|comma-separated-tokens|rehype-.*|react-markdown|estree-util-.*|hastscript|web-namespaces|zwitch|html-void-elements|devlop|@types)/)",
               ],
               modulePathIgnorePatterns,
-              testPathIgnorePatterns,
+              testPathIgnorePatterns: [
+                  ...testPathIgnorePatterns,
+                  "<rootDir>/app/api/",
+              ],
               watchPathIgnorePatterns,
           },
           {
@@ -150,6 +158,7 @@ const projects = process.env.CI
                   "<rootDir>/app/api/**/*.test.js",
                   "<rootDir>/jobs/**/*.test.js",
                   "<rootDir>/config/**/*.test.js",
+                  "<rootDir>/scripts/**/*.test.js",
               ],
               setupFiles: ["<rootDir>/jest.setup.js"],
               transform: {
@@ -168,6 +177,8 @@ const projects = process.env.CI
               },
               moduleDirectories: ["node_modules", "__mocks__"],
               moduleNameMapper: {
+                  "^(?:\\.\\.?/)*config/default/locales/(.*)$":
+                      "<rootDir>/config/default/locales/$1",
                   "^@/src/(.*)$": "<rootDir>/src/$1",
                   "^@/(.*)$": "<rootDir>/@/$1",
                   "^@components/(.*)$": "<rootDir>/@/components/$1",
@@ -209,7 +220,6 @@ const projects = process.env.CI
 export default {
     // Force exit after tests complete to prevent hanging from open handles
     // (Apollo client, timers, etc. that don't clean up properly in jsdom)
-    forceExit: true,
     watchPathIgnorePatterns,
     modulePathIgnorePatterns,
     testPathIgnorePatterns,

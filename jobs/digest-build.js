@@ -1,214 +1,139 @@
 import Digest from "../app/api/models/digest.mjs";
 import Task from "../app/api/models/task.mjs";
 import User from "../app/api/models/user.mjs";
+import { generateDigestBlockContent } from "./digest/digest.utils.js";
+import { getPreferredDigestLanguage } from "./digest/language.js";
+import { enqueueDigestBlock } from "../app/api/utils/digest-dispatch.mjs";
 import {
-    generateDigestBlockContent,
-    generateDigestGreeting,
-} from "./digest/digest.utils.js";
+    plainBlock,
+    sameDigestGeneration,
+    updateDigestBlocks,
+} from "../app/api/utils/digest-store.mjs";
 
-const { ACTIVE_USER_PERIOD_DAYS = 7 } =
-    typeof process.env === "object" ? process.env : {};
+const ACTIVE_USER_PERIOD_DAYS = Number(
+    process.env.ACTIVE_USER_PERIOD_DAYS || 7,
+);
 
-async function buildDigestForUser(user, logger) {
-    const owner = user._id;
-
-    let digest = await Digest.findOne({
-        owner,
-    });
-
-    if (!digest) {
-        logger.log("[Digest] User does not have digest", owner);
-        return;
+// Dispatch only. One durable task per card makes work visible to autoscaling and
+// lets replicas share it without duplicating a multi-hour all-user generation.
+export async function buildDigestForUser(user, logger, options = {}) {
+    const digest = await Digest.findOne({ owner: user._id });
+    for (const block of digest?.blocks || []) {
+        if (block.automationId) continue;
+        await enqueueDigestBlock(user._id, block._id, options);
     }
-
-    logger.log("[Digest] Generate greeting for user", owner);
-
-    logger.log("[Digest] Building digest for user", owner);
-    const promises = digest.blocks.map(async (block, i) => {
-        // Automation-linked blocks render the latest automation run on read;
-        // they are not built here.
-        if (block.automationId) {
-            logger.log(
-                "[Digest] Skipping automation-linked block",
-                owner,
-                block._id,
-            );
-            return block;
-        }
-
-        const lastUpdated = block.updatedAt;
-
-        logger.log(
-            `[Digest] Regenerating content. Last updated: ${lastUpdated}. Has Content: ${!!block.content}.`,
-            owner,
-            block._id,
-        );
-
-        try {
-            const content = await generateDigestBlockContent(
-                block,
-                user,
-                logger,
-                () => {},
-            );
-            block.content = content;
-            block.updatedAt = new Date();
-        } catch (e) {
-            logger.log(
-                `[Digest] Error generating content: ${e.message}`,
-                owner,
-                block._id,
-            );
-            block.taskId = null;
-            block.content = `Error generating content: ${e.message}`;
-        }
-
-        return block;
-    });
-
-    const updatedBlocks = await Promise.all(promises);
-    const greeting = await generateDigestGreeting(
-        user,
-        updatedBlocks[0]?.content,
-        logger,
-    );
-
-    // Update the entire blocks array in one call
-    logger.log("[Digest] Updating greeting and blocks in database", owner);
-    try {
-        digest = await Digest.findOneAndUpdate(
-            { owner },
-            { $set: { blocks: updatedBlocks, greeting } }, // Update the entire blocks array
-            { upsert: true, new: true },
-        );
-
-        logger.log("[Digest] Updated blocks in database", owner);
-    } catch (e) {
-        logger.log("[Digest] Error updating blocks in database", owner, e);
-    }
-
     return digest;
 }
 
-async function buildDigestsForAllUsers(logger) {
-    const User = (await import("../app/api/models/user.mjs")).default;
-    const batchSize = 10;
-    let lastId = null;
-
+export async function buildDigestsForAllUsers(logger, job) {
+    const scheduledFor = new Date(
+        job?.opts?.prevMillis || job?.timestamp || Date.now(),
+    );
+    const slot = String(job?.id || scheduledFor.toISOString());
+    let lastId = job?.data?.lastUserId || null;
+    let count = 0;
     while (true) {
         const users = await User.find({
             lastActiveAt: {
                 $gte: new Date(
-                    Date.now() - ACTIVE_USER_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+                    scheduledFor.getTime() - ACTIVE_USER_PERIOD_DAYS * 86400000,
                 ),
             },
-            ...(lastId && { _id: { $gt: lastId } }),
+            ...(lastId ? { _id: { $gt: lastId } } : {}),
         })
-            .limit(batchSize)
-            .sort({ _id: 1 });
-
-        if (users.length === 0) break;
-
+            .sort({ _id: 1 })
+            .limit(50);
+        if (!users.length) break;
         for (const user of users) {
-            try {
-                await buildDigestForUser(user, logger);
-            } catch (e) {
-                console.error(e);
-                logger.log(
-                    "[Digest] Error building digest for user",
-                    user._id,
-                    e,
-                );
-            }
+            // A failed dispatch fails this job. Retry resumes its cursor with
+            // the same slot key, including a crash before the cursor was saved.
+            await buildDigestForUser(user, logger, { slot, scheduledFor });
+            lastId = String(user._id);
+            await job?.updateData({ ...job.data, lastUserId: lastId });
+            count++;
         }
-
-        lastId = users[users.length - 1]._id;
     }
+    logger.log(`[Digest] Dispatched ${count} users; slot=${slot}`);
 }
 
-async function buildDigestBlock(blockId, userId, logger, taskId = null) {
-    let digest = await Digest.findOne({ owner: userId });
-    const block = digest.blocks.find((b) => b._id.toString() === blockId);
+export async function buildDigestBlock(
+    blockId,
+    userId,
+    logger,
+    taskId = null,
+    options = {},
+) {
+    const digest = await Digest.findOne({ owner: userId });
+    const found = digest?.blocks.find((b) => String(b._id) === String(blockId));
     const user = await User.findById(userId);
-
-    if (!digest || !block || !user) {
-        logger.log("[Digest] Block or user not found", userId, blockId);
-        return;
+    if (!found || !user) return { success: true, skipped: true };
+    const block = plainBlock(found);
+    if (
+        block.automationId ||
+        (taskId && String(block.taskId) !== String(taskId))
+    ) {
+        return { success: true, skipped: true };
     }
-
-    // Automation-linked blocks are read-through to the linked automation's
-    // latest run — there is nothing for the digest worker to build.
-    if (block.automationId) {
-        logger.log(
-            "[Digest] Skipping build for automation-linked block",
-            userId,
-            blockId,
-        );
-        return { block, success: true, skipped: true };
-    }
-
+    const ownsBlock = (current) =>
+        sameDigestGeneration(current, block) &&
+        (!taskId || String(current.taskId) === String(taskId));
     try {
+        const preferredLanguage = await getPreferredDigestLanguage(
+            userId,
+            logger,
+        );
         const content = await generateDigestBlockContent(
             block,
             user,
             logger,
             async (progress) => {
-                if (taskId) {
+                if (taskId)
                     await Task.findOneAndUpdate(
-                        { _id: taskId },
+                        { _id: taskId, status: "in_progress" },
                         { $set: { progress: progress / 100 } },
                     );
-                }
             },
+            { language: preferredLanguage, ...options },
         );
-
-        block.content = content;
-        block.updatedAt = new Date();
-
-        // re-read the blocks since the digest might have been updated
-        // since generateDigestBlockContent was called
-        digest = await Digest.findOne({ owner: userId });
-
-        const newBlocks = digest.blocks.map((b) => {
-            if (b._id.toString() === block._id.toString()) {
-                return block;
-            }
-            return b;
+        options.signal?.throwIfAborted();
+        let saved = false;
+        await updateDigestBlocks(userId, (blocks) => {
+            options.signal?.throwIfAborted();
+            saved = false;
+            const current = blocks.find(
+                (b) => String(b._id) === String(blockId),
+            );
+            if (!ownsBlock(current)) return null;
+            current.content = content;
+            current.updatedAt = new Date();
+            current.taskId = null;
+            saved = true;
+            return blocks;
         });
-
-        await Digest.findOneAndUpdate(
-            { owner: userId },
-            { $set: { blocks: newBlocks } },
-            { upsert: true, new: true },
-        );
-
-        return {
-            block,
-            success: true,
-        };
-    } catch (e) {
-        logger.log(
-            `[Digest] Error generating content: ${e.message}`,
-            user?._id,
-            block?._id,
-        );
-        block.taskId = null;
-        block.content = JSON.stringify({
-            payload: `Error generating content: ${e.message}`,
-        });
-
-        await Digest.findOneAndUpdate(
-            { owner: userId },
-            { $set: { blocks: digest.blocks } },
-            { upsert: true, new: true },
-        );
-
-        return {
-            block,
-            success: false,
-            error: e.message,
-        };
+        return { success: true, skipped: !saved };
+    } catch (error) {
+        // Clear only this run's marker, preserving edits, other cards and the
+        // last good result. CAS retries also protect concurrent failure cleanup.
+        try {
+            await updateDigestBlocks(userId, (blocks) => {
+                const current = blocks.find(
+                    (b) => String(b._id) === String(blockId),
+                );
+                if (
+                    !current?.taskId ||
+                    (taskId && String(current.taskId) !== String(taskId))
+                )
+                    return null;
+                current.taskId = null;
+                return blocks;
+            });
+        } catch (cleanupError) {
+            logger.log(
+                `[Digest] Failed task cleanup: ${cleanupError.message}`,
+                userId,
+                blockId,
+            );
+        }
+        return { block, success: false, error: error.message };
     }
 }
-
-export { buildDigestBlock, buildDigestsForAllUsers };

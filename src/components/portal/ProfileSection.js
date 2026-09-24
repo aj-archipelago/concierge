@@ -2,12 +2,13 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { User, X, Moon, Sun, Languages } from "lucide-react";
+import { Moon, Sun, Languages, Palette } from "lucide-react";
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import UserAvatar from "../UserAvatar";
 import axios from "../../../app/utils/axios-client";
+import { SettingsCard, SettingsChoice } from "./SettingsPrimitives";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function ProfileSection() {
@@ -15,7 +16,6 @@ export default function ProfileSection() {
     const { user } = useContext(AuthContext);
     const { direction, language, changeLanguage } = useContext(LanguageContext);
     const { theme, changeTheme } = useContext(ThemeContext);
-    const isRTL = direction === "rtl";
     const profilePictureInputRef = useRef();
     const previewUrlRef = useRef(null);
     const queryClient = useQueryClient();
@@ -122,61 +122,41 @@ export default function ProfileSection() {
     };
 
     return (
-        <div className="space-y-6">
+        <div dir={direction} className="space-y-4">
             {error && (
-                <div
-                    className={`text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded ${isRTL ? "text-right" : "text-left"}`}
-                    dir={direction}
+                <p
+                    role="alert"
+                    className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300"
                 >
                     {error}
-                </div>
+                </p>
             )}
-
-            {/* Avatar */}
-            <section>
-                <label
-                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 ${isRTL ? "text-right" : ""}`}
-                >
-                    {t("Profile Picture")}
-                </label>
-                <div
-                    className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}
-                >
-                    <div className="relative flex-shrink-0">
-                        {profilePicture ? (
-                            <UserAvatar
-                                src={profilePicture}
-                                blobPath={profilePictureBlobPath}
-                                contextId={user?.contextId}
-                                name={t("Profile picture")}
-                                className="w-16 h-16 rounded-full border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center"
-                                initialsClassName="hidden"
-                                iconClassName="w-8 h-8"
-                            />
-                        ) : (
-                            <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border border-gray-300 dark:border-gray-600">
-                                <User className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                            </div>
-                        )}
-                        {profilePicture && (
-                            <button
-                                type="button"
-                                onClick={handleRemoveProfilePicture}
-                                className={`absolute -top-0.5 ${isRTL ? "-start-0.5" : "-end-0.5"} w-5 h-5 rounded-full bg-gray-500 dark:bg-gray-600 text-white flex items-center justify-center hover:bg-red-500 dark:hover:bg-red-500 transition-colors`}
-                                title={t("Remove profile picture")}
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        )}
+            <SettingsCard>
+                <div className="flex flex-wrap items-center gap-4">
+                    <UserAvatar
+                        src={profilePicture}
+                        blobPath={profilePictureBlobPath}
+                        contextId={user?.contextId}
+                        name={user?.name || t("Profile picture")}
+                        className="h-16 w-16 shrink-0 rounded-2xl border border-gray-200 bg-sky-50 text-xl font-semibold text-sky-800 dark:border-gray-600 dark:bg-sky-400/10 dark:text-sky-200"
+                        iconClassName="h-7 w-7"
+                    />
+                    <div className="min-w-0 flex-1">
+                        <h3 className="break-words text-base font-semibold text-gray-900 dark:text-gray-100">
+                            {user?.name || t("portal_tab_profile")}
+                        </h3>
+                        <p className="mb-0 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {t("Profile Picture")}
+                        </p>
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={() =>
                                 profilePictureInputRef.current?.click()
                             }
                             disabled={uploadingProfilePicture}
-                            className="lb-outline-secondary text-xs px-3 py-1.5"
+                            className="min-h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                         >
                             {uploadingProfilePicture
                                 ? t("Uploading...")
@@ -184,97 +164,83 @@ export default function ProfileSection() {
                                   ? t("Change")
                                   : t("Upload")}
                         </button>
-                        <input
-                            ref={profilePictureInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleProfilePictureSelect}
-                            className="hidden"
-                        />
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                            {user?.name}
-                        </p>
+                        {profilePicture && (
+                            <button
+                                type="button"
+                                onClick={handleRemoveProfilePicture}
+                                disabled={uploadingProfilePicture}
+                                className="min-h-10 rounded-xl px-3 text-xs text-gray-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                            >
+                                {t("Remove profile picture")}
+                            </button>
+                        )}
                     </div>
+                    <input
+                        ref={profilePictureInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePictureSelect}
+                        className="hidden"
+                    />
                 </div>
-            </section>
-
-            <hr className="border-gray-200 dark:border-gray-700" />
-
-            {/* Language */}
-            <section>
-                <label
-                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-3 ${isRTL ? "text-right" : ""}`}
-                >
-                    {t("Language")}
-                </label>
-                <div
-                    className={`flex gap-3 ${isRTL ? "flex-row-reverse" : ""}`}
-                >
-                    <button
-                        type="button"
+            </SettingsCard>
+            <SettingsCard
+                icon={Palette}
+                title={t("portal_appearance")}
+                description={t("portal_appearance_description")}
+            >
+                <div className="grid grid-cols-2 gap-3">
+                    {["light", "dark"].map((mode) => (
+                        <SettingsChoice
+                            key={mode}
+                            selected={theme === mode}
+                            onClick={() => changeTheme(mode)}
+                            icon={mode === "light" ? Sun : Moon}
+                            label={t(
+                                mode === "light" ? "Light mode" : "Dark mode",
+                            )}
+                        >
+                            <div
+                                aria-hidden="true"
+                                className={`mb-3 flex h-20 gap-2 overflow-hidden rounded-lg border p-2 ${mode === "light" ? "border-gray-200 bg-gray-50 dark:border-gray-200 dark:bg-gray-50" : "border-gray-700 bg-gray-900 dark:border-gray-700 dark:bg-gray-900"}`}
+                            >
+                                <div
+                                    className={`w-1/4 rounded ${mode === "light" ? "bg-gray-200 dark:bg-gray-200" : "bg-gray-700 dark:bg-gray-700"}`}
+                                />
+                                <div className="flex-1 space-y-2 pt-1">
+                                    <div
+                                        className={`h-1.5 w-3/4 rounded ${mode === "light" ? "bg-gray-300 dark:bg-gray-300" : "bg-gray-500 dark:bg-gray-500"}`}
+                                    />
+                                    <div
+                                        className={`h-5 rounded ${mode === "light" ? "bg-white shadow-sm dark:bg-white" : "bg-gray-800 dark:bg-gray-800"}`}
+                                    />
+                                    <div className="h-1.5 w-1/2 rounded bg-sky-400/70 dark:bg-sky-400/70" />
+                                </div>
+                            </div>
+                        </SettingsChoice>
+                    ))}
+                </div>
+            </SettingsCard>
+            <SettingsCard
+                icon={Languages}
+                title={t("Language")}
+                description={t("portal_language_description")}
+            >
+                <div className="grid grid-cols-2 gap-3">
+                    <SettingsChoice
+                        selected={language === "en"}
                         onClick={() => changeLanguage("en")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
-                            language === "en"
-                                ? "border-sky-500 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300"
-                                : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                    >
-                        <Languages className="h-4 w-4" />
-                        English
-                    </button>
-                    <button
-                        type="button"
+                        label={t("portal_language_en")}
+                        lang="en"
+                    />
+                    <SettingsChoice
+                        selected={language === "ar"}
                         onClick={() => changeLanguage("ar")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
-                            language === "ar"
-                                ? "border-sky-500 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300"
-                                : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                    >
-                        <Languages className="h-4 w-4" />
-                        عربي
-                    </button>
+                        label={t("portal_language_ar")}
+                        lang="ar"
+                    />
                 </div>
-            </section>
-
-            <hr className="border-gray-200 dark:border-gray-700" />
-
-            {/* Theme */}
-            <section>
-                <label
-                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-3 ${isRTL ? "text-right" : ""}`}
-                >
-                    {t("Theme")}
-                </label>
-                <div
-                    className={`flex gap-3 ${isRTL ? "flex-row-reverse" : ""}`}
-                >
-                    <button
-                        type="button"
-                        onClick={() => changeTheme("light")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
-                            theme === "light"
-                                ? "border-sky-500 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300"
-                                : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                    >
-                        <Sun className="h-4 w-4" />
-                        {t("Light mode")}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => changeTheme("dark")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-colors ${
-                            theme === "dark"
-                                ? "border-sky-500 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300"
-                                : "border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                        }`}
-                    >
-                        <Moon className="h-4 w-4" />
-                        {t("Dark mode")}
-                    </button>
-                </div>
-            </section>
+            </SettingsCard>
         </div>
     );
 }

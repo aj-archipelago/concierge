@@ -219,7 +219,7 @@ function collectSourceQaStreamingResult({ graphqlClient, variables }) {
                 variables: { ...variables, stream: true },
                 fetchPolicy: "network-only",
             });
-            const sourceQa = response.data?.ask_aj;
+            const sourceQa = response.data?.source_qa;
             const subscriptionId = sourceQa?.result;
 
             if (!subscriptionId) {
@@ -316,7 +316,7 @@ function createSourceQaStreamingResponse({ graphqlClient, variables }) {
                 variables: { ...variables, stream: true },
                 fetchPolicy: "network-only",
             });
-            const sourceQa = response.data?.ask_aj;
+            const sourceQa = response.data?.source_qa;
             const subscriptionId = sourceQa?.result;
 
             if (!subscriptionId) {
@@ -500,6 +500,14 @@ export async function POST(request) {
             api: "sourceQa.query",
             limits: APPLET_SDK_LIMITS.sourceQa,
             run: async () => {
+                if (process.env.CORTEX_SOURCE_QA_ENABLED !== "true") {
+                    return NextResponse.json(
+                        {
+                            error: "Source Q&A is not configured on this installation",
+                        },
+                        { status: 503 },
+                    );
+                }
                 const graphqlClient = getClient();
                 if (stream === true) {
                     return createSourceQaStreamingResponse({

@@ -68,7 +68,7 @@ export async function GET() {
 export async function PUT(request) {
     try {
         const user = await requireUser();
-        const { homeItems } = await readJson(request);
+        const { homeItems, legacyDigestsIncluded } = await readJson(request);
         if (!Array.isArray(homeItems)) {
             const error = new Error("Home items are required");
             error.status = 400;
@@ -77,7 +77,9 @@ export async function PUT(request) {
         await validateHomeItems(user, homeItems);
 
         return NextResponse.json({
-            homeItems: await setHomeItemsForUser(user, homeItems),
+            homeItems: await setHomeItemsForUser(user, homeItems, {
+                legacyDigestsIncluded: legacyDigestsIncluded === true,
+            }),
             homeItemsConfigured: true,
             homeItemsDefaultGroupMigrated: true,
         });

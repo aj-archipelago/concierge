@@ -52,10 +52,11 @@ export default function SchedulePresetChips({
                         key={preset.id}
                         type="button"
                         disabled={disabled}
+                        aria-pressed={isActive}
                         onClick={() => onChange(preset.id)}
                         title={t(preset.descriptionKey)}
                         className={classNames(
-                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                            "inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500",
                             isActive
                                 ? "border-sky-600 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-900/30 dark:text-sky-200"
                                 : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",

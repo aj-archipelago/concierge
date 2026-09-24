@@ -1,5 +1,8 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
+import PageHeader from "../../../src/layout/PageHeader";
+import { HeaderAction } from "../../../src/layout/HeaderControls";
 import {
     Card,
     CardContent,
@@ -25,28 +28,32 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { useQuery } from "@tanstack/react-query";
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    Fragment,
+    useCallback,
+    useContext,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 import { useModelMetadata } from "../../queries/modelMetadata";
 import {
     buildPricingMap,
     computeRunRate,
     computeTotalTokens,
     computeUsageCost,
+    getUsageCostDetails,
+    getUsageDateRange,
 } from "./usageMetrics";
 
-const TIME_BUCKET_CSV_COLUMNS = [
-    "interval_utc",
-    "api_key_id",
-    "api_key_label",
-    "requests",
-    "input_tokens",
-    "output_tokens",
-    "cache_write_tokens",
-    "cache_read_tokens",
-    "total_tokens",
-    "estimated_cost_usd",
-];
+import UsageCost, { formatCost } from "./UsageCost";
+import { buildIntervalUsageCsv } from "./usageExport";
+
+import WeeklyBudgetControl from "./WeeklyBudgetControl";
+import BudgetPortal from "./BudgetPortal";
 
 const DRILLDOWN_VIEW_OPTIONS = [
     { value: "chart", label: "Chart" },
@@ -126,17 +133,6 @@ function SortableHead({ column, label, sort, onToggle, className = "" }) {
 function formatNumber(n) {
     if (n == null) return "0";
     return n.toLocaleString();
-}
-
-function formatCost(cost) {
-    if (cost == null || isNaN(cost) || cost <= 0) return "$0.00";
-    if (cost < 0.01) return `$${cost.toFixed(4)}`;
-    return `$${cost.toFixed(2)}`;
-}
-
-function formatRunRate(cost) {
-    if (cost == null || isNaN(cost)) return "—";
-    return `${formatCost(cost)} / 30d`;
 }
 
 function getApiKeyLabel(apiKeyId, keyMappings) {
@@ -298,7 +294,7 @@ function ApiKeyModelBreakdown({ row, pricingMap }) {
                         {breakdownRows.map((modelRow) => {
                             const modelName = getModelBreakdownName(modelRow);
                             const modelTokens = computeTotalTokens(modelRow);
-                            const modelCost = computeUsageCost(
+                            const costDetails = getUsageCostDetails(
                                 modelRow,
                                 pricingMap,
                             );
@@ -334,9 +330,7 @@ function ApiKeyModelBreakdown({ row, pricingMap }) {
                                         {formatShare(modelTokens, totalTokens)}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {modelCost != null
-                                            ? formatCost(modelCost)
-                                            : "—"}
+                                        <UsageCost details={costDetails} />
                                     </TableCell>
                                 </TableRow>
                             );
@@ -446,17 +440,6 @@ function getDisplayCost(row, pricingMap) {
         : null;
 }
 
-function escapeCsvValue(value) {
-    if (value == null) return "";
-
-    const stringValue = String(value);
-    if (!/[",\n]/.test(stringValue)) {
-        return stringValue;
-    }
-
-    return `"${stringValue.replace(/"/g, '""')}"`;
-}
-
 function sanitizeFilePart(value) {
     const normalized = String(value || "unknown")
         .trim()
@@ -481,30 +464,16 @@ function downloadTextFile(filename, content, mimeType) {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-function buildIntervalUsageCsv(rows, { apiKeyId, apiKeyLabel, pricingMap }) {
-    const dataRows = rows.map((row) => {
-        const cost = getDisplayCost(row, pricingMap);
-
-        return [
-            row._id || "",
-            apiKeyId || "",
-            apiKeyLabel || "",
-            row.requests || 0,
-            row.input_tokens || 0,
-            row.output_tokens || 0,
-            row.cache_creation_input_tokens || 0,
-            row.cache_read_input_tokens || 0,
-            computeTotalTokens(row),
-            cost == null ? "" : cost.toFixed(6),
-        ]
-            .map(escapeCsvValue)
-            .join(",");
-    });
-
-    return [TIME_BUCKET_CSV_COLUMNS.join(","), ...dataRows].join("\n");
-}
-
 function UsageTrendChart({ rows, granularity, pricingMap }) {
+    const { t } = useTranslation();
+    const costDetails = getUsageCostDetails(
+        {
+            model_breakdown: (rows || []).flatMap((row) =>
+                row.model_breakdown?.length ? row.model_breakdown : [row],
+            ),
+        },
+        pricingMap,
+    );
     if (!rows?.length) {
         return (
             <p className="text-sm text-muted-foreground">
@@ -524,7 +493,6 @@ function UsageTrendChart({ rows, granularity, pricingMap }) {
         bucket: row._id || "",
         totalTokens: computeTotalTokens(row),
         requests: row.requests || 0,
-        cost: getDisplayCost(row, pricingMap) || 0,
     }));
     const maxTokens = Math.max(...points.map((point) => point.totalTokens), 1);
     const gridValues = Array.from(
@@ -605,17 +573,16 @@ function UsageTrendChart({ rows, granularity, pricingMap }) {
                         Across {chartPoints.length} buckets
                     </p>
                 </div>
-                <div className="rounded-md border bg-muted/20 p-3">
+                <div
+                    role="group"
+                    aria-label={t("usageDashboard.estimatedCost")}
+                    className="rounded-md border bg-muted/20 p-3"
+                >
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Est. Cost
+                        {t("usageDashboard.estimatedCost")}
                     </p>
                     <p className="text-lg font-semibold">
-                        {formatCost(
-                            chartPoints.reduce(
-                                (total, point) => total + point.cost,
-                                0,
-                            ),
-                        )}
+                        <UsageCost details={costDetails} />
                     </p>
                     <p className="text-xs text-muted-foreground">
                         Chart plots total tokens per bucket
@@ -723,39 +690,7 @@ function UsageTrendChart({ rows, granularity, pricingMap }) {
     );
 }
 
-function getDateRange(preset) {
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    const start = new Date();
-
-    switch (preset) {
-        case "today":
-            start.setHours(0, 0, 0, 0);
-            break;
-        case "7d":
-            start.setDate(start.getDate() - 7);
-            start.setHours(0, 0, 0, 0);
-            break;
-        case "30d":
-            start.setDate(start.getDate() - 30);
-            start.setHours(0, 0, 0, 0);
-            break;
-        case "90d":
-            start.setDate(start.getDate() - 90);
-            start.setHours(0, 0, 0, 0);
-            break;
-        default:
-            start.setDate(start.getDate() - 7);
-            start.setHours(0, 0, 0, 0);
-    }
-
-    return {
-        startDate: start.toISOString(),
-        endDate: end.toISOString(),
-    };
-}
-
-async function fetchUsage(startDate, endDate, groupBy, filters = {}) {
+async function fetchUsage(startDate, endDate, groupBy, filters = {}, signal) {
     const params = new URLSearchParams({ startDate, endDate, groupBy });
 
     for (const [key, value] of Object.entries(filters)) {
@@ -764,18 +699,23 @@ async function fetchUsage(startDate, endDate, groupBy, filters = {}) {
         }
     }
 
-    const res = await fetch(`/api/admin/usage?${params}`);
+    const res = await fetch(`/api/admin/usage?${params}`, { signal });
     if (!res.ok) throw new Error("Failed to fetch usage data");
     return res.json();
 }
 
 async function fetchKeyMappings() {
     const res = await fetch("/api/admin/usage/key-mappings");
-    if (!res.ok) return {};
+    if (!res.ok) throw new Error("Unable to load key labels");
     return res.json();
 }
 
 export default function UsagePage() {
+    const { t } = useTranslation();
+    const { direction = "ltr" } = useContext(LanguageContext);
+    const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState("budgets");
+    const [refreshTime, setRefreshTime] = useState(() => new Date());
     const [dateRange, setDateRange] = useState("7d");
     const [selectedKeyId, setSelectedKeyId] = useState(null);
     const [selectedDrilldownView, setSelectedDrilldownView] = useState("chart");
@@ -789,8 +729,8 @@ export default function UsagePage() {
     const intervalSort = useTableSort("_id", "asc");
 
     const { startDate, endDate } = useMemo(
-        () => getDateRange(dateRange),
-        [dateRange],
+        () => getUsageDateRange(dateRange, refreshTime),
+        [dateRange, refreshTime],
     );
 
     const pricingMap = useMemo(
@@ -798,29 +738,39 @@ export default function UsagePage() {
         [modelData],
     );
 
-    const { data: byModel, isLoading: loadingModel } = useQuery({
-        queryKey: ["usage", "model", startDate, endDate],
-        queryFn: () => fetchUsage(startDate, endDate, "model"),
+    const {
+        data: overview,
+        isLoading: loadingOverview,
+        error: overviewError,
+    } = useQuery({
+        queryKey: ["usage", "overview", startDate, endDate],
+        queryFn: ({ signal }) =>
+            fetchUsage(startDate, endDate, "overview", {}, signal),
+        staleTime: 60_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+        enabled: activeTab !== "budgets",
     });
+    const { byModel, byKey, byDay } = overview || {};
+    const loadingModel = loadingOverview;
+    const loadingKey = loadingOverview;
+    const loadingDay = loadingOverview;
 
-    const { data: byKey, isLoading: loadingKey } = useQuery({
-        queryKey: ["usage", "api_key_id", startDate, endDate],
-        queryFn: () => fetchUsage(startDate, endDate, "api_key_id"),
-    });
-
-    const { data: keyMappings } = useQuery({
+    const {
+        data: keyMappings,
+        error: labelsError,
+        refetch: refreshMappings,
+    } = useQuery({
         queryKey: ["usage", "key-mappings"],
         queryFn: fetchKeyMappings,
-    });
-
-    const { data: byDay, isLoading: loadingDay } = useQuery({
-        queryKey: ["usage", "day", startDate, endDate],
-        queryFn: () => fetchUsage(startDate, endDate, "day"),
+        staleTime: 60_000,
+        retry: false,
     });
 
     const {
         data: bySelectedKeyInterval,
         isLoading: loadingSelectedKeyInterval,
+        error: intervalError,
     } = useQuery({
         queryKey: [
             "usage",
@@ -829,31 +779,93 @@ export default function UsagePage() {
             endDate,
             selectedKeyId,
         ],
-        queryFn: () =>
-            fetchUsage(startDate, endDate, selectedGranularity, {
-                apiKeyId: selectedKeyId,
-            }),
-        enabled: Boolean(selectedKeyId),
+        queryFn: ({ signal }) =>
+            fetchUsage(
+                startDate,
+                endDate,
+                selectedGranularity,
+                {
+                    apiKeyId: selectedKeyId,
+                },
+                signal,
+            ),
+        staleTime: 60_000,
+        retry: false,
+        refetchOnWindowFocus: false,
+        enabled: Boolean(selectedKeyId) && activeTab === "by-key",
     });
+
+    const {
+        data: limits,
+        error: limitsError,
+        refetch: refreshLimits,
+        isLoading: loadingLimits,
+        isFetching: refreshingLimits,
+    } = useQuery({
+        queryKey: ["usage", "limits"],
+        queryFn: async ({ signal }) => {
+            const response = await fetch("/api/admin/usage/limits", { signal });
+            if (!response.ok) throw new Error("Unable to load limits");
+            return response.json();
+        },
+        staleTime: 15_000,
+        refetchInterval: 30_000,
+        retry: false,
+    });
+
+    const handleBudgetSaved = useCallback(
+        async (apiKeyId, weeklyUsd) => {
+            queryClient.setQueryData(["usage", "limits"], (previous) =>
+                previous
+                    ? {
+                          ...previous,
+                          budgets: {
+                              ...previous.budgets,
+                              [apiKeyId]: {
+                                  ...previous.budgets?.[apiKeyId],
+                                  apiKeyId,
+                                  weeklyUsd,
+                              },
+                          },
+                      }
+                    : previous,
+            );
+            await refreshLimits();
+        },
+        [queryClient, refreshLimits],
+    );
+    const handleRefresh = useCallback(() => {
+        setRefreshTime(new Date());
+        refreshLimits();
+        refreshMappings();
+    }, [refreshLimits, refreshMappings]);
 
     // Compute summary stats
     const summary = useMemo(() => {
         if (!byModel) return null;
 
-        let totalCost = 0;
+        const costDetails = getUsageCostDetails(
+            { model_breakdown: byModel },
+            pricingMap,
+        );
+        const totalCost = costDetails.cost;
+        const unpricedRequests = costDetails.unpricedRequests;
+        const unpricedModelCount = costDetails.unpricedModels.length;
         let totalRequests = 0;
         let totalTokens = 0;
         let topModel = null;
-        let topModelCost = 0;
+        let topModelCost = null;
+        let topModelComplete = true;
 
         for (const row of byModel) {
-            const cost = computeUsageCost(row, pricingMap) || 0;
-            totalCost += cost;
+            const details = getUsageCostDetails(row, pricingMap);
+            const cost = details.cost;
             totalRequests += row.requests || 0;
             totalTokens += computeTotalTokens(row);
-            if (cost > topModelCost) {
+            if (cost != null && (topModelCost == null || cost > topModelCost)) {
                 topModelCost = cost;
                 topModel = row._id;
+                topModelComplete = details.complete;
             }
         }
 
@@ -867,11 +879,15 @@ export default function UsagePage() {
 
         return {
             totalCost,
+            costDetails,
+            unpricedRequests,
+            unpricedModelCount,
             totalRequests,
             totalTokens,
             totalRunRate: computeRunRate(totalCost, startDate, endDate),
             topModel,
             topModelCost,
+            topModelComplete,
             topKeyId: topKeyRow?._id || null,
             topKeyTokens: topKeyRow ? computeTotalTokens(topKeyRow) : 0,
         };
@@ -897,9 +913,21 @@ export default function UsagePage() {
         [byModel, endDate, modelSort.sort, pricingMap, startDate],
     );
 
+    const keysWithBudgets = useMemo(() => {
+        const rows = new Map((byKey || []).map((row) => [row._id, row]));
+        for (const id of [
+            ...Object.keys(keyMappings || {}),
+            ...Object.keys(limits?.budgets || {}),
+        ]) {
+            if (!rows.has(id))
+                rows.set(id, { _id: id, requests: 0, metered_tokens: 0 });
+        }
+        return [...rows.values()];
+    }, [byKey, keyMappings, limits]);
+
     const sortedByKey = useMemo(
         () =>
-            sortRows(byKey, keySort.sort, (row, col) =>
+            sortRows(keysWithBudgets, keySort.sort, (row, col) =>
                 col === "cost"
                     ? computeUsageCost(row, pricingMap) || 0
                     : col === "run_rate"
@@ -918,7 +946,14 @@ export default function UsagePage() {
                             ).toLowerCase()
                           : row[col] || 0,
             ),
-        [byKey, endDate, keyMappings, keySort.sort, pricingMap, startDate],
+        [
+            keysWithBudgets,
+            endDate,
+            keyMappings,
+            keySort.sort,
+            pricingMap,
+            startDate,
+        ],
     );
 
     const sortedByDay = useMemo(
@@ -1027,6 +1062,7 @@ export default function UsagePage() {
     const handleSelectKey = useCallback(
         (apiKeyId) => {
             if (!apiKeyId) return;
+            setActiveTab("by-key");
             setSelectedKeyId(apiKeyId);
             scrollToHourlyDrilldown();
         },
@@ -1073,72 +1109,139 @@ export default function UsagePage() {
     ]);
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold">Token Usage</h1>
-                <Select value={dateRange} onValueChange={setDateRange}>
-                    <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="today">Today</SelectItem>
-                        <SelectItem value="7d">Last 7 days</SelectItem>
-                        <SelectItem value="30d">Last 30 days</SelectItem>
-                        <SelectItem value="90d">Last 90 days</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
+        <div dir={direction} className="min-w-0 space-y-5">
+            <PageHeader
+                title={t("usageDashboard.portalTitle")}
+                description={t("usageDashboard.portalDescription")}
+            >
+                <HeaderAction
+                    icon={RefreshCw}
+                    label={t("usageDashboard.refresh")}
+                    onClick={handleRefresh}
+                    disabled={refreshingLimits}
+                />
+                {activeTab !== "budgets" && (
+                    <Select
+                        value={dateRange}
+                        onValueChange={(value) => {
+                            setDateRange(value);
+                            setRefreshTime(new Date());
+                        }}
+                    >
+                        <SelectTrigger className="w-[140px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="today">
+                                {t("usageDashboard.range.today")}
+                            </SelectItem>
+                            <SelectItem value="7d">
+                                {t("usageDashboard.range.7d")}
+                            </SelectItem>
+                            <SelectItem value="30d">
+                                {t("usageDashboard.range.30d")}
+                            </SelectItem>
+                            <SelectItem value="90d">
+                                {t("usageDashboard.range.90d")}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+            </PageHeader>
 
-            <p className="mb-4 text-sm text-muted-foreground">
-                Total tokens adds input, output, cache write, and cache read.
-                Estimated cost uses model pricing when available, and run rate
-                normalizes the selected window to 30 days.
-            </p>
+            {activeTab !== "budgets" && (
+                <p className="mb-4 text-sm text-muted-foreground">
+                    {t("usageDashboard.explanation")}
+                </p>
+            )}
 
+            {overview && activeTab !== "budgets" && (
+                <p className="mb-4 text-sm text-muted-foreground">
+                    {t("usageDashboard.asOf", {
+                        date: new Date(overview.endDate).toLocaleString(),
+                    })}
+                </p>
+            )}
+            {activeTab !== "budgets" &&
+                (overviewError || intervalError || limitsError) && (
+                    <p
+                        role="alert"
+                        className="mb-4 text-red-700 dark:text-red-300"
+                    >
+                        {t("usageDashboard.loadError")}
+                    </p>
+                )}
+            {activeTab !== "budgets" && summary?.unpricedModelCount > 0 && (
+                <p
+                    role="status"
+                    className="mb-4 break-words text-amber-800 dark:text-amber-200"
+                >
+                    {t("usageDashboard.unpriced", {
+                        count: summary.unpricedRequests,
+                    })}{" "}
+                    {t("usageDashboard.unpricedModels", {
+                        models: summary.costDetails.unpricedModels.join(", "),
+                    })}
+                </p>
+            )}
             {/* Summary Cards */}
-            {summary && (
+            {summary && !overviewError && activeTab !== "budgets" && (
                 <div className="grid gap-4 mb-6 md:grid-cols-4">
                     <Card>
                         <CardHeader className="pb-2">
                             <CardDescription>
-                                Total Estimated Cost
+                                {t(
+                                    summary.unpricedModelCount
+                                        ? "usageDashboard.pricedSubtotal"
+                                        : "usageDashboard.estimatedCost",
+                                )}
                             </CardDescription>
                             <CardTitle className="text-2xl">
-                                {formatCost(summary.totalCost)}
+                                <UsageCost details={summary.costDetails} />
                             </CardTitle>
                             <p className="text-sm text-muted-foreground">
-                                Across {formatNumber(summary.totalRequests)}{" "}
-                                requests
-                            </p>
-                        </CardHeader>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardDescription>Est. 30d Run Rate</CardDescription>
-                            <CardTitle className="text-2xl">
-                                {formatCost(summary.totalRunRate)}
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                                Based on the selected window
-                            </p>
-                        </CardHeader>
-                    </Card>
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardDescription>Total Tokens</CardDescription>
-                            <CardTitle className="text-2xl">
-                                {formatNumber(summary.totalTokens)}
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                                Top model: {summary.topModel || "—"} (
-                                {formatCost(summary.topModelCost)})
+                                {t("usageDashboard.requestCount", {
+                                    count: summary.totalRequests,
+                                })}
                             </p>
                         </CardHeader>
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
                             <CardDescription>
-                                Top API Key by Tokens
+                                {t("usageDashboard.runRateTitle")}
+                            </CardDescription>
+                            <CardTitle className="text-2xl">
+                                <UsageCost
+                                    details={summary.costDetails}
+                                    value={summary.totalRunRate}
+                                />
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                {t("usageDashboard.selectedWindow")}
+                            </p>
+                        </CardHeader>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardDescription>
+                                {t("usageDashboard.totalTokens")}
+                            </CardDescription>
+                            <CardTitle className="text-2xl">
+                                {formatNumber(summary.totalTokens)}
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                {t("usageDashboard.topModel", {
+                                    model: summary.topModel || "—",
+                                    cost: `${formatCost(summary.topModelCost)}${summary.topModelComplete ? "" : ` · ${t("usageDashboard.partialCost")}`}`,
+                                })}
+                            </p>
+                        </CardHeader>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardDescription>
+                                {t("usageDashboard.topKey")}
                             </CardDescription>
                             <CardTitle className="text-2xl">
                                 {summary.topKeyId
@@ -1147,19 +1250,49 @@ export default function UsagePage() {
                                     : "—"}
                             </CardTitle>
                             <p className="text-sm text-muted-foreground">
-                                {formatNumber(summary.topKeyTokens)} tokens
+                                {t("usageDashboard.tokenCount", {
+                                    count: summary.topKeyTokens,
+                                })}
                             </p>
                         </CardHeader>
                     </Card>
                 </div>
             )}
 
-            <Tabs defaultValue="by-model">
-                <TabsList>
-                    <TabsTrigger value="by-model">By Model</TabsTrigger>
-                    <TabsTrigger value="by-key">By API Key</TabsTrigger>
-                    <TabsTrigger value="by-day">Daily</TabsTrigger>
+            <Tabs
+                dir={direction}
+                value={activeTab}
+                onValueChange={setActiveTab}
+            >
+                <TabsList className="mb-4 h-auto max-w-full justify-start overflow-x-auto">
+                    <TabsTrigger value="budgets" className="min-h-10">
+                        {t("usageDashboard.budgetControl")}
+                    </TabsTrigger>
+                    <TabsTrigger value="by-model" className="min-h-10">
+                        {t("usageDashboard.byModel")}
+                    </TabsTrigger>
+                    <TabsTrigger value="by-key" className="min-h-10">
+                        {t("usageDashboard.byKey")}
+                    </TabsTrigger>
+                    <TabsTrigger value="by-day" className="min-h-10">
+                        {t("usageDashboard.daily")}
+                    </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="budgets">
+                    <BudgetPortal
+                        limits={limits}
+                        keyMappings={keyMappings}
+                        usage={byKey}
+                        error={limitsError}
+                        labelsError={labelsError}
+                        loading={loadingLimits}
+                        refreshing={refreshingLimits}
+                        onRefresh={handleRefresh}
+                        onSaved={handleBudgetSaved}
+                        onInspect={handleSelectKey}
+                    />
+                </TabsContent>
 
                 {/* By Model */}
                 <TabsContent value="by-model">
@@ -1261,10 +1394,12 @@ export default function UsagePage() {
                                         </TableHeader>
                                         <TableBody>
                                             {sortedByModel.map((row) => {
-                                                const cost = computeUsageCost(
-                                                    row,
-                                                    pricingMap,
-                                                );
+                                                const costDetails =
+                                                    getUsageCostDetails(
+                                                        row,
+                                                        pricingMap,
+                                                    );
+                                                const cost = costDetails.cost;
                                                 const runRate = computeRunRate(
                                                     cost,
                                                     startDate,
@@ -1308,16 +1443,20 @@ export default function UsagePage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium">
-                                                            {cost != null
-                                                                ? formatCost(
-                                                                      cost,
-                                                                  )
-                                                                : "—"}
+                                                            <UsageCost
+                                                                details={
+                                                                    costDetails
+                                                                }
+                                                            />
                                                         </TableCell>
                                                         <TableCell className="text-right text-muted-foreground">
-                                                            {formatRunRate(
-                                                                runRate,
-                                                            )}
+                                                            <UsageCost
+                                                                details={
+                                                                    costDetails
+                                                                }
+                                                                value={runRate}
+                                                                per30Days
+                                                            />
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -1369,6 +1508,11 @@ export default function UsagePage() {
                                                         keySort.toggleSort
                                                     }
                                                 />
+                                                <TableHead>
+                                                    {t(
+                                                        "usageDashboard.weeklyBudget",
+                                                    )}
+                                                </TableHead>
                                                 <SortableHead
                                                     column="requests"
                                                     label="Requests"
@@ -1465,10 +1609,12 @@ export default function UsagePage() {
                                                     getSortedModelBreakdownRows(
                                                         row,
                                                     ).length > 0;
-                                                const cost = computeUsageCost(
-                                                    row,
-                                                    pricingMap,
-                                                );
+                                                const costDetails =
+                                                    getUsageCostDetails(
+                                                        row,
+                                                        pricingMap,
+                                                    );
+                                                const cost = costDetails.cost;
                                                 const runRate = computeRunRate(
                                                     cost,
                                                     startDate,
@@ -1524,6 +1670,33 @@ export default function UsagePage() {
                                                                     </div>
                                                                 </div>
                                                             </TableCell>
+                                                            <TableCell>
+                                                                <WeeklyBudgetControl
+                                                                    apiKeyId={
+                                                                        row._id
+                                                                    }
+                                                                    budget={
+                                                                        limits
+                                                                            ?.budgets?.[
+                                                                            row
+                                                                                ._id
+                                                                        ]
+                                                                    }
+                                                                    defaultWeeklyUsd={
+                                                                        limits?.defaultWeeklyUsd ??
+                                                                        null
+                                                                    }
+                                                                    ready={
+                                                                        Boolean(
+                                                                            limits,
+                                                                        ) &&
+                                                                        !limitsError
+                                                                    }
+                                                                    onSaved={
+                                                                        handleBudgetSaved
+                                                                    }
+                                                                />
+                                                            </TableCell>
                                                             <TableCell className="text-right">
                                                                 {formatNumber(
                                                                     row.requests,
@@ -1557,16 +1730,22 @@ export default function UsagePage() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="text-right">
-                                                                {cost != null
-                                                                    ? formatCost(
-                                                                          cost,
-                                                                      )
-                                                                    : "—"}
+                                                                <UsageCost
+                                                                    details={
+                                                                        costDetails
+                                                                    }
+                                                                />
                                                             </TableCell>
                                                             <TableCell className="text-right text-muted-foreground">
-                                                                {formatRunRate(
-                                                                    runRate,
-                                                                )}
+                                                                <UsageCost
+                                                                    details={
+                                                                        costDetails
+                                                                    }
+                                                                    value={
+                                                                        runRate
+                                                                    }
+                                                                    per30Days
+                                                                />
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <Button
@@ -1594,7 +1773,7 @@ export default function UsagePage() {
                                                         {isExpanded && (
                                                             <TableRow>
                                                                 <TableCell
-                                                                    colSpan={10}
+                                                                    colSpan={11}
                                                                     className="bg-muted/10"
                                                                 >
                                                                     <ApiKeyModelBreakdown
@@ -1614,7 +1793,7 @@ export default function UsagePage() {
                                             {sortedByKey.length === 0 && (
                                                 <TableRow>
                                                     <TableCell
-                                                        colSpan={10}
+                                                        colSpan={11}
                                                         className="text-center text-muted-foreground"
                                                     >
                                                         No usage data for this
@@ -1654,12 +1833,12 @@ export default function UsagePage() {
                                                         ),
                                                     )}{" "}
                                                     tokens,{" "}
-                                                    {formatCost(
-                                                        computeUsageCost(
+                                                    <UsageCost
+                                                        details={getUsageCostDetails(
                                                             selectedKeySummary,
                                                             pricingMap,
-                                                        ),
-                                                    )}
+                                                        )}
+                                                    />
                                                     .
                                                 </>
                                             )}
@@ -1740,6 +1919,10 @@ export default function UsagePage() {
                                 <p className="text-muted-foreground">
                                     Select a key from the table above to drill
                                     into interval usage.
+                                </p>
+                            ) : intervalError ? (
+                                <p className="text-red-700 dark:text-red-300">
+                                    {t("usageDashboard.loadError")}
                                 </p>
                             ) : loadingSelectedKeyInterval ? (
                                 <p className="text-muted-foreground">
@@ -1834,11 +2017,11 @@ export default function UsagePage() {
                                         <TableBody>
                                             {sortedBySelectedKeyInterval.map(
                                                 (row) => {
-                                                    const cost = getDisplayCost(
-                                                        row,
-                                                        pricingMap,
-                                                    );
-
+                                                    const costDetails =
+                                                        getUsageCostDetails(
+                                                            row,
+                                                            pricingMap,
+                                                        );
                                                     return (
                                                         <TableRow key={row._id}>
                                                             <TableCell className="font-medium">
@@ -1877,11 +2060,11 @@ export default function UsagePage() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell className="text-right">
-                                                                {cost != null
-                                                                    ? formatCost(
-                                                                          cost,
-                                                                      )
-                                                                    : "—"}
+                                                                <UsageCost
+                                                                    details={
+                                                                        costDetails
+                                                                    }
+                                                                />
                                                             </TableCell>
                                                         </TableRow>
                                                     );
@@ -2000,11 +2183,11 @@ export default function UsagePage() {
                                         </TableHeader>
                                         <TableBody>
                                             {sortedByDay.map((row) => {
-                                                const cost = computeUsageCost(
-                                                    row,
-                                                    pricingMap,
-                                                );
-
+                                                const costDetails =
+                                                    getUsageCostDetails(
+                                                        row,
+                                                        pricingMap,
+                                                    );
                                                 return (
                                                     <TableRow key={row._id}>
                                                         <TableCell className="font-medium">
@@ -2043,11 +2226,11 @@ export default function UsagePage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right font-medium">
-                                                            {cost != null
-                                                                ? formatCost(
-                                                                      cost,
-                                                                  )
-                                                                : "—"}
+                                                            <UsageCost
+                                                                details={
+                                                                    costDetails
+                                                                }
+                                                            />
                                                         </TableCell>
                                                     </TableRow>
                                                 );

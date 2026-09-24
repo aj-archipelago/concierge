@@ -1,3 +1,4 @@
+import { toast } from "react-toastify";
 import i18next from "i18next";
 import React, {
     useCallback,
@@ -29,10 +30,7 @@ import ScrollToBottom from "./ScrollToBottom";
 import StreamingMessage from "./StreamingMessage";
 import { useUpdateChat } from "../../../app/queries/chats";
 import { useApolloClient } from "@apollo/client";
-import {
-    purgeFile,
-    createFilePlaceholder,
-} from "../../../app/workspaces/[id]/components/chatFileUtils";
+import { purgeFile } from "../../../app/workspaces/[id]/components/chatFileUtils";
 import {
     AlertDialog,
     AlertDialogContent,
@@ -506,6 +504,9 @@ const MessageListContent = React.memo(function MessageListContent({
                 key={newMessage.id}
                 id={`message-${newMessage.id}`}
                 data-testid={`message-wrapper-${newMessage.id}`}
+                data-message-id={
+                    newMessage._id ? String(newMessage._id) : undefined
+                }
                 className={className}
             >
                 {renderMessage({
@@ -860,60 +861,25 @@ const MessageList = React.memo(
                     url: fileObj.url || fileObj.image_url?.url || null,
                 };
 
-                // Update UI immediately by replacing file with placeholder
-                // Then do cloud/memory deletion in background
                 try {
-                    // First, update chat message immediately for fast UI response
-                    const placeholder = createFilePlaceholder(
-                        fileObj,
-                        t,
-                        filename,
-                    );
-                    const updatedMessages = latestMessages.map((msg, idx) => {
-                        if (
-                            idx === messageIndex &&
-                            Array.isArray(msg.payload)
-                        ) {
-                            const updatedPayload = [...msg.payload];
-                            updatedPayload[fileIndex] = placeholder;
-                            return { ...msg, payload: updatedPayload };
-                        }
-                        return msg;
-                    });
-
-                    // Update chat immediately
-                    await updateChatMutateAsyncRef.current({
-                        chatId: String(chatId),
-                        messages: updatedMessages,
-                    });
-
-                    // Close dialog immediately
-                    setFileToDelete(null);
-
-                    // Then do cloud and memory deletion in background (fire and forget)
-                    purgeFile({
+                    await purgeFile({
                         fileObj: normalizedFileObj,
                         apolloClient: apolloClientRef.current,
                         contextId,
                         contextKey,
-                        chatId: null, // Skip chat update since we already did it
-                        messages: null,
-                        updateChatHook: null,
+                        chatId,
+                        messages: latestMessages,
+                        updateChatHook: {
+                            mutateAsync: updateChatMutateAsyncRef.current,
+                        },
                         t,
                         filename,
-                        skipCloudDelete: false,
-                        skipUserFileCollection: false, // CFH handles it automatically
-                    }).catch((error) => {
-                        console.error(
-                            "Background file deletion failed:",
-                            error,
-                        );
-                        // Errors are logged but don't affect UX
                     });
+                    setFileToDelete(null);
                 } catch (error) {
                     console.error("Failed to delete file:", error);
                     setFileToDelete(null);
-                    // TODO: Show user-friendly error message
+                    toast.error(t("Failed to delete file(s)."));
                 }
             },
             [chatId, t, contextId, contextKey],
@@ -1129,7 +1095,7 @@ const MessageList = React.memo(
                 try {
                     await updateChatMutateAsyncRef.current({
                         chatId: String(chatId),
-                        messages: updatedMessages,
+                        messageUpdates: [updatedMessages[messageIndex]],
                     });
                     console.log(
                         "Successfully updated message with fixed mermaid code",

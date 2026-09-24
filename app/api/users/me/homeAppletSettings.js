@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import User from "../../models/user.mjs";
+import Digest from "../../models/digest.mjs";
 
 const MAX_HOME_APPLET_DIRECTORY_ITEMS = 48;
 const MAX_HOME_ITEMS = 96;
@@ -90,7 +91,6 @@ function normalizeHomeItems(items = []) {
         })
         .filter(Boolean)
         .sort((a, b) => a.order - b.order)
-        .slice(0, MAX_HOME_ITEMS)
         .map((item, index) => ({
             ...item,
             order: index,
@@ -181,14 +181,70 @@ export async function readHomeItemsForUser(user) {
                 homeItems: 1,
                 homeItemsConfigured: 1,
                 homeItemsDefaultGroupMigrated: 1,
+                homeLegacyDigestsMigrated: 1,
+                homeAppletDirectory: 1,
             },
         },
     );
-    return {
+    const state = {
         items: normalizeHomeItems(doc?.homeItems),
         configured: Boolean(doc?.homeItemsConfigured),
         defaultGroupMigrated: Boolean(doc?.homeItemsDefaultGroupMigrated),
     };
+    if (!doc || doc.homeLegacyDigestsMigrated) return state;
+
+    // Read through Mongoose so encrypted blocks are decrypted. Do not call
+    // the digest endpoint: its GET can create a default digest and enqueue work.
+    const digest = await Digest.findOne({ owner: userId })
+        .select("blocks")
+        .lean();
+    const blocks = Array.isArray(digest?.blocks) ? digest.blocks : [];
+    const legacyItems = blocks
+        .filter((block) => block?._id && !block.automationId)
+        .map((block) => ({
+            type: "digest",
+            blockId: toHomeAppletIdString(block._id),
+            size: "large",
+        }));
+    if (!legacyItems.length) return state;
+
+    // A configured layout may have been saved after the regression hid its
+    // digests. Append missing cards without replacing groups, sizes or order.
+    // Unconfigured layouts retain the old digest/automation/directory order.
+    const items = state.configured
+        ? appendMissingDigests(state.items, legacyItems)
+        : [
+              ...blocks
+                  .filter((block) => block?._id)
+                  .map((block) => ({
+                      type: block.automationId ? "automation" : "digest",
+                      blockId: toHomeAppletIdString(block._id),
+                      automationId: toHomeAppletIdString(block.automationId),
+                      size: "large",
+                  })),
+              ...normalizeDirectoryEntries(doc.homeAppletDirectory).map(
+                  (entry) => ({ type: "applet", ...entry, size: "large" }),
+              ),
+          ];
+
+    // This is a read-time compatibility view, not a background write that
+    // could race a user's edits. The next layout save persists it atomically
+    // with the migration marker; subsequent removals therefore stay removed.
+    return {
+        ...state,
+        items: normalizeHomeItems(
+            items.map((item, order) => ({ ...item, order })),
+        ),
+        configured: true,
+    };
+}
+
+function appendMissingDigests(items, digests) {
+    const blockIds = new Set(items.map((item) => item.blockId).filter(Boolean));
+    return [
+        ...items,
+        ...digests.filter((item) => !blockIds.has(item.blockId)),
+    ].map((item, order) => ({ ...item, order }));
 }
 
 export async function setHomeAppletIdForUser(user, appletId) {
@@ -303,11 +359,39 @@ export async function setHomeAppletDirectoryOrderForUser(user, appletIds = []) {
     return writeHomeAppletDirectoryForUser(user, nextEntries);
 }
 
-export async function setHomeItemsForUser(user, items = []) {
+export async function setHomeItemsForUser(
+    user,
+    items = [],
+    { legacyDigestsIncluded = false } = {},
+) {
     const userId = toObjectId(user?._id);
     if (!userId) return [];
 
-    const homeItems = toStoredHomeItems(items);
+    const current = await readHomeItemsForUser(user);
+    const nextItems = legacyDigestsIncluded
+        ? normalizeHomeItems(items)
+        : appendMissingDigests(
+              normalizeHomeItems(items),
+              current.items.filter((item) => item.type === "digest"),
+          );
+    // Old tabs and server-side applet pins do not acknowledge the recovered
+    // cards. Preserve them until a current Home client explicitly edits them.
+    // Legacy recovery may exceed the normal cap; allow it to round-trip, but
+    // reject further growth instead of silently truncating saved cards.
+    const needsDefaultGroup =
+        current.configured &&
+        !current.defaultGroupMigrated &&
+        !current.items.some((item) => item.type === "group");
+    const capacity = Math.max(
+        MAX_HOME_ITEMS,
+        current.items.length + (needsDefaultGroup ? 1 : 0),
+    );
+    if (nextItems.length > capacity) {
+        const error = new Error("Home layout has too many items");
+        error.status = 400;
+        throw error;
+    }
+    const homeItems = toStoredHomeItems(nextItems);
     const homeAppletDirectory = toStoredDirectory(
         homeItems
             .filter((item) => item.type === "applet" && item.appletId)
@@ -325,6 +409,7 @@ export async function setHomeItemsForUser(user, items = []) {
                 homeItems,
                 homeItemsConfigured: true,
                 homeItemsDefaultGroupMigrated: true,
+                homeLegacyDigestsMigrated: true,
                 homeAppletDirectory,
             },
         },

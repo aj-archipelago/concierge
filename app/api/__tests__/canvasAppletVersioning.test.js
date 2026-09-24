@@ -206,6 +206,15 @@ describe("applyPublishedAppletSnapshot", () => {
         );
 
         expect(deleteMediaFile).toHaveBeenCalledWith({
+            storageAuthorization: expect.objectContaining({
+                targets: [
+                    {
+                        owner: "concierge-published-applets",
+                        path: "applets/published/applet123/old.html",
+                        actions: ["delete"],
+                    },
+                ],
+            }),
             blobPath: "applets/published/applet123/old.html",
             hash: null,
             storageTarget: {
@@ -266,6 +275,9 @@ describe("resolveAppletVersionContent", () => {
         expect(readBlobContent).toHaveBeenCalledWith(
             "applets/versions/applet123/v000026.html",
             expect.objectContaining({ kind: "applet-global" }),
+            expect.objectContaining({
+                targets: [expect.objectContaining({ actions: ["read"] })],
+            }),
         );
     });
 });
@@ -295,6 +307,9 @@ describe("resolvePublishedAppletContent", () => {
         expect(readBlobContent).toHaveBeenCalledWith(
             "applets/published/applet123/v000001.html",
             expect.objectContaining({ kind: "applet-published" }),
+            expect.objectContaining({
+                targets: [expect.objectContaining({ actions: ["read"] })],
+            }),
         );
     });
 
@@ -320,6 +335,9 @@ describe("resolvePublishedAppletContent", () => {
         expect(readBlobContent).toHaveBeenCalledWith(
             "applets/versions/applet123/v000001.html",
             expect.objectContaining({ kind: "applet-global" }),
+            expect.objectContaining({
+                targets: [expect.objectContaining({ actions: ["read"] })],
+            }),
         );
     });
 });
@@ -456,11 +474,17 @@ describe("hydrateAppletVersionContents", () => {
             1,
             "applets/versions/applet123/missing-v000019.html",
             expect.objectContaining({ kind: "applet-global" }),
+            expect.objectContaining({
+                targets: [expect.objectContaining({ actions: ["read"] })],
+            }),
         );
         expect(readBlobContent).toHaveBeenNthCalledWith(
             2,
             "applets/published/applet123/v000019.html",
             expect.objectContaining({ kind: "applet-published" }),
+            expect.objectContaining({
+                targets: [expect.objectContaining({ actions: ["read"] })],
+            }),
         );
         expect(uploadBufferToMediaService).toHaveBeenCalledWith(
             expect.any(Buffer),

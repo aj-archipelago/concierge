@@ -37,6 +37,7 @@ function CustomMcpCallbackContent() {
             setStatus(`Error: ${msg}`);
             postOAuthResult({
                 type: "mcp-oauth-complete",
+                state,
                 success: false,
                 error: msg,
             });
@@ -48,6 +49,7 @@ function CustomMcpCallbackContent() {
             setStatus(`Error: ${msg}`);
             postOAuthResult({
                 type: "mcp-oauth-complete",
+                state,
                 success: false,
                 error: msg,
             });
@@ -65,13 +67,14 @@ function CustomMcpCallbackContent() {
                     ? `${data.serverId}-oauth-complete`
                     : "mcp-oauth-complete";
                 if (data.success) {
-                    postOAuthResult({ type, success: true });
+                    postOAuthResult({ type, state, success: true });
                     return;
                 }
 
                 setStatus(`Error: ${data.error || "Connection failed"}`);
                 postOAuthResult({
                     type,
+                    state,
                     success: false,
                     error: data.error,
                 });
@@ -80,6 +83,7 @@ function CustomMcpCallbackContent() {
                 setStatus(`Error: ${err.message || "Connection failed"}`);
                 postOAuthResult({
                     type: "mcp-oauth-complete",
+                    state,
                     success: false,
                     error: err.message,
                 });

@@ -57,6 +57,8 @@ export default async function ChatPage({ params, searchParams }) {
         }
         redirect("/chat");
     }
+    if (chat.canonicalChatId && chat.canonicalChatId !== id)
+        redirect(`/chat/${chat.canonicalChatId}`);
     const { readOnly } = chat || {};
 
     const queryClient = new QueryClient();

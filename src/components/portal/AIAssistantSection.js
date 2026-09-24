@@ -5,11 +5,8 @@ import { useTranslation } from "react-i18next";
 import { AuthContext } from "../../App";
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useUpdateAiOptions } from "../../../app/queries/options";
-import {
-    getReasoningEffortLevelsForModel,
-    normalizeReasoningEffortForModel,
-    reasoningEffortLevelLabelKey,
-} from "../../utils/reasoningEffortI18n";
+import { normalizeReasoningEffortForModel } from "../../utils/reasoningEffortI18n";
+import { ModelThinkingPanel } from "../ModelThinkingControl";
 import { useResolvedAgentModel } from "../../hooks/useResolvedAgentModel";
 
 export default function AIAssistantSection() {
@@ -34,8 +31,6 @@ export default function AIAssistantSection() {
     const selectedAgentModel = agentModels?.find(
         (model) => model.modelId === agentModel,
     );
-    const reasoningEffortLevels =
-        getReasoningEffortLevelsForModel(selectedAgentModel);
     const displayedReasoningEffort = normalizeReasoningEffortForModel(
         selectedAgentModel,
         reasoningEffort,
@@ -87,12 +82,21 @@ export default function AIAssistantSection() {
                 reasoningEffort: nextReasoningEffort,
             });
             setError("");
+            return true;
         } catch (err) {
             setError(
                 err.response?.data?.error ||
                     err.message ||
                     t("Failed to save options"),
             );
+            setAgentModel(resolvedAgentModel);
+            setReasoningEffort(
+                normalizeReasoningEffortForModel(
+                    selectedAgentModel,
+                    user?.reasoningEffort,
+                ),
+            );
+            return false;
         }
     };
 
@@ -128,75 +132,24 @@ export default function AIAssistantSection() {
                         dir={direction}
                     />
                 </div>
-
-                <div>
-                    <label
-                        className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : ""}`}
-                        htmlFor="portal-agentModel"
-                    >
-                        {t("Model")}
-                    </label>
-                    <select
-                        id="portal-agentModel"
-                        value={agentModel}
-                        onChange={(e) => {
-                            const nextAgentModel = e.target.value;
-                            const nextModel = agentModels?.find(
-                                (model) => model.modelId === nextAgentModel,
-                            );
-                            const nextReasoningEffort =
-                                normalizeReasoningEffortForModel(
-                                    nextModel,
-                                    reasoningEffort,
-                                );
-
-                            setAgentModel(nextAgentModel);
-                            setReasoningEffort(nextReasoningEffort);
-                            saveOptions({
-                                agentModel: nextAgentModel,
-                                reasoningEffort: nextReasoningEffort,
-                            });
-                        }}
-                        className="lb-input w-full text-sm"
-                        dir={direction}
-                    >
-                        {agentModels?.map((option) => (
-                            <option key={option.modelId} value={option.modelId}>
-                                {t(option.displayName)}
-                            </option>
-                        ))}
-                    </select>
-                </div>
             </div>
 
             <hr className="border-gray-200 dark:border-gray-700" />
 
-            <div>
-                <label
-                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 ${isRTL ? "text-right" : ""}`}
-                >
-                    {t("Reasoning Effort")}
-                </label>
-                <div className="flex rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
-                    {reasoningEffortLevels.map((level) => (
-                        <button
-                            key={level}
-                            type="button"
-                            onClick={() => {
-                                setReasoningEffort(level);
-                                saveOptions({ reasoningEffort: level });
-                            }}
-                            className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                                displayedReasoningEffort === level
-                                    ? "bg-sky-500 text-white"
-                                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                            }`}
-                        >
-                            {t(reasoningEffortLevelLabelKey(level))}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <ModelThinkingPanel
+                models={agentModels}
+                modelId={agentModel}
+                reasoningEffort={displayedReasoningEffort}
+                disabled={updateAiOptionsMutation.isPending}
+                onChange={(changes) => {
+                    if (changes.model) setAgentModel(changes.model);
+                    setReasoningEffort(changes.reasoningEffort);
+                    return saveOptions({
+                        ...(changes.model ? { agentModel: changes.model } : {}),
+                        reasoningEffort: changes.reasoningEffort,
+                    });
+                }}
+            />
 
             <hr className="border-gray-200 dark:border-gray-700" />
 

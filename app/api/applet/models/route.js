@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getClient } from "../../../../src/graphql";
+import { getClient } from "../../utils/cortex-client.js";
 import { getCurrentUser } from "../../utils/auth.js";
 import { validateAppletAccess } from "../access.js";
 import {

@@ -15,6 +15,7 @@ import { getTextProxyUrl } from "../../utils/proxyUrl";
 import { getDownloadUrl } from "../../utils/fileDownloadUtils";
 import { ThemeContext } from "../../contexts/ThemeProvider";
 import { ImageWithFallback } from "./MediaCard";
+import MediaPlayback from "../common/MediaPlayback";
 
 const MONACO_LANGUAGE_BY_EXTENSION = {
     js: "javascript",
@@ -735,8 +736,9 @@ export function renderFilePreview({
 
     if (isVideo && src) {
         return (
-            <video
+            <MediaPlayback
                 src={previewSrc}
+                compact={compact}
                 className={className}
                 controls={showVideoControls}
                 preload="metadata"

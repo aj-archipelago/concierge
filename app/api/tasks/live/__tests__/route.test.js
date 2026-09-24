@@ -2,6 +2,13 @@
  * @jest-environment node
  */
 
+jest.mock("../../../utils/team-inbox.mjs", () => ({}));
+
+jest.mock("../../../utils/assistant-progress.mjs", () => ({
+    enrichAssistantTasks: jest.fn(async (tasks) => tasks),
+    VISIBLE_ASSISTANT_TASK_FILTER: { assistantDepth: { $not: { $gt: 0 } } },
+}));
+
 jest.mock("../../../models/task.mjs", () => ({
     __esModule: true,
     default: {
@@ -88,7 +95,8 @@ describe("GET /api/tasks/live", () => {
             1,
             expect.objectContaining({
                 owner: "user-1",
-                status: { $in: ["pending", "in_progress"] },
+                status: { $in: ["pending", "in_progress", "waiting"] },
+                assistantDepth: { $not: { $gt: 0 } },
             }),
         );
         expect(Task.find).toHaveBeenNthCalledWith(

@@ -32,6 +32,23 @@ beforeEach(() => {
 });
 
 describe("useMediaGeneration input image helpers", () => {
+    test("preserves ten audio references and the legacy first-reference fields", () => {
+        const input = Array.from({ length: 10 }, (_, i) => ({
+            type: "audio",
+            url: `https://example.com/${i}.wav`,
+            blobPath: `media/${i}.wav`,
+            hash: `hash-${i}`,
+        }));
+        const task = {},
+            stored = {};
+        expect(hasUsableInputAudioUrl(input)).toBe(true);
+        applyInputAudioReference(task, input);
+        applyStoredInputAudioReference(stored, input);
+        expect(task.inputAudios).toHaveLength(10);
+        expect(stored.inputAudios).toHaveLength(10);
+        expect(task.inputAudioUrl).toBe(input[0].url);
+        expect(task.inputAudios[9].hash).toBe("hash-9");
+    });
     test("prefers Azure URLs by default and GCS URLs when requested", () => {
         const image = {
             url: "https://display.example/image.png",
@@ -852,7 +869,7 @@ describe("useMediaGeneration settings snapshot", () => {
     test("queues and persists all selected input image references up to model limit", async () => {
         mockMediaModels = [
             {
-                modelId: "gemini-3-pro-image-preview",
+                modelId: "gemini-pro-3-image",
                 preferredUrlFormat: "gcs",
                 mediaDefaults: {
                     inputImages: [2, 4],
@@ -878,11 +895,11 @@ describe("useMediaGeneration settings snapshot", () => {
 
         const view = renderHook(() =>
             useMediaGeneration({
-                selectedModel: "gemini-3-pro-image-preview",
+                selectedModel: "gemini-pro-3-image",
                 outputType: "image",
                 settings: {
                     models: {
-                        "gemini-3-pro-image-preview": {
+                        "gemini-pro-3-image": {
                             type: "image",
                         },
                     },
@@ -899,10 +916,10 @@ describe("useMediaGeneration settings snapshot", () => {
                 prompt: "combine references",
                 selectedImagesObjects,
                 outputType: "image",
-                selectedModel: "gemini-3-pro-image-preview",
+                selectedModel: "gemini-pro-3-image",
                 settings: {
                     models: {
-                        "gemini-3-pro-image-preview": {
+                        "gemini-pro-3-image": {
                             type: "image",
                         },
                     },

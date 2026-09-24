@@ -1,5 +1,9 @@
 import axios from "axios";
-import { triggerAuthRefresh, checkAuthHeaders } from "../../src/utils/auth";
+import {
+    checkAuthHeaders,
+    isAuthFlowPath,
+    triggerAuthRefresh,
+} from "../../src/utils/auth";
 
 // Create axios instance
 const axiosInstance = axios.create({
@@ -89,7 +93,7 @@ if (typeof window !== "undefined") {
 
             if (
                 typeof window !== "undefined" &&
-                window.location.pathname === "/auth/login"
+                isAuthFlowPath(window.location.pathname)
             ) {
                 return config;
             }
@@ -113,7 +117,13 @@ if (typeof window !== "undefined") {
     axiosInstance.interceptors.response.use(
         async function (response) {
             // Check if response is HTML (usually means auth redirect)
-            if (response.headers["content-type"]?.includes("text/html")) {
+            if (
+                response.headers["content-type"]?.includes("text/html") &&
+                !(
+                    typeof window !== "undefined" &&
+                    isAuthFlowPath(window.location.pathname)
+                )
+            ) {
                 invalidateAuthCache(); // Clear cache on auth redirect
                 await triggerAuthRefresh();
                 return Promise.reject(

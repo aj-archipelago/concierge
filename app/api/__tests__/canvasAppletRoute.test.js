@@ -6,7 +6,13 @@ import { POST } from "../canvas-applets/route";
 import { PUT } from "../canvas-applets/[id]/route";
 import { POST as GENERATE_METADATA } from "../canvas-applets/[id]/metadata/generate/route";
 import { POST as GENERATE_IMAGE } from "../canvas-applets/[id]/image/generate/route";
-import { resolveInstalledAppletRuntime } from "../canvas-applets/registry";
+import {
+    getAppletRegistry,
+    saveGeneratedAppletWidget,
+    loadAppletForWidgetGeneration,
+    loadAppletWithAccess,
+    resolveInstalledAppletRuntime,
+} from "../canvas-applets/registry";
 
 jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
@@ -30,6 +36,7 @@ jest.mock("../models/applet", () => ({
         find: jest.fn(),
         findById: jest.fn(),
         findByIdAndUpdate: jest.fn(),
+        findOneAndUpdate: jest.fn(),
         findOne: jest.fn(),
         updateOne: jest.fn(),
     },
@@ -43,7 +50,13 @@ jest.mock("../models/share.js", () => ({
             lean: jest.fn().mockResolvedValue([]),
         })),
     },
-    SHARE_ENTITY_TYPES: ["chat", "workspace", "applet", "automation"],
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+    ],
     SHARE_ROLES: ["viewer", "editor"],
 }));
 
@@ -62,6 +75,7 @@ jest.mock("../models/app", () => ({
 
 jest.mock("../canvas-applets/files", () => ({
     buildAppletFilenameFromWorkspacePath: jest.fn(() => "weather.html"),
+    ensureAppletWorkspaceFile: jest.fn(async () => ({})),
     getAppletWorkspaceUploadSubPath: jest.fn(() => null),
     getCanvasAppletEditableFileInfo: jest.fn(),
     isCanvasAppletHtmlFile: jest.fn(() => true),
@@ -223,6 +237,68 @@ describe("canvas applets route", () => {
         listMediaFiles.mockResolvedValue([]);
     });
 
+    test("read-only applet loading denies an unshared unpublished applet", async () => {
+        const Applet = require("../models/applet").default;
+        const { resolveShareAccess } = require("../utils/shareAccess");
+        Applet.findById.mockResolvedValue({
+            _id: "private-applet",
+            owner: "owner",
+            publishedVersionIndex: null,
+        });
+        resolveShareAccess.mockResolvedValueOnce({ canAccess: false });
+
+        await expect(
+            loadAppletWithAccess({ _id: "viewer" }, "private-applet"),
+        ).rejects.toMatchObject({ status: 404 });
+    });
+
+    test.each([
+        [null, { canAccess: true, isOwner: false, role: "viewer" }],
+        [0, { canAccess: false }],
+        [null, { canAccess: true, isOwner: true, role: "editor" }],
+    ])(
+        "read-only applet loading allows existing access without materializing legacy files (%s, %j)",
+        async (publishedVersionIndex, access) => {
+            const Applet = require("../models/applet").default;
+            const { resolveShareAccess } = require("../utils/shareAccess");
+            const {
+                ensureAppletWorkspaceFile,
+            } = require("../canvas-applets/files");
+            const applet = {
+                _id: "applet",
+                owner: "owner",
+                publishedVersionIndex,
+            };
+            Applet.findById.mockResolvedValue(applet);
+            resolveShareAccess.mockResolvedValueOnce(access);
+
+            await expect(
+                loadAppletWithAccess({ _id: "viewer" }, "applet"),
+            ).resolves.toBe(applet);
+            expect(ensureAppletWorkspaceFile).not.toHaveBeenCalled();
+            expect(Applet.findByIdAndUpdate).not.toHaveBeenCalled();
+        },
+    );
+
+    test("hides agent context from viewer registry payloads", async () => {
+        const Applet = require("../models/applet").default;
+        const appletId = "69f68d347999b2bbd8ffb91a";
+        Applet.findById.mockResolvedValue({
+            _id: appletId,
+            owner: "owner-123",
+            filePath: "https://draft.example/private.html",
+            agentContext: "applet-shared:507f191e810c19729de860ef",
+            version: 2,
+            htmlVersions: [],
+        });
+
+        const result = await getAppletRegistry({ _id: "viewer-123" }, appletId);
+
+        expect(result).not.toHaveProperty("agentContext");
+        expect(result.isOwner).toBe(false);
+        expect(result.shareRole).toBe("viewer");
+    });
+
     test("rejects a duplicate workspace-backed applet on create", async () => {
         const { getCurrentUser } = require("../utils/auth");
         const Applet = require("../models/applet").default;
@@ -347,6 +423,68 @@ describe("canvas applets route", () => {
             versionSaved: true,
             latestVersionIndex: 0,
         });
+    });
+
+    test("creates and returns an owned agent context during applet registration", async () => {
+        const { getCurrentUser } = require("../utils/auth");
+        const Applet = require("../models/applet").default;
+
+        getCurrentUser.mockResolvedValue({
+            _id: "user-123",
+            contextId: "ctx",
+        });
+        Applet.create.mockImplementation(async (input) => ({
+            ...input,
+            _id: String(input._id),
+        }));
+
+        const response = await POST({
+            json: async () => ({
+                name: "Private Reader",
+                agentContext: "create",
+            }),
+        });
+        const body = await response.json();
+        const created = Applet.create.mock.calls[0][0];
+
+        expect(response.status).toBe(201);
+        expect(created.agentContext).toMatch(/^applet-shared:[a-f0-9]{24}$/);
+        expect(created.agentContext).not.toBe(`applet-shared:${created._id}`);
+        expect(body.agentContext).toBe(created.agentContext);
+    });
+
+    test("attaches the same independent agent context to another owned applet", async () => {
+        const { getCurrentUser } = require("../utils/auth");
+        const Applet = require("../models/applet").default;
+        const context = "applet-shared:507f191e810c19729de860ef";
+
+        getCurrentUser.mockResolvedValue({
+            _id: "user-123",
+            contextId: "ctx",
+        });
+        Applet.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue({
+                _id: "507f191e810c19729de860ea",
+                owner: "user-123",
+                agentContext: context,
+            }),
+        });
+        Applet.create.mockImplementation(async (input) => ({
+            ...input,
+            _id: "507f191e810c19729de860eb",
+        }));
+
+        const response = await POST({
+            json: async () => ({
+                name: "Private Reviewer",
+                agentContext: context,
+            }),
+        });
+        const body = await response.json();
+
+        expect(response.status).toBe(201);
+        expect(body._id).not.toBe(context.split(":")[1]);
+        expect(body.agentContext).toBe(context);
     });
 
     test("copies a saved applet version into Draft server-side and writes the workspace blob", async () => {
@@ -873,16 +1011,150 @@ describe("canvas applets route", () => {
         expect(body.publishedVersionIndex).toBe(0);
         expect(upsertEntityShare).toHaveBeenCalledWith(
             expect.objectContaining({
-                entityType: "applet",
+                entityType: "published_applet",
                 entityId: appletId,
                 ownerId: "user-123",
                 recipients: [],
                 link: { enabled: true, role: "viewer" },
             }),
         );
+        expect(App.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
-    test("defaults direct non-store publishes to link sharing", async () => {
+    test("preserves App Store listing when publishing a version with publishToAppStore false", async () => {
+        const { getCurrentUser } = require("../utils/auth");
+        const Applet = require("../models/applet").default;
+        const App = require("../models/app").default;
+        const {
+            getCanvasAppletEditableFileInfo,
+        } = require("../canvas-applets/files");
+        const {
+            resolveAppletVersionContent,
+        } = require("../canvas-applets/versioning");
+
+        const appletId = "6a5401fef7841ec2932fa468";
+        const applet = {
+            _id: appletId,
+            owner: "user-123",
+            name: "Hormuz Routes",
+            filePath: "https://draft.example/hormuz.html",
+            version: 2,
+            htmlVersions: [
+                { content: "<html>v3</html>" },
+                { content: "<html>v4</html>" },
+            ],
+            publishedVersionIndex: 0,
+        };
+        getCurrentUser.mockResolvedValue({
+            _id: "user-123",
+            contextId: "ctx",
+        });
+        Applet.findById.mockResolvedValue(applet);
+        Applet.findByIdAndUpdate.mockResolvedValue({
+            ...applet,
+            publishedVersionIndex: 1,
+        });
+        App.find.mockReturnValue({
+            lean: jest.fn().mockResolvedValue([
+                {
+                    _id: "app-hormuz",
+                    appletId,
+                    type: "applet",
+                    status: "active",
+                    listedInStore: true,
+                    slug: "hormuz-strait-routes",
+                    name: "Hormuz Routes Infographic",
+                },
+            ]),
+        });
+        App.findByIdAndUpdate.mockResolvedValue(null);
+        getCanvasAppletEditableFileInfo.mockResolvedValue({
+            workspacePath: "/workspace/files/applets/hormuz.html",
+        });
+        resolveAppletVersionContent.mockResolvedValue("<html>v4</html>");
+
+        const response = await PUT(
+            {
+                json: async () => ({
+                    publishVersion: 2,
+                    publishToAppStore: false,
+                    publishViaLink: true,
+                }),
+            },
+            { params: { id: appletId } },
+        );
+        const body = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(body.publishedVersionIndex).toBe(1);
+        expect(App.findByIdAndUpdate).not.toHaveBeenCalled();
+        expect(App.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test("unlists from App Store when publishToAppStore is false without version publish", async () => {
+        const { getCurrentUser } = require("../utils/auth");
+        const Applet = require("../models/applet").default;
+        const App = require("../models/app").default;
+        const {
+            getCanvasAppletEditableFileInfo,
+        } = require("../canvas-applets/files");
+
+        const appletId = "6a5401fef7841ec2932fa468";
+        const applet = {
+            _id: appletId,
+            owner: "user-123",
+            name: "Hormuz Routes",
+            filePath: "https://draft.example/hormuz.html",
+            version: 2,
+            htmlVersions: [{ content: "<html>v4</html>" }],
+            publishedVersionIndex: 0,
+        };
+        getCurrentUser.mockResolvedValue({
+            _id: "user-123",
+            contextId: "ctx",
+        });
+        Applet.findById.mockResolvedValue(applet);
+        Applet.findByIdAndUpdate.mockResolvedValue({
+            toObject: () => applet,
+        });
+        App.find.mockReturnValue({
+            lean: jest.fn().mockResolvedValue([
+                {
+                    _id: "app-hormuz",
+                    appletId,
+                    type: "applet",
+                    status: "active",
+                    listedInStore: true,
+                    slug: "hormuz-strait-routes",
+                },
+            ]),
+        });
+        App.findByIdAndUpdate.mockResolvedValue({
+            _id: "app-hormuz",
+            listedInStore: false,
+        });
+        getCanvasAppletEditableFileInfo.mockResolvedValue({
+            workspacePath: "/workspace/files/applets/hormuz.html",
+        });
+
+        const response = await PUT(
+            {
+                json: async () => ({
+                    publishToAppStore: false,
+                }),
+            },
+            { params: { id: appletId } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(App.findByIdAndUpdate).toHaveBeenCalledWith(
+            "app-hormuz",
+            { $set: { listedInStore: false } },
+            expect.objectContaining({ new: true, runValidators: true }),
+        );
+    });
+
+    test("keeps direct non-store publishes private until explicitly shared", async () => {
         const { getCurrentUser } = require("../utils/auth");
         const Applet = require("../models/applet").default;
         const App = require("../models/app").default;
@@ -935,15 +1207,7 @@ describe("canvas applets route", () => {
 
         expect(response.status).toBe(200);
         expect(body.publishedVersionIndex).toBe(0);
-        expect(upsertEntityShare).toHaveBeenCalledWith(
-            expect.objectContaining({
-                entityType: "applet",
-                entityId: appletId,
-                ownerId: "user-123",
-                recipients: [],
-                link: { enabled: true, role: "viewer" },
-            }),
-        );
+        expect(upsertEntityShare).not.toHaveBeenCalled();
     });
 
     test("backfills canonical published content when updating app-store metadata for a v2 applet", async () => {
@@ -1403,6 +1667,8 @@ describe("canvas applets route", () => {
                 dark: { taskId: "task-dark", jobId: "job-dark" },
             },
         });
+        // Client supplied card metadata, so we must not scrape applet HTML.
+        expect(global.fetch).not.toHaveBeenCalled();
         expect(createBackgroundTask).toHaveBeenCalledTimes(1);
         expect(listMediaFiles).toHaveBeenCalledWith({
             storageTarget: {
@@ -1529,6 +1795,80 @@ describe("canvas applets route", () => {
                 ]),
             }),
         );
+    });
+
+    test("still queues dark image generation when asset cleanup is slow", async () => {
+        jest.useFakeTimers();
+        try {
+            const { getCurrentUser } = require("../utils/auth");
+            const Applet = require("../models/applet").default;
+            const App = require("../models/app").default;
+            const { createBackgroundTask } = require("../utils/tasks");
+            const {
+                deleteMediaFile,
+                listMediaFiles,
+            } = require("../utils/media-service-utils");
+            const MediaItem = require("../models/media-item.mjs").default;
+
+            const appletId = "69f68d347999b2bbd8ffb91a";
+            getCurrentUser.mockResolvedValue({
+                _id: "user-123",
+                contextId: "ctx",
+            });
+            Applet.findById.mockResolvedValue({
+                _id: appletId,
+                owner: "user-123",
+                name: "Storm Desk",
+                filePath: "https://draft.example/weather.html",
+                version: 2,
+                htmlVersions: [],
+                publishedVersionIndex: null,
+            });
+            App.findOne.mockResolvedValue(null);
+            MediaItem.find.mockImplementation(() => ({
+                select: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockResolvedValue([]),
+            }));
+            listMediaFiles.mockImplementation(
+                () =>
+                    new Promise(() => {
+                        // Never resolves — simulates a hung media-helper list.
+                    }),
+            );
+            createBackgroundTask.mockResolvedValueOnce({
+                taskId: "task-dark-timeout",
+                job: { id: "job-dark-timeout" },
+            });
+            MediaItem.create.mockResolvedValueOnce({
+                _id: "media-dark-timeout",
+                taskId: "task-dark-timeout",
+                status: "pending",
+            });
+
+            const responsePromise = GENERATE_IMAGE(
+                {
+                    json: async () => ({
+                        metadata: {
+                            name: "Storm Desk",
+                            description: "Track active storm coverage.",
+                        },
+                    }),
+                },
+                { params: { id: appletId } },
+            );
+
+            await jest.advanceTimersByTimeAsync(4000);
+            const response = await responsePromise;
+            const body = await response.json();
+
+            expect(response.status).toBe(200);
+            expect(body.taskId).toBe("task-dark-timeout");
+            expect(createBackgroundTask).toHaveBeenCalledTimes(1);
+            expect(deleteMediaFile).not.toHaveBeenCalled();
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     test("generates light applet card image from the dark reference without deleting existing assets", async () => {
@@ -2228,5 +2568,162 @@ describe("canvas applets route", () => {
             "https://draft.example/weather.html",
             { cache: "no-store" },
         );
+    });
+
+    test("installed applet runtime returns stored widget HTML for variant=widget", async () => {
+        const Applet = require("../models/applet").default;
+
+        Applet.findById.mockResolvedValue({
+            _id: "69f68d347999b2bbd8ffb91a",
+            owner: "user-123",
+            name: "Weather",
+            widgetHtml: "<html>widget</html>",
+            htmlVersions: [],
+            publishedVersionIndex: null,
+        });
+
+        const result = await resolveInstalledAppletRuntime(
+            { _id: "user-123", contextId: "ctx" },
+            "69f68d347999b2bbd8ffb91a",
+            { variant: "widget" },
+        );
+
+        expect(result.runtimeSource).toBe("widget");
+        expect(result.hasWidgetHtml).toBe(true);
+        expect(result.isWidgetFallback).toBe(false);
+        expect(result.html).toContain("<html>widget</html>");
+    });
+
+    test("installed applet runtime reports WIDGET_MISSING when no widget HTML exists", async () => {
+        const Applet = require("../models/applet").default;
+        Applet.findById.mockResolvedValue({
+            _id: "69f68d347999b2bbd8ffb91a",
+            owner: "user-123",
+            name: "Weather",
+            htmlVersions: [],
+            publishedVersionIndex: null,
+        });
+
+        await expect(
+            resolveInstalledAppletRuntime(
+                { _id: "user-123", contextId: "ctx" },
+                "69f68d347999b2bbd8ffb91a",
+                { variant: "widget" },
+            ),
+        ).rejects.toMatchObject({
+            status: 404,
+            code: "WIDGET_MISSING",
+        });
+    });
+
+    test("installed applet runtime falls back to the full applet for viewers with no widget HTML", async () => {
+        const Applet = require("../models/applet").default;
+        const {
+            resolveAppletVersionContent,
+        } = require("../canvas-applets/versioning");
+
+        Applet.findById.mockResolvedValue({
+            _id: "69f68d347999b2bbd8ffb91a",
+            owner: "publisher-999",
+            name: "Weather",
+            htmlVersions: [{ content: "<html>full</html>" }],
+            publishedVersionIndex: null,
+        });
+        resolveAppletVersionContent.mockResolvedValue("<html>full</html>");
+
+        const result = await resolveInstalledAppletRuntime(
+            { _id: "user-123", contextId: "ctx" },
+            "69f68d347999b2bbd8ffb91a",
+            { variant: "widget" },
+        );
+
+        expect(result.isWidgetFallback).toBe(true);
+        expect(result.hasWidgetHtml).toBe(false);
+        expect(result.html).toContain("<html>full</html>");
+    });
+});
+
+describe("automatic widget persistence", () => {
+    const id = "69f68d347999b2bbd8ffb91a";
+    const user = { _id: "user-123" };
+    const timestamp = new Date("2026-09-12");
+    const baseline = {
+        _id: id,
+        owner: user._id,
+        version: 2,
+        htmlVersions: [],
+        updatedAt: timestamp,
+    };
+    beforeEach(() => {
+        const Applet = require("../models/applet").default;
+        Applet.findById.mockReset().mockResolvedValue({ ...baseline });
+        Applet.findOneAndUpdate.mockReset();
+        const { resolveShareAccess } = require("../utils/shareAccess");
+        resolveShareAccess.mockImplementation(async ({ ownerId, userId }) => ({
+            canAccess: true,
+            isOwner: String(ownerId) === String(userId),
+            role: String(ownerId) === String(userId) ? "editor" : "viewer",
+        }));
+    });
+    test("rejects viewers even if they can open the applet", async () => {
+        await expect(
+            loadAppletForWidgetGeneration({ _id: "viewer" }, id),
+        ).rejects.toMatchObject({ status: 403 });
+    });
+    test("only fills an absent widget on the unchanged source", async () => {
+        const Applet = require("../models/applet").default;
+        Applet.findOneAndUpdate.mockResolvedValue({
+            ...baseline,
+            widgetHtml: "<html>generated</html>",
+        });
+        expect(
+            await saveGeneratedAppletWidget(
+                user,
+                id,
+                "<html>generated</html>",
+                timestamp,
+            ),
+        ).toContain("generated");
+        const [filter, update] = Applet.findOneAndUpdate.mock.calls[0];
+        expect(filter).toMatchObject({ _id: id, updatedAt: timestamp });
+        expect(filter.$or).toEqual([
+            { widgetHtml: { $exists: false } },
+            { widgetHtml: null },
+            { widgetHtml: /^\s*$/ },
+        ]);
+        expect(Object.keys(update.$set).sort()).toEqual([
+            "widgetHtml",
+            "widgetHtmlUpdatedAt",
+        ]);
+    });
+    test("returns a widget saved concurrently instead of overwriting it", async () => {
+        const Applet = require("../models/applet").default;
+        Applet.findOneAndUpdate.mockResolvedValue(null);
+        Applet.findById
+            .mockResolvedValueOnce({ ...baseline })
+            .mockResolvedValueOnce({
+                ...baseline,
+                widgetHtml: "<html>manual edit</html>",
+            });
+        expect(
+            await saveGeneratedAppletWidget(
+                user,
+                id,
+                "<html>obsolete</html>",
+                timestamp,
+            ),
+        ).toContain("manual edit");
+    });
+    test("rejects stale generated output after the applet source changes", async () => {
+        const Applet = require("../models/applet").default;
+        Applet.findOneAndUpdate.mockResolvedValue(null);
+        await expect(
+            saveGeneratedAppletWidget(
+                user,
+                id,
+                "<html>obsolete</html>",
+                timestamp,
+            ),
+        ).rejects.toMatchObject({ code: "WIDGET_SOURCE_CHANGED" });
     });
 });

@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Search, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import UserAvatar from "../../../src/components/UserAvatar";
 import { Input } from "@/components/ui/input";
 
 export default function UserPicker({ onSelect, excludeIds = [], placeholder }) {
+    const { t } = useTranslation();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ export default function UserPicker({ onSelect, excludeIds = [], placeholder }) {
     return (
         <div className="relative">
             <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <Input
                     type="text"
                     value={query}
@@ -56,49 +58,59 @@ export default function UserPicker({ onSelect, excludeIds = [], placeholder }) {
                     onFocus={() => setOpen(true)}
                     onBlur={() => setTimeout(() => setOpen(false), 150)}
                     placeholder={
-                        placeholder || "Search people by name or username"
+                        placeholder || t("shareDialog.searchPeoplePlaceholder")
                     }
-                    className="pl-9"
+                    className="ps-9"
                 />
                 {loading && (
-                    <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
+                    <Loader2 className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-400" />
                 )}
             </div>
             {open && query.trim().length >= 2 && (
                 <div className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
                     {visible.length === 0 && !loading ? (
-                        <div className="px-3 py-2 text-sm text-gray-500">
-                            No matches
+                        <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                            {t("shareDialog.noMatches")}
                         </div>
                     ) : (
-                        visible.map((u) => (
-                            <button
-                                key={u._id}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => {
-                                    onSelect?.(u);
-                                    setQuery("");
-                                    setResults([]);
-                                    setOpen(false);
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                                <UserAvatar
-                                    src={u.profilePicture}
-                                    name={u.name}
-                                    className="h-7 w-7 flex-shrink-0 overflow-hidden rounded-full bg-gray-200 text-xs dark:bg-gray-700"
-                                />
-                                <div className="min-w-0 flex-1">
-                                    <div className="truncate font-medium">
-                                        {u.name}
+                        visible.map((u) => {
+                            const primaryLabel = u.name || u.username;
+                            const showUsername =
+                                u.username &&
+                                u.username.trim().toLowerCase() !==
+                                    primaryLabel?.trim().toLowerCase();
+
+                            return (
+                                <button
+                                    key={u._id}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => {
+                                        onSelect?.(u);
+                                        setQuery("");
+                                        setResults([]);
+                                        setOpen(false);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                    <UserAvatar
+                                        src={u.profilePicture}
+                                        name={primaryLabel}
+                                        className="h-7 w-7 flex-shrink-0 overflow-hidden rounded-full bg-gray-200 text-xs dark:bg-gray-700"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate font-medium">
+                                            {primaryLabel}
+                                        </div>
+                                        {showUsername ? (
+                                            <div className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                {u.username}
+                                            </div>
+                                        ) : null}
                                     </div>
-                                    <div className="truncate text-xs text-gray-500">
-                                        {u.username}
-                                    </div>
-                                </div>
-                            </button>
-                        ))
+                                </button>
+                            );
+                        })
                     )}
                 </div>
             )}

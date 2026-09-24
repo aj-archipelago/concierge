@@ -1,23 +1,21 @@
 import { Queue } from "bullmq";
+import { notifyWorkerAlert } from "./worker-notification.mjs";
 import { getRedisConnection } from "./redis.mjs";
+import { PollingMonitor } from "./polling-monitor.mjs";
 
 const FAILURE_THRESHOLD = 0.2; // 20% failure rate threshold
 const MONITORING_WINDOW = 10 * 60 * 1000; // 10 minutes in milliseconds
 const ALERT_COOLDOWN = 30 * 60 * 1000; // 30 minutes cooldown between alerts
 
-function isFinishedWithinWindow(job, windowStart) {
-    return typeof job?.finishedOn === "number" && job.finishedOn >= windowStart;
-}
-
-class QueueMonitor {
+export class QueueMonitor extends PollingMonitor {
     constructor() {
+        super();
         this.queues = new Map();
         this.redis = getRedisConnection();
         this.lockKey = "queue-monitor:lock";
         this.lockTTL = 70000; // 70 seconds, slightly longer than the default interval
         this.instanceId = `${process.pid}-${Math.random()}`; // Unique per process
         this.initializeQueues();
-        this.setupExitHandlers();
     }
 
     initializeQueues() {
@@ -37,112 +35,37 @@ class QueueMonitor {
         const queue = this.queues.get(queueName);
         if (!queue) return null;
 
-        const now = Date.now();
-        const windowStart = now - MONITORING_WINDOW;
-
-        // Get all jobs in the time window
-        const [completed, failed] = await Promise.all([
-            queue.getJobs(["completed"], 0, -1, true),
-            queue.getJobs(["failed"], 0, -1, true),
-        ]);
-
-        // Filter jobs within the time window
-        const recentCompleted = completed.filter((job) =>
-            isFinishedWithinWindow(job, windowStart),
-        );
-        const recentFailed = failed.filter((job) =>
-            isFinishedWithinWindow(job, windowStart),
-        );
-
-        const totalJobs = recentCompleted.length + recentFailed.length;
-        if (totalJobs === 0) return 0;
-
-        return recentFailed.length / totalJobs;
+        const { completed, failed } = await this.countRecentCompletions(queue);
+        const totalJobs = completed + failed;
+        return totalJobs === 0 ? 0 : failed / totalJobs;
     }
 
-    async sendSlackAlert(queueName, failureRate, pendingJobs = null) {
-        const webhookUrl = process.env.SLACK_WEBHOOK_URL;
-        if (!webhookUrl) {
-            console.error("SLACK_WEBHOOK_URL is not configured");
-            return;
-        }
+    async countRecentCompletions(queue) {
+        const start = Date.now() - MONITORING_WINDOW;
+        // BullMQ completion sets are scored by finishedOn. Count the time
+        // window in Redis instead of loading every retained job and its data.
+        const [completed, failed] = await Promise.all([
+            this.redis.zcount(queue.toKey("completed"), start, "+inf"),
+            this.redis.zcount(queue.toKey("failed"), start, "+inf"),
+        ]);
+        return { completed, failed };
+    }
 
-        const containerAppName = process.env.CONTAINER_APP_NAME || "local";
-
-        const message = {
-            blocks: [
-                {
-                    type: "header",
-                    text: {
-                        type: "plain_text",
-                        text: pendingJobs
-                            ? "🚨 Queue Alert: High Pending Jobs"
-                            : "🚨 Queue Alert: High Failure Rate Detected",
-                        emoji: true,
-                    },
-                },
-                {
-                    type: "section",
-                    fields: [
-                        {
-                            type: "mrkdwn",
-                            text: `*Queue:*\n${queueName}`,
-                        },
-                        {
-                            type: "mrkdwn",
-                            text: `*Time:*\n${new Date().toLocaleString()}`,
-                        },
-                        ...(pendingJobs
-                            ? [
-                                  {
-                                      type: "mrkdwn",
-                                      text: `*Pending Jobs:*\n*${pendingJobs}*`,
-                                  },
-                              ]
-                            : [
-                                  {
-                                      type: "mrkdwn",
-                                      text: `*Failure Rate:*\n*${(failureRate * 100).toFixed(2)}%*`,
-                                  },
-                                  {
-                                      type: "mrkdwn",
-                                      text: `*Threshold:*\n${(FAILURE_THRESHOLD * 100).toFixed(2)}%`,
-                                  },
-                                  {
-                                      type: "mrkdwn",
-                                      text: `*Window:*\n10 minutes`,
-                                  },
-                              ]),
-                        {
-                            type: "mrkdwn",
-                            text: `*Container App:*\n${containerAppName}`,
-                        },
-                    ],
-                },
-                {
-                    type: "context",
-                    elements: [
-                        {
-                            type: "mrkdwn",
-                            text: pendingJobs
-                                ? "_Please investigate the cause of the high number of pending jobs._"
-                                : "_Please investigate the cause of the high failure rate._",
-                        },
-                    ],
-                },
-            ],
-        };
-
-        try {
-            await fetch(webhookUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(message),
-            });
-            console.log(`Slack alert sent for queue ${queueName}`);
-        } catch (error) {
-            console.error("Failed to send Slack alert:", error);
-        }
+    async sendGoogleChatAlert(
+        queueName,
+        failureRate,
+        pendingJobs = null,
+        oldestWaitingJobAgeMs = null,
+    ) {
+        return notifyWorkerAlert({
+            queueName,
+            failureRate,
+            pendingJobs,
+            threshold: FAILURE_THRESHOLD,
+            ...(oldestWaitingJobAgeMs === null
+                ? {}
+                : { oldestWaitingJobAgeMs }),
+        });
     }
 
     async getLastAlertTime(queueName) {
@@ -161,42 +84,77 @@ class QueueMonitor {
             if (!queue) continue;
 
             const now = Date.now();
-            const windowStart = now - MONITORING_WINDOW;
 
-            const [completed, failed, waiting] = await Promise.all([
-                queue.getJobs(["completed"], 0, -1, true),
-                queue.getJobs(["failed"], 0, -1, true),
-                queue.getJobs(["waiting"], 0, -1, true),
-            ]);
-            const recentCompleted = completed.filter((job) =>
-                isFinishedWithinWindow(job, windowStart),
+            const paused = await queue.isPaused();
+            const [{ completed, failed }, waiting, active, counts] =
+                await Promise.all([
+                    this.countRecentCompletions(queue),
+                    paused
+                        ? []
+                        : queue.getJobs(
+                              ["waiting", "prioritized"],
+                              0,
+                              99,
+                              true,
+                          ),
+                    queue.getActiveCount(),
+                    paused ? {} : queue.getJobCounts("waiting", "prioritized"),
+                ]);
+            const waitingCount =
+                (counts.waiting || 0) + (counts.prioritized || 0);
+            const totalJobs = completed + failed;
+            const timestamps = waiting
+                .map((job) => job?.timestamp)
+                .filter(Number.isFinite);
+            const oldestWaitingJobAgeMs = timestamps.length
+                ? Math.max(0, now - timestamps.reduce((a, b) => Math.min(a, b)))
+                : 0;
+            console.log(
+                JSON.stringify({
+                    event: "queue_health",
+                    queue: queueName,
+                    paused,
+                    active,
+                    waiting: waitingCount,
+                    waitingAgeSampleSize: waiting.length,
+                    oldestWaitingJobAgeMs,
+                    completed,
+                    failed,
+                }),
             );
-            const recentFailed = failed.filter((job) =>
-                isFinishedWithinWindow(job, windowStart),
-            );
 
-            const totalJobs = recentCompleted.length + recentFailed.length;
-            if (totalJobs <= 10) continue; // Only alert if more than 10 jobs
-
-            const failureRate =
-                totalJobs === 0 ? 0 : recentFailed.length / totalJobs;
+            const failureRate = totalJobs === 0 ? 0 : failed / totalJobs;
             if (failureRate === null) continue;
 
-            const lastAlert = await this.getLastAlertTime(queueName);
+            let lastAlert = await this.getLastAlertTime(queueName);
 
             // Check for high failure rate
             if (
+                totalJobs > 10 &&
                 failureRate > FAILURE_THRESHOLD &&
                 now - lastAlert > ALERT_COOLDOWN
             ) {
-                await this.sendSlackAlert(queueName, failureRate);
-                await this.setLastAlertTime(queueName, now);
+                if (await this.sendGoogleChatAlert(queueName, failureRate)) {
+                    await this.setLastAlertTime(queueName, now);
+                    lastAlert = now;
+                }
             }
 
-            // Check for high waiting jobs
-            if (waiting.length > 5 && now - lastAlert > ALERT_COOLDOWN) {
-                await this.sendSlackAlert(queueName, null, waiting.length);
-                await this.setLastAlertTime(queueName, now);
+            // Queue starvation matters even when no jobs have finished.
+            if (
+                (waitingCount > 5 || oldestWaitingJobAgeMs >= 5 * 60 * 1000) &&
+                now - lastAlert > ALERT_COOLDOWN
+            ) {
+                if (
+                    await this.sendGoogleChatAlert(
+                        queueName,
+                        null,
+                        waitingCount,
+                        oldestWaitingJobAgeMs,
+                    )
+                ) {
+                    await this.setLastAlertTime(queueName, now);
+                }
             }
         }
     }
@@ -214,40 +172,31 @@ class QueueMonitor {
         return result === "OK";
     }
 
-    // Optionally, release the lock if you want to be extra safe (not strictly needed for this use case)
     async releaseLock() {
-        const value = await this.redis.get(this.lockKey);
-        if (value === this.instanceId) {
-            await this.redis.del(this.lockKey);
+        await this.redis.eval(
+            `if redis.call('GET', KEYS[1]) == ARGV[1] then
+                return redis.call('DEL', KEYS[1])
+            end
+            return 0`,
+            1,
+            this.lockKey,
+            this.instanceId,
+        );
+    }
+
+    async check() {
+        if (await this.acquireLock()) await this.checkQueues();
+    }
+
+    async close() {
+        await super.close();
+        try {
+            await this.releaseLock();
+        } finally {
+            await Promise.all(
+                [...this.queues.values()].map((queue) => queue.close()),
+            );
         }
-    }
-
-    async startMonitoring(interval = 10000) {
-        setInterval(async () => {
-            try {
-                const gotLock = await this.acquireLock();
-                if (gotLock) {
-                    await this.checkQueues();
-                    // The lock will expire automatically after lockTTL
-                } else {
-                    // console.log("Another instance is running the monitor.");
-                }
-            } catch (error) {
-                console.error("Queue monitor check failed:", error);
-            }
-        }, interval);
-    }
-
-    setupExitHandlers() {
-        const cleanup = async () => {
-            await this.releaseLock();
-            process.exit(0);
-        };
-        process.on("SIGINT", cleanup);
-        process.on("SIGTERM", cleanup);
-        process.on("exit", async () => {
-            await this.releaseLock();
-        });
     }
 }
 

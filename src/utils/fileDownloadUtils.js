@@ -1,3 +1,5 @@
+import { isManagedStorageUrl } from "./storageOrigins";
+
 /**
  * Utility functions for downloading files, including bulk ZIP downloads
  */
@@ -56,22 +58,14 @@ function isBlobStorageHost(hostname) {
 }
 
 /**
- * Module-level cache: blob pathname → first proxy URL seen.
- * Ensures the same blob always maps to the same proxy URL so the browser
- * can cache the response long-term (proxy sets Cache-Control: immutable).
- * SAS tokens rotate on each listing, but we lock in the first one seen
- * per blob path so the browser URL stays stable across re-renders.
- */
-const proxyUrlCache = new Map();
-
-/**
  * Wrap a blob storage URL through the image proxy for downloads.
  * This ensures SAS token refresh on expiry and makes the URL same-origin
  * so the anchor download attribute works.
  *
- * Uses a per-pathname cache so that even when the SAS token changes between
- * file listings, the proxy URL stays stable and the browser can serve from
- * its HTTP cache (the proxy returns Cache-Control: immutable for 30 days).
+ * Preserve the current URL, including its full query. A streamed reply may
+ * first render an incomplete signature, and a file listing may renew one.
+ * Caching by pathname would pin either case to an unusable earlier URL.
+ * Identical source URLs still produce identical browser cache keys.
  */
 export function getDownloadUrl(url) {
     if (!url) return url;
@@ -79,23 +73,43 @@ export function getDownloadUrl(url) {
     if (url.includes("/api/image-proxy")) return url;
     // Only proxy blob storage URLs
     try {
-        const urlObj = new URL(url, window.location.origin);
+        const baseOrigin =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://localhost";
+        const urlObj = new URL(url, baseOrigin);
         if (isBlobStorageHost(urlObj.hostname)) {
-            // Use the pathname (without query params) as a stable cache key.
-            // This means the same blob path always returns the same proxy URL,
-            // even when the SAS token (query params) rotates between listings.
-            const cacheKey = urlObj.origin + urlObj.pathname;
-            const cached = proxyUrlCache.get(cacheKey);
-            if (cached) return cached;
-
-            const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(url)}`;
-            proxyUrlCache.set(cacheKey, proxyUrl);
-            return proxyUrl;
+            return `/api/image-proxy?url=${encodeURIComponent(url)}`;
         }
     } catch {
         // not a valid URL, return as-is
     }
     return url;
+}
+
+export function getMediaPlaybackUrl(url) {
+    if (!url || url.includes("/api/image-proxy")) return url;
+
+    try {
+        const baseOrigin =
+            typeof window !== "undefined"
+                ? window.location.origin
+                : "http://localhost";
+        if (!isManagedStorageUrl(new URL(url, baseOrigin))) return url;
+    } catch {
+        return url;
+    }
+
+    return getDownloadUrl(url);
+}
+
+/** Route supported chat artifacts through authenticated refresh at click time. */
+export function getChatArtifactDownloadUrl(url) {
+    const proxyUrl = getMediaPlaybackUrl(url);
+    if (!proxyUrl?.startsWith("/api/image-proxy?")) return url;
+    const target = new URL(proxyUrl, "http://localhost");
+    target.searchParams.set("download", "1");
+    return `${target.pathname}${target.search}${target.hash}`;
 }
 
 /**

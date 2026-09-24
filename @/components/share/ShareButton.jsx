@@ -12,7 +12,7 @@ export default function ShareButton({
     entityType,
     entityId,
     legacyShared = false,
-    label = "Share",
+    label,
     variant = "outline",
     size = "sm",
     showLabel = true,
@@ -30,7 +30,8 @@ export default function ShareButton({
         ? "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-400 dark:hover:bg-sky-900/30"
         : "";
     const Icon = isShared ? Users : Share2;
-    const ariaLabel = isShared ? t("Shared") : label;
+    const shareLabel = label || t("Share");
+    const ariaLabel = isShared ? t("Shared") : shareLabel;
 
     return (
         <>
@@ -51,7 +52,7 @@ export default function ShareButton({
                         <span className="absolute -end-0.5 -top-0.5 h-2 w-2 rounded-full bg-sky-500 ring-2 ring-white dark:ring-gray-800" />
                     ) : null}
                 </span>
-                {showLabel ? (isShared ? t("Shared") : label) : null}
+                {showLabel ? (isShared ? t("Shared") : shareLabel) : null}
             </Button>
             <ShareDialog
                 open={open}

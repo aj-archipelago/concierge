@@ -15,17 +15,20 @@ import { toast } from "react-toastify";
 import { CurrentUserContext, ServerContext } from "../../App.js";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import ChatMessages from "./ChatMessages";
+import { useChatActivity } from "./ChatActivity";
 import MessageInput from "./MessageInput";
 import { QUERIES } from "../../graphql";
 import {
     useUpdateChat,
     useAddMessage,
     ensureChatInActiveChats,
-    getMessageSignature,
     mergeFetchedChatResponse,
+    mergeOlderChatPage,
     normalizeChatForCache,
     syncInFlightChatCache,
     syncChatToListCaches,
+    chatContainsAssistantMessage,
+    buildStreamFailureRecoveryUpdate,
 } from "../../../app/queries/chats";
 import { DEFAULT_CHAT_MESSAGES_LIMIT } from "../../../app/constants/chats";
 import {
@@ -48,6 +51,10 @@ import {
     filterToolsByRoute,
     getClientSideToolFocusError,
 } from "../../utils/clientSideTools";
+import {
+    clearChatNeedsAttention,
+    markChatNeedsAttention,
+} from "../../utils/chatsUnread";
 import {
     buildRelevantSkillReferenceContext,
     getLoadSkillTool,
@@ -84,7 +91,6 @@ const STOPPED_STREAM_TOOL_ID_PREFIX = "stopped-stream";
 const STREAM_RETRY_INITIAL_DELAY_MS = 1000;
 const STREAM_RETRY_MAX_DELAY_MS = 10000;
 const HTML_CANVAS_STREAM_REFRESH_MS = 5000;
-const CLIENT_TOOL_HEARTBEAT_INTERVAL_MS = 5000;
 const WAITING_FOR_RESPONSE_SYNC_MS = 2000;
 
 const normalizeContextPathname = (currentPathname) => {
@@ -93,54 +99,6 @@ const normalizeContextPathname = (currentPathname) => {
     }
 
     return currentPathname;
-};
-
-const withSeedMessages = (chatData, seedMessages = []) => {
-    if (
-        !chatData ||
-        !Array.isArray(seedMessages) ||
-        seedMessages.length === 0
-    ) {
-        return chatData;
-    }
-
-    const messages = Array.isArray(chatData.messages) ? chatData.messages : [];
-    const nextMessages = [...messages];
-    const nextSeedMessages = seedMessages.filter((seedMessage) => {
-        if (!seedMessage) {
-            return false;
-        }
-
-        const lastMessage = nextMessages.at(-1);
-        const alreadyPresent = nextMessages.some(
-            (message) =>
-                (seedMessage._clientId &&
-                    message?._clientId === seedMessage._clientId) ||
-                (seedMessage._id &&
-                    message?._id &&
-                    String(seedMessage._id) === String(message._id)),
-        );
-        if (
-            alreadyPresent ||
-            (lastMessage &&
-                getMessageSignature(lastMessage) ===
-                    getMessageSignature(seedMessage))
-        ) {
-            return false;
-        }
-
-        nextMessages.push(seedMessage);
-        return true;
-    });
-
-    if (nextSeedMessages.length === 0) {
-        return chatData;
-    }
-
-    return {
-        ...chatData,
-        messages: [...messages, ...nextSeedMessages],
-    };
 };
 
 const buildDisplayedMessages = (draftPair, settledMessages) => {
@@ -375,6 +333,7 @@ function ChatContent({
     copyInProgress = false,
 }) {
     const { t, i18n } = useTranslation();
+    const { report: reportActivity } = useChatActivity();
     const isRTL = i18n.dir() === "rtl";
     const client = useApolloClient();
     const user = useContext(CurrentUserContext);
@@ -644,14 +603,21 @@ function ChatContent({
 
         setIsLoadingOlder(true);
         try {
+            const oldestMessageId = chat?.messages?.[0]?._id;
+            const before = oldestMessageId
+                ? `&before=${encodeURIComponent(String(oldestMessageId))}`
+                : "";
             const { data: fullChat } = await axios.get(
-                `/api/chats/${String(effectiveChatId)}`,
+                `/api/chats/${String(effectiveChatId)}?limit=${DEFAULT_CHAT_MESSAGES_LIMIT}${before}`,
             );
             const cachedChat = queryClient.getQueryData([
                 "chat",
                 effectiveChatId,
             ]);
-            const normalizedChat = normalizeChatForCache(cachedChat, fullChat);
+            const normalizedChat = normalizeChatForCache(
+                cachedChat,
+                mergeOlderChatPage(cachedChat, fullChat),
+            );
             queryClient.setQueryData(["chat", effectiveChatId], normalizedChat);
         } catch (error) {
             console.error("Error loading older messages:", error);
@@ -660,6 +626,7 @@ function ChatContent({
         }
     }, [
         effectiveChatId,
+        chat?.messages,
         chat?.hasMoreMessages,
         chat?.messagesTruncated,
         isLoadingOlder,
@@ -676,7 +643,9 @@ function ChatContent({
         if (
             !effectiveChatId ||
             !renderBaseMessages.length ||
-            viewingReadOnlyChat
+            viewingReadOnlyChat ||
+            isChatLoading ||
+            isWaitingForServer
         ) {
             return;
         }
@@ -846,7 +815,7 @@ function ChatContent({
             try {
                 await updateChatHook.mutateAsync({
                     chatId: String(effectiveChatId),
-                    messages: updatedMessages,
+                    messageUpdates: updatedMessages,
                 });
             } catch (error) {
                 console.warn(
@@ -863,6 +832,8 @@ function ChatContent({
         renderBaseMessages,
         effectiveChatId,
         viewingReadOnlyChat,
+        isChatLoading,
+        isWaitingForServer,
         t,
         updateChatHook,
         user?.contextId,
@@ -995,9 +966,14 @@ function ChatContent({
         async (toolInfo) => {
             const toolCallbackId = toolInfo?.toolCallbackId;
             const requestId =
-                toolInfo?.requestId || toolInfo?.chatId || "unknown";
+                toolInfo?.requestId ||
+                queryClient.getQueryData(["chat", effectiveChatId])
+                    ?.activeSubscriptionId ||
+                chat?.activeSubscriptionId ||
+                toolInfo?.chatId ||
+                effectiveChatId;
 
-            if (!toolCallbackId) {
+            if (!toolCallbackId || !requestId) {
                 return false;
             }
 
@@ -1005,7 +981,7 @@ function ChatContent({
                 const response = await client.mutate({
                     mutation: MUTATIONS.CLIENT_TOOL_HEARTBEAT,
                     variables: {
-                        requestId,
+                        requestId: String(requestId),
                         toolCallbackId,
                     },
                 });
@@ -1015,7 +991,7 @@ function ChatContent({
                 return false;
             }
         },
-        [client],
+        [chat?.activeSubscriptionId, client, effectiveChatId, queryClient],
     );
 
     const handleClientSideToolCall = useCallback(
@@ -1023,7 +999,12 @@ function ChatContent({
             const toolName = toolInfo.toolCallbackName?.toLowerCase();
             const toolCallbackId = toolInfo.toolCallbackId;
             const requestId =
-                toolInfo.requestId || toolInfo.chatId || "unknown";
+                toolInfo.requestId ||
+                queryClient.getQueryData(["chat", effectiveChatId])
+                    ?.activeSubscriptionId ||
+                chat?.activeSubscriptionId ||
+                toolInfo.chatId ||
+                effectiveChatId;
 
             const submitToolResult = async (
                 result,
@@ -1040,7 +1021,7 @@ function ChatContent({
                     const response = await client.mutate({
                         mutation: MUTATIONS.SUBMIT_CLIENT_TOOL_RESULT,
                         variables: {
-                            requestId,
+                            requestId: String(requestId),
                             toolCallbackId,
                             result: success
                                 ? JSON.stringify(result)
@@ -1074,14 +1055,6 @@ function ChatContent({
                 }
             };
 
-            const startHeartbeat = () => {
-                void sendClientToolHeartbeat(toolInfo);
-                const intervalId = setInterval(() => {
-                    void sendClientToolHeartbeat(toolInfo);
-                }, CLIENT_TOOL_HEARTBEAT_INTERVAL_MS);
-                return () => clearInterval(intervalId);
-            };
-
             if (!toolCallbackId) {
                 await submitToolResult(null, false, "Missing toolCallbackId");
                 return;
@@ -1097,7 +1070,6 @@ function ChatContent({
                 return;
             }
 
-            const stopHeartbeat = startHeartbeat();
             try {
                 const getActiveCanvasTabContent = () => {
                     const snapshot = getCanvasSnapshotForChat(effectiveChatId);
@@ -1145,8 +1117,21 @@ function ChatContent({
                     context,
                 );
                 if (focusError) {
+                    markChatNeedsAttention(queryClient, effectiveChatId);
                     throw new Error(focusError);
                 }
+                const confirmActionWithAttention = async (options = {}) => {
+                    markChatNeedsAttention(queryClient, effectiveChatId);
+                    try {
+                        return await confirmToolAction(options);
+                    } finally {
+                        clearChatNeedsAttention(queryClient, effectiveChatId);
+                    }
+                };
+                context.confirmAction = confirmActionWithAttention;
+                context.toolInteraction = {
+                    confirm: confirmActionWithAttention,
+                };
                 const result = await handler(toolInfo, context);
 
                 if (!result.success) {
@@ -1170,13 +1155,10 @@ function ChatContent({
                     );
                     throw error;
                 }
-            } finally {
-                stopHeartbeat();
             }
         },
         [
             client,
-            sendClientToolHeartbeat,
             router,
             dispatch,
             toolHandlers,
@@ -1188,6 +1170,7 @@ function ChatContent({
             serverUrl,
             selectedEntityIdFromProp,
             getCanvasSnapshotForChat,
+            chat?.activeSubscriptionId,
         ],
     );
 
@@ -1291,7 +1274,12 @@ function ChatContent({
     );
 
     const handleStreamComplete = useCallback(
-        async ({ chatId: completedChatId, payload, assistantMessage }) => {
+        async ({
+            chatId: completedChatId,
+            payload,
+            assistantMessage,
+            outcome = "done",
+        }) => {
             const targetChatId = String(
                 completedChatId || effectiveChatId || "",
             );
@@ -1303,6 +1291,11 @@ function ChatContent({
             }
 
             if (isCurrentChat) {
+                if (
+                    !assistantMessage?.entityId ||
+                    assistantMessage.entityId === selectedEntityIdFromProp
+                )
+                    reportActivity({ outcome, busy: false });
                 setDraftPair((currentDraftPair) =>
                     currentDraftPair
                         ? {
@@ -1323,7 +1316,14 @@ function ChatContent({
                 const committedChat = await syncCommittedChat(targetChatId);
                 ensureChatInActiveChats(queryClient, committedChat);
                 syncChatToListCaches(queryClient, committedChat);
-                if (isCurrentChat && !committedChat?.isChatLoading) {
+                if (
+                    isCurrentChat &&
+                    !committedChat?.isChatLoading &&
+                    chatContainsAssistantMessage(
+                        committedChat,
+                        assistantMessage,
+                    )
+                ) {
                     setDraftPair(null);
                 }
                 await generateChatTitleIfNeeded(committedChat);
@@ -1363,6 +1363,8 @@ function ChatContent({
         [
             effectiveChatId,
             generateChatTitleIfNeeded,
+            selectedEntityIdFromProp,
+            reportActivity,
             queryClient,
             syncCommittedChat,
             handleStreamCompleteHtmlFallback,
@@ -1425,6 +1427,20 @@ function ChatContent({
     });
 
     useEffect(() => {
+        reportActivity({
+            busy: isStreaming || isChatLoading || isWaitingForServer,
+            attention: toolConfirmDialog.open || createAppletDialog.open,
+        });
+    }, [
+        reportActivity,
+        isStreaming,
+        isChatLoading,
+        isWaitingForServer,
+        toolConfirmDialog.open,
+        createAppletDialog.open,
+    ]);
+
+    useEffect(() => {
         isStreamingRef.current = isStreaming;
     }, [isStreaming]);
 
@@ -1445,7 +1461,11 @@ function ChatContent({
                 syncChatToListCaches(queryClient, committedChat);
                 if (!committedChat.isChatLoading) {
                     setDraftPair((currentDraftPair) =>
-                        currentDraftPair?.waitingForServer
+                        currentDraftPair?.waitingForServer &&
+                        chatContainsAssistantMessage(
+                            committedChat,
+                            currentDraftPair.assistantMessage,
+                        )
                             ? null
                             : currentDraftPair,
                     );
@@ -1504,6 +1524,7 @@ function ChatContent({
         isServiceUnavailable && !isStreaming && !isWaitingForServer;
 
     const handleStopStreaming = useCallback(async () => {
+        reportActivity({ outcome: "stopped", busy: false });
         const targetChatId = String(
             streamingChatId || effectiveChatId || chatId || "",
         );
@@ -1538,15 +1559,6 @@ function ChatContent({
             return;
         }
 
-        const seededChat = withSeedMessages(
-            cachedChat,
-            [draftPair?.userMessage].filter(Boolean),
-        );
-        const nextMessages = [
-            ...(Array.isArray(seededChat?.messages) ? seededChat.messages : []),
-            stoppedAssistantMessage,
-        ];
-
         try {
             if (requestId) {
                 try {
@@ -1566,7 +1578,7 @@ function ChatContent({
 
             const stoppedChat = await updateChatHook.mutateAsync({
                 chatId: targetChatId,
-                messages: nextMessages,
+                appendMessage: stoppedAssistantMessage,
                 isChatLoading: false,
                 stopRequested: true,
                 selectedEntityId: selectedEntityIdFromProp,
@@ -1592,9 +1604,9 @@ function ChatContent({
         clearStreamingState,
         queryClient,
         settledMessages,
-        draftPair?.userMessage,
         updateChatHook,
         handleError,
+        reportActivity,
         t,
         chat?.activeSubscriptionId,
         client,
@@ -1626,6 +1638,7 @@ function ChatContent({
             let persistedChat = null;
 
             try {
+                reportActivity({ outcome: null, busy: true });
                 // Reset streaming state (important before sending) unless another chat is streaming
                 if (
                     !streamingChatId ||
@@ -1676,7 +1689,6 @@ function ChatContent({
                     await updateChatHook.mutateAsync({
                         chatId: currentChatId,
                         messages: overrideMessages,
-                        allowMessageTruncation: true,
                         selectedEntityId: selectedEntityIdFromProp,
                     });
                 }
@@ -1876,6 +1888,7 @@ function ChatContent({
                 return;
             } catch (error) {
                 const serviceUnavailable = isServiceUnavailableError(error);
+                reportActivity({ outcome: "error", busy: false });
 
                 if (currentChatId) {
                     queryClient.setQueryData(
@@ -1928,48 +1941,53 @@ function ChatContent({
 
                     if (serviceUnavailable) {
                         try {
-                            const rollbackResponse = await axios.put(
+                            const recoveryResponse = await axios.put(
                                 `/api/chats/${String(currentChatId)}`,
-                                {
-                                    messages: baseMessages,
-                                    isChatLoading: false,
-                                    activeSubscriptionId: null,
-                                    selectedEntityId: selectedEntityIdFromProp,
-                                },
+                                buildStreamFailureRecoveryUpdate(
+                                    selectedEntityIdFromProp,
+                                ),
                             );
-                            const rolledBackChat = normalizeChatForCache(
+                            const recoveredChat = normalizeChatForCache(
                                 cachedChat,
-                                rollbackResponse.data,
+                                mergeFetchedChatResponse(
+                                    queryClient,
+                                    currentChatId,
+                                    cachedChat,
+                                    recoveryResponse.data,
+                                ),
                             );
                             queryClient.setQueryData(
                                 ["chat", String(currentChatId)],
-                                rolledBackChat,
+                                recoveredChat,
                             );
-                            ensureChatInActiveChats(
-                                queryClient,
-                                rolledBackChat,
-                            );
-                            syncChatToListCaches(queryClient, rolledBackChat);
+                            ensureChatInActiveChats(queryClient, recoveredChat);
+                            syncChatToListCaches(queryClient, recoveredChat);
                             nextBaseMessages = Array.isArray(
-                                rolledBackChat?.messages,
+                                recoveredChat?.messages,
                             )
-                                ? rolledBackChat.messages
+                                ? recoveredChat.messages
                                 : baseMessages;
-                        } catch (rollbackError) {
+                            nextPendingUserMessage = null;
+                        } catch (recoveryError) {
                             console.error(
-                                "Failed to roll back chat after stream bootstrap failure:",
-                                rollbackError,
+                                "Failed to recover chat after stream bootstrap failure:",
+                                recoveryError,
                             );
                             nextBaseMessages = baseMessages;
                         }
                     } else {
                         const recoveredChat = normalizeChatForCache(
                             cachedChat,
-                            {
-                                ...persistedChat,
-                                isChatLoading: false,
-                                activeSubscriptionId: null,
-                            },
+                            mergeFetchedChatResponse(
+                                queryClient,
+                                currentChatId,
+                                cachedChat,
+                                {
+                                    ...persistedChat,
+                                    isChatLoading: false,
+                                    activeSubscriptionId: null,
+                                },
+                            ),
                         );
                         queryClient.setQueryData(
                             ["chat", String(currentChatId)],
@@ -1982,11 +2000,8 @@ function ChatContent({
                         )
                             ? recoveredChat.messages
                             : baseMessages;
+                        nextPendingUserMessage = null;
                     }
-
-                    nextPendingUserMessage = serviceUnavailable
-                        ? optimisticUserMessage
-                        : null;
                 } else {
                     restoreOptimisticSendCache(
                         queryClient,
@@ -2024,6 +2039,7 @@ function ChatContent({
             updateChatHook,
             addMessage,
             handleError,
+            reportActivity,
             t,
             clearStreamingState,
             streamingChatId,
@@ -2077,6 +2093,41 @@ function ChatContent({
     const stableStopStreaming = useStableCallback(handleStopStreaming);
     const stableInjectMessage = useStableCallback(handleInjectMessage);
     const stableLoadOlder = useStableCallback(loadOlderMessages);
+
+    const handleOpeningState = useStableCallback(
+        ({ chatId: targetId, entityId, busy }) => {
+            if (
+                activeChatIdRef.current === targetId &&
+                entityId === selectedEntityIdFromProp
+            ) {
+                reportActivity({ busy, ...(busy ? { outcome: null } : {}) });
+            }
+        },
+    );
+    const handleOpeningCommitted = useStableCallback(
+        async ({ chatId: targetId, entityId }) => {
+            await syncCommittedChat(targetId);
+            if (
+                activeChatIdRef.current === targetId &&
+                entityId === selectedEntityIdFromProp
+            ) {
+                reportActivity({ busy: false, outcome: "done" });
+            }
+        },
+    );
+    const idleOpening = {
+        enabled:
+            !instantOnly &&
+            !viewingReadOnlyChat &&
+            Boolean(chat?._id) &&
+            displayedMessages.length === 0 &&
+            !isChatLoading &&
+            !isStreaming,
+        entityId: selectedEntityIdFromProp,
+        createdAt: chat?.createdAt,
+        onStateChange: handleOpeningState,
+        onCommitted: handleOpeningCommitted,
+    };
 
     useEffect(() => {
         if (
@@ -2288,6 +2339,7 @@ function ChatContent({
                 <div data-testid="chat-message-list" className="grow" />
                 <MessageInput
                     chatId={effectiveChatId}
+                    idleOpening={idleOpening}
                     onSend={stableHandleSend}
                     loading={isChatLoading}
                     sendBlocked={isSendBlocked}
@@ -2306,6 +2358,7 @@ function ChatContent({
         <>
             <ChatMessages
                 ref={chatMessagesRef}
+                idleOpening={idleOpening}
                 viewingReadOnlyChat={viewingReadOnlyChat}
                 publicChatOwner={publicChatOwner}
                 loading={isChatLoading}

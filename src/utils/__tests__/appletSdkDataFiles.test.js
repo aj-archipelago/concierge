@@ -46,8 +46,122 @@ describe("ConciergeSDK data and files namespaces", () => {
     });
 
     describe("version", () => {
-        test("should be 1.12.0", () => {
-            expect(ConciergeSDK.version).toBe("1.12.0");
+        test("should be 1.15.0", () => {
+            expect(ConciergeSDK.version).toBe("1.15.0");
+        });
+    });
+
+    describe("agent renderer", () => {
+        test("preserves native citation markers and citation objects", () => {
+            const container = document.createElement("div");
+            container.id = "answer";
+            document.body.appendChild(container);
+
+            const view = ConciergeSDK.agent.render("answer", {
+                result: "Cobalt Lynx 443 :cd_source[file-1]",
+                citations: [{ searchResultId: "file-1", title: "orion.md" }],
+            });
+
+            expect(view.tagName).toBe("PRE");
+            expect(view.classList.contains("llm-output")).toBe(true);
+            expect(JSON.parse(view.textContent)).toEqual({
+                markdown: "Cobalt Lynx 443 :cd_source[file-1]",
+                citations: [{ searchResultId: "file-1", title: "orion.md" }],
+            });
+        });
+    });
+
+    describe("agent chat", () => {
+        test("automatically identifies the applet without accepting a context ID", async () => {
+            const meta = document.createElement("meta");
+            meta.name = "applet-id";
+            meta.content = "applet-123";
+            document.head.appendChild(meta);
+            fetchMock.mockResolvedValue({
+                ok: true,
+                json: async () => ({ result: "Grounded answer" }),
+            });
+
+            await ConciergeSDK.agent.chat({
+                messages: [{ role: "user", content: "Use my context" }],
+                agentContext: "caller-controlled",
+            });
+
+            expect(fetchMock).toHaveBeenCalledWith(
+                "/api/applet/agent-chat",
+                expect.objectContaining({
+                    body: JSON.stringify({
+                        messages: [{ role: "user", content: "Use my context" }],
+                        appletId: "applet-123",
+                        stream: true,
+                    }),
+                }),
+            );
+        });
+
+        test("forwards an AbortSignal so callers can cancel in-flight work", async () => {
+            const meta = document.createElement("meta");
+            meta.name = "applet-id";
+            meta.content = "applet-123";
+            document.head.appendChild(meta);
+            const controller = new AbortController();
+            fetchMock.mockResolvedValue({
+                ok: true,
+                json: async () => ({ result: "Grounded answer" }),
+            });
+
+            await ConciergeSDK.agent.chat({
+                messages: [{ role: "user", content: "Research this" }],
+                signal: controller.signal,
+            });
+
+            expect(fetchMock).toHaveBeenCalledWith(
+                "/api/applet/agent-chat",
+                expect.objectContaining({
+                    signal: controller.signal,
+                }),
+            );
+        });
+
+        test("resolves the complete response from the streaming transport", async () => {
+            const meta = document.createElement("meta");
+            meta.name = "applet-id";
+            meta.content = "applet-123";
+            document.head.appendChild(meta);
+            const encoder = new TextEncoder();
+            fetchMock.mockResolvedValue({
+                ok: true,
+                headers: {
+                    get: () => "text/event-stream",
+                },
+                body: new ReadableStream({
+                    start(controller) {
+                        controller.enqueue(
+                            encoder.encode(
+                                'data: {"event":"data","data":{"chunk":"Hello "}}\n\n',
+                            ),
+                        );
+                        controller.enqueue(
+                            encoder.encode(
+                                'data: {"event":"complete","data":{"result":"Hello world","citations":[],"metadata":{},"warnings":[],"errors":[]}}\n\n',
+                            ),
+                        );
+                        controller.close();
+                    },
+                }),
+            });
+
+            const response = await ConciergeSDK.agent.chat({
+                messages: [{ role: "user", content: "Research this" }],
+            });
+
+            expect(response).toEqual({
+                result: "Hello world",
+                citations: [],
+                metadata: {},
+                warnings: [],
+                errors: [],
+            });
         });
     });
 
@@ -490,7 +604,7 @@ describe("ConciergeSDK data and files namespaces", () => {
                     onChunk,
                 }),
             ).rejects.toThrow(
-                "source Q&A stream ended before the final metadata was received",
+                "Source Q&A stream ended before the final metadata was received",
             );
             expect(onChunk).toHaveBeenCalledWith(
                 "Hello ",
@@ -573,6 +687,41 @@ describe("ConciergeSDK data and files namespaces", () => {
         });
     });
 
+    describe("agentContext namespace", () => {
+        beforeEach(() => {
+            const meta = document.createElement("meta");
+            meta.name = "applet-id";
+            meta.content = "abc123";
+            document.head.appendChild(meta);
+            fetchMock.mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    appletId: "abc123",
+                    attached: true,
+                    canManage: true,
+                }),
+            });
+        });
+
+        test("reports attachment without exposing its context ID", async () => {
+            const result = await ConciergeSDK.agentContext.getAccess();
+
+            expect(fetchMock).toHaveBeenCalledWith(
+                "/api/canvas-applets/abc123/agent-context",
+                expect.objectContaining({ method: "GET" }),
+            );
+            expect(result).toEqual({
+                appletId: "abc123",
+                attached: true,
+                canManage: true,
+            });
+            expect(result).not.toHaveProperty("agentContext");
+            expect(Object.keys(ConciergeSDK.agentContext)).toEqual([
+                "getAccess",
+            ]);
+        });
+    });
+
     describe("data namespace", () => {
         beforeEach(() => {
             const meta = document.createElement("meta");
@@ -651,6 +800,72 @@ describe("ConciergeSDK data and files namespaces", () => {
         });
 
         describe("data.set", () => {
+            test("a retried autosave cannot overwrite a newer save", async () => {
+                jest.useFakeTimers();
+                let attempts = 0;
+                let stored;
+                fetchMock.mockImplementation(async (_url, options) => {
+                    const { value } = JSON.parse(options.body);
+                    if (attempts++ === 0) {
+                        return {
+                            ok: false,
+                            status: 429,
+                            headers: { get: () => "1" },
+                        };
+                    }
+                    stored = value;
+                    return {
+                        ok: true,
+                        json: async () => ({ data: { draft: value } }),
+                    };
+                });
+                try {
+                    const older = ConciergeSDK.data.set("draft", {
+                        text: "old",
+                    });
+                    const draft = { text: "new" };
+                    const newer = ConciergeSDK.data.set("draft", draft);
+                    draft.text = "not submitted";
+                    await jest.runAllTimersAsync();
+                    await Promise.all([older, newer]);
+                    expect(stored).toEqual({ text: "new" });
+                } finally {
+                    jest.useRealTimers();
+                }
+            });
+
+            test("a failed save releases the key queue and other keys remain independent", async () => {
+                let failFirst;
+                fetchMock.mockImplementation((_url, options) => {
+                    const { key, value } = JSON.parse(options.body);
+                    if (key === "draft" && value === "old") {
+                        return new Promise((_resolve, reject) => {
+                            failFirst = reject;
+                        });
+                    }
+                    return Promise.resolve({
+                        ok: true,
+                        json: async () => ({ data: { [key]: value } }),
+                    });
+                });
+                const older = ConciergeSDK.data.set("draft", "old");
+                const rejected = older.catch((error) => error);
+                const newer = ConciergeSDK.data.set("draft", "new");
+                await expect(
+                    ConciergeSDK.data.set("settings", true),
+                ).resolves.toEqual({ settings: true });
+                expect(
+                    fetchMock.mock.calls.map(
+                        ([, options]) => JSON.parse(options.body).value,
+                    ),
+                ).toEqual(["old", true]);
+                failFirst(new Error("offline"));
+                await expect(rejected).resolves.toMatchObject({
+                    message: "offline",
+                });
+                await expect(newer).resolves.toEqual({ draft: "new" });
+            });
+
             test("calls correct endpoint with key and value", async () => {
                 global.fetch.mockResolvedValue({
                     ok: true,
@@ -707,11 +922,12 @@ describe("ConciergeSDK data and files namespaces", () => {
                 expect(result).toEqual({ key: null });
             });
 
-            test("does not retry rate-limited writes", async () => {
+            test("retries rate-limited writes then fails", async () => {
+                jest.useFakeTimers();
                 global.fetch.mockResolvedValue({
                     ok: false,
                     status: 429,
-                    headers: { get: () => "4" },
+                    headers: { get: () => "1" },
                     json: () =>
                         Promise.resolve({
                             error: "Applet SDK rate limit exceeded",
@@ -719,15 +935,55 @@ describe("ConciergeSDK data and files namespaces", () => {
                         }),
                 });
 
-                await expect(
-                    ConciergeSDK.data.set("counter", 42),
-                ).rejects.toMatchObject({
-                    message: "Applet SDK rate limit exceeded",
-                    status: 429,
-                    code: "APPLET_SDK_RATE_LIMITED",
-                    retryAfter: 4000,
-                });
-                expect(global.fetch).toHaveBeenCalledTimes(1);
+                try {
+                    const pending = ConciergeSDK.data.set("counter", 42);
+                    await Promise.all([
+                        expect(pending).rejects.toMatchObject({
+                            message: "Applet SDK rate limit exceeded",
+                            status: 429,
+                            code: "APPLET_SDK_RATE_LIMITED",
+                            retryAfter: 1000,
+                        }),
+                        jest.runAllTimersAsync(),
+                    ]);
+                    expect(global.fetch).toHaveBeenCalledTimes(3);
+                } finally {
+                    jest.useRealTimers();
+                }
+            });
+
+            test("retries rate-limited writes then succeeds", async () => {
+                jest.useFakeTimers();
+                global.fetch
+                    .mockResolvedValueOnce({
+                        ok: false,
+                        status: 429,
+                        headers: { get: () => "1" },
+                        json: () =>
+                            Promise.resolve({
+                                error: "temporarily rate limited",
+                                code: "APPLET_DATA_RATE_LIMITED",
+                            }),
+                    })
+                    .mockResolvedValueOnce({
+                        ok: true,
+                        json: () =>
+                            Promise.resolve({
+                                success: true,
+                                data: { counter: 42 },
+                            }),
+                    });
+
+                try {
+                    const pending = ConciergeSDK.data.set("counter", 42);
+                    await Promise.all([
+                        expect(pending).resolves.toEqual({ counter: 42 }),
+                        jest.runAllTimersAsync(),
+                    ]);
+                    expect(global.fetch).toHaveBeenCalledTimes(2);
+                } finally {
+                    jest.useRealTimers();
+                }
             });
         });
     });
@@ -1167,6 +1423,86 @@ describe("ConciergeSDK data and files namespaces", () => {
             document.head.appendChild(meta);
         });
 
+        test("ensureImage uses a server-owned cached URL without starting or polling a task", async () => {
+            fetchMock.mockResolvedValue({
+                ok: true,
+                json: async () => ({ url: "https://example.test/saved.png" }),
+            });
+            expect(
+                await ConciergeSDK.media.ensureImage({
+                    key: "background",
+                    prompt: "Newsroom",
+                    appletId: "spoofed",
+                    operation: "create-media",
+                }),
+            ).toEqual({ url: "https://example.test/saved.png" });
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+            expect(body).toMatchObject({
+                key: "background",
+                operation: "ensure-image",
+                appletId: "abc123",
+            });
+        });
+
+        test("ensureImage resumes the returned task and never writes a browser-owned cache", async () => {
+            fetchMock.mockImplementation(async (url) => ({
+                ok: true,
+                json: async () =>
+                    url === "/api/applet/media"
+                        ? { taskId: "same-task" }
+                        : {
+                              status: "completed",
+                              data: {
+                                  azureUrl:
+                                      "https://example.test/generated.png",
+                              },
+                          },
+            }));
+            for (let i = 0; i < 2; i += 1)
+                expect(
+                    await ConciergeSDK.media.ensureImage({
+                        key: "background",
+                        prompt: "Newsroom",
+                    }),
+                ).toEqual({
+                    url: "https://example.test/generated.png",
+                    taskId: "same-task",
+                });
+            expect(
+                fetchMock.mock.calls.filter(
+                    ([, options]) => options.method === "PUT",
+                ),
+            ).toHaveLength(0);
+            expect(
+                fetchMock.mock.calls.filter(
+                    ([url]) => url === "/api/applet/media",
+                ),
+            ).toHaveLength(4);
+        });
+
+        test("ensureImage stops on a failed retained task without creating another", async () => {
+            fetchMock
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({ taskId: "failed-task" }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        status: "failed",
+                        error: "Provider rejected request",
+                    }),
+                });
+            await expect(
+                ConciergeSDK.media.ensureImage({
+                    key: "background",
+                    prompt: "Newsroom",
+                }),
+            ).rejects.toThrow("Provider rejected request");
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+        });
+
         test("media.transcribe starts an applet media task", async () => {
             const mockResponse = { taskId: "task-1", jobId: "job-1" };
             global.fetch.mockResolvedValue({
@@ -1408,6 +1744,37 @@ describe("ConciergeSDK data and files namespaces", () => {
                 prompt: "Say hello",
                 voiceName: "Aoede",
             });
+        });
+
+        test("media.createVideo forwards priority settings and multiple audio references", async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: async () => ({ taskId: "task-priority" }),
+            });
+            const inputAudios = Array.from({ length: 10 }, (_, i) => ({
+                url: `https://example.com/${i}.wav`,
+                hash: `hash-${i}`,
+            }));
+            await ConciergeSDK.media.createVideo({
+                model: "replicate-seedance-2.5",
+                prompt: "Scene",
+                inputAudios,
+                fps: 24,
+                watermark: false,
+                generationMode: "edit",
+                cloningStrength: 0,
+            });
+            const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+            expect(body.inputAudios).toHaveLength(10);
+            expect(body.inputAudios[9].hash).toBe("hash-9");
+            expect(body).toEqual(
+                expect.objectContaining({
+                    fps: 24,
+                    watermark: false,
+                    generationMode: "edit",
+                    cloningStrength: 0,
+                }),
+            );
         });
 
         test("media helpers validate required fields before fetching", async () => {

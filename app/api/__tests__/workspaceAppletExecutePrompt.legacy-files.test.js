@@ -86,7 +86,7 @@ function buildUser() {
         contextId: "user-456",
         contextKey: "user-key",
         personalEntityId: "personal-user-456",
-        aiName: "Lana",
+        aiName: "Assistant",
     };
 }
 
@@ -308,7 +308,7 @@ describe("workspace applet execute_prompt legacy file compatibility", () => {
         });
         expect(variables.model).toBe("gemini-agent");
         expect(variables.entityId).toBe("personal-user-456");
-        expect(variables.aiName).toBe("Lana");
+        expect(variables.aiName).toBe("Assistant");
         expect(variables.reasoningEffort).toBe("medium");
         expect(variables.fileAccessPlan).toEqual([
             {

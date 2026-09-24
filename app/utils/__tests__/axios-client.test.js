@@ -4,6 +4,14 @@ import * as authUtils from "../../../src/utils/auth";
 jest.mock("../../../src/utils/auth", () => ({
     checkAuthHeaders: jest.fn(() => Promise.resolve(true)),
     triggerAuthRefresh: jest.fn(() => Promise.resolve(undefined)),
+    isAuthFlowPath: jest.fn((pathname = "") => {
+        const path = String(pathname || "");
+        return (
+            path === "/auth/login" ||
+            path === "/api/auth/local" ||
+            path.startsWith("/api/auth/local/")
+        );
+    }),
 }));
 
 // Store interceptor handlers so we can test them
@@ -137,6 +145,18 @@ describe("axiosClient", () => {
 
             expect(result).toEqual(config);
             expect(authUtils.checkAuthHeaders).not.toHaveBeenCalled();
+        });
+
+        it("should skip auth check when already on the local auth endpoint", async () => {
+            window.location.pathname = "/api/auth/local";
+            authUtils.checkAuthHeaders.mockResolvedValue(false);
+
+            const config = { url: "/api/users/me" };
+            const result = await interceptors.request.success(config);
+
+            expect(result).toEqual(config);
+            expect(authUtils.checkAuthHeaders).not.toHaveBeenCalled();
+            expect(authUtils.triggerAuthRefresh).not.toHaveBeenCalled();
         });
 
         it("should handle errors from the interceptor", async () => {

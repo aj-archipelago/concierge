@@ -252,6 +252,14 @@ export async function copyAppletForAdmin(user, sourceAppletId) {
         }
     }
 
+    if (
+        typeof sourceApplet.widgetHtml === "string" &&
+        sourceApplet.widgetHtml
+    ) {
+        newApplet.widgetHtml = sourceApplet.widgetHtml;
+        newApplet.widgetHtmlUpdatedAt = new Date();
+    }
+
     newApplet.htmlVersions = copiedVersions;
 
     const publishedIndex =

@@ -110,7 +110,7 @@ describe("shareNotifications", () => {
             expect(Notification.create).not.toHaveBeenCalled();
         });
 
-        it("uses the published applet URL when a publish override is provided", async () => {
+        it("uses the published applet URL for published applet shares", async () => {
             const Applet = require("../../models/applet.js").default;
             Applet.findById.mockReturnValue({
                 select: jest.fn(() => ({
@@ -119,18 +119,17 @@ describe("shareNotifications", () => {
             });
 
             await notifyNewShareRecipients({
-                entityType: "applet",
+                entityType: "published_applet",
                 entityId: "507f1f77bcf86cd799439012",
                 previousRecipients: [],
                 nextRecipients: [{ userId: "user-b", role: "viewer" }],
                 sharedBy: { _id: "owner-1", name: "Hammad" },
-                url: "/published/applets/507f1f77bcf86cd799439012",
             });
 
             expect(Notification.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     metadata: expect.objectContaining({
-                        entityType: "applet",
+                        entityType: "published_applet",
                         url: "/published/applets/507f1f77bcf86cd799439012",
                     }),
                 }),

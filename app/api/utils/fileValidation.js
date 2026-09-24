@@ -23,6 +23,8 @@ export const FILE_VALIDATION_CONFIG = {
         "text/csv",
         "application/json",
         "text/markdown",
+        "text/vtt",
+        "application/x-subrip",
         "application/rtf",
         // Microsoft Office
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
@@ -85,6 +87,17 @@ export const FILE_VALIDATION_CONFIG = {
     MAX_FILENAME_LENGTH: 255,
 };
 
+export function normalizeUploadMimeType(filename, mimeType) {
+    if (mimeType && mimeType !== "application/octet-stream") return mimeType;
+    const extension = String(filename || "")
+        .toLowerCase()
+        .split(".")
+        .pop();
+    if (extension === "srt") return "application/x-subrip";
+    if (extension === "vtt") return "text/vtt";
+    return mimeType;
+}
+
 // Enhanced file validation with security checks
 export function validateFile(file, options = {}) {
     const config = { ...FILE_VALIDATION_CONFIG, ...options };
@@ -108,8 +121,9 @@ export function validateFile(file, options = {}) {
         errors.push("File cannot be empty");
     }
 
-    // Check MIME type
-    if (!config.ALLOWED_MIME_TYPES.includes(file.type)) {
+    // Browsers may omit the MIME type of subtitle files.
+    const mimeType = normalizeUploadMimeType(file.name, file.type);
+    if (!config.ALLOWED_MIME_TYPES.includes(mimeType)) {
         errors.push(`File type '${file.type}' is not allowed`);
     }
 
@@ -188,7 +202,7 @@ export function validateFile(file, options = {}) {
         fileInfo: {
             name: file.name,
             size: file.size,
-            type: file.type,
+            type: mimeType,
             extension: fileExtension,
         },
     };

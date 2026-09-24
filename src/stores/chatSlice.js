@@ -106,6 +106,14 @@ function normalizeCanvasSnapshot(snapshot) {
     };
 }
 
+function canvasSnapshotHasContent(snapshot) {
+    return Boolean(
+        snapshot?.canvasContent ||
+            (Array.isArray(snapshot?.canvasTabs) &&
+                snapshot.canvasTabs.length > 0),
+    );
+}
+
 function getCanvasTargetChatId(state, chatId) {
     return chatId
         ? String(chatId)
@@ -273,6 +281,8 @@ function buildCanvasTabMetadata(content = {}) {
         htmlError: content.htmlError,
         canvasChrome: content.canvasChrome,
         appletId: content.appletId,
+        appletViewMode: content.appletViewMode,
+        widgetHtml: content.widgetHtml,
         appletVersionKey: content.appletVersionKey,
         appletVersionCount: content.appletVersionCount,
         appletActiveVersionIndex: content.appletActiveVersionIndex,
@@ -581,9 +591,8 @@ export const chatSlice = createSlice({
         // Accepts two shapes:
         //   { byChatId: { [chatId]: { canvasContent, canvasTabs, ... } } }  (current)
         //   { canvasContent, canvasTabs, activeTabId, canvasVisible }       (legacy single-blob)
-        // Legacy snapshots are treated as the bucket for "__pending__" so
-        // they surface as soon as the chat resolves (and migrate on
-        // setActiveCanvasChat).
+        // Legacy snapshots attach to the active chat if one is already known;
+        // otherwise they wait under "__pending__" until the chat resolves.
         restoreCanvasState: (state, action) => {
             const snapshot = action.payload || {};
             state.canvasByChatId = state.canvasByChatId || {};
@@ -609,7 +618,7 @@ export const chatSlice = createSlice({
                 Array.isArray(snapshot.canvasTabs) ||
                 snapshot.canvasContent
             ) {
-                state.canvasByChatId.__pending__ = {
+                const legacyBucket = {
                     canvasContent: snapshot.canvasContent ?? null,
                     canvasTabs: Array.isArray(snapshot.canvasTabs)
                         ? snapshot.canvasTabs
@@ -620,6 +629,29 @@ export const chatSlice = createSlice({
                             ? snapshot.canvasVisible
                             : true,
                 };
+                if (state.activeCanvasChatId) {
+                    const activeBucket =
+                        state.canvasByChatId[state.activeCanvasChatId];
+                    const activeSnapshot = snapshotActiveCanvas(state);
+                    const activeHasContent =
+                        canvasSnapshotHasContent(activeBucket) ||
+                        canvasSnapshotHasContent(activeSnapshot);
+
+                    if (activeHasContent) {
+                        if (!canvasSnapshotHasContent(activeBucket)) {
+                            state.canvasByChatId[state.activeCanvasChatId] =
+                                activeSnapshot;
+                        }
+                        state.canvasByChatId[PENDING_CANVAS_CHAT_ID] =
+                            legacyBucket;
+                    } else {
+                        state.canvasByChatId[state.activeCanvasChatId] =
+                            legacyBucket;
+                        delete state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
+                    }
+                } else {
+                    state.canvasByChatId[PENDING_CANVAS_CHAT_ID] = legacyBucket;
+                }
             }
 
             // If a chat is already active, refresh top-level fields from the
@@ -648,11 +680,7 @@ export const chatSlice = createSlice({
 
             if (nextChatId) {
                 const pending = state.canvasByChatId[PENDING_CANVAS_CHAT_ID];
-                const pendingHasContent =
-                    pending &&
-                    (pending.canvasContent ||
-                        (Array.isArray(pending.canvasTabs) &&
-                            pending.canvasTabs.length > 0));
+                const pendingHasContent = canvasSnapshotHasContent(pending);
                 let bucket;
                 if (pendingHasContent) {
                     // Pending represents an explicit just-opened canvas (e.g.

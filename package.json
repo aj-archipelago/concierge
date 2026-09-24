@@ -110,27 +110,31 @@
         "uuid": "^9.0.0",
         "web-vitals": "^2.1.4",
         "xlsx": "^0.18.5",
-        "xxhash-wasm": "^1.1.0"
+        "xxhash-wasm": "^1.1.0",
+        "acorn": "^8.15.0",
+        "playwright": "^1.58.1",
+        "jsonwebtoken": "^9.0.3"
     },
     "scripts": {
         "dev": "concurrently -c blue,green -n web,worker \"npm run next:dev\" \"npm run worker:dev\"",
         "dev:webpack": "concurrently -c blue,green -n web,worker \"npm run next:dev:webpack\" \"npm run worker:dev\"",
         "dev:multiworker": "concurrently \"npm run next:dev\" \"npm run worker:dev\" \"npm run worker:dev\"",
-        "next:dev": "npm run prebuild && next dev --turbopack",
-        "next:dev:webpack": "npm run prebuild && next dev --webpack",
+        "next:dev": "npm run prebuild && node ./scripts/next-dev.mjs --turbopack",
+        "next:dev:webpack": "npm run prebuild && node ./scripts/next-dev.mjs --webpack",
         "prebuild": "node ./scripts/prebuild.js",
         "backfill:api-key-mappings": "node ./scripts/backfill-api-key-mappings.js",
         "upstream:audit": "node ./scripts/upstream-audit.mjs",
         "applets:migrate-v2": "node ./scripts/migrate-v2-applets.mjs",
         "build": "next build --webpack",
         "start": "next start",
-        "lint": "eslint . && npx prettier --check .",
+        "lint": "eslint .",
         "format": "npx prettier --write .",
         "worker": "node ./jobs/worker.js",
         "worker:dev": "nodemon --watch jobs --watch app/api --watch config --watch src/db.mjs --watch src/utils --ext js,mjs,json --ignore .next --ignore node_modules --ignore coverage --ignore '**/*.test.js' --exec 'node ./jobs/worker.js'",
         "test": "jest",
         "test:e2e": "env -u NO_COLOR -u FORCE_COLOR playwright test",
-        "precommit": "eslint . && npm run format && npm run test"
+        "precommit": "BROWSERSLIST_IGNORE_OLD_DATA=true eslint . && npm run format && SUPPRESS_JEST_WARNINGS=true NODE_OPTIONS=--no-deprecation npm run test -- --runInBand --silent --openHandlesTimeout=1000",
+        "format:check": "npx prettier --check ."
     },
     "eslintConfig": {
         "extends": [

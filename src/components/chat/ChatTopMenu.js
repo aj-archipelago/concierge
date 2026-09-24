@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useContext, useState } from "react";
 import { AuthContext } from "../../App";
 import {
@@ -9,16 +9,9 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
 import UserFileCollection from "../../../app/workspaces/[id]/components/UserFileCollection";
 import { dispatchChatFileAttach } from "./fileCollectionAttachments";
-
-const CHAT_STORAGE_WARNING_BYTES = 1_800_000;
+import { cn } from "@/lib/utils";
 
 function ChatTopMenu({
     displayState = "full",
@@ -27,8 +20,9 @@ function ChatTopMenu({
     contextId = null,
     contextKey = null,
     updateChatHook = null,
+    buttonClassName,
 }) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const { user } = useContext(AuthContext);
     const activeChatId = chat?._id;
     const [showFileCollectionDialog, setShowFileCollectionDialog] =
@@ -36,9 +30,6 @@ function ChatTopMenu({
     const showLabel = displayState !== "docked";
     const resolvedContextId = contextId || user?.contextId;
     const resolvedContextKey = contextKey || user?.contextKey;
-    const showStorageWarning =
-        Number(chat?.messageStorageBytes || 0) >= CHAT_STORAGE_WARNING_BYTES;
-    const tooltipDirection = i18n.dir?.() || "auto";
     const handleAttachFiles = (selectedObjects) => {
         if (!activeChatId || readOnly) return;
         dispatchChatFileAttach({
@@ -54,7 +45,10 @@ function ChatTopMenu({
                 <button
                     onClick={() => setShowFileCollectionDialog(true)}
                     disabled={readOnly}
-                    className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-colors border bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-sky-50 dark:disabled:hover:bg-sky-900/20"
+                    className={cn(
+                        "flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-colors border bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-sky-50 dark:disabled:hover:bg-sky-900/20",
+                        buttonClassName,
+                    )}
                     title={
                         readOnly ? t("Read-only mode") : t("View Chat Files")
                     }
@@ -66,29 +60,6 @@ function ChatTopMenu({
                         </span>
                     ) : null}
                 </button>
-                {showStorageWarning ? (
-                    <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <span
-                                    tabIndex={0}
-                                    aria-label={t("Large chat")}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                                >
-                                    <AlertTriangle className="h-4 w-4" />
-                                </span>
-                            </TooltipTrigger>
-                            <TooltipContent
-                                dir={tooltipDirection}
-                                className="max-w-64 text-start"
-                            >
-                                {t(
-                                    "This chat is large. Older messages may be removed automatically to keep the conversation available.",
-                                )}
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                ) : null}
             </div>
 
             <Dialog

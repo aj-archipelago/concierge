@@ -3,13 +3,21 @@
  */
 
 import { GET, PUT } from "../canvas-applets/[id]/data/route";
+import { format } from "node:util";
 
 jest.mock("next/server", () => ({
     NextResponse: {
-        json: (data, options) => ({
-            ...data,
-            status: (options && options.status) || 200,
-        }),
+        json: (data, options) => {
+            const headerStore = new Map();
+            return {
+                ...data,
+                status: (options && options.status) || 200,
+                headers: {
+                    set: (key, value) => headerStore.set(String(key), value),
+                    get: (key) => headerStore.get(String(key)),
+                },
+            };
+        },
     },
 }));
 
@@ -29,6 +37,10 @@ jest.mock("../utils/auth", () => ({
 
 jest.mock("../utils/fileValidation", () => ({
     validateMongoDBKey: jest.fn(),
+}));
+
+jest.mock("../canvas-applets/[id]/utils", () => ({
+    getCanvasAppletForDataAccess: jest.fn(),
 }));
 
 jest.mock("../models/applet", () => ({
@@ -99,6 +111,19 @@ describe("Canvas Applet Data Routes", () => {
         const { getCurrentUser } = require("../utils/auth");
         getCurrentUser.mockResolvedValue(mockUser);
 
+        const {
+            getCanvasAppletForDataAccess,
+        } = require("../canvas-applets/[id]/utils");
+        getCanvasAppletForDataAccess.mockResolvedValue({
+            applet: mockApplet,
+            user: mockUser,
+            access: {
+                canAccess: true,
+                isOwner: true,
+                role: "editor",
+            },
+        });
+
         const mongoose = require("mongoose").default;
         mongoose.Types.ObjectId.isValid.mockReturnValue(true);
 
@@ -115,6 +140,48 @@ describe("Canvas Applet Data Routes", () => {
         AppletUserData.find.mockResolvedValue([]);
         AppletUserData.findOne.mockResolvedValue(null);
     });
+
+    test.each(["GET", "PUT"])(
+        "%s error logs preserve format directives in request keys as literal text",
+        async (method) => {
+            const key = "settings-%s-%d-%j";
+            const failure = new Error("Database unavailable");
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: key,
+            });
+            const AppletData = require("../models/applet-data").default;
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            if (method === "GET") {
+                AppletData.findOne.mockRejectedValueOnce(failure);
+            } else {
+                AppletUserData.findOneAndUpdate.mockRejectedValueOnce(failure);
+            }
+            const logs = [];
+            const errorSpy = jest
+                .spyOn(console, "error")
+                .mockImplementation((...args) => logs.push(format(...args)));
+
+            try {
+                const response = await (method === "GET" ? GET : PUT)(
+                    {
+                        url: `https://example.com?key=${encodeURIComponent(key)}`,
+                        json: async () => ({ key, value: 42 }),
+                    },
+                    { params: { id: "applet123" } },
+                );
+                expect(response.status).toBe(500);
+                expect(logs).toHaveLength(1);
+                expect(logs[0]).toContain(key);
+                expect(logs[0]).toContain("applet123");
+                expect(logs[0]).toContain(failure.message);
+            } finally {
+                errorSpy.mockRestore();
+            }
+        },
+    );
 
     describe("GET", () => {
         test("should return empty data for new user/applet", async () => {
@@ -225,8 +292,12 @@ describe("Canvas Applet Data Routes", () => {
         });
 
         test("should return 401 for unauthenticated user", async () => {
-            const { getCurrentUser } = require("../utils/auth");
-            getCurrentUser.mockResolvedValue(null);
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                error: { error: "Unauthorized", status: 401 },
+            });
 
             const response = await GET(
                 { url: "https://example.com" },
@@ -237,8 +308,12 @@ describe("Canvas Applet Data Routes", () => {
         });
 
         test("should return 400 for invalid applet ID", async () => {
-            const mongoose = require("mongoose").default;
-            mongoose.Types.ObjectId.isValid.mockReturnValue(false);
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                error: { error: "Invalid applet ID", status: 400 },
+            });
 
             const response = await GET(
                 { url: "https://example.com" },
@@ -249,8 +324,12 @@ describe("Canvas Applet Data Routes", () => {
         });
 
         test("should return 404 for non-existent applet", async () => {
-            const Applet = require("../models/applet").default;
-            Applet.findOne.mockResolvedValue(null);
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                error: { error: "Applet not found", status: 404 },
+            });
 
             const response = await GET(
                 { url: "https://example.com" },
@@ -261,11 +340,11 @@ describe("Canvas Applet Data Routes", () => {
         });
 
         test("should return 403 for non-owner on unpublished applet", async () => {
-            const Applet = require("../models/applet").default;
-            Applet.findOne.mockResolvedValue({
-                ...mockApplet,
-                owner: { toString: () => "otherUser" },
-                publishedVersionIndex: null,
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                error: { error: "Access denied", status: 403 },
             });
 
             const response = await GET(
@@ -276,12 +355,29 @@ describe("Canvas Applet Data Routes", () => {
             expect(response.status).toBe(403);
         });
 
-        test("should allow non-owner on published applet", async () => {
+        test("should allow a non-owner when access helper grants listed public applet access", async () => {
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                applet: {
+                    ...mockApplet,
+                    owner: { toString: () => "otherUser" },
+                    publishedVersionIndex: 0,
+                },
+                user: mockUser,
+                access: {
+                    canAccess: true,
+                    isOwner: false,
+                    role: "viewer",
+                },
+            });
+
             const Applet = require("../models/applet").default;
-            Applet.findOne.mockResolvedValue({
-                ...mockApplet,
-                owner: { toString: () => "otherUser" },
-                publishedVersionIndex: 0,
+            Applet.findById.mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                    lean: jest.fn().mockResolvedValue(null),
+                }),
             });
 
             const AppletData = require("../models/applet-data").default;
@@ -294,6 +390,27 @@ describe("Canvas Applet Data Routes", () => {
 
             expect(response.status).toBe(200);
             expect(response.data).toEqual({});
+        });
+
+        test("should return 403 when access helper denies unlisted published applet access", async () => {
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                applet: {
+                    ...mockApplet,
+                    owner: { toString: () => "otherUser" },
+                    publishedVersionIndex: 0,
+                },
+                error: { error: "Access denied", status: 403 },
+            });
+
+            const response = await GET(
+                { url: "https://example.com" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(403);
         });
     });
 
@@ -406,6 +523,28 @@ describe("Canvas Applet Data Routes", () => {
             expect(AppletUserData.findOneAndUpdate).toHaveBeenCalled();
         });
 
+        test("rejects BSON-heavy values without replacing the existing key", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "segments",
+            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            const response = await PUT(
+                {
+                    json: async () => ({
+                        key: "segments",
+                        value: Array.from({ length: 190000 }, (_, i) => i),
+                    }),
+                },
+                { params: { id: "applet123" } },
+            );
+            expect(response.status).toBe(413);
+            expect(response.code).toBe("APPLET_DATA_VALUE_TOO_LARGE");
+            expect(AppletUserData.findOneAndUpdate).not.toHaveBeenCalled();
+        });
+
         test("should return 400 when key is missing", async () => {
             const request = {
                 json: () => Promise.resolve({ value: 42 }),
@@ -468,11 +607,11 @@ describe("Canvas Applet Data Routes", () => {
         });
 
         test("should return 403 for non-owner on unpublished applet", async () => {
-            const Applet = require("../models/applet").default;
-            Applet.findOne.mockResolvedValue({
-                ...mockApplet,
-                owner: { toString: () => "otherUser" },
-                publishedVersionIndex: null,
+            const {
+                getCanvasAppletForDataAccess,
+            } = require("../canvas-applets/[id]/utils");
+            getCanvasAppletForDataAccess.mockResolvedValue({
+                error: { error: "Access denied", status: 403 },
             });
 
             const request = {
@@ -491,6 +630,102 @@ describe("Canvas Applet Data Routes", () => {
             });
 
             expect(response.status).toBe(403);
+        });
+
+        test("retries Cosmos throttle on write then succeeds", async () => {
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "counter",
+            });
+
+            const throttle = new Error(
+                "Error=16500, RetryAfterMs=25, Details='TooManyRequests (429)'",
+            );
+            throttle.code = 16500;
+
+            const AppletData = require("../models/applet-data").default;
+            AppletData.findOne.mockResolvedValue({
+                data: { existing: "value" },
+            });
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.findOneAndUpdate
+                .mockRejectedValueOnce(throttle)
+                .mockResolvedValueOnce({
+                    key: "counter",
+                    value: 42,
+                });
+            AppletUserData.find.mockResolvedValue([
+                { key: "counter", value: 42 },
+            ]);
+
+            const response = await PUT(
+                {
+                    json: () => Promise.resolve({ key: "counter", value: 42 }),
+                },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.success).toBe(true);
+            expect(response.data).toEqual({ existing: "value", counter: 42 });
+            expect(AppletUserData.findOneAndUpdate).toHaveBeenCalledTimes(2);
+        });
+
+        test("returns 429 with Retry-After when Cosmos throttle persists", async () => {
+            jest.useFakeTimers();
+            const { validateMongoDBKey } = require("../utils/fileValidation");
+            validateMongoDBKey.mockReturnValue({
+                isValid: true,
+                sanitizedKey: "card",
+            });
+
+            const throttle = new Error(
+                "Error=16500, RetryAfterMs=1500, Details='TooManyRequests (429)'",
+            );
+            throttle.code = 16500;
+
+            const AppletUserData =
+                require("../models/applet-user-data").default;
+            AppletUserData.findOneAndUpdate.mockRejectedValue(throttle);
+
+            const errorSpy = jest
+                .spyOn(console, "error")
+                .mockImplementation(() => {});
+            const warnSpy = jest
+                .spyOn(console, "warn")
+                .mockImplementation(() => {});
+
+            try {
+                const pending = PUT(
+                    {
+                        json: () =>
+                            Promise.resolve({
+                                key: "card",
+                                value: { html: "<div/>" },
+                            }),
+                    },
+                    { params: { id: "applet123" } },
+                );
+                await jest.runAllTimersAsync();
+                const response = await pending;
+
+                expect(response.status).toBe(429);
+                expect(response.code).toBe("APPLET_DATA_RATE_LIMITED");
+                expect(response.retryAfterMs).toBe(1500);
+                expect(response.headers.get("Retry-After")).toBe("2");
+                expect(format(...errorSpy.mock.calls[0])).toContain(
+                    "Error storing canvas applet data: appletId=applet123 key=card",
+                );
+                expect(AppletUserData.findOneAndUpdate).toHaveBeenCalledTimes(
+                    3,
+                );
+            } finally {
+                errorSpy.mockRestore();
+                warnSpy.mockRestore();
+                jest.useRealTimers();
+            }
         });
     });
 });

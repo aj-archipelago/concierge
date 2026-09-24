@@ -4,6 +4,7 @@
 
 import { GET } from "../image-proxy/route";
 import { fetchShortLivedUrl } from "../utils/llm-file-utils.js";
+import { getCurrentUser } from "../utils/auth.js";
 
 jest.mock("../utils/auth.js", () => ({
     getCurrentUser: jest.fn(() =>
@@ -12,6 +13,12 @@ jest.mock("../utils/auth.js", () => ({
             contextId: "ctx-1",
         }),
     ),
+}));
+
+jest.mock("../canvas-applets/cover-image", () => ({
+    isGeneratedAppletCoverUrl: jest.fn(() => false),
+    resolveAppletCoverRefreshTarget: jest.fn(async () => null),
+    isSameCoverBlob: jest.fn(),
 }));
 
 jest.mock("../utils/llm-file-utils.js", () => ({
@@ -120,5 +127,66 @@ describe("image proxy media responses", () => {
             },
         );
         expect(res.status).toBe(206);
+    });
+
+    it("refreshes expired HTML artifacts and returns a private attachment", async () => {
+        const expiredUrl =
+            "https://storage.example/files/تقرير.html?sig=expired";
+        fetchShortLivedUrl.mockResolvedValue({
+            url: "https://storage.example/files/report.html?sig=fresh",
+        });
+        global.fetch = jest
+            .fn()
+            .mockResolvedValueOnce(new Response("", { status: 403 }))
+            .mockResolvedValueOnce(
+                new Response("<script>example()</script>", {
+                    headers: { "content-type": "text/html" },
+                }),
+            );
+
+        const res = await GET(
+            new Request(
+                `http://localhost/api/image-proxy?download=1&url=${encodeURIComponent(expiredUrl)}`,
+            ),
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("<script>example()</script>");
+        expect(fetchShortLivedUrl).toHaveBeenCalledWith(
+            expect.objectContaining({ contextId: "ctx-1" }),
+        );
+        expect(res.headers.get("content-disposition")).toBe(
+            `attachment; filename="download"; filename*=UTF-8''${encodeURIComponent("تقرير.html")}`,
+        );
+        expect(res.headers.get("content-security-policy")).toBe("sandbox");
+        expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+        expect(res.headers.get("cache-control")).toBe("private, no-store");
+    });
+
+    it("requires authentication before downloading or refreshing an artifact", async () => {
+        getCurrentUser.mockResolvedValueOnce(null);
+        global.fetch = jest.fn();
+        const res = await GET(
+            new Request(
+                "http://localhost/api/image-proxy?download=1&url=https%3A%2F%2Fstorage.example%2Freport.pdf",
+            ),
+        );
+        expect(res.status).toBe(401);
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(fetchShortLivedUrl).not.toHaveBeenCalled();
+    });
+
+    it("does not claim success when the file cannot be refreshed", async () => {
+        fetchShortLivedUrl.mockResolvedValue(null);
+        global.fetch = jest
+            .fn()
+            .mockResolvedValue(new Response("", { status: 403 }));
+        const res = await GET(
+            new Request(
+                "http://localhost/api/image-proxy?download=1&url=https%3A%2F%2Fstorage.example%2Freport.pdf",
+            ),
+        );
+        expect(res.status).toBe(403);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 });

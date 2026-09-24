@@ -1,9 +1,16 @@
 "use client";
 import { Dialog, Transition } from "@headlessui/react";
 import { Menu, X, MessageCircle } from "lucide-react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { Fragment, useContext, useEffect, useRef, useState } from "react";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import {
+    Fragment,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+    useCallback,
+    useMemo,
+} from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Flip, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -13,7 +20,9 @@ import UpdatesButton from "../components/help/UpdatesButton";
 import NotificationButton from "../components/notifications/NotificationButton";
 import Tos from "../components/Tos";
 import PersonalizationPortal from "../components/portal/PersonalizationPortal";
+import TourOverlay from "../components/tour/TourOverlay";
 import { PortalContext } from "../contexts/PortalContext";
+import { AppHeaderContext } from "../contexts/AppHeaderContext";
 import { LanguageContext } from "../contexts/LanguageProvider";
 import { ProgressProvider } from "../contexts/ProgressContext";
 import { ThemeContext } from "../contexts/ThemeProvider";
@@ -22,8 +31,11 @@ import { shouldRenderAppletWithoutChrome } from "../utils/appletChrome";
 import Footer from "./Footer";
 import ProfileDropdown from "./ProfileDropdown";
 import Sidebar from "./Sidebar";
+import SidebarBrand from "./SidebarBrand";
+import AdminNav from "../../app/admin/components/AdminNav";
+import { getPageHeaderTitle } from "./pageHeaderTitles";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import config from "../../config";
 
 const ROUTES_WITHOUT_SIDEBAR = ["/wp-editor"];
 const SIDEBAR_PIN_STORAGE_KEY = "concierge-sidebar-pinned";
@@ -50,14 +62,32 @@ export default function Layout({ children, initialActiveChats }) {
     const [sidebarInteractionExpanded, setSidebarInteractionExpanded] =
         useState(false);
     const [showTos, setShowTos] = useState(false);
+    const [pageHeaderTarget, setPageHeaderTarget] = useState(null);
+    const [headerOwners, setHeaderOwners] = useState(0);
+    const registerHeader = useCallback(() => {
+        setHeaderOwners((count) => count + 1);
+        return () => setHeaderOwners((count) => count - 1);
+    }, []);
     const statePosition = useSelector((state) => state.chat?.chatBox?.position);
     const dispatch = useDispatch();
     const { user } = useContext(AuthContext);
+    const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { theme } = useContext(ThemeContext);
-    const { direction, language } = useContext(LanguageContext);
-    const { getLogo, getSidebarLogo, siteTitle } = config.global;
+    const { direction } = useContext(LanguageContext);
+    const { t } = useTranslation();
+    const isConversationPage =
+        pathname?.startsWith("/chat/") || pathname === "/write";
+    const appHeader = useMemo(
+        () => ({
+            target: pageHeaderTarget,
+            direction,
+            register: registerHeader,
+            navigation: pathname?.startsWith("/admin") ? <AdminNav /> : null,
+        }),
+        [pageHeaderTarget, registerHeader, pathname, direction],
+    );
     const contentRef = useRef(null);
     const openChatHandledRef = useRef(false);
     const shouldRenderChromeFreeApplet = shouldRenderAppletWithoutChrome(
@@ -66,6 +96,15 @@ export default function Layout({ children, initialActiveChats }) {
     );
 
     const openPortal = (tab = "discover", subTab = "connectors") => {
+        if (["ai-assistant", "memory", "colleagues"].includes(tab)) {
+            setShowPortal(false);
+            router.push(
+                tab === "colleagues"
+                    ? "/colleagues"
+                    : `/colleagues?entity=${encodeURIComponent(user?.personalEntityId || "")}&tab=${tab === "memory" ? "memory" : "options"}`,
+            );
+            return;
+        }
         setPortalTab(tab);
         setPortalSubTab(subTab);
         setShowPortal(true);
@@ -172,6 +211,10 @@ export default function Layout({ children, initialActiveChats }) {
         !isCollapsed || sidebarInteractionExpanded;
     const shouldReserveExpandedSidebar = !isCollapsed;
 
+    const renderSidebarHeader = ({ collapsed }) => (
+        <SidebarBrand collapsed={collapsed} />
+    );
+
     if (ROUTES_WITHOUT_SIDEBAR.includes(pathname)) {
         return <>{children}</>;
     }
@@ -189,7 +232,7 @@ export default function Layout({ children, initialActiveChats }) {
 
     return (
         <PortalContext.Provider value={{ openPortal, closePortal }}>
-            <>
+            <AppHeaderContext.Provider value={appHeader}>
                 <div>
                     <Transition.Root show={sidebarOpen} as={Fragment}>
                         <Dialog
@@ -254,7 +297,7 @@ export default function Layout({ children, initialActiveChats }) {
                                                     }
                                                 >
                                                     <span className="sr-only">
-                                                        Close sidebar
+                                                        {t("Close sidebar")}
                                                     </span>
                                                     <X
                                                         className="h-6 w-6 text-white dark:text-gray-100"
@@ -265,6 +308,10 @@ export default function Layout({ children, initialActiveChats }) {
                                         </Transition.Child>
                                         {/* Sidebar component, swap this element with another sidebar if you like */}
                                         <Sidebar
+                                            onNavigate={() =>
+                                                setSidebarOpen(false)
+                                            }
+                                            renderHeader={renderSidebarHeader}
                                             ref={contentRef}
                                             isMobile={true}
                                             isPinned={sidebarPinned}
@@ -289,10 +336,11 @@ export default function Layout({ children, initialActiveChats }) {
                     <div
                         className={cn(
                             "hidden lg:fixed lg:inset-y-0 lg:z-[41] lg:flex lg:flex-col transition-all duration-300",
-                            isSidebarVisuallyExpanded ? "lg:w-56" : "lg:w-16",
+                            isSidebarVisuallyExpanded ? "lg:w-56" : "lg:w-14",
                         )}
                     >
                         <Sidebar
+                            renderHeader={renderSidebarHeader}
                             ref={contentRef}
                             isCollapsed={isCollapsed}
                             isPinned={sidebarPinned}
@@ -310,143 +358,144 @@ export default function Layout({ children, initialActiveChats }) {
 
                     <div
                         className={cn(
-                            "transition-all duration-300",
+                            "flex min-h-0 flex-col transition-all duration-300",
                             shouldReserveExpandedSidebar
                                 ? "lg:ps-56"
-                                : "lg:ps-16",
+                                : "lg:ps-14",
                         )}
+                        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
                     >
-                        <div className="sticky top-0 z-40 flex h-12 shrink-0 items-center gap-x-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 shadow-sm sm:gap-x-6 sm:px-3 lg:px-4">
+                        <header
+                            data-app-header
+                            dir={direction}
+                            className="sticky top-0 z-40 grid min-h-16 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-1 border-b border-gray-200 bg-white px-2 py-2 sm:px-3 lg:flex lg:gap-x-3 lg:px-4 dark:border-gray-700 dark:bg-gray-800"
+                        >
                             <button
                                 type="button"
-                                className="-m-2.5 p-2.5 text-gray-700 dark:text-gray-300 lg:hidden"
+                                className="col-start-1 row-start-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 lg:hidden dark:text-gray-300 dark:hover:bg-gray-700"
                                 onClick={() => setSidebarOpen(true)}
+                                aria-label={t("Open sidebar")}
                             >
-                                <span className="sr-only">Open sidebar</span>
-                                <Menu className="h-6 w-6" aria-hidden="true" />
+                                <Menu className="h-5 w-5" aria-hidden="true" />
                             </button>
-
-                            {/* Separator */}
                             <div
-                                className="h-6 w-px bg-gray-900/10 dark:bg-gray-100/10 lg:hidden"
-                                aria-hidden="true"
-                            />
-
-                            <Link
-                                className="flex min-w-0 items-center gap-2.5 leading-tight"
-                                href="/"
+                                ref={setPageHeaderTarget}
+                                data-app-page-header-slot
+                                className="contents lg:flex lg:min-w-0 lg:flex-1"
                             >
-                                <img
-                                    className="h-10 w-10 shrink-0 rounded-lg object-contain"
-                                    src={getLogo(language, theme)}
-                                    alt={siteTitle}
-                                />
-                                <span className="min-w-0 overflow-hidden leading-none">
-                                    {getSidebarLogo(language)}
-                                </span>
-                            </Link>
-
-                            <div className="flex flex-1 items-center gap-x-3 justify-end ">
-                                <div className="flex gap-3">
-                                    <div className="flex items-center">
-                                        <UpdatesButton />
-                                    </div>
-                                    <div className="flex items-center">
-                                        <NotificationButton />
-                                    </div>
-                                    {!pathname?.includes("/chat") &&
-                                        !pathname?.startsWith("/write") && (
-                                            <div className="hidden sm:flex items-center">
-                                                <button
-                                                    disabled={/^\/chat(\/|$)/.test(
-                                                        pathname,
-                                                    )}
-                                                    onClick={() => {
-                                                        if (
-                                                            statePosition ===
-                                                            "docked"
-                                                        ) {
-                                                            dispatch(
-                                                                setChatBoxPosition(
-                                                                    {
-                                                                        position:
-                                                                            "closed",
-                                                                    },
-                                                                ),
-                                                            );
-                                                        } else {
-                                                            dispatch(
-                                                                setChatBoxPosition(
-                                                                    {
-                                                                        position:
-                                                                            "docked",
-                                                                    },
-                                                                ),
-                                                            );
-                                                        }
-                                                    }}
-                                                    className="relative mt-1"
-                                                >
-                                                    <MessageCircle
-                                                        fill={
-                                                            statePosition ===
-                                                                "docked" ||
-                                                            pathname === "/chat"
-                                                                ? "#0284c7"
-                                                                : "none"
-                                                        }
-                                                        stroke="#0284c7"
-                                                        className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                                                    />
-                                                </button>
-                                            </div>
-                                        )}
-                                </div>
-                                <div>
-                                    <ProfileDropdown
-                                        user={user}
-                                        handleShowOptions={() =>
-                                            openPortal("discover")
-                                        }
-                                        setShowTos={setShowTos}
-                                    />
-                                </div>
+                                {headerOwners === 0 && (
+                                    <h1 className="col-start-2 row-start-1 min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base">
+                                        {t(getPageHeaderTitle(pathname))}
+                                    </h1>
+                                )}
                             </div>
-                        </div>
+                            <div
+                                data-app-header-actions
+                                className="col-start-3 row-start-1 flex shrink-0 items-center gap-0.5 sm:gap-2"
+                            >
+                                <UpdatesButton buttonClassName="m-0 flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 [&>span]:end-0 [&>span]:top-0" />
+                                <NotificationButton buttonClassName="m-0 flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 [&>span]:end-0 [&>span]:top-0" />
+                                {!pathname?.includes("/chat") &&
+                                    !pathname?.startsWith("/write") && (
+                                        <div className="hidden sm:flex items-center">
+                                            <button
+                                                disabled={/^\/chat(\/|$)/.test(
+                                                    pathname,
+                                                )}
+                                                onClick={() => {
+                                                    if (
+                                                        statePosition ===
+                                                        "docked"
+                                                    ) {
+                                                        dispatch(
+                                                            setChatBoxPosition({
+                                                                position:
+                                                                    "closed",
+                                                            }),
+                                                        );
+                                                    } else {
+                                                        dispatch(
+                                                            setChatBoxPosition({
+                                                                position:
+                                                                    "docked",
+                                                            }),
+                                                        );
+                                                    }
+                                                }}
+                                                aria-label={t(
+                                                    "Toggle chat panel",
+                                                )}
+                                                className="relative flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                            >
+                                                <MessageCircle
+                                                    fill={
+                                                        statePosition ===
+                                                            "docked" ||
+                                                        pathname === "/chat"
+                                                            ? "#0284c7"
+                                                            : "none"
+                                                    }
+                                                    stroke="#0284c7"
+                                                    className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                                                />
+                                            </button>
+                                        </div>
+                                    )}
 
-                        <div className="relative flex-col">
+                                <ProfileDropdown
+                                    user={user}
+                                    handleShowOptions={() =>
+                                        openPortal("discover")
+                                    }
+                                    setShowTos={setShowTos}
+                                    buttonClassName="h-10 w-10 border-4 border-white dark:border-gray-800"
+                                />
+                            </div>
+                        </header>
+
+                        <div className="relative flex min-h-0 flex-1 flex-col">
                             <ProgressProvider>
                                 <main
-                                    className={`p-2 bg-slate-50 dark:bg-gray-900 flex ${showChatbox ? "gap-2" : ""}`}
+                                    className={cn(
+                                        "flex min-h-0 flex-1 bg-slate-50 dark:bg-gray-900",
+                                        isConversationPage ? "p-0" : "p-2",
+                                        showChatbox && "gap-2",
+                                    )}
                                     ref={contentRef}
                                 >
                                     <div
-                                        className={`${showChatbox ? "grow" : "w-full"} bg-white dark:bg-gray-800 dark:border-gray-700 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto relative`}
-                                        style={{
-                                            height: "calc((var(--vh, 1vh) * 100) - 105px)",
-                                        }}
+                                        className={cn(
+                                            `${showChatbox ? "grow" : "w-full"} bg-white dark:bg-gray-800 dark:border-gray-700 rounded-md border p-3 lg:p-4 lg:pb-3 overflow-auto relative`,
+                                            isConversationPage &&
+                                                "rounded-none border-0",
+                                        )}
                                     >
-                                        <PersonalizationPortal
-                                            open={showPortal}
-                                            onClose={closePortal}
-                                            initialTab={portalTab}
-                                            initialSubTab={portalSubTab}
-                                        />
-                                        <Tos
-                                            showTos={showTos}
-                                            setShowTos={setShowTos}
-                                        />
+                                        <AppHeaderContext.Provider value={null}>
+                                            <PersonalizationPortal
+                                                open={showPortal}
+                                                onClose={closePortal}
+                                                initialTab={portalTab}
+                                                initialSubTab={portalSubTab}
+                                            />
+                                            <Tos
+                                                showTos={showTos}
+                                                setShowTos={setShowTos}
+                                            />
+                                        </AppHeaderContext.Provider>
                                         {children}
                                     </div>
                                     {showChatbox && (
                                         <div
-                                            className="hidden sm:block h-[calc(100vh-105px)]"
+                                            className="hidden min-h-0 sm:block"
                                             style={{
-                                                height: "calc((var(--vh, 1vh) * 100) - 105px)",
                                                 flexShrink: 0,
                                             }}
                                         >
-                                            <ChatBox />
+                                            <AppHeaderContext.Provider
+                                                value={null}
+                                            >
+                                                <ChatBox />
+                                            </AppHeaderContext.Provider>
                                         </div>
                                     )}
                                     <ToastContainer
@@ -474,7 +523,8 @@ export default function Layout({ children, initialActiveChats }) {
                         </div>
                     </div>
                 </div>
-            </>
+                <TourOverlay />
+            </AppHeaderContext.Provider>
         </PortalContext.Provider>
     );
 }

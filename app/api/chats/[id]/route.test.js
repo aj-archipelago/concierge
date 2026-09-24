@@ -2,8 +2,13 @@
  * @jest-environment node
  */
 
-import { PUT } from "./route";
+import { POST, PUT } from "./route";
 import Chat from "../../models/chat.mjs";
+import {
+    appendChatMessage,
+    replaceChatMessages,
+    updateChatMessages,
+} from "../message-store.js";
 
 const chatId = "507f191e810c19729de860ea";
 let mockExistingChat;
@@ -11,8 +16,6 @@ let mockExistingChat;
 jest.mock("../../models/chat.mjs", () => ({
     __esModule: true,
     default: {
-        findOne: jest.fn(async () => mockExistingChat),
-        findById: jest.fn(async () => mockExistingChat),
         findOneAndUpdate: jest.fn(),
         findOneAndDelete: jest.fn(),
     },
@@ -23,19 +26,38 @@ jest.mock("../../utils/auth", () => ({
     handleError: jest.fn((error) => Response.json({ error: error.message })),
 }));
 
-jest.mock("../../utils/shareAccess", () => ({
-    resolveShareAccess: jest.fn(async ({ ownerId, userId }) => ({
-        canAccess: true,
-        isOwner: String(ownerId) === String(userId),
-        role: "editor",
+jest.mock("../_lib", () => ({
+    addStoppedSubscription: jest.fn((entries) => entries || []),
+    deleteChatIdFromRecentList: jest.fn(),
+    getChatById: jest.fn(async () => ({
+        ...mockExistingChat,
+        messageStorageMode: "external",
     })),
+    getChatForOwnerWrite: jest.fn(async () => ({
+        ok: true,
+        chat: mockExistingChat,
+        access: { isOwner: true },
+    })),
+    sanitizeMessagesForPersistence: jest.fn((messages) => messages),
+}));
+
+jest.mock("../message-store.js", () => ({
+    appendChatMessage: jest.fn(),
+    deleteExternalChatMessages: jest.fn(),
+    replaceChatMessages: jest.fn(),
+    updateChatMessages: jest.fn(),
+}));
+
+jest.mock("../../utils/shareHelpers", () => ({
+    deleteEntityShare: jest.fn(),
+    syncChatLinkSharing: jest.fn(),
 }));
 
 const createRequest = (body) => ({
     json: async () => body,
 });
 
-describe("PUT /api/chats/[id]", () => {
+describe("chat message mutations", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockExistingChat = {
@@ -50,57 +72,55 @@ describe("PUT /api/chats/[id]", () => {
                     direction: "outgoing",
                     position: "single",
                 },
-                {
-                    _id: "m2",
-                    payload: "durable answer",
-                    sender: "assistant",
-                    sentTime: "2026-01-01T00:00:01.000Z",
-                    direction: "incoming",
-                    position: "single",
-                    isServerGenerated: true,
-                },
             ],
         };
-        Chat.findOneAndUpdate.mockImplementation(async (query, update) => ({
-            _id: query._id,
-            ...mockExistingChat,
-            ...update,
-            toObject() {
-                return this;
-            },
-        }));
+        Chat.findOneAndUpdate.mockResolvedValue(mockExistingChat);
     });
 
-    it("preserves server-owned assistant messages during stale non-replay updates", async () => {
+    it("appends one message through the message store", async () => {
+        const message = {
+            ...mockExistingChat.messages[0],
+            _clientId: "draft-1",
+        };
+        const response = await POST(createRequest({ message }), {
+            params: { id: chatId },
+        });
+
+        expect(response.status).toBe(200);
+        expect(appendChatMessage).toHaveBeenCalledWith(
+            mockExistingChat,
+            message,
+            { dedupeKey: "draft-1" },
+        );
+    });
+
+    it("switches to a replacement generation for a history replacement", async () => {
         const response = await PUT(
-            createRequest({
-                messages: [mockExistingChat.messages[0]],
-            }),
+            createRequest({ messages: mockExistingChat.messages }),
             { params: { id: chatId } },
         );
 
         expect(response.status).toBe(200);
-        const update = Chat.findOneAndUpdate.mock.calls[0][1];
-        expect(update.messages).toHaveLength(2);
-        expect(update.messages.map((message) => message._id)).toEqual([
-            "m1",
-            "m2",
-        ]);
+        expect(replaceChatMessages).toHaveBeenCalledWith(
+            mockExistingChat,
+            mockExistingChat.messages,
+        );
+        expect(Chat.findOneAndUpdate.mock.calls[0][1]).not.toHaveProperty(
+            "messages",
+        );
     });
 
-    it("allows intentional replay truncation when the client opts in", async () => {
+    it("updates existing messages without replacing chat history", async () => {
         const response = await PUT(
-            createRequest({
-                messages: [mockExistingChat.messages[0]],
-                allowMessageTruncation: true,
-            }),
+            createRequest({ messageUpdates: mockExistingChat.messages }),
             { params: { id: chatId } },
         );
 
         expect(response.status).toBe(200);
-        const update = Chat.findOneAndUpdate.mock.calls[0][1];
-        expect(update.messages).toHaveLength(1);
-        expect(update.messages[0]._id).toBe("m1");
-        expect(update.allowMessageTruncation).toBeUndefined();
+        expect(updateChatMessages).toHaveBeenCalledWith(
+            mockExistingChat,
+            mockExistingChat.messages,
+        );
+        expect(replaceChatMessages).not.toHaveBeenCalled();
     });
 });

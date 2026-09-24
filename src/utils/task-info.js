@@ -1,4 +1,9 @@
 export const TASK_INFO = {
+    "assistant-run": {
+        displayNameKey: "task_type_assistant_run",
+        displayName: "Assistant work",
+        isRetryable: false,
+    },
     "video-translate": {
         displayNameKey: "task_type_video_translate",
         displayName: "Video translation",

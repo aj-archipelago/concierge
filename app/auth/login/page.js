@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Mail, Lock } from "lucide-react";
+import { sanitizeAppRedirect } from "../../../src/utils/auth";
 
 export default function LoginPage() {
     const searchParams = useSearchParams();
@@ -42,7 +43,10 @@ export default function LoginPage() {
                 },
                 body: JSON.stringify({
                     email: email,
-                    redirect_uri: redirectUri,
+                    redirect_uri: sanitizeAppRedirect(
+                        redirectUri,
+                        window.location.origin,
+                    ),
                 }),
             });
 
@@ -51,7 +55,10 @@ export default function LoginPage() {
                 localStorage.setItem("local_auth_user", email);
 
                 // Redirect back to the original URL
-                window.location.href = redirectUri;
+                window.location.href = sanitizeAppRedirect(
+                    redirectUri,
+                    window.location.origin,
+                );
             } else {
                 const data = await response.json();
                 setError(data.error || "Login failed");

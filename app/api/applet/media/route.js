@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getClient } from "../../../../src/graphql";
+import { getClient } from "../../utils/cortex-client.js";
 import AppletFile from "../../models/applet-file.js";
 import File from "../../models/file.js";
 import Task from "../../models/task.mjs";
@@ -13,6 +13,8 @@ import {
     validatePublicMediaUrl,
 } from "../../utils/publicMediaUrlValidation.js";
 import { createBackgroundTask } from "../../utils/tasks";
+import { ensureAppletBackgroundImage } from "../../utils/applet-background-image.js";
+import { validateMongoDBKey } from "../../utils/fileValidation";
 import {
     assertTranscribeModelOptionEnabled,
     getConfiguredTranscribeModelOption,
@@ -37,6 +39,18 @@ const MEDIA_MODEL_CATEGORIES = new Set([
     "upscaling",
 ]);
 const MEDIA_SETTING_FIELDS = [
+    "fps",
+    "generationMode",
+    "watermark",
+    "matchInputImage",
+    "enablePromptExpansion",
+    "layerDecomposition",
+    "styleId",
+    "styleMatch",
+    "sourceUrl",
+    "sourceLanguage",
+    "targetLanguage",
+    "cloningStrength",
     "aspectRatio",
     "duration",
     "outputFormat",
@@ -124,8 +138,8 @@ const MAX_OUTPUT_FOLDER_LENGTH = 512;
 const MAX_LINE_COUNT = 50;
 const MAX_LINE_WIDTH = 200;
 const MAX_WORDS_PER_LINE = 50;
-const MAX_INPUT_IMAGE_REFERENCES = 14;
-const MAX_INPUT_VIDEO_REFERENCES = 1;
+const MAX_INPUT_IMAGE_REFERENCES = 30;
+const MAX_INPUT_VIDEO_REFERENCES = 10;
 const ACTIVE_MEDIA_TASK_STATUSES = ["pending", "in_progress"];
 
 function validationError(message) {
@@ -354,6 +368,7 @@ async function resolveTranscribeMediaUrl(body, { request, appletId, user }) {
         return {
             url: await resolveAppletFileMediaUrl(fileId, { appletId, user }),
             enforcePublicUrl: false,
+            sourceFile: { appletId, fileId },
         };
     }
 
@@ -620,18 +635,45 @@ async function buildMediaGenerationTask(body, context) {
         "inputVideo",
         MAX_INPUT_VIDEO_REFERENCES,
     );
-    const inputAudio = getInputAudioReference(body);
+    const legacyAudio = getInputAudioReference(body);
+    const inputAudios = asReferenceArray(
+        {
+            ...body,
+            inputAudios:
+                body.inputAudios ||
+                (Array.isArray(legacyAudio)
+                    ? legacyAudio
+                    : legacyAudio
+                      ? [legacyAudio]
+                      : []),
+        },
+        "inputAudios",
+        "inputAudio",
+        10,
+    );
+    const settings = buildMediaGenerationSettings(body, model.modelId);
+    const sourceUrl = settings.models?.[model.modelId]?.sourceUrl;
+    if (sourceUrl) {
+        const resolvedSource = await resolveMediaReferenceUrl(
+            { url: sourceUrl },
+            context,
+        );
+        settings.models[model.modelId].sourceUrl = resolvedSource.url;
+    }
 
     if (
         !prompt &&
         inputImages.length === 0 &&
         inputVideos.length === 0 &&
-        !inputAudio
+        !inputAudios.length &&
+        !(
+            model.modelId === "replicate-elevenlabs-dubbing" &&
+            settings.models?.[model.modelId]?.sourceUrl
+        )
     ) {
         throw validationError("prompt or an input reference is required");
     }
 
-    const settings = buildMediaGenerationSettings(body, model.modelId);
     const outputFolder = normalizeOutputFolder(body.outputFolder);
     const metadata = {
         prompt: prompt || "",
@@ -659,17 +701,21 @@ async function buildMediaGenerationTask(body, context) {
         prefix: "inputVideo",
         maxCount: MAX_INPUT_VIDEO_REFERENCES,
     });
-    if (inputAudio) {
+    metadata.inputAudios = [];
+    for (const reference of inputAudios) {
+        const inputAudio =
+            typeof reference === "string" ? { url: reference } : reference;
         const resolved = await resolveMediaReferenceUrl(inputAudio, context);
-        metadata.inputAudioUrl = resolved.url;
-        if (inputAudio.blobPath || inputAudio.inputAudioBlobPath) {
-            metadata.inputAudioBlobPath =
-                inputAudio.blobPath || inputAudio.inputAudioBlobPath;
-        }
-        if (inputAudio.hash || inputAudio.inputAudioHash) {
-            metadata.inputAudioHash =
-                inputAudio.hash || inputAudio.inputAudioHash;
-        }
+        metadata.inputAudios.push({
+            url: resolved.url,
+            blobPath: inputAudio.blobPath || inputAudio.inputAudioBlobPath,
+            hash: inputAudio.hash || inputAudio.inputAudioHash,
+        });
+    }
+    if (metadata.inputAudios.length) {
+        metadata.inputAudioUrl = metadata.inputAudios[0].url;
+        metadata.inputAudioBlobPath = metadata.inputAudios[0].blobPath;
+        metadata.inputAudioHash = metadata.inputAudios[0].hash;
     }
 
     return {
@@ -761,6 +807,7 @@ async function buildTranscribeTask(body, { request, appletId, user }) {
         isYoutube: isYoutubeUrl(url),
         contextId: user.contextId,
         enforcePublicUrl: media.enforcePublicUrl,
+        ...(media.sourceFile && { sourceFile: media.sourceFile }),
         skipUserState: true,
     });
 
@@ -805,6 +852,7 @@ async function buildTask(body, context) {
         case "create-media":
         case "create":
         case "generate":
+        case "ensure-image":
             return buildMediaGenerationTask(body, context);
         default:
             throw validationError(
@@ -815,6 +863,8 @@ async function buildTask(body, context) {
 
 function resolveTaskApi(operation) {
     switch (operation) {
+        case "ensure-image":
+            return "media.ensureImage";
         case "transcribe":
             return "media.transcribe";
         case "translate-subtitles":
@@ -877,7 +927,57 @@ export async function POST(request) {
             userId: user._id,
             api,
             limits: APPLET_SDK_LIMITS.mediaTask,
+            signal: request.signal,
             run: async () => {
+                if (body.operation === "ensure-image") {
+                    const key = validateMongoDBKey(
+                        requireString(body.key, "key", { maxLength: 120 }),
+                    );
+                    if (!key.isValid) {
+                        return NextResponse.json(
+                            { error: "Invalid background image key" },
+                            { status: 400 },
+                        );
+                    }
+                    const result = await ensureAppletBackgroundImage({
+                        appletId,
+                        userId: user._id,
+                        key: key.sanitizedKey,
+                        create: async (idempotencyKey) => {
+                            const taskSpec = await buildMediaGenerationTask(
+                                {
+                                    ...body,
+                                    outputType: "image",
+                                    mediaKind: "image",
+                                },
+                                { request, appletId, user },
+                            );
+                            // Reuses a single task and queue receipt across
+                            // tabs, reloads and web process restarts.
+                            return createBackgroundTask({
+                                userId: user._id,
+                                ...taskSpec,
+                                invokedFrom: { source: "applet_sdk", appletId },
+                                idempotencyKey,
+                                beforeCreate: async () => {
+                                    const limited =
+                                        await getActiveMediaTaskLimitResponse({
+                                            appletId,
+                                            userId: user._id,
+                                        });
+                                    if (limited) {
+                                        const error = new Error(
+                                            "Too many active media tasks. Wait for one to finish.",
+                                        );
+                                        error.status = 429;
+                                        throw error;
+                                    }
+                                },
+                            });
+                        },
+                    });
+                    return NextResponse.json(result);
+                }
                 let taskSpec;
                 try {
                     taskSpec = await buildTask(body, {
@@ -921,8 +1021,11 @@ export async function POST(request) {
             },
         });
     } catch (error) {
-        if (error.status === 400) {
-            return NextResponse.json({ error: error.message }, { status: 400 });
+        if (error.status === 400 || error.status === 429) {
+            return NextResponse.json(
+                { error: error.message },
+                { status: error.status },
+            );
         }
         console.error("Error in applet media task:", error);
         return NextResponse.json(

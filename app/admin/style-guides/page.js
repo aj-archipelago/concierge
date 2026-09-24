@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
+import PageHeader from "../../../src/layout/PageHeader";
+import { HeaderAction } from "../../../src/layout/HeaderControls";
 import React, { useState, useEffect } from "react";
 import { Upload, Trash2, FileText, Loader2 } from "lucide-react";
 import { toast } from "react-toastify";
@@ -15,6 +18,7 @@ import {
 } from "../../../@/components/ui/alert-dialog";
 
 export default function StyleGuidesPage() {
+    const { t } = useTranslation();
     const [styleGuides, setStyleGuides] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -199,27 +203,17 @@ export default function StyleGuidesPage() {
 
     return (
         <div className="px-4 sm:px-6 lg:px-8">
-            <div className="sm:flex sm:items-center">
-                <div className="sm:flex-auto">
-                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                        Style Guides
-                    </h1>
-                    <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-                        Manage system-wide style guides that users can select
-                        when checking their content.
-                    </p>
-                </div>
-                <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-                    <button
-                        type="button"
-                        onClick={() => setShowUploadDialog(true)}
-                        className="inline-flex items-center justify-center rounded-md border border-transparent bg-sky-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 sm:w-auto"
-                    >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload Style Guide
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                titleKey="Style Guides"
+                descriptionKey="Manage system-wide style guides that users can select when checking their content."
+            >
+                <HeaderAction
+                    icon={Upload}
+                    label={t("Upload Style Guide")}
+                    variant="default"
+                    onClick={() => setShowUploadDialog(true)}
+                />
+            </PageHeader>
 
             {error && (
                 <div className="mt-4 p-4 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-md">
@@ -335,7 +329,7 @@ export default function StyleGuidesPage() {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                            Upload Style Guide
+                            {t("Upload Style Guide")}
                         </h2>
 
                         <div className="space-y-4">

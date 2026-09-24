@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "../../utils/cfh-client.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth.js";
 import config from "../../../../config/index.js";
@@ -88,6 +89,7 @@ export async function POST(request) {
         }
         const { routingParams } = await resolveAuthorizedMediaRouting({
             user,
+            action: "rename",
             routingInput: {
                 contextId,
                 userId,
@@ -104,7 +106,7 @@ export async function POST(request) {
         for (const attempt of buildFileIdentifierAttempts({
             blobPath,
             hash,
-            fallbackToHash: !targetBlobPath,
+            fallbackToHash: false,
         })) {
             const renameUrl = new URL(mediaHelperUrl);
             if (attempt.blobPath) {
@@ -124,12 +126,15 @@ export async function POST(request) {
                 renameUrl.searchParams.set(key, value);
             }
 
-            const renameResponse = await fetch(renameUrl.toString(), {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
+            const renameResponse = await authorizedMediaFetch(
+                renameUrl.toString(),
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                 },
-            });
+            );
 
             if (renameResponse.ok) {
                 result = await renameResponse.json();

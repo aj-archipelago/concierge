@@ -32,6 +32,7 @@ describe("automation utils", () => {
         normalizeAutomationSlug,
         normalizeSchedule,
         parseAutomationTaskOutput,
+        resolveAutomationRunHtml,
         validateAutomationSlug,
     } = require("./utils");
 
@@ -198,6 +199,81 @@ describe("automation utils", () => {
         expect(parsed.html).toBe(
             '<!doctype html>\n<html lang="en" data-theme="light"><body><main>Front Page</main></body></html>',
         );
+    });
+
+    test("parses widget HTML alongside full HTML output", () => {
+        const parsed = parseAutomationTaskOutput({
+            data: {
+                result: JSON.stringify({
+                    summary: "Generated HTML",
+                    html: "<!doctype html><html><body>Full digest</body></html>",
+                    widgetHtml:
+                        "<!doctype html><html><body>Widget digest</body></html>",
+                }),
+            },
+        });
+
+        expect(parsed.summary).toBe("Generated HTML");
+        expect(parsed.html).toContain("Full digest");
+        expect(parsed.widgetHtml).toContain("Widget digest");
+    });
+
+    test("prefers stored widget HTML for the widget variant", () => {
+        const task = {
+            automation: {
+                htmlOutputPath: "automations/daily/outputs/task-1/index.html",
+                widgetHtmlOutputPath:
+                    "automations/daily/outputs/task-1/widget.html",
+            },
+            data: {
+                html: "<html>full</html>",
+                widgetHtml: "<html>widget</html>",
+            },
+        };
+
+        expect(resolveAutomationRunHtml(task, { variant: "widget" })).toEqual({
+            blobPath: "automations/daily/outputs/task-1/widget.html",
+            html: "<html>widget</html>",
+            source: "widget",
+        });
+        expect(resolveAutomationRunHtml(task)).toEqual({
+            blobPath: "automations/daily/outputs/task-1/index.html",
+            html: "<html>full</html>",
+            source: "full",
+        });
+    });
+
+    test("falls back to full HTML when no widget version exists", () => {
+        const task = {
+            automation: {
+                htmlOutputPath: "automations/daily/outputs/task-1/index.html",
+            },
+            data: { html: "<html>full</html>" },
+        };
+
+        expect(resolveAutomationRunHtml(task, { variant: "widget" })).toEqual({
+            blobPath: "automations/daily/outputs/task-1/index.html",
+            html: "<html>full</html>",
+            source: "full",
+        });
+    });
+
+    test("describes a compact home widget in the HTML output contract", () => {
+        const { buildAutomationHtmlOutputContract } = require("./utils");
+        const contract = buildAutomationHtmlOutputContract();
+        expect(contract).toContain('"widgetHtml"');
+        expect(contract).toContain("HOME WIDGET DESIGN CONTRACT");
+        expect(contract).toContain("320px");
+        expect(contract).not.toContain("ConciergeSDK.locale");
+        expect(contract).toContain("same facts as html");
+        expect(contract).toContain(
+            "summary uses Markdown :cd_source[searchResultId]",
+        );
+        expect(contract).toContain("html and widgetHtml use HTML source links");
+        expect(contract).toContain(
+            "Copy URLs from the supplied source records",
+        );
+        expect(contract).not.toContain("ConciergeSDK.agent.render");
     });
 
     test("lists supporting files without automation instructions or generated outputs", async () => {

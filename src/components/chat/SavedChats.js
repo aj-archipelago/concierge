@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import {
@@ -69,6 +70,7 @@ const MAX_AUTOLOAD_CHATS_FOR_CONTENT_SEARCH = 200;
 const MIN_SEARCH_QUERY_LENGTH = 1;
 const MAX_SEARCH_QUERY_LENGTH = 100;
 const MAX_CONTENT_SEARCH_RESULTS = 20;
+const BULK_EXPORT_READ_CONCURRENCY = 4;
 const DEFAULT_TITLE_SEARCH_LIMIT = 50;
 const MAX_TITLE_SEARCH_LIMIT = 500;
 const VIRTUALIZE_THRESHOLD = 80;
@@ -333,37 +335,54 @@ function SavedChats({ displayState, initialChats = null }) {
                 .filter(Boolean);
             if (selectedIdList.length === 0) return;
 
-            const selectedResults = await Promise.all(
-                selectedIdList.map(async (id) => {
-                    let chat =
-                        byId.get(id) || queryClient.getQueryData(["chat", id]);
-                    const needsFull =
-                        !chat ||
-                        !Array.isArray(chat?.messages) ||
-                        chat?.messagesTruncated;
-                    if (needsFull && isValidObjectId(id)) {
-                        try {
-                            const response = await axios.get(
-                                `/api/chats/${String(id)}`,
-                            );
-                            chat = response.data;
-                            if (chat) {
-                                queryClient.setQueryData(["chat", id], chat);
+            const selectedResults = [];
+            for (
+                let offset = 0;
+                offset < selectedIdList.length;
+                offset += BULK_EXPORT_READ_CONCURRENCY
+            ) {
+                const batch = selectedIdList.slice(
+                    offset,
+                    offset + BULK_EXPORT_READ_CONCURRENCY,
+                );
+                selectedResults.push(
+                    ...(await Promise.all(
+                        batch.map(async (id) => {
+                            let chat =
+                                byId.get(id) ||
+                                queryClient.getQueryData(["chat", id]);
+                            const needsFull =
+                                !chat ||
+                                !Array.isArray(chat?.messages) ||
+                                chat?.messagesTruncated;
+                            if (needsFull && isValidObjectId(id)) {
+                                try {
+                                    const response = await axios.get(
+                                        `/api/chats/${String(id)}`,
+                                    );
+                                    chat = response.data;
+                                    if (chat) {
+                                        queryClient.setQueryData(
+                                            ["chat", id],
+                                            chat,
+                                        );
+                                    }
+                                } catch (error) {
+                                    return { id, chat: null };
+                                }
                             }
-                        } catch (error) {
-                            return { id, chat: null };
-                        }
-                    }
-                    if (
-                        !chat ||
-                        !Array.isArray(chat?.messages) ||
-                        chat?.messagesTruncated
-                    ) {
-                        return { id, chat: null };
-                    }
-                    return { id, chat };
-                }),
-            );
+                            if (
+                                !chat ||
+                                !Array.isArray(chat?.messages) ||
+                                chat?.messagesTruncated
+                            ) {
+                                return { id, chat: null };
+                            }
+                            return { id, chat };
+                        }),
+                    )),
+                );
+            }
 
             const missingIds = selectedResults
                 .filter((result) => !result.chat)
@@ -1621,103 +1640,59 @@ function SavedChats({ displayState, initialChats = null }) {
         <div className={`${isDocked ? "text-xs" : ""} pb-4`}>
             <div className="mb-4">
                 {/* Header with title and count */}
-                <div className="mb-4">
-                    <h1 className="text-lg font-semibold">
-                        {t("Chat history")}
-                    </h1>
-
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {searchQuery ? (
-                            <div>
-                                <span>
-                                    {titleMatchesCountDisplay}{" "}
-                                    {t("title matches")}
-                                </span>
-                                {contentMatchesDisplay.length > 0 && (
-                                    <>
-                                        {`, `}
-                                        <span>
-                                            {contentMatchesDisplay.length >=
-                                            serverContentLimit
-                                                ? `${contentMatchesDisplay.length}+`
-                                                : contentMatchesDisplay.length}{" "}
-                                            {t("content matches")}
-                                        </span>
-                                        {shouldShowAllResults && (
-                                            <button
-                                                onClick={handleShowAllResults}
-                                                className="ml-2 text-xs text-sky-600 dark:text-sky-400 hover:underline"
-                                            >
-                                                {t("Show all")}
-                                            </button>
-                                        )}
-                                    </>
-                                )}
-                                {` ${t("of")} ${resolvedTotalChatCount} ${t("total")}`}
-                                {statusLabel && (
-                                    <>
-                                        <span className="mx-1 text-gray-400 dark:text-gray-500">
-                                            •
-                                        </span>
-                                        <span className="text-sky-500 dark:text-sky-400">
-                                            {statusLabel}
-                                        </span>
-                                    </>
-                                )}
-                            </div>
-                        ) : (
-                            `${visibleChatCount} ${t("chats")}`
-                        )}
-                    </div>
-                </div>
-
-                {/* Filter and Action Controls */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    {/* Filter Search Control with Shared Chats Toggle */}
-                    <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-lg">
-                        <FilterInput
-                            dataTestId="saved-chats-search"
-                            value={searchQuery}
-                            onChange={(value) => {
-                                // Limit search query length to prevent performance issues
-                                if (value.length <= MAX_SEARCH_QUERY_LENGTH) {
-                                    setSearchQuery(value);
-                                }
-                            }}
-                            onClear={() => setSearchQuery("")}
-                            placeholder={t(
-                                'Search chats... (e.g., interview notes or "campaign strategy")',
+                <PageHeader
+                    title={t("Chat history")}
+                    description={
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {searchQuery ? (
+                                <div>
+                                    <span>
+                                        {titleMatchesCountDisplay}{" "}
+                                        {t("title matches")}
+                                    </span>
+                                    {contentMatchesDisplay.length > 0 && (
+                                        <>
+                                            {`, `}
+                                            <span>
+                                                {contentMatchesDisplay.length >=
+                                                serverContentLimit
+                                                    ? `${contentMatchesDisplay.length}+`
+                                                    : contentMatchesDisplay.length}{" "}
+                                                {t("content matches")}
+                                            </span>
+                                            {shouldShowAllResults && (
+                                                <button
+                                                    onClick={
+                                                        handleShowAllResults
+                                                    }
+                                                    className="ml-2 text-xs text-sky-600 dark:text-sky-400 hover:underline"
+                                                >
+                                                    {t("Show all")}
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                    {` ${t("of")} ${resolvedTotalChatCount} ${t("total")}`}
+                                    {statusLabel && (
+                                        <>
+                                            <span className="mx-1 text-gray-400 dark:text-gray-500">
+                                                •
+                                            </span>
+                                            <span className="text-sky-500 dark:text-sky-400">
+                                                {statusLabel}
+                                            </span>
+                                        </>
+                                    )}
+                                </div>
+                            ) : (
+                                `${visibleChatCount} ${t("chats")}`
                             )}
-                            className="flex-1"
-                        />
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        className={`flex items-center justify-center w-9 h-9 rounded-md border transition-colors ${
-                                            showSharedOnly
-                                                ? "bg-sky-500 dark:bg-sky-600 text-white border-sky-600 dark:border-sky-700 hover:bg-sky-600 dark:hover:bg-sky-700"
-                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                        }`}
-                                        onClick={() =>
-                                            setShowSharedOnly(!showSharedOnly)
-                                        }
-                                    >
-                                        <Users className="h-4 w-4" />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {showSharedOnly
-                                        ? t("Show All Chats")
-                                        : t("Show Shared Chats Only")}
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        <div className="text-sm text-gray-500 mr-2">
+                        </div>
+                    }
+                    enabled={!isDocked}
+                >
+                    <div className="flex flex-wrap items-center gap-2 [&_button]:min-h-10 [&_button]:min-w-10">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 me-2">
                             {selectedIds.size > 0 && (
                                 <span>
                                     {selectedIds.size} {t("selected")}
@@ -1726,7 +1701,7 @@ function SavedChats({ displayState, initialChats = null }) {
                         </div>
                         <TooltipProvider>
                             <div
-                                className="inline-flex h-9 items-center rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 p-0.5"
+                                className="inline-flex items-center gap-1"
                                 role="group"
                                 aria-label={t("Chat view")}
                             >
@@ -1742,9 +1717,9 @@ function SavedChats({ displayState, initialChats = null }) {
                                                         data-testid={testId}
                                                         aria-label={t(label)}
                                                         aria-pressed={isActive}
-                                                        className={`inline-flex h-8 w-8 items-center justify-center rounded transition-colors ${
+                                                        className={`inline-flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
                                                             isActive
-                                                                ? "bg-sky-500 text-white"
+                                                                ? "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-200"
                                                                 : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
                                                         }`}
                                                         onClick={() =>
@@ -1775,6 +1750,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                                 : ""
                                         }`}
                                         disabled={selectedIds.size === 0}
+                                        aria-label={t("Export")}
                                         onClick={handleExportSelected}
                                     >
                                         <Download />
@@ -1788,6 +1764,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                 <TooltipTrigger asChild>
                                     <button
                                         data-testid="saved-chats-bulk-delete"
+                                        aria-label={t("Delete Selected")}
                                         className={`lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500 ${
                                             selectedIds.size === 0
                                                 ? "opacity-50 cursor-not-allowed"
@@ -1816,6 +1793,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                                 : ""
                                         }`}
                                         disabled={selectedIds.size === 0}
+                                        aria-label={t("Clear Selection")}
                                         onClick={clearSelection}
                                     >
                                         <X />
@@ -1841,6 +1819,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                 <TooltipTrigger asChild>
                                     <button
                                         className="lb-icon-button text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:bg-transparent dark:border-gray-600 dark:hover:border-gray-500"
+                                        aria-label={t("Import")}
                                         onClick={handleImportClick}
                                     >
                                         <Upload />
@@ -1858,6 +1837,7 @@ function SavedChats({ displayState, initialChats = null }) {
                                                 ? "opacity-70 cursor-wait"
                                                 : ""
                                         }`}
+                                        aria-label={t("New Chat")}
                                         onClick={handleCreateNewChat}
                                         disabled={isCreatingNewChat}
                                     >
@@ -1868,6 +1848,56 @@ function SavedChats({ displayState, initialChats = null }) {
                             </Tooltip>
                         </TooltipProvider>
                     </div>
+                </PageHeader>
+
+                {/* Filter and Action Controls */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    {/* Filter Search Control with Shared Chats Toggle */}
+                    <div className="flex items-center gap-2 w-full sm:flex-1 sm:max-w-lg">
+                        <FilterInput
+                            dataTestId="saved-chats-search"
+                            value={searchQuery}
+                            onChange={(value) => {
+                                // Limit search query length to prevent performance issues
+                                if (value.length <= MAX_SEARCH_QUERY_LENGTH) {
+                                    setSearchQuery(value);
+                                }
+                            }}
+                            onClear={() => setSearchQuery("")}
+                            placeholder={t(
+                                'Search chats... (e.g., interview notes or "campaign strategy")',
+                            )}
+                            className="flex-1"
+                        />
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label={t("Show Shared Chats Only")}
+                                        aria-pressed={showSharedOnly}
+                                        className={`flex shrink-0 items-center justify-center w-10 h-10 rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
+                                            showSharedOnly
+                                                ? "bg-sky-500 dark:bg-sky-600 text-white border-sky-600 dark:border-sky-700 hover:bg-sky-600 dark:hover:bg-sky-700"
+                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                        }`}
+                                        onClick={() =>
+                                            setShowSharedOnly(!showSharedOnly)
+                                        }
+                                    >
+                                        <Users className="h-4 w-4" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {showSharedOnly
+                                        ? t("Show All Chats")
+                                        : t("Show Shared Chats Only")}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
+
+                    {/* Action Buttons */}
                 </div>
             </div>
             <div

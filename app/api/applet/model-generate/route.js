@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getClient } from "../../../../src/graphql";
+import { getClient } from "../../utils/cortex-client.js";
 import { getCurrentUser } from "../../utils/auth.js";
 import { buildWorkspacePromptVariables } from "../../utils/llm-file-utils.js";
 import config from "../../../../app.config/config/index.js";
@@ -81,6 +81,7 @@ export async function POST(request) {
             userId: user._id,
             api: "models.generate",
             limits: APPLET_SDK_LIMITS.modelGenerate,
+            signal: request.signal,
             run: async () => {
                 const graphqlClient = getClient();
                 const modelMetadata =

@@ -69,7 +69,9 @@ export function createAssistantToolEventItem({
     status = "thinking",
     error = null,
     presentation = "default",
+    mediaTask,
 }) {
+    const receipt = normalizeAssistantMediaTask(mediaTask);
     return {
         type: ASSISTANT_PAYLOAD_ITEM_TYPES.TOOL_EVENT,
         callId,
@@ -78,7 +80,43 @@ export function createAssistantToolEventItem({
         status,
         error,
         presentation,
+        ...(receipt && { mediaTask: receipt }),
     };
+}
+
+// Durable pointers only. Outputs are read through the user's task endpoint,
+// never embedded signed URLs or arbitrary tool results.
+export function normalizeAssistantMediaTask(value) {
+    if (
+        !value ||
+        typeof value.taskId !== "string" ||
+        !/^[a-f0-9]{24}$/i.test(value.taskId) ||
+        !["image", "video", "audio"].includes(value.type)
+    )
+        return null;
+    return {
+        taskId: value.taskId,
+        type: value.type,
+        model: String(value.model || "").slice(0, 128),
+        name: String(value.name || value.model || "").slice(0, 160),
+    };
+}
+
+export function getAssistantMediaTasks(items = []) {
+    const receipts = new Map();
+    for (const item of items) {
+        const parsed = parseAssistantPayloadItem(item);
+        if (
+            parsed?.type !== ASSISTANT_PAYLOAD_ITEM_TYPES.TOOL_EVENT ||
+            parsed.status !== "completed" ||
+            parsed.hideFromClient ||
+            parsed.isDeletedFile
+        )
+            continue;
+        const receipt = normalizeAssistantMediaTask(parsed.mediaTask);
+        if (receipt) receipts.set(receipt.taskId, receipt);
+    }
+    return [...receipts.values()];
 }
 
 function getParsedItemAt(items, index) {
@@ -255,7 +293,10 @@ export function buildAssistantPayloadFromItems(items = []) {
     return normalized;
 }
 
-export function buildModelPayloadFromStoredPayload(payload) {
+export function buildModelPayloadFromStoredPayload(
+    payload,
+    { includeMediaTasks = true } = {},
+) {
     if (typeof payload === "string") {
         return payload.trim() ? payload : null;
     }
@@ -264,6 +305,7 @@ export function buildModelPayloadFromStoredPayload(payload) {
         return payload ?? null;
     }
 
+    const seenMediaTasks = new Set();
     const sanitizedItems = payload
         .map((item) => {
             const parsed = parseAssistantPayloadItem(item);
@@ -274,12 +316,25 @@ export function buildModelPayloadFromStoredPayload(payload) {
 
             if (
                 parsed.type === ASSISTANT_PAYLOAD_ITEM_TYPES.THINKING ||
-                parsed.type === ASSISTANT_PAYLOAD_ITEM_TYPES.TOOL_EVENT ||
                 parsed.hideFromModel === true ||
                 parsed.hideFromClient === true ||
                 parsed.isDeletedFile === true
             ) {
                 return null;
+            }
+
+            if (parsed.type === ASSISTANT_PAYLOAD_ITEM_TYPES.TOOL_EVENT) {
+                const receipt =
+                    includeMediaTasks && parsed.status === "completed"
+                        ? normalizeAssistantMediaTask(parsed.mediaTask)
+                        : null;
+                if (!receipt || seenMediaTasks.has(receipt.taskId)) return null;
+                seenMediaTasks.add(receipt.taskId);
+                return serializeAssistantPayloadItem(
+                    createAssistantTextItem(
+                        `[Media task: ${JSON.stringify(receipt)}. The live card tracks this job; use Media status with taskId for current outputs before using or describing them. Do not regenerate to check status.]`,
+                    ),
+                );
             }
 
             if (
@@ -304,7 +359,9 @@ export function buildModelPayloadFromStoredPayload(payload) {
  * text content and filenames from the sanitized result.
  */
 export function extractSearchableText(payload) {
-    const sanitized = buildModelPayloadFromStoredPayload(payload);
+    const sanitized = buildModelPayloadFromStoredPayload(payload, {
+        includeMediaTasks: false,
+    });
     if (!sanitized) return "";
 
     const isHidden = (obj) =>

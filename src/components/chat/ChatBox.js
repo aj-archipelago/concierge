@@ -1,11 +1,12 @@
 "use client";
+import { useCurrentEntityTarget } from "../../contexts/CurrentEntityContext";
 
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { X, Maximize2, Minimize2, Square, Trash2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { LanguageContext } from "../../contexts/LanguageProvider";
-import { ThemeContext } from "../../contexts/ThemeProvider";
+import { ChatActivityProvider, ChatEntityIcon } from "./ChatActivity";
 import { setChatBoxPosition } from "../../stores/chatSlice"; // Ensure you have this action in your slice
 import ChatContent from "./ChatContent";
 import config from "../../../config";
@@ -42,8 +43,7 @@ function ChatBox() {
     const MIN_WIDTH = 200;
     const MAX_WIDTH = 600; // Double the default 300px
     const { t } = useTranslation();
-    const { language, direction } = useContext(LanguageContext);
-    const { theme } = useContext(ThemeContext) || {};
+    const { direction } = useContext(LanguageContext);
     const router = useRouter();
     const pathname = usePathname(); // Get the current pathname
     const activeChat = useGetActiveChat()?.data;
@@ -54,8 +54,16 @@ function ChatBox() {
     const { entities, defaultEntityId } = useEntities(aiName, {
         userId: user?.contextId,
         personalEntityId: user?.personalEntityId,
+        selectedEntityId: activeChat?.selectedEntityId,
     });
     const selectedEntityId = activeChat?.selectedEntityId || defaultEntityId;
+    const selectedEntity =
+        entities.find((entity) => entity.id === selectedEntityId) ||
+        entities.find((entity) => entity.isDefault);
+    useCurrentEntityTarget(
+        statePosition !== "closed" ? selectedEntityId : null,
+        2,
+    );
     const updateChatHook = useUpdateChat();
     const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -165,11 +173,7 @@ function ChatBox() {
                                 })
                             }
                         >
-                            <img
-                                className="m-0"
-                                src={config?.global?.getLogo(language, theme)}
-                                alt={config?.global?.siteTitle}
-                            />
+                            <ChatEntityIcon entity={selectedEntity} size="lg" />
                             <br></br>
                             {t("CHAT")}
                         </button>
@@ -244,24 +248,29 @@ function ChatBox() {
 
     if (statePosition === "full") {
         return (
-            <div className="chat-full-container bg-white dark:bg-gray-800">
-                <div
-                    className="chatbox-floating-title bg-sky-700 rounded-t"
-                    onClick={titleBarClick}
-                >
-                    <div className="chatbox-floating-title-text">
-                        {t("Chat")}
+            <ChatActivityProvider
+                chatId={activeChat?._id}
+                entityId={selectedEntityId}
+            >
+                <div className="chat-full-container bg-white dark:bg-gray-800">
+                    <div
+                        className="chatbox-floating-title bg-sky-700 rounded-t"
+                        onClick={titleBarClick}
+                    >
+                        <div className="chatbox-floating-title-text">
+                            {t("Chat")}
+                        </div>
+                        <Actions />
                     </div>
-                    <Actions />
+                    <ChatContent
+                        key={chatContentInstanceKey}
+                        chat={activeChat}
+                        entities={entities}
+                        selectedEntityId={selectedEntityId}
+                        entityIconSize="lg"
+                    />
                 </div>
-                <ChatContent
-                    key={chatContentInstanceKey}
-                    chat={activeChat}
-                    entities={entities}
-                    selectedEntityId={selectedEntityId}
-                    entityIconSize="lg"
-                />
-            </div>
+            </ChatActivityProvider>
         );
     } else if (statePosition === "closed") {
         return (
@@ -269,97 +278,111 @@ function ChatBox() {
         );
     } else {
         return (
-            <div
-                className="bg-white dark:bg-gray-800 rounded-md border dark:border-gray-600 overflow-hidden h-full relative"
-                style={{
-                    width: statePosition === "docked" ? dockedWidth : undefined,
-                    minWidth:
-                        statePosition === "docked" ? MIN_WIDTH : undefined,
-                    maxWidth:
-                        statePosition === "docked" ? MAX_WIDTH : undefined,
-                }}
+            <ChatActivityProvider
+                chatId={activeChat?._id}
+                entityId={selectedEntityId}
             >
-                {statePosition === "docked" && (
-                    <div
-                        className={`absolute top-0 bottom-0 w-1 cursor-ew-resize hover:bg-sky-500 dark:hover:bg-sky-400 z-10 transition-colors ${
-                            direction === "rtl" ? "right-0" : "left-0"
-                        }`}
-                        onMouseDown={handleResizeStart}
-                        style={{ cursor: "ew-resize" }}
-                    />
-                )}
                 <div
-                    className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}
+                    className="bg-white dark:bg-gray-800 rounded-md border dark:border-gray-600 overflow-hidden h-full relative"
+                    style={{
+                        width:
+                            statePosition === "docked"
+                                ? dockedWidth
+                                : undefined,
+                        minWidth:
+                            statePosition === "docked" ? MIN_WIDTH : undefined,
+                        maxWidth:
+                            statePosition === "docked" ? MAX_WIDTH : undefined,
+                    }}
                 >
+                    {statePosition === "docked" && (
+                        <div
+                            className={`absolute top-0 bottom-0 w-1 cursor-ew-resize hover:bg-sky-500 dark:hover:bg-sky-400 z-10 transition-colors ${
+                                direction === "rtl" ? "right-0" : "left-0"
+                            }`}
+                            onMouseDown={handleResizeStart}
+                            style={{ cursor: "ew-resize" }}
+                        />
+                    )}
                     <div
-                        className="bg-zinc-100 dark:bg-gray-700 flex justify-between items-center p-3"
-                        onClick={titleBarClick}
+                        className={`flex flex-col h-full chatbox chatbox-floating chatbox-floating-${statePosition} ${statePosition}`}
                     >
-                        <div className="flex items-center gap-2">
-                            <div className="">
-                                {`${t("Chat with")} ${t(aiName || config?.chat?.botName)}`}
+                        <div
+                            className="bg-zinc-100 dark:bg-gray-700 flex justify-between items-center p-3"
+                            onClick={titleBarClick}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <ChatEntityIcon
+                                    entity={selectedEntity}
+                                    size="lg"
+                                />
+                                <div className="min-w-0 truncate text-sm">
+                                    {`${t("Chat with")} ${t(selectedEntity?.name || aiName || config?.chat?.botName)}`}
+                                </div>
+                            </div>
+                            <div className="flex shrink-0 gap-1 items-center">
+                                <ActiveToolsList displayState={statePosition} />
+                                <Trash2
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (activeChat?.messages?.length) {
+                                            setShowClearConfirm(true);
+                                        }
+                                    }}
+                                    className={
+                                        activeChat?.messages?.length
+                                            ? "cursor-pointer w-3.5 h-3.5"
+                                            : "cursor-not-allowed opacity-50 w-3.5 h-3.5"
+                                    }
+                                    title={t("Clear chat")}
+                                />
+                                <Actions />
                             </div>
                         </div>
-                        <div className="flex gap-1 items-center">
-                            <ActiveToolsList displayState={statePosition} />
-                            <Trash2
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (activeChat?.messages?.length) {
-                                        setShowClearConfirm(true);
-                                    }
-                                }}
-                                className={
-                                    activeChat?.messages?.length
-                                        ? "cursor-pointer w-3.5 h-3.5"
-                                        : "cursor-not-allowed opacity-50 w-3.5 h-3.5"
-                                }
-                                title={t("Clear chat")}
-                            />
-                            <Actions />
-                        </div>
+                        {statePosition !== "closed" && (
+                            <div className="grow p-3 overflow-auto">
+                                <ChatContent
+                                    key={chatContentInstanceKey}
+                                    chat={activeChat}
+                                    displayState={statePosition}
+                                    container={"chatbox"}
+                                    entities={entities}
+                                    selectedEntityId={selectedEntityId}
+                                    entityIconSize="sm"
+                                />
+                            </div>
+                        )}
                     </div>
-                    {statePosition !== "closed" && (
-                        <div className="grow p-3 overflow-auto">
-                            <ChatContent
-                                key={chatContentInstanceKey}
-                                chat={activeChat}
-                                displayState={statePosition}
-                                container={"chatbox"}
-                                entities={entities}
-                                selectedEntityId={selectedEntityId}
-                                entityIconSize="sm"
-                            />
-                        </div>
-                    )}
+                    <AlertDialog
+                        open={showClearConfirm}
+                        onOpenChange={setShowClearConfirm}
+                    >
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                    {t("Clear Chat?")}
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {t(
+                                        "Are you sure you want to clear this chat? This action cannot be undone.",
+                                    )}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>
+                                    {t("Cancel")}
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    autoFocus
+                                    onClick={handleClearChat}
+                                >
+                                    {t("Clear")}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
-                <AlertDialog
-                    open={showClearConfirm}
-                    onOpenChange={setShowClearConfirm}
-                >
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>
-                                {t("Clear Chat?")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {t(
-                                    "Are you sure you want to clear this chat? This action cannot be undone.",
-                                )}
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                            <AlertDialogAction
-                                autoFocus
-                                onClick={handleClearChat}
-                            >
-                                {t("Clear")}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </div>
+            </ChatActivityProvider>
         );
     }
 }

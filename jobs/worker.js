@@ -2,6 +2,7 @@ import { Queue, Worker } from "bullmq";
 import "./load-env.js";
 import Redis from "ioredis";
 import automationScheduler from "./automation-scheduler.js";
+import automationRetention from "./automation-retention.js";
 import cortexRequestWorker from "./cortex-request-worker.js";
 import {
     closeDbConnectionIfInitialized,
@@ -9,16 +10,16 @@ import {
 } from "./db-connection.js";
 import { buildDigestsForAllUsers } from "./digest-build.js";
 import { Logger } from "./logger.js";
+import { managedWorker } from "./managed-worker.js";
+import { workerRuntime } from "./worker-runtime.js";
+import { ensureDigestSchedule, PERIODIC_BUILD_JOB } from "./digest-schedule.js";
+import { queueMonitor } from "../app/api/utils/queue-monitor.mjs";
+import { closeRedisConnection } from "../app/api/utils/redis.mjs";
+import { TaskScaleMonitor } from "./task-scale-monitor.js";
 
 const queueName = "digest-build";
 const { REDIS_CONNECTION_STRING } = process.env;
 const { DIGEST_REBUILD_INTERVAL_HOURS = 4 } = process.env;
-
-// Import the queue monitor
-import("../app/api/utils/queue-monitor.mjs").then(({ queueMonitor }) => {
-    // Start monitoring queues
-    queueMonitor.startMonitoring();
-});
 
 const connection = new Redis(
     REDIS_CONNECTION_STRING || "redis://localhost:6379",
@@ -31,123 +32,74 @@ const digestBuild = new Queue(queueName, {
     connection,
 });
 
-const nHourlyRepeat = {
-    pattern: `0 0/${DIGEST_REBUILD_INTERVAL_HOURS} * * *`,
-};
-
-const PERIODIC_BUILD_JOB = "periodic-build";
-
-(async function main() {
-    // wait between 10 and 30 seconds to avoid race condition with other workers
-    await new Promise((resolve) =>
-        setTimeout(resolve, Math.random() * 20000 + 10000),
-    );
-
-    for (const job of await digestBuild.getRepeatableJobs()) {
-        await digestBuild.removeRepeatableByKey(job.key);
-    }
-
-    for (const job of await digestBuild.getJobs()) {
-        await digestBuild.remove(job.id);
-    }
-
-    await digestBuild.add(
-        PERIODIC_BUILD_JOB,
-        {}, // data
-        {
-            repeat: nHourlyRepeat,
-            delay: 60 * 1000, // delay makes sure that it's not available for workers to pick up until everyone has started up
-        },
-    );
-})();
-
-const worker = new Worker(
-    queueName,
-    async (job) => {
-        const connectToDatabase = (await import("../src/db.mjs"))
-            .connectToDatabase;
-        const closeDatabaseConnection = (await import("../src/db.mjs"))
-            .closeDatabaseConnection;
-
-        try {
-            await connectToDatabase();
-
-            const logger = new Logger(job, digestBuild);
-
-            if (job.name === PERIODIC_BUILD_JOB) {
-                logger.log("building digests for all users");
-                await buildDigestsForAllUsers(logger, job);
-            }
-        } finally {
-            await closeDatabaseConnection();
-        }
+const digestWorker = managedWorker(
+    () => {
+        const worker = new Worker(
+            queueName,
+            async (job) => {
+                await ensureDbConnection();
+                const logger = new Logger(job, digestBuild);
+                if (job.name === PERIODIC_BUILD_JOB) {
+                    logger.log("building digests for all users");
+                    await buildDigestsForAllUsers(logger, job);
+                }
+            },
+            { connection, autorun: false },
+        );
+        worker.on("completed", (job) => {
+            new Logger(job, digestBuild).log("job completed");
+        });
+        worker.on("failed", (job, error) => {
+            new Logger(job, digestBuild).log(
+                "job failed with error: " + error.message,
+            );
+        });
+        return worker;
     },
-    {
-        connection,
-        autorun: false,
-    },
+    () => ensureDigestSchedule(digestBuild, DIGEST_REBUILD_INTERVAL_HOURS),
 );
 
-worker.on("completed", (job) => {
-    const logger = new Logger(job, digestBuild);
-    logger.log("job completed");
-});
-
-worker.on("failed", (job, error) => {
-    const logger = new Logger(job, digestBuild);
-    logger.log("job failed with error: " + error.message);
-});
-
-// Graceful shutdown handler
-const cleanupAndExit = async () => {
-    console.log("Shutting down workers...");
-
-    try {
-        // Stop processing new jobs
-        await worker.close();
-        console.log("Digest worker stopped");
-        await automationScheduler.close();
-        console.log("Automation scheduler stopped");
-
-        // Close database connection
+const scaleMonitor = new TaskScaleMonitor();
+const runtime = workerRuntime({
+    workers: [
+        digestWorker,
+        automationScheduler,
+        cortexRequestWorker,
+        automationRetention,
+    ],
+    monitors: [queueMonitor, scaleMonitor],
+    connect: ensureDbConnection,
+    disconnect: async () => {
+        await digestBuild.close();
         await closeDbConnectionIfInitialized();
-        console.log("Database connection closed");
+        await Promise.all([connection.quit(), closeRedisConnection()]);
+    },
+});
 
-        console.log("Cleanup completed, exiting");
-        process.exit(0);
-    } catch (error) {
-        console.error("Error during shutdown:", error);
-        process.exit(1);
-    }
-};
-
-// Register shutdown handlers
-process.on("SIGTERM", cleanupAndExit);
-process.on("SIGINT", cleanupAndExit);
-
-// Safely start all workers after ensuring database connection
-async function startWorkers() {
-    try {
-        // Initialize database connection
-        console.log("Initializing connection to database...");
-        await ensureDbConnection();
-
-        // Start workers
-        console.log("Starting workers...");
-        await cortexRequestWorker.run();
-        await automationScheduler.run();
-        worker.run();
-
-        console.log("All workers are running");
-    } catch (error) {
-        console.error("Failed to initialize:", error);
-
-        // Try to restart after a delay
-        console.log("Will attempt to restart workers in 15 seconds...");
-        setTimeout(startWorkers, 15000);
-    }
+let shutdownPromise;
+function shutdown(code = 0) {
+    shutdownPromise ??= runtime.close().then(
+        () => {
+            console.log("All workers drained; exiting");
+            process.exit(code);
+        },
+        (error) => {
+            console.error("Error during worker shutdown:", error);
+            process.exit(1);
+        },
+    );
+    return shutdownPromise;
 }
 
-// Start the workers
-startWorkers();
-export { ensureDbConnection, startWorkers as run };
+function failed(error) {
+    console.error("Worker startup/run failed:", error);
+    // Database initialization already retries. Let the container restart the
+    // whole process after draining, instead of duplicating consumers locally.
+    shutdown(1);
+}
+
+process.on("SIGTERM", () => shutdown());
+process.on("SIGINT", () => shutdown());
+const run = () => runtime.run(failed);
+run().catch(failed);
+export { run };

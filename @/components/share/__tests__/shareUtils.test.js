@@ -41,6 +41,9 @@ describe("shareEntityUrl", () => {
     it("builds resource URLs for supported entity types", () => {
         expect(shareEntityUrl("chat", "abc")).toBe("/chat/abc");
         expect(shareEntityUrl("automation", "xyz")).toBe("/automations/xyz");
+        expect(shareEntityUrl("published_applet", "p1")).toBe(
+            "/published/applets/p1",
+        );
     });
 
     it("returns null for unsupported entity types", () => {

@@ -6,6 +6,7 @@ import AppletSharedFile from "../models/applet-shared-file";
 import AppletUserData from "../models/applet-user-data";
 import File from "../models/file";
 import { deleteMediaFile } from "../utils/media-service-utils";
+import { deleteEntityShare } from "../utils/shareHelpers";
 import {
     createAppletGlobalStorageTarget,
     createAppletSharedStorageTarget,
@@ -128,6 +129,8 @@ export async function deleteCanvasAppletArtifacts(applet, user) {
         AppletSharedData.deleteMany({ appletId: applet._id }),
         AppletSharedDataRevision.deleteMany({ appletId: applet._id }),
         AppletSharedFile.deleteMany({ appletId: applet._id }),
+        deleteEntityShare("applet", applet._id),
+        deleteEntityShare("published_applet", applet._id),
         filesToDelete.length > 0
             ? File.deleteMany({
                   _id: {

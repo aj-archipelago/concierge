@@ -9,6 +9,22 @@ const TENANT_CLAIM_TYPES = [
     "http://schemas.microsoft.com/identity/claims/tenantid",
     "tid",
 ];
+const DISPLAY_NAME_CLAIM_TYPES = [
+    "name",
+    "display_name",
+    "displayname",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
+];
+const GIVEN_NAME_CLAIM_TYPES = [
+    "given_name",
+    "givenname",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+];
+const FAMILY_NAME_CLAIM_TYPES = [
+    "family_name",
+    "surname",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+];
 
 const getHeader = (headerList, name) => {
     if (!headerList?.get) {
@@ -110,6 +126,32 @@ const getPrincipalClaims = (headerList) => {
     return principal?.claims || principal?.user_claims || [];
 };
 
+const normalizeDisplayName = (value) => {
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    const displayName = value.replace(/\s+/g, " ").trim();
+    if (!displayName || hasEmailDomain(displayName)) {
+        return null;
+    }
+
+    return displayName;
+};
+
+const firstClaimValue = (claims, claimTypes) => {
+    for (const claimType of claimTypes) {
+        const value = normalizeDisplayName(
+            getStringClaimValue(claims, claimType),
+        );
+        if (value) {
+            return value;
+        }
+    }
+
+    return null;
+};
+
 export const parseAuthorizedValues = (authorizedValues) =>
     authorizedValues
         ? authorizedValues
@@ -137,6 +179,21 @@ export const resolveEntraPrincipalEmail = (headerList) => {
     }
 
     return principalName || null;
+};
+
+export const resolveEntraPrincipalDisplayName = (headerList) => {
+    const claims = getPrincipalClaims(headerList);
+    const displayName = firstClaimValue(claims, DISPLAY_NAME_CLAIM_TYPES);
+    if (displayName) {
+        return displayName;
+    }
+
+    const givenName = firstClaimValue(claims, GIVEN_NAME_CLAIM_TYPES);
+    const familyName = firstClaimValue(claims, FAMILY_NAME_CLAIM_TYPES);
+
+    return normalizeDisplayName(
+        [givenName, familyName].filter(Boolean).join(" "),
+    );
 };
 
 export const resolveEntraTenantId = (headerList) => {

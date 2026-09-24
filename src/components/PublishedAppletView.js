@@ -1,4 +1,6 @@
 "use client";
+import PageHeader from "../layout/PageHeader";
+import { HeaderAction } from "../layout/HeaderControls";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
 import { useEffect, useState, useContext } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -117,32 +119,29 @@ export default function PublishedAppletView({
                     "h-screen min-h-screen bg-white dark:bg-gray-900",
             )}
         >
-            {!renderWithoutChrome && canAdminCopy && (
-                <div className="absolute top-4 end-4 z-10 flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={handleCopyToAccount}
-                        disabled={isCopying}
-                        aria-label={t("Copy to my account")}
-                        aria-busy={isCopying}
-                        className="inline-flex h-10 items-center gap-2 rounded-full bg-violet-600 px-4 text-sm font-medium text-white shadow-lg transition-colors hover:bg-violet-700 disabled:opacity-50"
-                        title={t("Copy to my account")}
-                    >
-                        {isCopying ? (
-                            <Loader2
-                                className="h-4 w-4 animate-spin"
-                                aria-hidden="true"
-                            />
-                        ) : (
-                            <Copy className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        <span className="hidden sm:inline">
-                            {isCopying
-                                ? t("Copying applet...")
-                                : t("Copy to my account")}
-                        </span>
-                    </button>
-                </div>
+            {!renderWithoutChrome && (
+                <PageHeader
+                    title={app?.name || applet?.name || t("Applets")}
+                    compactActions
+                >
+                    {canAdminCopy && (
+                        <HeaderAction
+                            variant="default"
+                            onClick={handleCopyToAccount}
+                            disabled={isCopying}
+                            aria-busy={isCopying}
+                            icon={isCopying ? Loader2 : Copy}
+                            iconClassName={
+                                isCopying ? "animate-spin" : undefined
+                            }
+                            label={
+                                isCopying
+                                    ? t("Copying applet...")
+                                    : t("Copy to my account")
+                            }
+                        />
+                    )}
+                </PageHeader>
             )}
 
             {!renderWithoutChrome && copyError && (

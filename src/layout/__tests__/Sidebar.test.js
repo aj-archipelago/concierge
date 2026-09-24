@@ -1,10 +1,13 @@
 import React from "react";
-import fs from "fs";
-import path from "path";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import Sidebar, {
-    SIDEBAR_EXPANDED_SECTIONS_STORAGE_KEY,
     orderSidebarNavigationItems,
     shouldForceCollapse,
 } from "../Sidebar";
@@ -13,6 +16,7 @@ import {
     useDeleteChat,
     useGetActiveChatId,
     useGetActiveChats,
+    useUpdateChat,
 } from "../../../app/queries/chats";
 import {
     useCurrentUser,
@@ -22,6 +26,8 @@ import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDispatch } from "react-redux";
 
+import fs from "node:fs";
+import path from "node:path";
 const ar = JSON.parse(
     fs.readFileSync(
         path.join(process.cwd(), "config/default/locales/ar.json"),
@@ -31,7 +37,9 @@ const ar = JSON.parse(
 
 const mockPush = jest.fn();
 const mockUsePathname = jest.fn(() => "/chat");
-let mockPinnedAutomations = [];
+let mockAutomations = [];
+let mockInboxRequests = [];
+let mockAutomationsLastViewedAt = null;
 let mockWorkspaceData = null;
 const LEGACY_SIDEBAR_HIDDEN_STORAGE_KEY =
     "concierge-sidebar-navigation-hidden-v1";
@@ -55,7 +63,11 @@ const defaultSidebarApps = () => [
 ];
 jest.mock("next/link", () => ({
     __esModule: true,
-    default: ({ children, href }) => <a href={href}>{children}</a>,
+    default: ({ children, href, ...props }) => (
+        <a href={href} {...props}>
+            {children}
+        </a>
+    ),
 }));
 
 jest.mock("next/navigation", () => ({
@@ -77,6 +89,7 @@ jest.mock("../../../app/queries/chats", () => ({
     __esModule: true,
     useAddChat: jest.fn(),
     useDeleteChat: jest.fn(),
+    useUpdateChat: jest.fn(),
     useGetActiveChatId: jest.fn(),
     useGetActiveChats: jest.fn(),
     DEFAULT_CHAT_MESSAGES_LIMIT: 20,
@@ -88,9 +101,11 @@ jest.mock("../../../app/queries/users", () => ({
     useUpdateCurrentUser: jest.fn(),
 }));
 
+const mockUseQuery = jest.fn(() => ({ data: {} }));
 jest.mock("@tanstack/react-query", () => ({
     __esModule: true,
     useQueryClient: jest.fn(),
+    useQuery: (...args) => mockUseQuery(...args),
 }));
 
 jest.mock("react-redux", () => ({
@@ -106,7 +121,15 @@ jest.mock("../../../app/queries/workspaces", () => ({
 
 jest.mock("../../hooks/useAutomations", () => ({
     __esModule: true,
-    usePinnedAutomations: () => ({ data: mockPinnedAutomations }),
+    useAutomations: () => ({ data: mockAutomations }),
+    useAutomationReadReceipts: () => ({ data: {} }),
+    useAutomationsLastViewedAt: () => ({
+        data: mockAutomationsLastViewedAt,
+    }),
+}));
+
+jest.mock("../../../app/queries/notifications", () => ({
+    useInbox: () => ({ data: { requests: mockInboxRequests } }),
 }));
 
 jest.mock("../../../config", () => ({
@@ -140,6 +163,15 @@ jest.mock("../../contexts/ThemeProvider", () => {
     };
 });
 
+const mockOpenPortal = jest.fn();
+jest.mock("../../contexts/PortalContext", () => ({
+    __esModule: true,
+    usePortal: () => ({
+        openPortal: mockOpenPortal,
+        closePortal: jest.fn(),
+    }),
+}));
+
 jest.mock("../ChatNavigationItem", () => ({
     __esModule: true,
     default: ({ subItem }) => (
@@ -147,7 +179,19 @@ jest.mock("../ChatNavigationItem", () => ({
             data-testid="mock-chat-nav-item"
             data-chat-id={subItem.key}
             data-active={subItem.isActive ? "true" : undefined}
+            data-notification-status={subItem.notificationStatus || "idle"}
         >
+            {subItem.notificationStatus === "needs_attention" ? (
+                <span data-testid="sidebar-chat-attention-dot" />
+            ) : subItem.notificationStatus === "failed" ? (
+                <span data-testid="sidebar-chat-error-dot" />
+            ) : subItem.notificationStatus === "completed" ? (
+                <span data-testid="sidebar-chat-unread-dot" />
+            ) : subItem.notificationStatus === "in_progress" ? (
+                <span data-testid="sidebar-chat-progress-dot" />
+            ) : (
+                <span data-testid="sidebar-chat-idle-dot" />
+            )}
             {subItem.name}
         </li>
     ),
@@ -184,10 +228,12 @@ describe("orderSidebarNavigationItems", () => {
 describe("Sidebar navigation", () => {
     const mockDeleteChat = { mutate: jest.fn() };
     const mockAddChat = { mutateAsync: jest.fn(), isPending: false };
+    const mockUpdateChat = { mutate: jest.fn(), mutateAsync: jest.fn() };
     const mockUpdateUser = { mutateAsync: jest.fn() };
     const mockDispatch = jest.fn();
     const mockQueryClient = {
         getQueryData: jest.fn(),
+        setQueryData: jest.fn(),
         prefetchQuery: jest.fn().mockResolvedValue(undefined),
         invalidateQueries: jest.fn().mockResolvedValue(undefined),
     };
@@ -195,6 +241,7 @@ describe("Sidebar navigation", () => {
     let activeChatsData;
     let activeChatIdData;
     let cachedChats;
+    let chatAttentionMap;
 
     const renderSidebar = ({ languageContext, ...props } = {}) =>
         render(
@@ -215,7 +262,10 @@ describe("Sidebar navigation", () => {
         activeChatsData = [];
         activeChatIdData = null;
         cachedChats = {};
-        mockPinnedAutomations = [];
+        chatAttentionMap = {};
+        mockAutomations = [];
+        mockInboxRequests = [];
+        mockAutomationsLastViewedAt = null;
         mockWorkspaceData = null;
         document.documentElement.dir = "ltr";
         window.localStorage.clear();
@@ -224,8 +274,10 @@ describe("Sidebar navigation", () => {
         window.history.pushState({}, "", "/chat");
 
         mockAddChat.mutateAsync.mockResolvedValue({ _id: "chat-new-real" });
+        mockUpdateChat.mutateAsync.mockResolvedValue({});
         useAddChat.mockReturnValue(mockAddChat);
         useDeleteChat.mockReturnValue(mockDeleteChat);
+        useUpdateChat.mockReturnValue(mockUpdateChat);
         useGetActiveChats.mockImplementation(() => ({
             data: activeChatsData,
             isLoading: false,
@@ -240,11 +292,21 @@ describe("Sidebar navigation", () => {
         mockUpdateUser.mutateAsync.mockResolvedValue({});
         useUpdateCurrentUser.mockReturnValue(mockUpdateUser);
         useDispatch.mockReturnValue(mockDispatch);
+        mockUseQuery.mockImplementation(() => ({ data: chatAttentionMap }));
         mockQueryClient.getQueryData.mockImplementation((key) => {
             if (Array.isArray(key) && key[0] === "chat") {
                 return cachedChats[key[1]];
             }
             return undefined;
+        });
+        mockQueryClient.setQueryData.mockImplementation((key, updater) => {
+            if (
+                Array.isArray(key) &&
+                key[0] === "chatAttentionMap" &&
+                typeof updater === "function"
+            ) {
+                chatAttentionMap = updater(chatAttentionMap);
+            }
         });
         global.fetch = jest.fn((url, options = {}) => {
             if (url === "/api/canvas-applets") {
@@ -308,7 +370,7 @@ describe("Sidebar navigation", () => {
         useQueryClient.mockReturnValue(mockQueryClient);
     });
 
-    it("shows chat MRU submenu rows behind an expanded parent item", () => {
+    it("shows recent chats inline under a clickable Chats header with chat icon", () => {
         activeChatsData = [
             { _id: "chat-a", title: "Chat A" },
             { _id: "chat-b", title: "Chat B" },
@@ -318,40 +380,238 @@ describe("Sidebar navigation", () => {
 
         renderSidebar();
 
+        expect(screen.getByTestId("sidebar-chats-section")).toHaveTextContent(
+            "Chats",
+        );
+        const chatsHeader = screen.getByTestId("sidebar-chats-header");
+        expect(chatsHeader).toHaveAttribute("href", "/chat");
+        expect(chatsHeader).toHaveAttribute("aria-label", "Chats");
+        expect(
+            within(chatsHeader).getByTestId("sidebar-chats-view-all"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("View all")).not.toBeInTheDocument();
+        expect(
+            screen.queryByTestId("sidebar-chats-flyout"),
+        ).not.toBeInTheDocument();
         expect(screen.getAllByTestId("mock-chat-nav-item")).toHaveLength(3);
         expect(screen.getByText("Chat A")).toBeInTheDocument();
-
-        const chatToggle = screen.getByTestId(
-            "sidebar-section-toggle-nav:Chats",
-        );
-        expect(chatToggle).toHaveAttribute("aria-expanded", "true");
-
-        fireEvent.click(chatToggle);
-
-        expect(chatToggle).toHaveAttribute("aria-expanded", "false");
-        expect(screen.queryByText("Chat A")).not.toBeInTheDocument();
+        expect(
+            screen
+                .getByTestId("sidebar-new-chat-button")
+                .compareDocumentPosition(
+                    screen.getByTestId("sidebar-home-button"),
+                ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(
+            screen
+                .getByTestId("sidebar-home-button")
+                .compareDocumentPosition(
+                    screen.getByTestId("sidebar-colleagues-button"),
+                ) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
     });
 
-    it("shows sidebar-pinned automation submenu rows behind an expanded parent item", () => {
-        mockPinnedAutomations = [
+    it("highlights the Chats header only on the chats list route, not /chat/:id", () => {
+        activeChatsData = [
+            { _id: "chat-a", title: "Chat A" },
+            { _id: "chat-b", title: "Chat B" },
+        ];
+
+        mockUsePathname.mockReturnValue("/chat");
+        const { unmount } = renderSidebar();
+        expect(screen.getByTestId("sidebar-chats-header")).toHaveClass(
+            "bg-gray-100",
+        );
+        unmount();
+
+        mockUsePathname.mockReturnValue("/chat/chat-a");
+        renderSidebar();
+        const chatsHeader = screen.getByTestId("sidebar-chats-header");
+        expect(chatsHeader).not.toHaveClass("bg-gray-100");
+        expect(chatsHeader).toHaveClass("hover:bg-gray-100");
+    });
+
+    it("shows at most 4 chats and a View all link to the chats page", () => {
+        activeChatsData = Array.from({ length: 10 }, (_, index) => ({
+            _id: `chat-${index}`,
+            title: `Chat ${index}`,
+        }));
+
+        renderSidebar();
+
+        expect(screen.getAllByTestId("mock-chat-nav-item")).toHaveLength(4);
+        expect(
+            screen.queryByTestId("sidebar-chats-more"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByTestId("sidebar-chats-show-less"),
+        ).not.toBeInTheDocument();
+        const viewAll = screen.getByTestId("sidebar-chats-view-all-link");
+        expect(viewAll).toHaveAttribute("href", "/chat");
+        expect(viewAll).toHaveTextContent("View all");
+    });
+
+    it("reserves collapsed rail space for the View all control row", () => {
+        activeChatsData = Array.from({ length: 10 }, (_, index) => ({
+            _id: `chat-${index}`,
+            title: `Chat ${index}`,
+        }));
+
+        renderSidebar({ isCollapsed: true });
+
+        expect(
+            screen.getAllByTestId("sidebar-chat-placeholder-row"),
+        ).toHaveLength(4);
+        expect(
+            screen.getByTestId("sidebar-chat-placeholder-view-all"),
+        ).toBeInTheDocument();
+    });
+
+    it("shows blue, red, pulsating gray, yellow, and idle gray dots for chat task statuses", () => {
+        chatAttentionMap = {
+            "chat-d": "2026-08-04T13:00:00.000Z",
+        };
+        activeChatsData = [
             {
-                _id: "automation-a",
-                name: "Daily pulse",
-                slug: "daily-pulse",
-                recentRuns: [],
+                _id: "chat-a",
+                title: "Chat A",
+                latestTaskStatus: "completed",
+                latestTaskAt: "2026-08-04T13:00:00.000Z",
             },
+            {
+                _id: "chat-b",
+                title: "Chat B",
+                latestTaskStatus: "failed",
+                latestTaskAt: "2026-08-04T13:00:00.000Z",
+            },
+            {
+                _id: "chat-c",
+                title: "Chat C",
+                isChatLoading: true,
+            },
+            { _id: "chat-d", title: "Chat D" },
+            { _id: "chat-e", title: "Chat E" },
         ];
 
         renderSidebar();
 
-        expect(screen.getByText("Automations")).toBeInTheDocument();
-        expect(screen.getByText("Daily pulse")).toBeInTheDocument();
         expect(
-            screen.getByTestId("sidebar-section-toggle-nav:Automations"),
-        ).toHaveAttribute("aria-expanded", "true");
+            screen.getByTestId("sidebar-chat-unread-dot"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByTestId("sidebar-chat-error-dot"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByTestId("sidebar-chat-progress-dot"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByTestId("sidebar-chat-attention-dot"),
+        ).toBeInTheDocument();
+        // chat-e is outside the initial sidebar window, so idle is not asserted here
     });
 
-    it("uses submenu placeholders only in the compact rail when a parent is expanded", async () => {
+    it("shows per-chat status dots in the collapsed rail placeholders", () => {
+        activeChatsData = [
+            {
+                _id: "chat-a",
+                title: "Chat A",
+                latestTaskStatus: "completed",
+                latestTaskAt: "2026-08-04T13:00:00.000Z",
+            },
+            {
+                _id: "chat-b",
+                title: "Chat B",
+                latestTaskStatus: "in_progress",
+                latestTaskAt: "2026-08-04T13:00:00.000Z",
+            },
+            { _id: "chat-c", title: "Chat C" },
+        ];
+
+        renderSidebar({ isCollapsed: true });
+
+        const rows = screen.getAllByTestId("sidebar-chat-placeholder-row");
+        expect(rows).toHaveLength(3);
+        expect(rows[0]).toHaveAttribute(
+            "data-notification-status",
+            "completed",
+        );
+        expect(rows[1]).toHaveAttribute(
+            "data-notification-status",
+            "in_progress",
+        );
+        expect(rows[2]).toHaveAttribute("data-notification-status", "idle");
+        expect(
+            screen.getByTestId("sidebar-chat-unread-dot"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByTestId("sidebar-chat-progress-dot"),
+        ).toBeInTheDocument();
+        expect(screen.getByTestId("sidebar-chat-idle-dot")).toBeInTheDocument();
+        expect(screen.queryByText("Chat A")).not.toBeInTheDocument();
+        expect(
+            screen.getAllByTestId("sidebar-chat-placeholder-icon"),
+        ).toHaveLength(3);
+        expect(
+            within(screen.getByTestId("sidebar-chats-header")).getByTestId(
+                "sidebar-chats-view-all",
+            ),
+        ).toBeInTheDocument();
+        expect(
+            within(rows[0]).queryByTestId("sidebar-chats-view-all"),
+        ).not.toBeInTheDocument();
+    });
+
+    it("shows an unread badge on Colleagues when there are new results", () => {
+        mockAutomations = [
+            {
+                _id: "automation-a",
+                name: "Daily pulse",
+                lastRunAt: "2026-08-04T13:00:00.000Z",
+            },
+        ];
+        mockAutomationsLastViewedAt = "2026-08-04T12:00:00.000Z";
+
+        renderSidebar();
+
+        expect(screen.getByTestId("sidebar-colleagues-button")).toHaveAttribute(
+            "aria-label",
+            "Tasks with new updates",
+        );
+        expect(
+            screen.getByTestId("sidebar-colleagues-unread-dot"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Daily pulse")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId("sidebar-colleagues-button"));
+        expect(mockPush).toHaveBeenCalledWith("/colleagues?view=recent");
+    });
+
+    it("opens Recent from the dot for an unread colleague message", () => {
+        mockInboxRequests = [{ type: "colleague-message", read: false }];
+        const onNavigate = jest.fn();
+        renderSidebar({ isMobile: true, onNavigate });
+        expect(
+            screen.getByTestId("sidebar-colleagues-unread-dot"),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId("sidebar-colleagues-button"));
+        expect(mockPush).toHaveBeenCalledWith("/colleagues?view=recent");
+        expect(onNavigate).toHaveBeenCalledTimes(1);
+    });
+
+    it("opens Team without a dot when messages are read or unrelated", () => {
+        mockInboxRequests = [
+            { type: "colleague-message", read: true },
+            { type: "share-request", read: false },
+        ];
+        mockUsePathname.mockReturnValue("/colleagues");
+        renderSidebar();
+        expect(
+            screen.queryByTestId("sidebar-colleagues-unread-dot"),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId("sidebar-colleagues-button"));
+        expect(mockPush).toHaveBeenCalledWith("/colleagues?view=team");
+    });
+
+    it("keeps chat titles out of the compact rail, reserves chat-list space, and links Chats to /chat", () => {
         activeChatsData = [
             { _id: "chat-a", title: "Chat A" },
             { _id: "chat-b", title: "Chat B" },
@@ -361,84 +621,21 @@ describe("Sidebar navigation", () => {
         renderSidebar({ isCollapsed: true });
 
         const sidebar = screen.getByTestId("sidebar");
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
         expect(screen.queryByText("Chat A")).not.toBeInTheDocument();
         expect(
-            screen.getByTestId("sidebar-submenu-placeholders-nav:Chats"),
-        ).toBeInTheDocument();
-
-        fireEvent.mouseEnter(sidebar);
-
-        expect(sidebar).toHaveClass("w-16");
-        const chatToggle = screen.getByTestId(
-            "sidebar-section-toggle-nav:Chats",
+            screen.queryByTestId("sidebar-chat-list"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("sidebar-chats-header")).toHaveAttribute(
+            "href",
+            "/chat",
         );
-        expect(chatToggle).toHaveClass("invisible");
-        expect(chatToggle).toHaveClass("pointer-events-none");
-
-        await waitFor(() => {
-            expect(sidebar).toHaveClass("w-56");
-        });
-        await waitFor(() => {
-            expect(chatToggle).not.toHaveClass("invisible");
-        });
         expect(
-            screen.queryByTestId("sidebar-submenu-placeholders-nav:Chats"),
+            screen.getAllByTestId("sidebar-chat-placeholder-row"),
+        ).toHaveLength(3);
+        expect(
+            screen.queryByTestId("sidebar-chats-flyout"),
         ).not.toBeInTheDocument();
-        expect(screen.getByText("Chat A")).toBeInTheDocument();
-
-        fireEvent.click(chatToggle);
-
-        expect(screen.queryByText("Chat A")).not.toBeInTheDocument();
-        expect(
-            screen.queryByTestId("sidebar-submenu-placeholders-nav:Chats"),
-        ).not.toBeInTheDocument();
-    });
-
-    it("uses automation placeholder rows that match automation submenu height", () => {
-        mockPinnedAutomations = [
-            {
-                _id: "automation-a",
-                name: "Daily pulse",
-                slug: "daily-pulse",
-                recentRuns: [],
-            },
-        ];
-
-        renderSidebar({ isCollapsed: true });
-
-        expect(
-            screen.getByTestId(
-                "sidebar-submenu-placeholder-row-nav:Automations",
-            ),
-        ).toHaveClass("h-12");
-    });
-
-    it("persists collapsed submenu parent state across remounts", () => {
-        activeChatsData = [
-            { _id: "chat-a", title: "Chat A" },
-            { _id: "chat-b", title: "Chat B" },
-        ];
-
-        const { unmount } = renderSidebar();
-
-        fireEvent.click(screen.getByTestId("sidebar-section-toggle-nav:Chats"));
-
-        expect(
-            JSON.parse(
-                window.localStorage.getItem(
-                    SIDEBAR_EXPANDED_SECTIONS_STORAGE_KEY,
-                ),
-            ),
-        ).toEqual(["nav:Automations"]);
-
-        unmount();
-        renderSidebar();
-
-        expect(screen.queryByText("Chat A")).not.toBeInTheDocument();
-        expect(
-            screen.getByTestId("sidebar-section-toggle-nav:Chats"),
-        ).toHaveAttribute("aria-expanded", "false");
     });
 
     it("delays owned applet edit controls until collapsed hover expansion settles", async () => {
@@ -548,10 +745,28 @@ describe("Sidebar navigation", () => {
         expect(mockDispatch).toHaveBeenCalledWith(
             expect.objectContaining({ type: "chat/focusChatInput" }),
         );
+        expect(mockDispatch).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "chat/setActiveCanvasChat",
+                payload: "chat-new-real",
+            }),
+        );
+        expect(mockDispatch).toHaveBeenCalledWith(
+            expect.objectContaining({ type: "chat/closeCanvas" }),
+        );
+        const dispatchedTypes = mockDispatch.mock.calls.map(
+            ([action]) => action.type,
+        );
+        expect(
+            dispatchedTypes.indexOf("chat/setActiveCanvasChat"),
+        ).toBeGreaterThan(dispatchedTypes.indexOf("chat/focusChatInput"));
+        expect(dispatchedTypes.indexOf("chat/closeCanvas")).toBeGreaterThan(
+            dispatchedTypes.indexOf("chat/setActiveCanvasChat"),
+        );
         expect(typeof window.__chatFocusRequest).toBe("number");
     });
 
-    it("shows installed Home, Files, and Media shortcuts under New Chat", () => {
+    it("shows New Chat at the top above Home, Files, and Media", () => {
         renderSidebar();
 
         const newChatButton = screen.getByTestId("sidebar-new-chat-button");
@@ -577,6 +792,39 @@ describe("Sidebar navigation", () => {
         fireEvent.click(filesButton);
 
         expect(mockPush).toHaveBeenCalledWith("/files");
+    });
+
+    it("keeps Customize and Automations out of primary navigation", () => {
+        renderSidebar();
+        expect(
+            screen.queryByTestId("sidebar-customize-button"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByTestId("sidebar-automations-button"),
+        ).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId("sidebar-colleagues-button"));
+        expect(mockPush).toHaveBeenCalledWith("/colleagues?view=team");
+    });
+
+    it("collapses inline chat history, persists the choice, and keeps the history link", () => {
+        activeChatsData = [{ _id: "chat-a", title: "Chat A" }];
+        const { unmount } = renderSidebar();
+        fireEvent.click(
+            screen.getByRole("button", { name: "Collapse chat history" }),
+        );
+        expect(screen.getByText("Chat A")).not.toBeVisible();
+        expect(screen.getByTestId("sidebar-chats-header")).toHaveAttribute(
+            "href",
+            "/chat",
+        );
+        unmount();
+        renderSidebar();
+        const toggle = screen.getByRole("button", {
+            name: "Expand chat history",
+        });
+        expect(toggle).toHaveAttribute("aria-expanded", "false");
+        fireEvent.click(toggle);
+        expect(screen.getByText("Chat A")).toBeVisible();
     });
 
     it("shows re-added app-backed built-ins even if a legacy hidden marker exists", () => {
@@ -637,10 +885,11 @@ describe("Sidebar navigation", () => {
         expect(screen.getByTestId("sidebar-edit-button")).toHaveTextContent(
             "Done editing sidebar",
         );
-        expect(screen.getAllByTestId("sidebar-drag-handle")).toHaveLength(6);
+        // Home / Chats / Automations / Files are fixed primary items; remaining apps are editable.
+        expect(screen.getAllByTestId("sidebar-drag-handle")).toHaveLength(2);
         expect(
             screen.getAllByTestId("sidebar-remove-item-button"),
-        ).toHaveLength(6);
+        ).toHaveLength(2);
         expect(screen.getByTestId("sidebar-add-item-button")).toHaveAttribute(
             "aria-label",
             "Add",
@@ -648,7 +897,9 @@ describe("Sidebar navigation", () => {
         expect(screen.getByText("Home")).toBeInTheDocument();
         expect(screen.getByText("Files")).toBeInTheDocument();
         expect(screen.getByText("Chats")).toBeInTheDocument();
-        expect(screen.getByText("Automations")).toBeInTheDocument();
+        expect(
+            screen.getByTestId("sidebar-colleagues-button"),
+        ).toBeInTheDocument();
         expect(screen.getByText("Media")).toBeInTheDocument();
         expect(screen.getByText("Translate")).toBeInTheDocument();
 
@@ -810,16 +1061,21 @@ describe("Sidebar navigation", () => {
             onToggleSidebarEdit: jest.fn(),
         });
 
+        // First removable item is Media (Home/Chats/Automations/Files are fixed).
         fireEvent.click(screen.getAllByTestId("sidebar-remove-item-button")[0]);
 
-        expect(screen.queryByText("Home")).not.toBeInTheDocument();
+        expect(screen.queryByText("Media")).not.toBeInTheDocument();
+        expect(screen.getByText("Home")).toBeInTheDocument();
+        expect(screen.getByText("Files")).toBeInTheDocument();
         await waitFor(() => {
             expect(mockUpdateUser.mutateAsync).toHaveBeenCalledWith({
                 data: {
-                    apps: installedApps.slice(1).map((app, index) => ({
-                        ...app,
-                        order: index,
-                    })),
+                    apps: installedApps
+                        .filter((app) => app.appId.slug !== "media")
+                        .map((app, index) => ({
+                            ...app,
+                            order: index,
+                        })),
                 },
             });
         });
@@ -890,6 +1146,36 @@ describe("Sidebar navigation", () => {
         expect(mockPush).toHaveBeenCalledWith("/apps/private/applet-1");
     });
 
+    it("routes unlisted installed workspace applets to their published workspace link", () => {
+        useCurrentUser.mockReturnValue({
+            data: {
+                userId: "user-1",
+                apps: [
+                    {
+                        appId: {
+                            _id: "app-private-workspace-applet",
+                            type: "applet",
+                            name: "Workspace Timer",
+                            icon: "Timer",
+                            workspaceId: "workspace-1",
+                            slug: "workspace-timer",
+                            listedInStore: false,
+                        },
+                        order: 0,
+                    },
+                ],
+            },
+        });
+
+        renderSidebar();
+
+        fireEvent.click(screen.getByText("Workspace Timer"));
+
+        expect(mockPush).toHaveBeenCalledWith(
+            "/published/workspaces/workspace-1/applet",
+        );
+    });
+
     it("renders top-level navigation in the user's saved app order", () => {
         useCurrentUser.mockReturnValue({
             data: {
@@ -915,7 +1201,8 @@ describe("Sidebar navigation", () => {
             .getAllByTestId("sidebar-nav-sortable-item")
             .map((item) => item.textContent);
 
-        expect(itemLabels.slice(0, 3)).toEqual(["Files", "Home", "Chats"]);
+        // Primary Home/Chats/Automations/Files are fixed above; sortable apps keep saved order.
+        expect(itemLabels).toEqual(["Media"]);
     });
 
     it("ignores repeated new-chat clicks while creation is pending", async () => {
@@ -958,7 +1245,7 @@ describe("Sidebar navigation", () => {
         });
 
         expect(screen.getByTestId("sidebar")).toHaveClass("w-56");
-        expect(screen.getByTestId("sidebar")).not.toHaveClass("w-16");
+        expect(screen.getByTestId("sidebar")).not.toHaveClass("w-14");
         expect(screen.getByTestId("sidebar-pin-button")).toHaveAttribute(
             "aria-pressed",
             "true",
@@ -975,7 +1262,7 @@ describe("Sidebar navigation", () => {
         });
 
         const sidebar = screen.getByTestId("sidebar");
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
         expect(
             screen.queryByTestId("sidebar-pin-button"),
         ).not.toBeInTheDocument();
@@ -1028,10 +1315,10 @@ describe("Sidebar navigation", () => {
 
         const sidebar = screen.getByTestId("sidebar");
 
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
 
         fireEvent.mouseEnter(sidebar);
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
 
         await waitFor(() => {
             expect(sidebar).toHaveClass("w-56");
@@ -1041,7 +1328,7 @@ describe("Sidebar navigation", () => {
         expect(sidebar).toHaveClass("w-56");
 
         await waitFor(() => {
-            expect(sidebar).toHaveClass("w-16");
+            expect(sidebar).toHaveClass("w-14");
         });
     });
 
@@ -1103,7 +1390,7 @@ describe("Sidebar navigation", () => {
 
         fireEvent.mouseLeave(sidebar);
         await waitFor(() => {
-            expect(sidebar).toHaveClass("w-16");
+            expect(sidebar).toHaveClass("w-14");
         });
     });
 
@@ -1134,8 +1421,43 @@ describe("Sidebar navigation", () => {
         fireEvent.blur(manageAppsButton, { relatedTarget: null });
         expect(sidebar).toHaveClass("w-56");
 
-        fireEvent.click(screen.getByText("Applets"));
-        expect(mockPush).toHaveBeenCalledWith("/apps?tab=my-applets");
+        // Applets is not a sortable Apps list item; open it from the Apps row icon.
+        expect(screen.queryByText("Applets")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId("sidebar-applets-button"));
+        expect(mockPush).toHaveBeenCalledWith("/apps");
+    });
+
+    it("opens Applets from the whole Apps header row and hides Applets as a nav item", () => {
+        useCurrentUser.mockReturnValue({
+            data: {
+                userId: "user-1",
+                apps: [
+                    ...defaultSidebarApps(),
+                    nativeAppEntry("workspaces", "Applets", "AppWindow", 5),
+                ],
+            },
+        });
+        renderSidebar();
+
+        expect(screen.getByText("Apps")).toBeInTheDocument();
+        expect(screen.getByText("Media")).toBeInTheDocument();
+        // No visible "Applets" nav label — Apps row uses aria-label "Applets".
+        expect(screen.queryByText("Applets")).not.toBeInTheDocument();
+        const appsHeader = screen.getByTestId("sidebar-applets-button");
+        expect(appsHeader).toHaveAttribute("aria-label", "Applets");
+        expect(appsHeader).toHaveTextContent("Apps");
+
+        fireEvent.click(appsHeader);
+        expect(mockPush).toHaveBeenCalledWith("/apps");
+    });
+
+    it("gives Chats and Apps section headers horizontal hover padding like nav items", () => {
+        renderSidebar();
+
+        expect(screen.getByTestId("sidebar-chats-header")).toHaveClass("px-2");
+        expect(screen.getByTestId("sidebar-applets-button")).toHaveClass(
+            "px-2",
+        );
     });
 
     it("reports temporary expansion state changes", async () => {
@@ -1181,7 +1503,7 @@ describe("Sidebar navigation", () => {
         expect(sidebar).toHaveClass("w-56");
 
         await waitFor(() => {
-            expect(sidebar).toHaveClass("w-16");
+            expect(sidebar).toHaveClass("w-14");
         });
     });
 
@@ -1193,13 +1515,13 @@ describe("Sidebar navigation", () => {
         const outsideButton = document.createElement("button");
         document.body.appendChild(outsideButton);
 
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
 
         fireEvent.focus(newChatButton);
         expect(sidebar).toHaveClass("w-56");
 
         fireEvent.blur(newChatButton, { relatedTarget: outsideButton });
-        expect(sidebar).toHaveClass("w-16");
+        expect(sidebar).toHaveClass("w-14");
 
         outsideButton.remove();
     });

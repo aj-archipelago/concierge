@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
 import {
     Dialog,
     DialogContent,
@@ -31,12 +32,12 @@ export default function InitialView({
 
     return (
         <>
-            <h1 className="text-2xl font-bold">
-                {t("Transcription and translation")}
-            </h1>
-            <p className="text-sm text-gray-500">
-                {t("Transcribe and translate video and audio files.")}
-            </p>
+            <PageHeader
+                title={t("Transcription and translation")}
+                description={t(
+                    "Transcribe and translate video and audio files.",
+                )}
+            />
             <h3>{t("How would you like to start?")}</h3>
             <div className="flex gap-4 mt-4">
                 <button

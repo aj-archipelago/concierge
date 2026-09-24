@@ -18,6 +18,11 @@ const ENTITY_CONFIG = {
         titleField: "name",
         defaultTitle: "Untitled applet",
     },
+    published_applet: {
+        model: Applet,
+        titleField: "name",
+        defaultTitle: "Untitled applet",
+    },
     automation: {
         model: Automation,
         titleField: "name",

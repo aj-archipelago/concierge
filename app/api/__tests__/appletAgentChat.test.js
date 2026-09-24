@@ -5,7 +5,9 @@
 import { POST } from "../applet/agent-chat/route";
 
 const mockQuery = jest.fn();
-const mockResolveShareAccess = jest.fn();
+const mockSubscribe = jest.fn(() => ({
+    subscribe: jest.fn(() => ({ unsubscribe: jest.fn() })),
+}));
 const createLeanQuery = (data) => ({
     select: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(data),
@@ -16,9 +18,13 @@ jest.mock("../../../src/graphql", () => {
     return {
         getClient: () => ({
             query: mockQuery,
+            subscribe: mockSubscribe,
         }),
         QUERIES: {
             SYS_ENTITY_AGENT: { kind: "Document", definitions: [] },
+        },
+        SUBSCRIPTIONS: {
+            REQUEST_PROGRESS: { kind: "Document", definitions: [] },
         },
     };
 });
@@ -27,16 +33,19 @@ jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
-jest.mock("mongoose", () => ({
-    __esModule: true,
-    default: {
-        Types: {
-            ObjectId: {
-                isValid: jest.fn(),
-            },
+jest.mock("mongoose", () => {
+    const Types = {
+        ObjectId: {
+            isValid: jest.fn(),
         },
-    },
-}));
+    };
+
+    return {
+        __esModule: true,
+        default: { Types },
+        Types,
+    };
+});
 
 jest.mock("../models/applet", () => ({
     __esModule: true,
@@ -62,11 +71,39 @@ jest.mock("../models/workspace", () => ({
     __esModule: true,
     default: {
         findOne: jest.fn(),
+        findById: jest.fn(),
     },
 }));
 
-jest.mock("../utils/shareAccess.js", () => ({
-    resolveShareAccess: (...args) => mockResolveShareAccess(...args),
+jest.mock("../models/share.js", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+        "article",
+    ],
+    SHARE_ROLES: ["viewer", "editor"],
+}));
+
+jest.mock("../models/chat.mjs", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/automation.js", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/article.js", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
 }));
 
 jest.mock("../../../src/utils/fileAccessPlanUtils.js", () => ({
@@ -89,6 +126,17 @@ jest.mock("../../../app.config/config/index.js", () => ({
     default: {
         cortex: { defaultChatModel: "oai-gpt4o" },
     },
+}));
+
+jest.mock("../applet/sdk-guard.js", () => ({
+    APPLET_SDK_LIMITS: {
+        agentChat: {
+            concurrent: 3,
+            maxPerWindow: 12,
+            windowMs: 60_000,
+        },
+    },
+    withAppletSdkGuard: jest.fn(({ run }) => run()),
 }));
 
 function createRequest(body) {
@@ -125,10 +173,9 @@ describe("POST /api/applet/agent-chat", () => {
         App.findOne.mockReturnValue(createLeanQuery(null));
         const Workspace = require("../models/workspace").default;
         Workspace.findOne.mockReturnValue(createLeanQuery(null));
-        mockResolveShareAccess.mockResolvedValue({
-            canAccess: false,
-            isOwner: false,
-            role: null,
+        const Share = require("../models/share.js").default;
+        Share.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue(null),
         });
         mockQuery.mockResolvedValue({
             data: {
@@ -226,7 +273,7 @@ describe("POST /api/applet/agent-chat", () => {
             expect(mockQuery).not.toHaveBeenCalled();
         });
 
-        test("returns 403 for a non-recipient on a private published v2 applet", async () => {
+        test("returns 403 for a non-owner on an unlisted published v2 applet", async () => {
             const { getCurrentUser } = require("../utils/auth");
             getCurrentUser.mockResolvedValue({
                 _id: "viewer-1",
@@ -252,12 +299,6 @@ describe("POST /api/applet/agent-chat", () => {
 
             expect(res.status).toBe(403);
             expect(data.error).toBe("Access denied");
-            expect(mockResolveShareAccess).toHaveBeenCalledWith({
-                entityType: "applet",
-                entityId: "507f191e810c19729de860ea",
-                userId: "viewer-1",
-                ownerId: "owner-1",
-            });
             expect(mockQuery).not.toHaveBeenCalled();
         });
     });
@@ -280,7 +321,7 @@ describe("POST /api/applet/agent-chat", () => {
                 }),
             );
             const App = require("../models/app").default;
-            App.findOne.mockReturnValue(createLeanQuery({ _id: "public-app" }));
+            App.findOne.mockReturnValue(createLeanQuery({ _id: "app-1" }));
 
             const res = await POST(
                 createRequest({
@@ -290,38 +331,12 @@ describe("POST /api/applet/agent-chat", () => {
 
             expect(res.status).toBe(200);
             expect(mockQuery).toHaveBeenCalled();
-        });
-
-        test("allows shared access to a private published v2 applet", async () => {
-            const { getCurrentUser } = require("../utils/auth");
-            getCurrentUser.mockResolvedValue({
-                _id: "viewer-1",
-                contextId: "user-ctx-1",
-                contextKey: "user-key-1",
+            expect(App.findOne).toHaveBeenCalledWith({
+                type: "applet",
+                status: "active",
+                listedInStore: { $ne: false },
+                $or: [{ appletId: "507f191e810c19729de860ea" }],
             });
-            const Applet = require("../models/applet").default;
-            Applet.findById.mockReturnValue(
-                createLeanQuery({
-                    _id: "507f191e810c19729de860ea",
-                    owner: "owner-1",
-                    version: 2,
-                    publishedVersionIndex: 0,
-                }),
-            );
-            mockResolveShareAccess.mockResolvedValue({
-                canAccess: true,
-                isOwner: false,
-                role: "viewer",
-            });
-
-            const res = await POST(
-                createRequest({
-                    messages: [{ role: "user", content: "Hello" }],
-                }),
-            );
-
-            expect(res.status).toBe(200);
-            expect(mockQuery).toHaveBeenCalled();
         });
 
         test("allows public access to a listed legacy v1 applet", async () => {
@@ -373,6 +388,41 @@ describe("POST /api/applet/agent-chat", () => {
                 warnings: [],
                 errors: [],
             });
+        });
+
+        test("passes only the persisted applet agentContext to Cortex", async () => {
+            const Applet = require("../models/applet").default;
+            const appletId = "507f191e810c19729de860ec";
+            Applet.findById
+                .mockReturnValueOnce(
+                    createLeanQuery({
+                        _id: appletId,
+                        owner: "user-1",
+                        version: 2,
+                        publishedVersionIndex: null,
+                    }),
+                )
+                .mockReturnValueOnce(
+                    createLeanQuery({
+                        agentContext: "applet-shared:507f191e810c19729de860eb",
+                    }),
+                );
+
+            await POST(
+                createRequest({
+                    appletId,
+                    messages: [{ role: "user", content: "Use the context" }],
+                    agentContext: "applet-shared:attacker-controlled",
+                }),
+            );
+
+            expect(mockQuery).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    variables: expect.objectContaining({
+                        agentContext: "applet-shared:507f191e810c19729de860eb",
+                    }),
+                }),
+            );
         });
 
         test("returns citations and parsed tool metadata on success", async () => {
@@ -647,5 +697,119 @@ describe("POST /api/applet/agent-chat", () => {
             expect(res.status).toBe(500);
             expect(data.error).toBe("Failed to process agent chat");
         });
+    });
+
+    test("starts a streaming response before a long-running agent finishes", async () => {
+        mockQuery.mockReturnValue(new Promise(() => {}));
+
+        const res = await POST(
+            createRequest({
+                messages: [{ role: "user", content: "Research this" }],
+                stream: true,
+            }),
+        );
+
+        expect(res.headers.get("Content-Type")).toContain("text/event-stream");
+        expect(mockQuery).toHaveBeenCalledWith(
+            expect.objectContaining({
+                variables: expect.objectContaining({ stream: true }),
+            }),
+        );
+        await res.body.cancel();
+    });
+
+    test("streams agent chunks and final metadata to the SDK", async () => {
+        mockQuery.mockResolvedValue({
+            data: {
+                sys_entity_agent: {
+                    result: "subscription-456",
+                    tool: JSON.stringify({ requestId: "request-1" }),
+                    warnings: [],
+                    errors: [],
+                },
+            },
+        });
+        mockSubscribe.mockReturnValueOnce({
+            subscribe: jest.fn((handlers) => {
+                Promise.resolve().then(() => {
+                    handlers.next({
+                        data: {
+                            requestProgress: {
+                                progress: 0.5,
+                                data: JSON.stringify({
+                                    choices: [{ delta: { content: "Hello " } }],
+                                }),
+                            },
+                        },
+                    });
+                    handlers.next({
+                        data: {
+                            requestProgress: {
+                                progress: 1,
+                                data: JSON.stringify({
+                                    choices: [{ delta: { content: "world" } }],
+                                }),
+                                info: JSON.stringify({
+                                    citations: [{ title: "Source" }],
+                                }),
+                            },
+                        },
+                    });
+                });
+                return { unsubscribe: jest.fn() };
+            }),
+        });
+
+        const res = await POST(
+            createRequest({
+                messages: [{ role: "user", content: "Research this" }],
+                stream: true,
+            }),
+        );
+        const body = await res.text();
+
+        expect(body).toContain('"event":"data"');
+        expect(body).toContain('"result":"Hello world"');
+        expect(body).toContain('"title":"Source"');
+    });
+
+    test("completes from a non-delta content payload", async () => {
+        mockQuery.mockResolvedValue({
+            data: {
+                sys_entity_agent: {
+                    result: "subscription-789",
+                    tool: null,
+                    warnings: [],
+                    errors: [],
+                },
+            },
+        });
+        mockSubscribe.mockReturnValueOnce({
+            subscribe: jest.fn((handlers) => {
+                Promise.resolve().then(() => {
+                    handlers.next({
+                        data: {
+                            requestProgress: {
+                                progress: 1,
+                                data: JSON.stringify({
+                                    content: "Grounded answer",
+                                }),
+                            },
+                        },
+                    });
+                });
+                return { unsubscribe: jest.fn() };
+            }),
+        });
+
+        const res = await POST(
+            createRequest({
+                messages: [{ role: "user", content: "Research this" }],
+                stream: true,
+            }),
+        );
+        const body = await res.text();
+
+        expect(body).toContain('"result":"Grounded answer"');
     });
 });

@@ -1,0 +1,51 @@
+.cluster {
+    position: relative;
+    isolation: isolate;
+    width: 88px;
+    height: 64px;
+    flex-shrink: 0;
+}
+.center {
+    position: absolute;
+    inset-inline-start: 26px;
+    top: 12px;
+    z-index: 2;
+}
+.satellite {
+    position: absolute;
+    width: 26px;
+    height: 29px;
+}
+.satellite:nth-child(2) {
+    inset-inline-start: 0;
+    top: 5px;
+}
+.satellite:nth-child(3) {
+    inset-inline-end: 0;
+    top: 4px;
+}
+.satellite:nth-child(4) {
+    inset-inline-start: 3px;
+    bottom: 0;
+}
+.satellite:nth-child(5) {
+    inset-inline-end: 3px;
+    bottom: 0;
+}
+.moving {
+    animation: drift 3.8s ease-in-out infinite alternate;
+    animation-delay: var(--delay, 0s);
+}
+@keyframes drift {
+    from {
+        transform: translateY(2px) rotate(-4deg);
+    }
+    to {
+        transform: translateY(-3px) rotate(4deg);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .moving {
+        animation: none;
+    }
+}

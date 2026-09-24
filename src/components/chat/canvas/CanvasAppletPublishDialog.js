@@ -49,7 +49,7 @@ export default function CanvasAppletPublishDialog({
 
     const existingApp = appletRecord?.app;
     const appletId = appletRecord?._id ? String(appletRecord._id) : null;
-    const { data: shareData } = useShareSettings("applet", appletId, {
+    const { data: shareData } = useShareSettings("published_applet", appletId, {
         enabled: isOpen && Boolean(appletId),
     });
 
@@ -242,8 +242,8 @@ export default function CanvasAppletPublishDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[calc(100vh-2rem)] w-[calc(100vw-1rem)] flex-col gap-4 overflow-hidden sm:w-full sm:max-w-md">
+                <DialogHeader className="shrink-0">
                     <DialogTitle>
                         {isUpdate
                             ? t("Update Published Applet")
@@ -260,7 +260,10 @@ export default function CanvasAppletPublishDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div
+                    data-testid="publish-dialog-scroll-body"
+                    className="min-h-0 flex-1 space-y-4 overflow-y-auto pe-1"
+                >
                     {/* Applet Name */}
                     <div className="space-y-2">
                         <Label
@@ -606,7 +609,7 @@ export default function CanvasAppletPublishDialog({
                     </p>
                 </div>
 
-                <DialogFooter className="flex gap-2">
+                <DialogFooter className="shrink-0 flex gap-2">
                     <Button
                         variant="outline"
                         onClick={onClose}

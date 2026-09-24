@@ -1,3 +1,4 @@
+import { enrichAssistantTasks } from "../utils/assistant-progress.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../utils/auth";
 import Automation from "../models/automation.js";
@@ -74,7 +75,10 @@ export async function GET(request) {
             });
 
         const taskItems = requests.filter((item) => item.inboxKind === "task");
-        const enrichedTasks = await enrichAutomationTasks(taskItems, user._id);
+        const enrichedTasks = await enrichAssistantTasks(
+            await enrichAutomationTasks(taskItems, user._id),
+            user,
+        );
         const enrichedTaskById = new Map(
             enrichedTasks.map((task) => [String(task._id), task]),
         );
@@ -110,10 +114,30 @@ export async function PATCH(request) {
             );
         } else {
             const Task = (await import("../models/task.mjs")).default;
-            await Task.findOneAndUpdate(
+            const task = await Task.findOne({ _id, owner: user._id });
+            if (
+                task?.assistantTeamRevision > 0 &&
+                ["pending", "in_progress", "waiting"].includes(task.status)
+            )
+                return NextResponse.json(
+                    {
+                        error: "Active jobs stay visible until they finish or are stopped",
+                    },
+                    { status: 409 },
+                );
+            await Task.updateOne(
                 { _id, owner: user._id },
-                { dismissed: true },
+                { $set: { dismissed: true } },
             );
+            if (task?.assistantTeamRevision > 0) {
+                const Notification = (
+                    await import("../models/notification.mjs")
+                ).default;
+                await Notification.updateMany(
+                    { owner: user._id, assistantRootId: _id },
+                    { $set: { read: true, dismissed: true } },
+                );
+            }
         }
 
         return NextResponse.json({ success: true });

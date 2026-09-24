@@ -1,4 +1,4 @@
-import { getClient } from "../../../src/graphql";
+import { getClient } from "../utils/cortex-client.js";
 import Run from "../models/run";
 import { getCurrentUser } from "../utils/auth";
 import { gql } from "@apollo/client";

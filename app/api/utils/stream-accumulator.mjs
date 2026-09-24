@@ -172,6 +172,7 @@ export class StreamAccumulator {
             success,
             error,
             presentation,
+            mediaTask,
         } = toolMessage;
         const existingItem = this.toolCallsMap.get(callId);
         const existingIndex = this.toolCallIndexMap.get(callId) ?? null;
@@ -198,7 +199,7 @@ export class StreamAccumulator {
                 this.activeThinkingIndex = null;
             }
         } else if (type === "finish") {
-            const toolEvent = {
+            const toolEvent = createAssistantToolEventItem({
                 ...(existingItem ||
                     createAssistantToolEventItem({
                         callId,
@@ -215,7 +216,10 @@ export class StreamAccumulator {
                 error: error || null,
                 presentation:
                     presentation || existingItem?.presentation || "default",
-            };
+                mediaTask: success
+                    ? mediaTask || existingItem?.mediaTask
+                    : null,
+            });
             const nextInline = upsertAssistantToolEvent(
                 this.inlinePayloadItems,
                 toolEvent,

@@ -1,4 +1,3 @@
-import { hashMediaFile } from "./mediaUtils";
 import {
     buildMediaHelperFileParams,
     buildMediaHelperListParams,
@@ -198,7 +197,6 @@ export async function checkFileByBlobPath(blobPath, options = {}) {
  * @param {string} options.chatId - Optional chatId for chat-scoped storage
  * @param {string} options.workspaceId - Optional workspaceId for workspace-scoped storage
  * @param {string} options.fileScope - Optional file scope ('chat' or 'global')
- * @param {boolean} options.checkHash - Whether to check if file exists by hash first (default: true)
  * @param {Function} options.onProgress - Progress callback (percentage: number) => void
  * @param {AbortSignal} options.signal - Optional abort signal
  * @param {string} options.serverUrl - Server URL (default: "/media-helper")
@@ -209,7 +207,6 @@ export async function checkFileByBlobPath(blobPath, options = {}) {
 export async function uploadFileToMediaHelper(file, options = {}) {
     const {
         storageTarget = null,
-        checkHash = true,
         onProgress = null,
         signal = null,
         serverUrl = "/media-helper",
@@ -228,28 +225,12 @@ export async function uploadFileToMediaHelper(file, options = {}) {
               })
             : options.contextId;
 
-    // Generate file hash
-    const fileHash = await hashMediaFile(file);
-
-    // Check if file already exists by hash
-    if (checkHash) {
-        const existingFile = await checkFileByHash(fileHash, {
-            storageTarget,
-            ...routingParams,
-            serverUrl,
-            signal,
-        });
-        if (existingFile) {
-            return existingFile;
-        }
-    }
-
-    // File doesn't exist or hash check disabled, proceed with upload
+    // A new upload belongs to the requested cloud location, even when another
+    // file has identical bytes. Hash lookup is retained only for legacy reads.
     // IMPORTANT: Append metadata fields BEFORE the file.
     // Busboy processes multipart parts in order, so fields must come first
     // to be available when the file event fires in the handler.
     const formData = new FormData();
-    formData.append("hash", fileHash);
     if (targetContextId) {
         formData.append("contextId", targetContextId);
     }
@@ -265,7 +246,10 @@ export async function uploadFileToMediaHelper(file, options = {}) {
     formData.append("file", file, file.name);
 
     const uploadUrl = new URL(serverUrl, window.location.origin);
-    uploadUrl.searchParams.set("hash", fileHash);
+    for (const [key, value] of Object.entries(routingParams))
+        uploadUrl.searchParams.set(key, value);
+    if (targetContextId)
+        uploadUrl.searchParams.set("contextId", targetContextId);
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -311,10 +295,7 @@ export async function uploadFileToMediaHelper(file, options = {}) {
             if (xhr.status === 200) {
                 try {
                     const data = JSON.parse(xhr.responseText);
-                    resolve({
-                        ...data,
-                        hash: data.hash || fileHash,
-                    });
+                    resolve(data);
                 } catch (error) {
                     reject(
                         new Error(

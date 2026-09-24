@@ -14,6 +14,7 @@ import {
 import {
     createChatStorageTarget,
     createUserGlobalStorageTarget,
+    getUserFolderUploadDestination,
 } from "@/src/utils/storageTargets";
 import { toast } from "react-toastify";
 
@@ -63,6 +64,7 @@ export default function UserFileCollection({
     const { t } = useTranslation();
     const apolloClient = useApolloClient();
     const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [uploadDestination, setUploadDestination] = useState(null);
     const [isDownloading, setIsDownloading] = useState(false);
     const storageTarget = useMemo(() => {
         if (!contextId) return null;
@@ -70,6 +72,33 @@ export default function UserFileCollection({
             ? createChatStorageTarget(contextId, chatId)
             : createUserGlobalStorageTarget(contextId);
     }, [contextId, chatId]);
+
+    const handleUploadClick = useCallback(
+        (selectedPath) => {
+            const scopePath = chatId ? `chats/${chatId}` : "global";
+            const folderPath =
+                scopeToStorageTarget &&
+                selectedPath &&
+                selectedPath !== scopePath &&
+                !selectedPath.startsWith(`${scopePath}/`)
+                    ? `${scopePath}/${selectedPath}`
+                    : selectedPath;
+            const destination = getUserFolderUploadDestination(
+                contextId,
+                folderPath,
+                storageTarget,
+            );
+            if (!destination) {
+                toast.error(
+                    t("Select a destination folder that supports uploads."),
+                );
+                return;
+            }
+            setUploadDestination(destination);
+            setShowUploadDialog(true);
+        },
+        [contextId, chatId, scopeToStorageTarget, storageTarget, t],
+    );
 
     // Upload handler — uses a no-op setFiles since UnifiedFileManager
     // manages its own file state via useUnifiedFileData
@@ -268,7 +297,7 @@ export default function UserFileCollection({
                 onDownload={handleDownload}
                 onMove={handleMove}
                 onUpdateMetadata={handleUpdateMetadata}
-                onUploadClick={() => setShowUploadDialog(true)}
+                onUploadClick={handleUploadClick}
                 onAttach={onAttach}
                 attachLabel={onAttach ? t("Attach") : undefined}
                 isDownloading={isDownloading}
@@ -282,11 +311,12 @@ export default function UserFileCollection({
                 onFileUpload={handleUploadCompleteAndRefresh}
                 contextId={contextId}
                 chatId={chatId}
-                storageTarget={storageTarget}
+                storageTarget={
+                    uploadDestination?.storageTarget || storageTarget
+                }
+                subPath={uploadDestination?.subPath}
                 title={t("Upload Files")}
-                description={t(
-                    "Upload files to add them to this conversation.",
-                )}
+                description={t("Upload files to the selected folder.")}
             />
         </>
     );

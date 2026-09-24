@@ -27,6 +27,7 @@ export const TRANSLATION_STRATEGIES = {
     GEMINI_31_PRO: "gemini31pro",
     GOOGLE_TRANSLATE_LLM: "googleTranslateLlm",
     GPT_55: "gpt55",
+    CLAUDE_5_SONNET: "claude5sonnet",
     CLAUDE_47_OPUS: "claude47opus",
     GEMINI_3_FLASH: "gemini3flash",
     GPT_54_MINI: "gpt54mini",
@@ -49,8 +50,9 @@ const LEGACY_TRANSLATION_STRATEGY_MAP = {
 export const TRANSLATION_MODELS = {
     [TRANSLATION_STRATEGIES.GEMINI_31_PRO]: "gemini-pro-31-vision",
     [TRANSLATION_STRATEGIES.GPT_55]: "oai-gpt55",
+    [TRANSLATION_STRATEGIES.CLAUDE_5_SONNET]: "claude-5-sonnet-vertex",
     [TRANSLATION_STRATEGIES.CLAUDE_47_OPUS]: "claude-47-opus-vertex",
-    [TRANSLATION_STRATEGIES.GEMINI_3_FLASH]: "gemini-flash-35-vision",
+    [TRANSLATION_STRATEGIES.GEMINI_3_FLASH]: "gemini-flash-37-vision",
     [TRANSLATION_STRATEGIES.GPT_54_MINI]: "oai-gpt54-mini",
     [TRANSLATION_STRATEGIES.CLAUDE_45_HAIKU]: "claude-45-haiku-vertex",
     [TRANSLATION_STRATEGIES.GPT_4O_LEGACY]: "oai-gpt4o",

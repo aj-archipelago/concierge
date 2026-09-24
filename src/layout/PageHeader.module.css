@@ -1,0 +1,45 @@
+/* Shared geometry for all page-header controls, including older page actions. */
+.controls :global(button),
+.controls :global(a[role="button"]),
+.controls :global(select) {
+    min-height: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    box-shadow: none;
+}
+.controls :global(button > svg),
+.controls :global(a[role="button"] > svg) {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+.controls :global([role="tablist"]) {
+    display: flex;
+    height: auto;
+    max-width: 100%;
+    gap: 0.25rem;
+    padding: 0;
+    background: transparent;
+    overflow-x: auto;
+}
+.controls :global([role="tab"]) {
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    color: #4b5563;
+    background: transparent;
+}
+.controls :global([role="tab"][data-state="active"]) {
+    background: #f0f9ff;
+    color: #0369a1;
+}
+:global(.dark) .controls :global([role="tab"]) {
+    color: #d1d5db;
+}
+:global(.dark) .controls :global([role="tab"][data-state="active"]) {
+    background: #082f49;
+    color: #bae6fd;
+}

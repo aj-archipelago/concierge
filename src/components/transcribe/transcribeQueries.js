@@ -55,6 +55,10 @@ export const getTranscribeQuery = (modelOption) => {
     switch (normalizeModelOption(modelOption)) {
         case "neuralspace":
             return QUERIES.TRANSCRIBE_NEURALSPACE;
+        case "gemini3.5transcribe":
+            return QUERIES.TRANSCRIBE_GEMINI_35;
+        case "scribev2":
+            return QUERIES.TRANSCRIBE_SCRIBE_V2;
         case "gemini":
             return QUERIES.TRANSCRIBE_GEMINI;
         case "mai":
@@ -79,5 +83,7 @@ export const getTranscribeResult = (data) =>
     data?.transcribe_neuralspace?.result ||
     data?.transcribe_gemini?.result ||
     data?.transcribe_mai_15?.result ||
+    data?.transcribe_gemini_35?.result ||
+    data?.transcribe_scribe_v2?.result ||
     data?.transcribe_xai_gemini?.result ||
     data?.transcribe_xai?.result;

@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "./cfh-client.mjs";
 import {
     buildFileAccessPlan,
     buildRunContext,
@@ -359,7 +360,12 @@ function getMediaHelperDirectUrl() {
  * @param {string} [params.contextId] - Context ID for file scoping
  * @returns {Promise<{url: string, gcs: string|null}|null>} Short-lived URL + GCS URL, or null if fetch fails
  */
-export async function fetchShortLivedUrl({ blobPath, hash, contextId } = {}) {
+export async function fetchShortLivedUrl({
+    blobPath,
+    hash,
+    contextId,
+    storageAuthorization = {},
+} = {}) {
     const attempts = [];
     if (blobPath) {
         attempts.push({ blobPath });
@@ -391,7 +397,11 @@ export async function fetchShortLivedUrl({ blobPath, hash, contextId } = {}) {
             url.searchParams.set("duration", "300");
 
             const requestUrl = url.toString();
-            const response = await fetch(requestUrl);
+            const response = await authorizedMediaFetch(
+                requestUrl,
+                {},
+                storageAuthorization,
+            );
             if (response.ok) {
                 const data = await response.json().catch((err) => {
                     console.warn(

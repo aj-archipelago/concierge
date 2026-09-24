@@ -3,8 +3,8 @@
 import {
     BookOpen,
     Check,
-    ChevronDown,
     MessageSquare,
+    MessageSquareText,
     PinIcon,
     PinOffIcon,
     AppWindow,
@@ -14,7 +14,8 @@ import {
     Loader2,
     Pencil,
     Plus,
-    SquarePen,
+    ChevronDown,
+    ChevronRight,
     X,
 } from "lucide-react";
 import {
@@ -34,6 +35,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import * as Icons from "lucide-react";
+import WispIcon from "../components/colleagues/WispIcon";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
@@ -53,19 +55,28 @@ import {
     useDeleteChat,
     useGetActiveChats,
     useAddChat,
+    useUpdateChat,
     DEFAULT_CHAT_MESSAGES_LIMIT,
 } from "../../app/queries/chats";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "../../app/utils/axios-client";
 import { useCurrentUser, useUpdateCurrentUser } from "../../app/queries/users";
 import { useWorkspace } from "../../app/queries/workspaces";
-import { usePinnedAutomations } from "../hooks/useAutomations";
+import { useColleagueUpdates } from "../hooks/useColleagueUpdates";
+import {
+    CHAT_ATTENTION_QUERY_KEY,
+    clearChatNeedsAttention,
+    getChatLastViewedAt,
+    getChatNeedsAttention,
+    getChatTaskNotificationStatus,
+    markChatViewed,
+} from "../utils/chatsUnread";
 
 import classNames from "../../app/utils/class-names";
 import { extractPreviewTextFromStoredPayload } from "../utils/assistantInlinePayload";
 import SendFeedbackModal from "../components/help/SendFeedbackModal";
 import ChatNavigationItem from "./ChatNavigationItem";
-import AutomationNavigationItem from "./AutomationNavigationItem";
+import ChatTaskStatusDot from "./ChatTaskStatusDot";
 import { cn } from "@/lib/utils";
 import AppPickerDialog from "@/src/components/apps/AppPickerDialog";
 import {
@@ -118,7 +129,7 @@ const appNavigationMap = {
     },
     workspaces: {
         name: "Applets",
-        href: "/apps?tab=my-applets",
+        href: "/apps",
         icon: getIconComponent("AppWindow"),
     },
     media: {
@@ -154,40 +165,83 @@ const routesToCollapseSidebarFor = [
 const SIDEBAR_RETRACT_DELAY_MS = 280;
 const SIDEBAR_EXPAND_DELAY_MS = SIDEBAR_RETRACT_DELAY_MS / 2;
 const SIDEBAR_HOVER_CONTROL_DELAY_MS = 120;
-const DEFAULT_EXPANDED_SIDEBAR_SECTIONS = ["nav:Chats", "nav:Automations"];
-export const SIDEBAR_EXPANDED_SECTIONS_STORAGE_KEY =
-    "concierge-sidebar-navigation-expanded-sections-v1";
+export const SIDEBAR_CHAT_LIST_INITIAL = 4;
+const PRIMARY_SIDEBAR_NAV_NAMES = new Set([
+    "Home",
+    "Automations",
+    "Chats",
+    "Files",
+]);
+/** Built-ins that have dedicated sidebar affordances and must not appear as Apps list items. */
+const APPS_SECTION_EXCLUDED_NAV_NAMES = new Set(["Applets"]);
+const APPS_SECTION_EXCLUDED_SLUGS = new Set(["workspaces"]);
 
-const readExpandedSidebarSections = () => {
-    if (typeof window === "undefined") {
-        return new Set(DEFAULT_EXPANDED_SIDEBAR_SECTIONS);
-    }
+/**
+ * Compact rail rows that reserve chat-list height and show per-chat status
+ * dots while titles stay hidden. Individual chats use a square conversation
+ * icon so they stay distinct from the round Chats header bubble.
+ */
+const SidebarChatListPlaceholders = ({
+    items = [],
+    count,
+    includeViewAllRow = false,
+}) => {
+    const rowCount = typeof count === "number" ? count : items.length;
+    if (!rowCount && !includeViewAllRow) return null;
 
-    try {
-        const raw = window.localStorage.getItem(
-            SIDEBAR_EXPANDED_SECTIONS_STORAGE_KEY,
-        );
-        if (raw === null) {
-            return new Set(DEFAULT_EXPANDED_SIDEBAR_SECTIONS);
-        }
-        const parsed = JSON.parse(raw);
-        return new Set(Array.isArray(parsed) ? parsed.filter(Boolean) : []);
-    } catch {
-        return new Set(DEFAULT_EXPANDED_SIDEBAR_SECTIONS);
-    }
-};
+    return (
+        <ul data-testid="sidebar-chats-placeholders" className="px-2">
+            {Array.from({ length: rowCount }).map((_, index) => {
+                const item = items[index];
+                const status = item?.notificationStatus || "idle";
+                const content = (
+                    <span className="relative inline-flex h-5 w-5 items-center justify-center overflow-visible">
+                        <MessageSquareText
+                            data-testid="sidebar-chat-placeholder-icon"
+                            className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600"
+                            strokeWidth={2}
+                            aria-hidden="true"
+                        />
+                        {item ? (
+                            <ChatTaskStatusDot
+                                status={status}
+                                sizeClassName="h-1.5 w-1.5"
+                                className="absolute end-0 top-0 ring-1 ring-white dark:ring-gray-800"
+                            />
+                        ) : null}
+                    </span>
+                );
 
-const writeExpandedSidebarSections = (sectionIds) => {
-    if (typeof window === "undefined") return;
-
-    try {
-        window.localStorage.setItem(
-            SIDEBAR_EXPANDED_SECTIONS_STORAGE_KEY,
-            JSON.stringify(sectionIds),
-        );
-    } catch {
-        // Ignore localStorage errors; the in-memory section state still updates.
-    }
+                return (
+                    <li
+                        key={item?.key || `sidebar-chat-placeholder-${index}`}
+                        data-testid="sidebar-chat-placeholder-row"
+                        data-notification-status={item ? status : undefined}
+                        className="my-0.5 flex h-8 items-center justify-center"
+                    >
+                        {item?.href ? (
+                            <Link
+                                href={item.href}
+                                title={item.name}
+                                aria-label={item.name}
+                                className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                                {content}
+                            </Link>
+                        ) : (
+                            content
+                        )}
+                    </li>
+                );
+            })}
+            {includeViewAllRow ? (
+                <li
+                    data-testid="sidebar-chat-placeholder-view-all"
+                    className="flex h-7 items-center"
+                />
+            ) : null}
+        </ul>
+    );
 };
 
 const getSidebarItemId = (item) => {
@@ -296,8 +350,10 @@ const CanvasAppletEditButton = ({
             aria-label={t("Edit applet")}
             data-testid="sidebar-canvas-applet-edit-button"
             className={cn(
-                "ml-auto p-0 border-0 bg-transparent cursor-pointer",
-                isCollapsed ? "hidden" : "invisible group-hover:visible",
+                "ms-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-md border-0 bg-transparent cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:h-6 lg:w-6",
+                isCollapsed
+                    ? "hidden"
+                    : "lg:invisible group-hover:visible group-focus-within:visible",
                 !showDelayedControls && "pointer-events-none !invisible",
             )}
             disabled={addChat.isPending}
@@ -383,17 +439,23 @@ const AppletEditButton = ({
     };
 
     return (
-        <EditIcon
+        <button
+            type="button"
             data-testid="sidebar-applet-edit-button"
+            aria-label={t("Edit applet")}
+            title={t("Edit applet")}
             className={cn(
-                "h-4 w-4 ml-auto text-gray-400 hover:text-gray-600 cursor-pointer",
-                isCollapsed ? "hidden" : "invisible group-hover:visible",
+                "ms-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 lg:h-6 lg:w-6",
+                isCollapsed
+                    ? "hidden"
+                    : "lg:invisible group-hover:visible group-focus-within:visible",
                 !showDelayedControls && "pointer-events-none !invisible",
             )}
             onClick={handleEditClick}
-            aria-disabled={addChat.isPending}
-            title={t("Edit applet")}
-        />
+            disabled={addChat.isPending}
+        >
+            <EditIcon className="h-4 w-4" aria-hidden="true" />
+        </button>
     );
 };
 
@@ -463,47 +525,6 @@ const SortableSidebarNavigationItem = ({
     );
 };
 
-const getSidebarSubmenuPlaceholderCount = (item, chatsLoading) => {
-    if (item.name === "Chats" && chatsLoading) {
-        return 1;
-    }
-    return Array.isArray(item.children) ? item.children.length : 0;
-};
-
-const SidebarSubmenuPlaceholders = ({ item, count }) => {
-    if (!count) return null;
-
-    const PlaceholderIcon =
-        item.name === "Chats"
-            ? Icons.MessageCircleIcon
-            : item.href === appNavigationMap.automations.href
-              ? Icons.CalendarClockIcon
-              : item.icon || Icons.CircleIcon;
-    const rowClassName =
-        item.href === appNavigationMap.automations.href ? "h-12" : "h-10";
-
-    return (
-        <ul
-            data-testid={`sidebar-submenu-placeholders-${getSidebarItemId(item)}`}
-            className="mt-1 px-1"
-            aria-hidden="true"
-        >
-            {Array.from({ length: count }).map((_, index) => (
-                <li
-                    key={`${getSidebarItemId(item)}-placeholder-${index}`}
-                    data-testid={`sidebar-submenu-placeholder-row-${getSidebarItemId(item)}`}
-                    className={cn(rowClassName, "my-0.5 flex items-center")}
-                >
-                    <PlaceholderIcon
-                        className="ms-3 h-3.5 w-3.5 text-gray-300 dark:text-gray-600"
-                        strokeWidth={2}
-                    />
-                </li>
-            ))}
-        </ul>
-    );
-};
-
 export default React.forwardRef(function Sidebar(
     {
         isCollapsed: propIsCollapsed,
@@ -512,8 +533,10 @@ export default React.forwardRef(function Sidebar(
         isEditingSidebar = false,
         onInteractionExpandedChange,
         onToggleSidebarEdit,
+        onNavigate,
         isMobile,
         initialActiveChats,
+        renderHeader,
     },
     ref,
 ) {
@@ -523,6 +546,7 @@ export default React.forwardRef(function Sidebar(
     const { t } = useTranslation();
     const { direction = "ltr" } = React.useContext(LanguageContext) || {};
     const addChat = useAddChat();
+    const updateChat = useUpdateChat();
     const updateUser = useUpdateCurrentUser();
     const [isCreatingNewChat, setIsCreatingNewChat] = useState(false);
     const [isSidebarInteractionExpanded, setIsSidebarInteractionExpanded] =
@@ -530,9 +554,6 @@ export default React.forwardRef(function Sidebar(
     const [isSidebarHoverExpanded, setIsSidebarHoverExpanded] = useState(false);
     const [optimisticSidebarOrder, setOptimisticSidebarOrder] = useState([]);
     const [removedSidebarAppIds, setRemovedSidebarAppIds] = useState([]);
-    const [expandedSidebarSections, setExpandedSidebarSections] = useState(
-        readExpandedSidebarSections,
-    );
     const [showSidebarAddPicker, setShowSidebarAddPicker] = useState(false);
     const [availableSidebarApplets, setAvailableSidebarApplets] = useState([]);
     const [availableSidebarBuiltIns, setAvailableSidebarBuiltIns] = useState(
@@ -543,6 +564,40 @@ export default React.forwardRef(function Sidebar(
     const [isLoadingSidebarBuiltIns, setIsLoadingSidebarBuiltIns] =
         useState(false);
     const [sidebarAddPendingKey, setSidebarAddPendingKey] = useState(null);
+    const [chatLastViewedVersion, setChatLastViewedVersion] = useState(0);
+    const [chatHistoryExpanded, setChatHistoryExpanded] = useState(true);
+    useEffect(() => {
+        const sync = () => {
+            try {
+                setChatHistoryExpanded(
+                    localStorage.getItem("concierge-sidebar-chat-history") !==
+                        "collapsed",
+                );
+            } catch {
+                /* Storage may be unavailable. */
+            }
+        };
+        sync();
+        window.addEventListener("storage", sync);
+        window.addEventListener("concierge-chat-history-toggle", sync);
+        return () => {
+            window.removeEventListener("storage", sync);
+            window.removeEventListener("concierge-chat-history-toggle", sync);
+        };
+    }, []);
+    const toggleChatHistory = () => {
+        const expanded = !chatHistoryExpanded;
+        setChatHistoryExpanded(expanded);
+        try {
+            localStorage.setItem(
+                "concierge-sidebar-chat-history",
+                expanded ? "expanded" : "collapsed",
+            );
+            window.dispatchEvent(new Event("concierge-chat-history-toggle"));
+        } catch {
+            /* Keep the toggle usable without storage. */
+        }
+    };
     const isCreatingNewChatRef = useRef(false);
     const expandTimerRef = useRef(null);
     const hoverControlsTimerRef = useRef(null);
@@ -561,9 +616,18 @@ export default React.forwardRef(function Sidebar(
         [chatsData],
     );
 
-    const topChats = useMemo(() => visibleChats.slice(0, 3), [visibleChats]);
+    const topChats = useMemo(
+        () => visibleChats.slice(0, SIDEBAR_CHAT_LIST_INITIAL),
+        [visibleChats],
+    );
+    const canShowViewAllChats = visibleChats.length > SIDEBAR_CHAT_LIST_INITIAL;
+    const chatListPlaceholderCount = chatsLoading
+        ? 1
+        : Math.max(topChats.length, 1);
+    const chatListPlaceholderIncludesViewAll =
+        !chatsLoading && canShowViewAllChats;
     const { data: currentUser } = useCurrentUser();
-    const { data: pinnedAutomations = [] } = usePinnedAutomations();
+    const { hasUnreadUpdates } = useColleagueUpdates();
 
     useEffect(() => {
         if (!Array.isArray(currentUser?.apps)) return;
@@ -586,6 +650,12 @@ export default React.forwardRef(function Sidebar(
 
     const deleteChat = useDeleteChat();
     const queryClient = useQueryClient();
+    const { data: chatAttentionMap = {} } = useQuery({
+        queryKey: CHAT_ATTENTION_QUERY_KEY,
+        queryFn: () => ({}),
+        staleTime: Infinity,
+        initialData: {},
+    });
     const topChatsPrefetchRef = useRef(new Set());
 
     const installedSidebarAppIds = useMemo(
@@ -694,8 +764,7 @@ export default React.forwardRef(function Sidebar(
 
     useEffect(() => {
         if (!visibleChats.length) return;
-        const topChats = visibleChats.slice(0, 3);
-        topChats.forEach((chat) => {
+        visibleChats.slice(0, SIDEBAR_CHAT_LIST_INITIAL).forEach((chat) => {
             const chatId = chat?._id ? String(chat._id) : null;
             if (!chatId) {
                 return;
@@ -721,35 +790,64 @@ export default React.forwardRef(function Sidebar(
         });
     }, [visibleChats, queryClient, router]);
 
+    const navigateAwayFromChat = useCallback(
+        (chatId) => {
+            const activeChats = queryClient.getQueryData(["activeChats"]) || [];
+            const userChatInfo =
+                queryClient.getQueryData(["userChatInfo"]) || {};
+
+            const remainingActive = Array.isArray(activeChats)
+                ? activeChats.filter(
+                      (chat) => String(chat?._id) !== String(chatId),
+                  )
+                : [];
+            const fallbackRecent = Array.isArray(userChatInfo.recentChatIds)
+                ? userChatInfo.recentChatIds.filter(
+                      (id) => String(id) !== String(chatId),
+                  )
+                : [];
+            const nextActiveId =
+                remainingActive[0]?._id || fallbackRecent[0] || null;
+
+            if (pathname === `/chat/${chatId}`) {
+                if (nextActiveId) {
+                    router.push(`/chat/${nextActiveId}`);
+                } else {
+                    router.push("/chat");
+                }
+            }
+        },
+        [queryClient, router, pathname],
+    );
+
     const handleDeleteChat = useCallback(
         async (chatId) => {
             try {
-                const activeChats =
-                    queryClient.getQueryData(["activeChats"]) || [];
-                const userChatInfo =
-                    queryClient.getQueryData(["userChatInfo"]) || {};
-
-                const remainingActive = Array.isArray(activeChats)
-                    ? activeChats.filter((chat) => chat?._id !== chatId)
-                    : [];
-                const fallbackRecent = Array.isArray(userChatInfo.recentChatIds)
-                    ? userChatInfo.recentChatIds.filter((id) => id !== chatId)
-                    : [];
-                const nextActiveId =
-                    remainingActive[0]?._id || fallbackRecent[0] || null;
-
-                if (nextActiveId) {
-                    router.push(`/chat/${nextActiveId}`);
-                } else if (pathname.startsWith("/chat/")) {
-                    router.push("/chat");
-                }
-
+                navigateAwayFromChat(chatId);
                 deleteChat.mutate({ chatId });
             } catch (error) {
                 console.error("Error deleting chat:", error);
             }
         },
-        [queryClient, router, pathname, deleteChat],
+        [navigateAwayFromChat, deleteChat],
+    );
+
+    const handleArchiveChat = useCallback(
+        async (chatId) => {
+            try {
+                navigateAwayFromChat(chatId);
+                await updateChat.mutateAsync({
+                    chatId,
+                    archived: true,
+                    archivedAt: new Date().toISOString(),
+                    pinned: false,
+                    pinnedAt: null,
+                });
+            } catch (error) {
+                console.error("Error archiving chat:", error);
+            }
+        },
+        [navigateAwayFromChat, updateChat],
     );
 
     const userNavigation = useMemo(() => {
@@ -791,12 +889,14 @@ export default React.forwardRef(function Sidebar(
 
                 // v1 workspace applets
                 if (app.type === "applet" && app.workspaceId) {
+                    const isListed = app.listedInStore !== false;
                     return {
                         name: app.name || "Applet",
                         icon: Icons[app.icon] || AppWindow,
-                        href: app.slug
-                            ? `/apps/${app.slug}`
-                            : `/published/workspaces/${app.workspaceId}/applet`,
+                        href:
+                            app.slug && isListed
+                                ? `/apps/${app.slug}`
+                                : `/published/workspaces/${app.workspaceId}/applet`,
                         appId: userApp.appId._id || userApp.appId,
                         workspaceId: app.workspaceId,
                         type: "applet",
@@ -831,64 +931,120 @@ export default React.forwardRef(function Sidebar(
         return deduped;
     }, [currentUser?.apps]);
 
+    const getChatSidebarTitle = useCallback(
+        (chat) => {
+            if (chat?.title && chat.title !== "New Chat") {
+                return chat.title;
+            }
+            if (chat?.firstMessage?.payload) {
+                return (
+                    extractPreviewTextFromStoredPayload(
+                        chat.firstMessage.payload,
+                    ) || t("New Chat")
+                );
+            }
+            if (chat?.messages && chat?.messages[0]?.payload) {
+                return (
+                    extractPreviewTextFromStoredPayload(
+                        chat.messages[0].payload,
+                    ) || t("New Chat")
+                );
+            }
+            return t("New Chat");
+        },
+        [t],
+    );
+
+    const activeChatRouteId = useMemo(() => {
+        const match = pathname?.match(/^\/chat\/([^/]+)/);
+        return match?.[1] || null;
+    }, [pathname]);
+    const previousActiveChatRouteIdRef = useRef(null);
+
+    useEffect(() => {
+        const previousChatId = previousActiveChatRouteIdRef.current;
+        // Mark on leave so tasks that finished while viewing don't leave a dot.
+        if (previousChatId && previousChatId !== activeChatRouteId) {
+            markChatViewed(previousChatId);
+        }
+        if (activeChatRouteId) {
+            markChatViewed(activeChatRouteId);
+            clearChatNeedsAttention(queryClient, activeChatRouteId);
+        }
+        previousActiveChatRouteIdRef.current = activeChatRouteId;
+        setChatLastViewedVersion((version) => version + 1);
+    }, [activeChatRouteId, queryClient]);
+
+    const sidebarChatItems = useMemo(
+        () =>
+            topChats.map((chat) => {
+                const chatId = chat._id ? String(chat._id) : null;
+                const lastViewedAt = chatId
+                    ? getChatLastViewedAt(chatId)
+                    : null;
+                return {
+                    name: getChatSidebarTitle(chat),
+                    href: chatId ? `/chat/${chatId}` : "",
+                    key: chatId,
+                    pinned: Boolean(chat.pinned),
+                    updatedAt: chat.updatedAt,
+                    lastMessageAt: chat.lastMessageAt,
+                    notificationStatus: getChatTaskNotificationStatus(
+                        chat,
+                        lastViewedAt,
+                        {
+                            isCurrentlyViewing:
+                                Boolean(chatId) && chatId === activeChatRouteId,
+                            needsAttention: getChatNeedsAttention(
+                                chatAttentionMap,
+                                chatId,
+                            ),
+                        },
+                    ),
+                };
+            }),
+        // chatLastViewedVersion forces recompute after markChatViewed.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [
+            topChats,
+            getChatSidebarTitle,
+            activeChatRouteId,
+            chatLastViewedVersion,
+            chatAttentionMap,
+        ],
+    );
+
     const updatedNavigation = useMemo(() => {
         return userNavigation.map((item) => {
-            if (item.name === "Chats" && Array.isArray(visibleChats)) {
-                const chatChildren = topChats.map((chat) => ({
-                    name: (() => {
-                        if (chat?.title && chat.title !== "New Chat") {
-                            return chat.title;
-                        }
-                        if (chat?.firstMessage?.payload) {
-                            return (
-                                extractPreviewTextFromStoredPayload(
-                                    chat.firstMessage.payload,
-                                ) || t("New Chat")
-                            );
-                        }
-                        if (chat?.messages && chat?.messages[0]?.payload) {
-                            return (
-                                extractPreviewTextFromStoredPayload(
-                                    chat.messages[0].payload,
-                                ) || t("New Chat")
-                            );
-                        }
-                        return t("New Chat");
-                    })(),
-                    href: chat._id ? `/chat/${chat._id}` : ``,
-                    key: chat._id,
-                }));
-                return { ...item, children: chatChildren };
-            }
-            if (item.href === appNavigationMap.automations.href) {
-                const automationChildren = pinnedAutomations.map(
-                    (automation) => ({
-                        variant: "automation",
-                        name: automation.name,
-                        slug: automation.slug,
-                        href: `/automations/${automation.slug}/runs/latest`,
-                        key: automation._id,
-                        recentRuns: automation.recentRuns || [],
-                    }),
-                );
-                return { ...item, children: automationChildren };
+            if (item.name === "Chats") {
+                return { ...item, children: [] };
             }
             return item;
         });
-    }, [userNavigation, topChats, visibleChats, pinnedAutomations, t]);
+    }, [userNavigation]);
 
     const topLevelNavigation = useMemo(
         () =>
             orderSidebarNavigationItems(
                 updatedNavigation.filter(
                     (item) =>
-                        !item.appId ||
-                        !removedSidebarAppIds.includes(String(item.appId)),
+                        !PRIMARY_SIDEBAR_NAV_NAMES.has(item.name) &&
+                        !APPS_SECTION_EXCLUDED_NAV_NAMES.has(item.name) &&
+                        (!item.appId ||
+                            !removedSidebarAppIds.includes(String(item.appId))),
                 ),
                 optimisticSidebarOrder,
             ),
         [updatedNavigation, removedSidebarAppIds, optimisticSidebarOrder],
     );
+
+    const HomeIcon = appNavigationMap.home.icon;
+    const ChatsIcon = appNavigationMap.chat.icon;
+    const FilesIcon = appNavigationMap.files.icon;
+    const isOnFilesRoute =
+        pathname === "/files" || pathname?.startsWith("/files/");
+    // Header is active only on the chats list page, not individual /chat/:id.
+    const isOnChatRoute = pathname === "/chat";
 
     const sortableNavigationIds = useMemo(
         () => topLevelNavigation.map(getSidebarItemId),
@@ -1033,7 +1189,11 @@ export default React.forwardRef(function Sidebar(
                     }),
                 );
             const builtIns = (Array.isArray(appsData) ? appsData : [])
-                .filter((app) => app.type === "native")
+                .filter(
+                    (app) =>
+                        app.type === "native" &&
+                        !APPS_SECTION_EXCLUDED_SLUGS.has(app.slug),
+                )
                 .sort((appA, appB) =>
                     t(appA.name || "").localeCompare(
                         t(appB.name || ""),
@@ -1131,19 +1291,6 @@ export default React.forwardRef(function Sidebar(
         ],
     );
 
-    const handleToggleSidebarSection = useCallback((itemId) => {
-        setExpandedSidebarSections((currentSections) => {
-            const nextSections = new Set(currentSections);
-            if (nextSections.has(itemId)) {
-                nextSections.delete(itemId);
-            } else {
-                nextSections.add(itemId);
-            }
-            writeExpandedSidebarSections([...nextSections]);
-            return nextSections;
-        });
-    }, []);
-
     return (
         <div
             data-testid="sidebar"
@@ -1235,15 +1382,17 @@ export default React.forwardRef(function Sidebar(
                 setIsSidebarHoverExpanded(false);
             }}
             className={cn(
-                "flex grow flex-col gap-y-1 overflow-hidden border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 relative z-[41]",
+                "flex grow flex-col gap-y-1 overflow-hidden border-e border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-5 pt-4 relative z-[41]",
                 isCollapsed &&
                     cn(
                         "group transition-[width] duration-100 shadow-xl",
-                        isSidebarInteractionExpanded ? "w-56" : "w-16",
+                        isSidebarInteractionExpanded ? "w-56" : "w-14",
                     ),
                 !isCollapsed && "w-56",
+                renderHeader && "pt-0",
             )}
         >
+            {renderHeader?.({ collapsed: isVisuallyCollapsed })}
             {showPinButton && (
                 <button
                     type="button"
@@ -1307,7 +1456,7 @@ export default React.forwardRef(function Sidebar(
 
             <nav
                 className={cn(
-                    "flex min-h-0 flex-1 flex-col",
+                    "flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden lg:overflow-visible",
                     isEditingSidebar && "pb-14",
                 )}
             >
@@ -1340,8 +1489,8 @@ export default React.forwardRef(function Sidebar(
                     </div>
                 ) : (
                     // Authenticated state - show normal navigation
-                    <ul className="flex min-h-0 flex-1 flex-col">
-                        <li className="shrink-0 -mx-2 h-12 flex items-center">
+                    <ul className="flex min-h-full flex-1 flex-col lg:min-h-0">
+                        <li className="shrink-0 -mx-2 space-y-0.5 pb-2 border-b border-gray-200 dark:border-gray-700 mb-2">
                             <button
                                 type="button"
                                 data-testid="sidebar-new-chat-button"
@@ -1351,12 +1500,10 @@ export default React.forwardRef(function Sidebar(
                                 }
                                 title={t("New Chat")}
                                 aria-label={t("New Chat")}
-                                className={cn(
-                                    "flex items-center gap-x-3 w-full rounded-md p-2 text-sm leading-6 font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60",
-                                )}
+                                className="flex h-10 lg:h-8 items-center gap-x-2.5 w-full rounded-md px-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                <SquarePen
-                                    className="h-6 w-6 shrink-0 text-sky-500"
+                                <Plus
+                                    className="h-4 w-4 shrink-0 text-sky-500"
                                     aria-hidden="true"
                                 />
                                 <span
@@ -1370,8 +1517,233 @@ export default React.forwardRef(function Sidebar(
                                     {t("New Chat")}
                                 </span>
                             </button>
+                            <button
+                                type="button"
+                                data-testid="sidebar-home-button"
+                                onClick={() => router.push("/home")}
+                                title={t("Home")}
+                                aria-label={t("Home")}
+                                className={cn(
+                                    "flex h-10 lg:h-8 items-center gap-x-2.5 w-full rounded-md px-2 text-xs font-medium text-gray-700 dark:text-gray-200",
+                                    pathname === "/home" ||
+                                        pathname?.startsWith("/home/")
+                                        ? "bg-gray-100 dark:bg-gray-700"
+                                        : "hover:bg-gray-100 dark:hover:bg-gray-700",
+                                )}
+                            >
+                                <HomeIcon
+                                    className="h-4 w-4 shrink-0 text-gray-400"
+                                    aria-hidden="true"
+                                />
+                                <span
+                                    className={cn(
+                                        "select-none whitespace-nowrap",
+                                        isVisuallyCollapsed
+                                            ? "hidden"
+                                            : "inline",
+                                    )}
+                                >
+                                    {t("Home")}
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="sidebar-colleagues-button"
+                                onClick={() => {
+                                    onNavigate?.();
+                                    router.push(
+                                        `/colleagues?view=${hasUnreadUpdates ? "recent" : "team"}`,
+                                    );
+                                }}
+                                title={t("colleagues.title")}
+                                aria-label={
+                                    hasUnreadUpdates
+                                        ? t("Tasks with new updates")
+                                        : t("colleagues.title")
+                                }
+                                className={cn(
+                                    "flex h-10 lg:h-8 items-center gap-x-2.5 w-full rounded-md px-2 text-xs font-medium text-gray-700 dark:text-gray-200",
+                                    pathname?.startsWith("/colleagues") ||
+                                        pathname?.startsWith("/automations")
+                                        ? "bg-gray-100 dark:bg-gray-700"
+                                        : "hover:bg-gray-100 dark:hover:bg-gray-700",
+                                )}
+                            >
+                                <span className="relative shrink-0">
+                                    <WispIcon className="h-4 w-4 text-gray-400" />
+                                    {hasUnreadUpdates && (
+                                        <span
+                                            data-testid="sidebar-colleagues-unread-dot"
+                                            className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-sky-500"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                </span>
+                                <span
+                                    className={cn(
+                                        "select-none whitespace-nowrap",
+                                        isVisuallyCollapsed
+                                            ? "hidden"
+                                            : "inline",
+                                    )}
+                                >
+                                    {t("colleagues.title")}
+                                </span>
+                            </button>
+
+                            <button
+                                type="button"
+                                data-testid="sidebar-files-button"
+                                onClick={() => router.push("/files")}
+                                title={t("Files")}
+                                aria-label={t("Files")}
+                                className={cn(
+                                    "flex h-10 lg:h-8 items-center gap-x-2.5 w-full rounded-md px-2 text-xs font-medium text-gray-700 dark:text-gray-200",
+                                    isOnFilesRoute
+                                        ? "bg-gray-100 dark:bg-gray-700"
+                                        : "hover:bg-gray-100 dark:hover:bg-gray-700",
+                                )}
+                            >
+                                <FilesIcon
+                                    className="h-4 w-4 shrink-0 text-gray-400"
+                                    aria-hidden="true"
+                                />
+                                <span
+                                    className={cn(
+                                        "select-none whitespace-nowrap",
+                                        isVisuallyCollapsed
+                                            ? "hidden"
+                                            : "inline",
+                                    )}
+                                >
+                                    {t("Files")}
+                                </span>
+                            </button>
                         </li>
-                        <li className="min-h-0 grow">
+
+                        <li
+                            data-testid="sidebar-chats-section"
+                            className="shrink-0 -mx-2 pb-2 border-b border-gray-200 dark:border-gray-700 mb-2"
+                        >
+                            <div className="flex items-center pt-1 pb-0.5">
+                                <Link
+                                    href="/chat"
+                                    data-testid="sidebar-chats-header"
+                                    title={t("Chats")}
+                                    aria-label={t("Chats")}
+                                    className={cn(
+                                        "flex min-h-10 min-w-0 flex-1 items-center gap-1 rounded-md px-2",
+                                        isVisuallyCollapsed
+                                            ? "justify-center"
+                                            : "justify-between",
+                                        isOnChatRoute
+                                            ? "bg-gray-100 dark:bg-gray-700"
+                                            : "hover:bg-gray-100 dark:hover:bg-gray-700",
+                                    )}
+                                >
+                                    <div
+                                        className={cn(
+                                            "text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400",
+                                            isVisuallyCollapsed && "hidden",
+                                        )}
+                                    >
+                                        {t("Chats")}
+                                    </div>
+                                    <ChatsIcon
+                                        data-testid="sidebar-chats-view-all"
+                                        className="h-3.5 w-3.5 shrink-0 text-gray-400"
+                                        aria-hidden="true"
+                                    />
+                                </Link>
+                                {!isVisuallyCollapsed && (
+                                    <button
+                                        type="button"
+                                        data-testid="sidebar-chat-history-toggle"
+                                        aria-expanded={chatHistoryExpanded}
+                                        aria-controls={
+                                            isMobile
+                                                ? "mobile-sidebar-chat-history"
+                                                : "desktop-sidebar-chat-history"
+                                        }
+                                        aria-label={t(
+                                            chatHistoryExpanded
+                                                ? "Collapse chat history"
+                                                : "Expand chat history",
+                                        )}
+                                        title={t(
+                                            chatHistoryExpanded
+                                                ? "Collapse chat history"
+                                                : "Expand chat history",
+                                        )}
+                                        onClick={toggleChatHistory}
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:text-gray-400 dark:hover:bg-gray-700"
+                                    >
+                                        {chatHistoryExpanded ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                        ) : (
+                                            <ChevronRight className="h-4 w-4 rtl:rotate-180" />
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                            <div
+                                id={
+                                    isMobile
+                                        ? "mobile-sidebar-chat-history"
+                                        : "desktop-sidebar-chat-history"
+                                }
+                                hidden={!chatHistoryExpanded}
+                            >
+                                {isVisuallyCollapsed ? (
+                                    <SidebarChatListPlaceholders
+                                        items={sidebarChatItems}
+                                        count={chatListPlaceholderCount}
+                                        includeViewAllRow={
+                                            chatListPlaceholderIncludesViewAll
+                                        }
+                                    />
+                                ) : chatsLoading ? (
+                                    <div className="flex items-center justify-center px-2 py-3">
+                                        <Loader2 className="h-4 w-4 animate-spin text-gray-400 dark:text-gray-500" />
+                                    </div>
+                                ) : sidebarChatItems.length === 0 ? (
+                                    <p className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
+                                        {t("No chats yet")}
+                                    </p>
+                                ) : (
+                                    <ul data-testid="sidebar-chat-list">
+                                        {sidebarChatItems.map((subItem) => (
+                                            <ChatNavigationItem
+                                                key={subItem.key}
+                                                subItem={subItem}
+                                                pathname={pathname}
+                                                router={router}
+                                                handleDeleteChat={
+                                                    handleDeleteChat
+                                                }
+                                                handleArchiveChat={
+                                                    handleArchiveChat
+                                                }
+                                                isCollapsed={false}
+                                            />
+                                        ))}
+                                        {canShowViewAllChats && (
+                                            <li>
+                                                <Link
+                                                    href="/chat"
+                                                    data-testid="sidebar-chats-view-all-link"
+                                                    className="flex h-7 w-full min-h-10 sm:min-h-0 items-center rounded-md px-2 text-[11px] text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                                                >
+                                                    {t("View all")}
+                                                </Link>
+                                            </li>
+                                        )}
+                                    </ul>
+                                )}
+                            </div>
+                        </li>
+
+                        <li className="min-h-0 shrink-0 grow lg:shrink">
                             <DndContext
                                 sensors={sensors}
                                 collisionDetection={rectIntersection}
@@ -1381,38 +1753,41 @@ export default React.forwardRef(function Sidebar(
                                     items={sortableNavigationIds}
                                     strategy={verticalListSortingStrategy}
                                 >
-                                    <ul className="-mx-2 h-full space-y-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                    <ul className="-mx-2 h-auto lg:h-full space-y-0.5 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                        <li className="pt-1 pb-0.5">
+                                            <button
+                                                type="button"
+                                                data-testid="sidebar-applets-button"
+                                                title={t("Applets")}
+                                                aria-label={t("Applets")}
+                                                onClick={() =>
+                                                    router.push("/apps")
+                                                }
+                                                className={cn(
+                                                    "flex h-10 lg:h-6 w-full items-center gap-1 rounded-md px-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200",
+                                                    isVisuallyCollapsed
+                                                        ? "justify-center"
+                                                        : "justify-between",
+                                                )}
+                                            >
+                                                <div
+                                                    className={cn(
+                                                        "text-[11px] font-medium uppercase tracking-wide",
+                                                        isVisuallyCollapsed &&
+                                                            "hidden",
+                                                    )}
+                                                >
+                                                    {t("Apps")}
+                                                </div>
+                                                <AppWindow
+                                                    className="h-3.5 w-3.5 shrink-0"
+                                                    aria-hidden="true"
+                                                />
+                                            </button>
+                                        </li>
                                         {topLevelNavigation.map((item) => {
                                             const itemId =
                                                 getSidebarItemId(item);
-                                            const submenuId = `sidebar-submenu-${itemId}`;
-                                            const hasSubmenuItems =
-                                                Array.isArray(item.children) &&
-                                                item.children.length > 0;
-                                            const isLoadingChatSubmenu =
-                                                item.name === "Chats" &&
-                                                chatsLoading;
-                                            const hasExpandableSubmenu =
-                                                !isEditingSidebar &&
-                                                (hasSubmenuItems ||
-                                                    isLoadingChatSubmenu);
-                                            const isSubmenuExpanded =
-                                                expandedSidebarSections.has(
-                                                    itemId,
-                                                );
-                                            const showSubmenuContent =
-                                                hasExpandableSubmenu &&
-                                                isSubmenuExpanded &&
-                                                !isVisuallyCollapsed;
-                                            const placeholderCount =
-                                                hasExpandableSubmenu &&
-                                                isSubmenuExpanded &&
-                                                isVisuallyCollapsed
-                                                    ? getSidebarSubmenuPlaceholderCount(
-                                                          item,
-                                                          chatsLoading,
-                                                      )
-                                                    : 0;
                                             return (
                                                 <SortableSidebarNavigationItem
                                                     key={itemId}
@@ -1437,15 +1812,6 @@ export default React.forwardRef(function Sidebar(
                                                     )}
                                                 >
                                                     <div
-                                                        data-testid={
-                                                            item.href ===
-                                                            "/home"
-                                                                ? "sidebar-home-button"
-                                                                : item.href ===
-                                                                    "/files"
-                                                                  ? "sidebar-files-button"
-                                                                  : undefined
-                                                        }
                                                         className={classNames(
                                                             "flex min-w-0 items-center justify-between",
                                                             item.href &&
@@ -1458,23 +1824,33 @@ export default React.forwardRef(function Sidebar(
                                                                 : isEditingSidebar
                                                                   ? ""
                                                                   : "hover:bg-gray-100 dark:hover:bg-gray-700",
-                                                            "h-10 rounded-md px-2 text-sm leading-6 font-semibold text-gray-700 dark:text-gray-200",
+                                                            "min-h-10 lg:min-h-8 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200",
                                                         )}
-                                                        onClick={() => {
-                                                            if (
-                                                                isEditingSidebar
-                                                            )
-                                                                return;
-                                                            if (item.href) {
-                                                                router.push(
-                                                                    item.href,
-                                                                );
-                                                            }
-                                                        }}
                                                     >
-                                                        <div className="flex min-w-0 grow items-center gap-x-3">
+                                                        <button
+                                                            type="button"
+                                                            disabled={
+                                                                isEditingSidebar
+                                                            }
+                                                            aria-label={t(
+                                                                item.name,
+                                                            )}
+                                                            aria-current={
+                                                                pathname ===
+                                                                item.href
+                                                                    ? "page"
+                                                                    : undefined
+                                                            }
+                                                            className="flex min-h-10 lg:min-h-8 min-w-0 grow items-center gap-x-2.5 rounded-md px-2 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500 disabled:cursor-default"
+                                                            onClick={() => {
+                                                                if (item.href)
+                                                                    router.push(
+                                                                        item.href,
+                                                                    );
+                                                            }}
+                                                        >
                                                             <item.icon
-                                                                className="h-6 w-6 shrink-0 text-gray-400"
+                                                                className="h-4 w-4 shrink-0 text-gray-400"
                                                                 aria-hidden="true"
                                                             />
                                                             <span
@@ -1490,7 +1866,7 @@ export default React.forwardRef(function Sidebar(
                                                             >
                                                                 {t(item.name)}
                                                             </span>
-                                                        </div>
+                                                        </button>
                                                         {!isEditingSidebar &&
                                                             item.type ===
                                                                 "applet" &&
@@ -1538,200 +1914,7 @@ export default React.forwardRef(function Sidebar(
                                                                     t={t}
                                                                 />
                                                             )}
-                                                        {hasExpandableSubmenu && (
-                                                            <button
-                                                                type="button"
-                                                                data-testid={`sidebar-section-toggle-${itemId}`}
-                                                                aria-label={
-                                                                    isSubmenuExpanded
-                                                                        ? t(
-                                                                              "Collapse",
-                                                                          )
-                                                                        : t(
-                                                                              "Expand",
-                                                                          )
-                                                                }
-                                                                aria-expanded={
-                                                                    isSubmenuExpanded
-                                                                }
-                                                                aria-controls={
-                                                                    submenuId
-                                                                }
-                                                                title={
-                                                                    isSubmenuExpanded
-                                                                        ? t(
-                                                                              "Collapse",
-                                                                          )
-                                                                        : t(
-                                                                              "Expand",
-                                                                          )
-                                                                }
-                                                                className={cn(
-                                                                    "ms-1 h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200",
-                                                                    isVisuallyCollapsed
-                                                                        ? "hidden"
-                                                                        : "flex",
-                                                                    isCollapsed &&
-                                                                        !isSidebarHoverExpanded &&
-                                                                        "pointer-events-none invisible",
-                                                                )}
-                                                                onClick={(
-                                                                    event,
-                                                                ) => {
-                                                                    event.stopPropagation();
-                                                                    handleToggleSidebarSection(
-                                                                        itemId,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <ChevronDown
-                                                                    className={cn(
-                                                                        "h-4 w-4 transition-transform",
-                                                                        !isSubmenuExpanded &&
-                                                                            (direction ===
-                                                                            "rtl"
-                                                                                ? "rotate-90"
-                                                                                : "-rotate-90"),
-                                                                    )}
-                                                                    aria-hidden="true"
-                                                                />
-                                                            </button>
-                                                        )}
                                                     </div>
-                                                    {showSubmenuContent &&
-                                                    item.name === "Chats" &&
-                                                    chatsLoading ? (
-                                                        <div
-                                                            id={submenuId}
-                                                            className="mt-1 flex items-center justify-center px-1 py-2"
-                                                        >
-                                                            <Loader2 className="h-4 w-4 animate-spin text-gray-400 dark:text-gray-500" />
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            {placeholderCount >
-                                                                0 && (
-                                                                <SidebarSubmenuPlaceholders
-                                                                    item={item}
-                                                                    count={
-                                                                        placeholderCount
-                                                                    }
-                                                                />
-                                                            )}
-                                                            {showSubmenuContent &&
-                                                                hasSubmenuItems && (
-                                                                    <ul
-                                                                        id={
-                                                                            submenuId
-                                                                        }
-                                                                        className="mt-1 px-1"
-                                                                    >
-                                                                        {item.children.map(
-                                                                            (
-                                                                                subItem,
-                                                                                index,
-                                                                            ) =>
-                                                                                item.name ===
-                                                                                "Chats" ? (
-                                                                                    <ChatNavigationItem
-                                                                                        key={
-                                                                                            subItem.key ||
-                                                                                            `${item.name}-${index}`
-                                                                                        }
-                                                                                        subItem={
-                                                                                            subItem
-                                                                                        }
-                                                                                        pathname={
-                                                                                            pathname
-                                                                                        }
-                                                                                        router={
-                                                                                            router
-                                                                                        }
-                                                                                        handleDeleteChat={
-                                                                                            handleDeleteChat
-                                                                                        }
-                                                                                        isCollapsed={
-                                                                                            isVisuallyCollapsed
-                                                                                        }
-                                                                                    />
-                                                                                ) : subItem.variant ===
-                                                                                  "automation" ? (
-                                                                                    <AutomationNavigationItem
-                                                                                        key={
-                                                                                            subItem.key ||
-                                                                                            `${item.name}-${index}`
-                                                                                        }
-                                                                                        subItem={
-                                                                                            subItem
-                                                                                        }
-                                                                                        pathname={
-                                                                                            pathname
-                                                                                        }
-                                                                                        router={
-                                                                                            router
-                                                                                        }
-                                                                                        isCollapsed={
-                                                                                            isVisuallyCollapsed
-                                                                                        }
-                                                                                    />
-                                                                                ) : (
-                                                                                    <li
-                                                                                        key={
-                                                                                            subItem.key ||
-                                                                                            `${item.name}-${index}`
-                                                                                        }
-                                                                                        className={classNames(
-                                                                                            "group flex items-center justify-between rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 my-0.5",
-                                                                                            pathname ===
-                                                                                                subItem?.href
-                                                                                                ? "bg-gray-100 dark:bg-gray-700"
-                                                                                                : "",
-                                                                                        )}
-                                                                                        onClick={() => {
-                                                                                            if (
-                                                                                                subItem.href
-                                                                                            ) {
-                                                                                                router.push(
-                                                                                                    subItem.href,
-                                                                                                );
-                                                                                            }
-                                                                                        }}
-                                                                                    >
-                                                                                        <div
-                                                                                            className="relative block py-2 pe-1 text-xs ps-4 pe-4 leading-6 text-gray-700 dark:text-gray-200 w-full select-none flex items-center justify-between"
-                                                                                            dir={
-                                                                                                document
-                                                                                                    .documentElement
-                                                                                                    .dir
-                                                                                            }
-                                                                                        >
-                                                                                            <span
-                                                                                                className={`${
-                                                                                                    document
-                                                                                                        .documentElement
-                                                                                                        .dir ===
-                                                                                                    "rtl"
-                                                                                                        ? "pe-3"
-                                                                                                        : "ps-3"
-                                                                                                } truncate whitespace-nowrap overflow-hidden max-w-[150px]`}
-                                                                                                title={t(
-                                                                                                    subItem.name ||
-                                                                                                        "",
-                                                                                                )}
-                                                                                            >
-                                                                                                {t(
-                                                                                                    subItem.name ||
-                                                                                                        "",
-                                                                                                )}
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    </li>
-                                                                                ),
-                                                                        )}
-                                                                    </ul>
-                                                                )}
-                                                        </>
-                                                    )}
                                                 </SortableSidebarNavigationItem>
                                             );
                                         })}
@@ -1742,13 +1925,13 @@ export default React.forwardRef(function Sidebar(
                                                     data-testid="sidebar-add-item-button"
                                                     aria-label={t("Add")}
                                                     title={t("Add")}
-                                                    className="flex h-10 w-full min-w-0 items-center gap-x-3 rounded-md px-8 text-sm font-semibold leading-6 text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+                                                    className="flex h-8 w-full min-w-0 items-center gap-x-2.5 rounded-md px-8 text-xs font-medium leading-5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
                                                     onClick={
                                                         loadSidebarAddPicker
                                                     }
                                                 >
                                                     <Plus
-                                                        className="h-5 w-5 shrink-0 text-gray-400 dark:text-gray-400"
+                                                        className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-400"
                                                         aria-hidden="true"
                                                     />
                                                     <span className="select-none truncate whitespace-nowrap">
@@ -1761,13 +1944,13 @@ export default React.forwardRef(function Sidebar(
                                 </SortableContext>
                             </DndContext>
                         </li>
-                        <li className="shrink-0 mt-4">
-                            <div className="py-3 bg-gray-50 dark:bg-gray-700 -mx-5 px-5 text-gray-700 dark:text-gray-200 space-y-2">
+                        <li className="shrink-0 mt-3">
+                            <div className="py-3 bg-gray-50 dark:bg-gray-700 -mx-5 px-5 text-gray-700 dark:text-gray-200 space-y-0 lg:space-y-2">
                                 <button
                                     type="button"
                                     title={t("Manage Applets")}
                                     aria-label={t("Manage Applets")}
-                                    className="flex gap-2 items-center text-xs w-full hover:opacity-80 transition-opacity"
+                                    className="flex min-h-10 lg:min-h-0 gap-2 items-center rounded-md text-xs w-full hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                                     onClick={() => router.push("/apps")}
                                 >
                                     <Grid3X3 className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-300" />
@@ -1829,7 +2012,7 @@ const SendFeedbackButton = React.forwardRef(function SendFeedbackButton(
                 type="button"
                 title={t("Send feedback")}
                 aria-label={t("Send feedback")}
-                className="flex gap-2 items-center text-xs w-full hover:opacity-80 transition-opacity"
+                className="flex min-h-10 lg:min-h-0 gap-2 items-center rounded-md text-xs w-full hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                 onClick={handleClick}
             >
                 <MessageSquare className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-300" />
@@ -1855,7 +2038,7 @@ function HelpLink({ isCollapsed }) {
             type="button"
             title={t("Help")}
             aria-label={t("Help")}
-            className="flex gap-2 items-center text-xs w-full hover:opacity-80 transition-opacity"
+            className="flex min-h-10 lg:min-h-0 gap-2 items-center rounded-md text-xs w-full hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
             onClick={() => router.push("/help")}
         >
             <BookOpen className="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-300" />

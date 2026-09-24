@@ -10,23 +10,33 @@ import {
     getTranscribeAlternateModelOption,
     getTranscribeDefaultModelOption,
     isMaiTranscribeEnabled,
+    isGemini35TranscribeEnabled,
+    isScribeV2TranscribeEnabled,
     isXaiTranscribeDefaultEnabled,
     isXaiTranscribeEnabled,
 } from "./api/utils/transcribe-model-options";
+import { getRealtimeAudioPublicConfig } from "./api/utils/realtime-audio";
 import {
     HydrationBoundary,
     QueryClient,
     dehydrate,
 } from "@tanstack/react-query";
 import { headers } from "next/headers";
+import {
+    normalizeTheme,
+    THEME_INIT_SCRIPT,
+} from "../src/utils/themePreference";
 
 const font = Inter({ subsets: ["latin"] });
 const neuralspaceEnabled = process.env.ENABLE_NEURALSPACE === "true";
 const xaiTranscribeEnabled = isXaiTranscribeEnabled();
 const xaiTranscribeDefaultEnabled = isXaiTranscribeDefaultEnabled();
 const maiTranscribeEnabled = isMaiTranscribeEnabled();
+const gemini35TranscribeEnabled = isGemini35TranscribeEnabled();
+const scribeV2TranscribeEnabled = isScribeV2TranscribeEnabled();
 const transcribeDefaultModelOption = getTranscribeDefaultModelOption();
 const transcribeAlternateModelOption = getTranscribeAlternateModelOption();
+const realtimeAudio = getRealtimeAudioPublicConfig();
 const shouldPrefetchShellData = process.env.NODE_ENV !== "development";
 
 const SOCIAL_DESCRIPTION =
@@ -93,7 +103,7 @@ export default async function RootLayout({ children }) {
 
     const cookieStore = await cookies();
     const language = cookieStore.get("i18next")?.value || "en";
-    const theme = cookieStore.get("theme")?.value || "light";
+    const theme = normalizeTheme(cookieStore.get("theme")?.value);
 
     // This is optional, but it will make the initial load faster
     // The approach is outlined here (look at the app router example, not the pages router example )
@@ -124,9 +134,14 @@ export default async function RootLayout({ children }) {
         <html
             lang={language}
             dir={language === "ar" ? "rtl" : "ltr"}
+            className={theme === "dark" ? "dark" : undefined}
+            data-color-mode={theme}
             suppressHydrationWarning
         >
             <head>
+                <script
+                    dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+                />
                 <link
                     rel="stylesheet"
                     href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"
@@ -157,12 +172,19 @@ export default async function RootLayout({ children }) {
                                 xaiTranscribeDefaultEnabled
                             }
                             maiTranscribeEnabled={maiTranscribeEnabled}
+                            gemini35TranscribeEnabled={
+                                gemini35TranscribeEnabled
+                            }
+                            scribeV2TranscribeEnabled={
+                                scribeV2TranscribeEnabled
+                            }
                             transcribeDefaultModelOption={
                                 transcribeDefaultModelOption
                             }
                             transcribeAlternateModelOption={
                                 transcribeAlternateModelOption
                             }
+                            realtimeAudio={realtimeAudio}
                             useBlueGraphQL={useBlueGraphQL}
                             initialActiveChats={initialActiveChats}
                         >

@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
 import { getRedisConnection } from "../../../utils/redis";
-import { createBackgroundTask } from "../../../utils/tasks";
+import { enqueueDigestBlock } from "../../../utils/digest-dispatch.mjs";
 
 const queueName = "digest-build";
 
@@ -13,13 +13,5 @@ export async function getJob(jobId) {
 }
 
 export async function enqueueBuildDigest(userId, blockId) {
-    return await createBackgroundTask({
-        userId,
-        type: "build-digest",
-        metadata: {
-            userId,
-            blockId,
-        },
-        timeout: 60 * 60 * 1000, // 1 hour timeout
-    });
+    return enqueueDigestBlock(userId, blockId);
 }

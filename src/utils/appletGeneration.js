@@ -11,10 +11,12 @@ import { registerCanvasAppletAfterUpload } from "./registerCanvasAppletAfterUplo
 import { createAppletGlobalStorageTarget } from "./storageTargets";
 import { injectAppletIdMeta, injectAppletMetaTags } from "./appletHtmlUtils";
 import { kickoffAppletAssetGeneration } from "./appletAssetGeneration";
+import { reviewAppletApis } from "./appletApiReview.js";
 
 export { injectAppletIdMeta, injectAppletMetaTags } from "./appletHtmlUtils";
 
 const GENERATING_APPLET_TITLE = "Generating applet...";
+const inFlightAppletGenerations = new Map();
 
 const LEADING_VERBS = new Set([
     "a",
@@ -210,11 +212,14 @@ export async function registerCanvasAppletFromWorkspaceFile({
     workspacePath,
     appletName,
     userContextId,
+    agentContext,
 }) {
     const resolvedName =
         (appletName || "").trim() ||
         deriveAppletNameFromWorkspacePath(workspacePath);
     const workspaceHtml = await readWorkspaceAppletHtml(workspacePath);
+    const issues = reviewAppletApis(workspaceHtml);
+    if (issues.length) throw new Error(issues[0].message);
     const taggedHtml = injectAppletMetaTags(workspaceHtml, resolvedName);
 
     const createResponse = await fetch("/api/canvas-applets", {
@@ -224,6 +229,7 @@ export async function registerCanvasAppletFromWorkspaceFile({
             name: resolvedName,
             workspacePath,
             html: taggedHtml,
+            ...(agentContext ? { agentContext } : {}),
         }),
     });
     if (!createResponse.ok) {
@@ -260,6 +266,8 @@ export async function registerCanvasAppletFromWorkspaceFile({
 
     return {
         appletId,
+        agentContext:
+            updatedApplet?.agentContext || createdApplet?.agentContext || null,
         appletName: updatedApplet?.name || createdApplet?.name || resolvedName,
         filename: buildWorkspaceAppletFilename(workspacePath, resolvedName),
         workspacePath,
@@ -330,6 +338,7 @@ export function launchAppletGeneration({
     userContextId = null,
     tabId = uuidv4(),
     appletName: appletNameOverride = null,
+    agentContext = null,
     filename: filenameOverride = null,
     reloadFiles,
     onSuccess,
@@ -344,6 +353,17 @@ export function launchAppletGeneration({
     if (!dispatch) {
         throw new Error("Redux dispatch is required for applet generation.");
     }
+
+    const generationKey = JSON.stringify([
+        chatId,
+        userContextId,
+        trimmedPrompt,
+        appletNameOverride,
+        agentContext,
+        filenameOverride,
+    ]);
+    const inFlightGeneration = inFlightAppletGenerations.get(generationKey);
+    if (inFlightGeneration) return inFlightGeneration;
 
     const derivedMetadata = deriveAppletMetadata(trimmedPrompt);
     const appletName =
@@ -375,7 +395,9 @@ export function launchAppletGeneration({
             const response = await fetch("/api/generate-applet", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt: trimmedPrompt }),
+                body: JSON.stringify({
+                    prompt: trimmedPrompt,
+                }),
             });
 
             if (!response.ok) {
@@ -408,11 +430,23 @@ export function launchAppletGeneration({
             const result = {
                 tabId,
                 appletId: null,
+                agentContext: null,
                 appletName,
                 filename,
                 html: taggedHtml,
                 saved: false,
                 workspacePath: null,
+            };
+            const retainUpload = (upload) => {
+                if (!upload?.url) return;
+                result.url = upload.url;
+                result.fileHash = upload.hash || null;
+                result.blobPath =
+                    upload.blobPath || upload.blobName || upload.name || null;
+                result.filename = upload.displayFilename || filename;
+                result.workspacePath = result.blobPath
+                    ? `/workspace/files/${result.blobPath.replace(/^\//, "")}`
+                    : null;
             };
 
             if (userContextId) {
@@ -430,7 +464,11 @@ export function launchAppletGeneration({
                         checkHash: false,
                     });
 
-                    if (uploadResult?.hash && uploadResult?.url) {
+                    if (!uploadResult?.url) {
+                        throw new Error("Applet upload returned no file URL");
+                    }
+                    retainUpload(uploadResult);
+                    if (uploadResult.url) {
                         if (typeof reloadFiles === "function") {
                             await reloadFiles();
                         } else {
@@ -439,6 +477,7 @@ export function launchAppletGeneration({
 
                         const {
                             appletId,
+                            agentContext: resolvedAgentContext,
                             html: registeredHtml,
                             effectiveUpload,
                         } = await registerCanvasAppletAfterUpload({
@@ -447,18 +486,18 @@ export function launchAppletGeneration({
                             appletName,
                             contextId: userContextId,
                             initialUploadResult: uploadResult,
+                            agentContext,
                         });
 
+                        if (!appletId)
+                            throw new Error(
+                                "Applet registration returned no ID",
+                            );
                         result.saved = true;
                         result.appletId = appletId;
+                        result.agentContext = resolvedAgentContext;
                         result.html = registeredHtml;
-                        result.filename =
-                            effectiveUpload.displayFilename || filename;
-                        result.url = effectiveUpload.url;
-                        result.fileHash = effectiveUpload.hash;
-                        result.workspacePath = effectiveUpload.name
-                            ? `/workspace/files/${effectiveUpload.name.replace(/^\//, "")}`
-                            : null;
+                        retainUpload(effectiveUpload);
 
                         dispatch(
                             updateCanvasTabAction({
@@ -478,8 +517,24 @@ export function launchAppletGeneration({
                         });
                     }
                 } catch (saveError) {
+                    retainUpload(saveError.effectiveUpload);
+                    result.appletId = saveError.appletId || result.appletId;
+                    result.agentContext =
+                        saveError.agentContext || result.agentContext;
+                    result.error = saveError.message || "Applet save failed";
+                    dispatch(
+                        updateCanvasTabAction({
+                            appletId: result.appletId,
+                            url: result.url,
+                            workspacePath: result.workspacePath,
+                            blobPath: result.blobPath,
+                        }),
+                    );
                     onSaveError?.(saveError, result);
                 }
+            } else {
+                result.error =
+                    "A user storage context is required to save the generated applet";
             }
 
             onSuccess?.(result);
@@ -499,10 +554,19 @@ export function launchAppletGeneration({
         }
     })();
 
-    return {
+    const generation = {
         tabId,
         appletName,
         filename,
         completion,
     };
+    inFlightAppletGenerations.set(generationKey, generation);
+    completion
+        .finally(() => {
+            if (inFlightAppletGenerations.get(generationKey) === generation) {
+                inFlightAppletGenerations.delete(generationKey);
+            }
+        })
+        .catch(() => {});
+    return generation;
 }

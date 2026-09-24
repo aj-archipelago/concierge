@@ -3,11 +3,16 @@ import config from "../../config";
 
 // Function to check if we're running in Azure App Service
 export const isAzureAppService = () => {
+    if (typeof window === "undefined") return false;
+
+    const hostname = window.location.hostname;
     return (
-        typeof window !== "undefined" &&
-        (window.location.hostname.includes("azurewebsites.net") ||
-            window.location.hostname.includes("azure.com") ||
-            process.env.NODE_ENV === "production")
+        hostname === "azurewebsites.net" ||
+        hostname.endsWith(".azurewebsites.net") ||
+        hostname === "azure.com" ||
+        hostname.endsWith(".azure.com") ||
+        // Custom Azure domains opt in explicitly; production can run anywhere.
+        process.env.NEXT_PUBLIC_AUTH_USE_EASY_AUTH === "true"
     );
 };
 
@@ -39,9 +44,75 @@ export const refreshEntraTokens = async () => {
     }
 };
 
+export function isAuthFlowPath(pathname = "") {
+    return (
+        pathname === "/auth/login" ||
+        pathname.startsWith("/auth/login?") ||
+        pathname === "/api/auth/local" ||
+        pathname.startsWith("/api/auth/local/")
+    );
+}
+
+/**
+ * Restrict post-login redirects to same-origin app paths.
+ * Returns a relative path (with search/hash) or "/".
+ */
+export function sanitizeAppRedirect(rawRedirect, origin) {
+    const fallback = "/";
+    if (!rawRedirect || typeof rawRedirect !== "string") {
+        return fallback;
+    }
+
+    const trimmed = rawRedirect.trim();
+    if (
+        !trimmed ||
+        trimmed.startsWith("//") ||
+        trimmed.startsWith("\\\\") ||
+        [...trimmed].some((ch) => ch.charCodeAt(0) < 32)
+    ) {
+        return fallback;
+    }
+
+    let originUrl;
+    try {
+        originUrl = new URL(origin);
+    } catch {
+        return fallback;
+    }
+
+    let resolved;
+    try {
+        resolved = trimmed.startsWith("/")
+            ? new URL(trimmed, originUrl)
+            : new URL(trimmed);
+    } catch {
+        return fallback;
+    }
+
+    if (resolved.origin !== originUrl.origin || resolved.username) {
+        return fallback;
+    }
+
+    const { pathname } = resolved;
+    if (
+        pathname === "/auth/login" ||
+        pathname.startsWith("/auth/login/") ||
+        pathname.startsWith("/api/auth/local") ||
+        pathname.startsWith("/.auth/login")
+    ) {
+        return fallback;
+    }
+
+    return `${pathname}${resolved.search}${resolved.hash}` || fallback;
+}
+
 // Function to trigger proper authentication refresh
 export const triggerAuthRefresh = async () => {
     if (typeof window === "undefined") return;
+
+    if (isAuthFlowPath(window.location.pathname)) {
+        return;
+    }
 
     // Check if we're in Azure App Service and using Entra auth provider
     if (isAzureAppService() && config.auth?.provider === "entra") {

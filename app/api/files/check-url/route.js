@@ -216,23 +216,6 @@ export async function POST(request) {
                         file: normalizeResolvedMediaFile(resolvedFile),
                     });
                 }
-
-                // Some pre-rollout files exist only in CFH's legacy global
-                // Redis hash map. If scoped lookup misses, try the bare hash
-                // before falling back to a stale URL probe.
-                if (resolvedHash) {
-                    const legacyFile = await checkMediaFile({
-                        hash: resolvedHash,
-                    });
-
-                    if (legacyFile?.url) {
-                        return NextResponse.json({
-                            exists: true,
-                            source: "legacy-hash",
-                            file: normalizeResolvedMediaFile(legacyFile),
-                        });
-                    }
-                }
             } catch (error) {
                 if (error?.status) {
                     return NextResponse.json(

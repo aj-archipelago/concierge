@@ -16,6 +16,8 @@ import classNames from "../../../app/utils/class-names";
 import { useMcpServers } from "../../hooks/useMcpServers";
 import { getConnectorIcon } from "../icons/ConnectorIcons";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import LocalComputers from "./LocalComputers";
+import { usesCompanion } from "../../utils/mcpConnectionRoute";
 
 export function McpConfigContent({ autoFetch = true } = {}) {
     const { t } = useTranslation();
@@ -23,6 +25,8 @@ export function McpConfigContent({ autoFetch = true } = {}) {
     const [tokenInput, setTokenInput] = useState({});
     const [showTokenInput, setShowTokenInput] = useState({});
     const [showCustomForm, setShowCustomForm] = useState(false);
+    const [companionIntent, setCompanionIntent] = useState(null);
+    const [throughComputer, setThroughComputer] = useState(false);
     const [customForm, setCustomForm] = useState({
         name: "",
         url: "",
@@ -57,6 +61,13 @@ export function McpConfigContent({ autoFetch = true } = {}) {
     };
 
     const handleAddCustom = async (connectWithOAuth = false) => {
+        if (throughComputer || usesCompanion(customForm.url)) {
+            setCompanionIntent({ kind: "server", ...customForm });
+            setCustomForm({ name: "", url: "", token: "" });
+            setShowCustomForm(false);
+            setThroughComputer(false);
+            return;
+        }
         const result = await handleAddCustomServer({
             ...customForm,
             connectWithOAuth,
@@ -73,7 +84,14 @@ export function McpConfigContent({ autoFetch = true } = {}) {
     );
 
     return (
-        <>
+        <div
+            dir={direction}
+            className="space-y-4 text-gray-900 dark:text-gray-100 [&_button]:min-h-10"
+        >
+            <LocalComputers
+                intent={companionIntent}
+                onIntentHandled={() => setCompanionIntent(null)}
+            />
             {error && (
                 <div className="rounded-md bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-700 dark:text-red-400">
                     {error}
@@ -81,7 +99,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
             )}
 
             {loading ? (
-                <div className="py-8 text-center text-gray-500">
+                <div className="py-8 text-center text-gray-500 dark:text-gray-400">
                     {t("Loading...")}
                 </div>
             ) : (
@@ -106,19 +124,19 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                     <div
                                         key={presetId}
                                         className={classNames(
-                                            "rounded-lg border p-3",
+                                            "rounded-xl border p-4",
                                             "border-gray-200 dark:border-gray-600",
                                             "bg-white dark:bg-gray-800",
                                         )}
                                     >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2.5">
+                                        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                                            <div className="flex min-w-0 items-center gap-3">
                                                 <PresetIcon className="w-5 h-5 flex-shrink-0" />
                                                 <div>
-                                                    <div className="font-medium">
+                                                    <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">
                                                         {preset.name}
                                                     </div>
-                                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                    <div className="text-xs leading-5 text-gray-500 dark:text-gray-400">
                                                         {preset.descriptionKey
                                                             ? t(
                                                                   preset.descriptionKey,
@@ -128,7 +146,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                                 </div>
                                             </div>
                                             <Button
-                                                size="sm"
+                                                size="default"
                                                 variant={
                                                     isConnected
                                                         ? "outline"
@@ -194,10 +212,10 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                                                 }),
                                                             )
                                                         }
-                                                        className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                     />
                                                     <Button
-                                                        size="sm"
+                                                        size="default"
                                                         onClick={() =>
                                                             handleSaveToken(
                                                                 presetId,
@@ -212,7 +230,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                                         {t("Save")}
                                                     </Button>
                                                     <Button
-                                                        size="sm"
+                                                        size="default"
                                                         variant="ghost"
                                                         onClick={() =>
                                                             setShowTokenInput(
@@ -241,7 +259,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                             </h4>
                             {!showCustomForm && (
                                 <Button
-                                    size="sm"
+                                    size="default"
                                     variant="outline"
                                     onClick={() => setShowCustomForm(true)}
                                 >
@@ -253,7 +271,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                         {showCustomForm && (
                             <div
                                 className={classNames(
-                                    "rounded-lg border p-3 space-y-2",
+                                    "rounded-xl border p-4 space-y-2",
                                     "border-gray-200 dark:border-gray-600",
                                     "bg-white dark:bg-gray-800",
                                 )}
@@ -268,7 +286,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                             name: e.target.value,
                                         }))
                                     }
-                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                                 <input
                                     type="url"
@@ -280,7 +298,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                             url: e.target.value,
                                         }))
                                     }
-                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                                 <input
                                     type="password"
@@ -292,14 +310,39 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                             token: e.target.value,
                                         }))
                                     }
-                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {t("mcp_custom_oauth_hint")}
-                                </p>
-                                <div className="flex justify-end gap-2">
+                                {usesCompanion(customForm.url) ? (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {t(
+                                            "This address connects through Companion automatically.",
+                                        )}
+                                    </p>
+                                ) : (
+                                    <label className="flex min-h-10 items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                        <input
+                                            type="checkbox"
+                                            checked={throughComputer}
+                                            onChange={(event) =>
+                                                setThroughComputer(
+                                                    event.target.checked,
+                                                )
+                                            }
+                                        />
+                                        {t(
+                                            "Use this computer’s connection (VPN or private network)",
+                                        )}
+                                    </label>
+                                )}
+                                {!usesCompanion(customForm.url) &&
+                                    !throughComputer && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t("mcp_custom_oauth_hint")}
+                                        </p>
+                                    )}
+                                <div className="flex flex-wrap justify-end gap-2">
                                     <Button
-                                        size="sm"
+                                        size="default"
                                         variant="ghost"
                                         onClick={() => {
                                             setShowCustomForm(false);
@@ -312,21 +355,33 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                     >
                                         {t("Cancel")}
                                     </Button>
+                                    {!usesCompanion(customForm.url) &&
+                                        !throughComputer && (
+                                            <Button
+                                                size="default"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    handleAddCustom(true)
+                                                }
+                                                disabled={
+                                                    !canSubmitCustomServer
+                                                }
+                                            >
+                                                <ExternalLink className="me-1 h-4 w-4" />
+                                                {t("Add & connect OAuth")}
+                                            </Button>
+                                        )}
                                     <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleAddCustom(true)}
-                                        disabled={!canSubmitCustomServer}
-                                    >
-                                        <ExternalLink className="me-1 h-4 w-4" />
-                                        {t("Add & connect OAuth")}
-                                    </Button>
-                                    <Button
-                                        size="sm"
+                                        size="default"
                                         onClick={() => handleAddCustom(false)}
                                         disabled={!canSubmitCustomServer}
                                     >
-                                        {t("Add")}
+                                        {t(
+                                            usesCompanion(customForm.url) ||
+                                                throughComputer
+                                                ? "Continue in Companion"
+                                                : "Add",
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -338,7 +393,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                             {t("Your connectors")}
                         </h4>
                         {configuredServerIds.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
                                 {t("No connectors added yet.")}
                             </p>
                         ) : (
@@ -370,7 +425,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                         <li
                                             key={serverId}
                                             className={classNames(
-                                                "flex items-center justify-between rounded-lg border p-2",
+                                                "flex flex-col items-stretch justify-between gap-3 rounded-xl border p-3 sm:flex-row sm:items-center",
                                                 "border-gray-200 dark:border-gray-600",
                                                 "bg-gray-50 dark:bg-gray-800/50",
                                             )}
@@ -388,10 +443,10 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                                     {statusLabel}
                                                 </span>
                                             </div>
-                                            <div className="ms-2 flex flex-shrink-0 items-center gap-1">
+                                            <div className="flex flex-shrink-0 items-center justify-end gap-1 sm:ms-2">
                                                 {!preset && (
                                                     <Button
-                                                        size="sm"
+                                                        size="default"
                                                         variant="outline"
                                                         onClick={() =>
                                                             handleConnectCustomServer(
@@ -404,13 +459,13 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                                                     </Button>
                                                 )}
                                                 <Button
-                                                    size="sm"
+                                                    size="default"
                                                     variant="ghost"
                                                     aria-label={t(
                                                         "Remove {{name}}",
                                                         { name: displayName },
                                                     )}
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
                                                     onClick={() =>
                                                         handleRemoveServer(
                                                             serverId,
@@ -431,7 +486,7 @@ export function McpConfigContent({ autoFetch = true } = {}) {
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }
 
@@ -442,7 +497,7 @@ export default function McpConfigDialog({ open, onOpenChange }) {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 dir={direction}
-                className="w-[calc(100vw-1rem)] sm:max-w-lg"
+                className="w-[calc(100vw-1rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
             >
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">

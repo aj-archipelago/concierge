@@ -28,9 +28,10 @@ const proxyUrlCache = new Map();
  * Proxies blob storage URLs through /api/text-proxy to bypass CORS.
  *
  * @param {string|null} url - Original URL (e.g. blob storage or public URL)
+ * @param {{refresh?: boolean}} options - Use the latest supplied signed URL when loading again
  * @returns {string|null} - Proxied URL if needed, or original URL; null if url is null
  */
-export function getTextProxyUrl(url) {
+export function getTextProxyUrl(url, { refresh = false } = {}) {
     if (!url) return null;
     const needsProxy = TEXT_PROXY_INDICATORS.some((ind) => url.includes(ind));
     if (!needsProxy) return url;
@@ -38,7 +39,7 @@ export function getTextProxyUrl(url) {
         const urlObj = new URL(url);
         const cacheKey = urlObj.origin + urlObj.pathname;
         const cached = proxyUrlCache.get(cacheKey);
-        if (cached) return cached;
+        if (cached && !refresh) return cached;
         const proxyUrl = `/api/text-proxy?url=${encodeURIComponent(url)}`;
         proxyUrlCache.set(cacheKey, proxyUrl);
         return proxyUrl;

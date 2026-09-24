@@ -1,9 +1,11 @@
+import { Types } from "mongoose";
 import Applet from "../models/applet";
 import Share from "../models/share.js";
 import App, { APP_TYPES, APP_STATUS } from "../models/app";
 import User from "../models/user.mjs";
 import { resolveShareAccess } from "../utils/shareAccess";
 import {
+    deleteEntityShare,
     sanitizeShareRecipients,
     upsertEntityShare,
 } from "../utils/shareHelpers";
@@ -51,6 +53,7 @@ const RESERVED_APP_NAMES = new Set([
 ]);
 
 const appletMutationLocks = new Map();
+const AGENT_CONTEXT_PATTERN = /^applet-shared:([A-Fa-f0-9]{24})$/;
 
 function toPlainApplet(applet) {
     return typeof applet?.toObject === "function" ? applet.toObject() : applet;
@@ -361,7 +364,7 @@ async function saveApplet(applet) {
     });
 }
 
-async function loadAppletWithAccess(
+export async function loadAppletWithAccess(
     user,
     id,
     { materializeLegacy = false, requireEditor = false } = {},
@@ -373,16 +376,24 @@ async function loadAppletWithAccess(
         throw error;
     }
 
-    const access = await resolveShareAccess({
+    let access = await resolveShareAccess({
         entityType: "applet",
         entityId: applet._id,
         userId: user?._id,
         ownerId: applet.owner,
     });
     if (!access.canAccess) {
-        const error = new Error("Applet not found");
-        error.status = 404;
-        throw error;
+        // Published applets (listed in the store / marketplace) are publicly
+        // readable even without an explicit Share, so anyone can open them or
+        // pin them to their Home / sidebar. Editing still requires ownership or
+        // an editor share (enforced by requireEditor below).
+        const isPublished = applet?.publishedVersionIndex != null;
+        if (!isPublished) {
+            const error = new Error("Applet not found");
+            error.status = 404;
+            throw error;
+        }
+        access = { canAccess: true, isOwner: false, role: "viewer" };
     }
     if (requireEditor && !access.isOwner && access.role !== "editor") {
         const error = new Error("Forbidden");
@@ -430,9 +441,13 @@ async function toRegistryPayload(applet, user, { includeApp = true } = {}) {
     const app = includeApp
         ? await hydrateMissingAppletImageVariantsForApp(canonicalApp, plain._id)
         : null;
+    const registryApplet = { ...plain };
+    if (!access.isOwner && access.role !== "editor") {
+        delete registryApplet.agentContext;
+    }
 
     return {
-        ...plain,
+        ...registryApplet,
         ...fileInfo,
         app: app || null,
         isOwner: access.isOwner,
@@ -667,8 +682,16 @@ async function applyAppStoreState(applet, user, body, appStorePublish) {
     const appletId = plainApplet?._id;
     const input = readAppMetadataInput(body);
     const unpublishing = body.unpublish === true;
+    // Promoting a live version is not an unlist intent. `publishToAppStore: false`
+    // on those requests means "do not newly list", and must leave an existing
+    // slug/store listing intact. Explicit unlist is `publishToAppStore: false`
+    // without a concurrent version publish, or `unpublish: true`.
+    const isVersionPublish =
+        body.publish === true || body.publishVersion != null;
     const shouldUpdateMetadata =
         input.hasMetadata || body.publishToAppStore === true;
+    const shouldDelist =
+        unpublishing || (body.publishToAppStore === false && !isVersionPublish);
 
     if (
         body.publishToAppStore === undefined &&
@@ -678,16 +701,14 @@ async function applyAppStoreState(applet, user, body, appStorePublish) {
         return;
     }
 
-    if (body.publishToAppStore || shouldUpdateMetadata) {
+    if (body.publishToAppStore === true || shouldUpdateMetadata) {
         const metadata =
             appStorePublish || (await resolveAppMetadata(applet, body));
-        const listedInStore = unpublishing
+        const listedInStore = shouldDelist
             ? false
             : body.publishToAppStore === true
               ? true
-              : body.publishToAppStore === false
-                ? false
-                : undefined;
+              : undefined;
         const update = {
             name: metadata.name,
             slug: metadata.slug,
@@ -713,7 +734,7 @@ async function applyAppStoreState(applet, user, body, appStorePublish) {
             setOnInsert:
                 listedInStore === undefined ? { listedInStore: false } : {},
         });
-    } else {
+    } else if (shouldDelist) {
         const existing = await findCanonicalAppletApp(appletId);
         if (existing?._id) {
             await upsertCanonicalAppletApp(
@@ -816,6 +837,30 @@ export async function listAppletRegistry(user) {
 export async function createAppletRegistry(user, body = {}) {
     const { name, filePath, html, workspacePath } = body;
     let resolvedFilePath = filePath || null;
+    let agentContext = null;
+
+    if (body.agentContext === "create") {
+        agentContext = `applet-shared:${new Types.ObjectId()}`;
+    } else if (body.agentContext) {
+        const match = String(body.agentContext).match(AGENT_CONTEXT_PATTERN);
+        if (!match) {
+            const error = new Error("Invalid agentContext");
+            error.status = 400;
+            throw error;
+        }
+        const contextOwner = await maybeLean(
+            Applet.findOne({
+                agentContext: match[0],
+                ...(user.role === "admin" ? {} : { owner: user._id }),
+            }),
+        );
+        if (!contextOwner) {
+            const error = new Error("Agent context is not manageable");
+            error.status = 403;
+            throw error;
+        }
+        agentContext = match[0];
+    }
 
     if (workspacePath) {
         const linkedFile = await resolveLinkedWorkspaceFile(
@@ -863,6 +908,13 @@ export async function createAppletRegistry(user, body = {}) {
         html: "",
         version: 2,
         htmlVersions: [],
+        ...(agentContext ? { agentContext } : {}),
+        ...(typeof body.widgetHtml === "string"
+            ? {
+                  widgetHtml: body.widgetHtml,
+                  widgetHtmlUpdatedAt: new Date(),
+              }
+            : {}),
     });
 
     if (html) {
@@ -888,6 +940,17 @@ export async function getAppletRegistry(user, id) {
         materializeLegacy: true,
     });
     return toRegistryPayload(applet, user);
+}
+
+/**
+ * Verify the user can edit the applet without loading/scraping HTML.
+ * Used by image generation when the client already supplied card metadata.
+ */
+export async function assertAppletEditorAccess(user, id) {
+    return loadAppletWithAccess(user, id, {
+        materializeLegacy: true,
+        requireEditor: true,
+    });
 }
 
 export async function generateAppletMetadata(user, id) {
@@ -970,10 +1033,111 @@ export async function resolveAppletRuntimeHtml(user, id) {
     };
 }
 
-export async function resolveInstalledAppletRuntime(user, id) {
+function getStoredWidgetHtml(applet) {
+    return typeof applet?.widgetHtml === "string" && applet.widgetHtml.trim()
+        ? applet.widgetHtml
+        : null;
+}
+
+async function canSaveAppletWidget(applet, user) {
+    const access = await resolveShareAccess({
+        entityType: "applet",
+        entityId: applet._id,
+        userId: user?._id,
+        ownerId: applet.owner,
+    });
+    return access.isOwner || access.role === "editor";
+}
+
+export async function loadAppletForWidgetGeneration(user, id) {
+    return loadAppletWithAccess(user, id, {
+        materializeLegacy: true,
+        requireEditor: true,
+    });
+}
+
+export async function saveGeneratedAppletWidget(
+    user,
+    id,
+    html,
+    sourceUpdatedAt,
+) {
+    // Recheck access after the model completes. An editor may have lost access.
+    const applet = await loadAppletForWidgetGeneration(user, id);
+    if (getStoredWidgetHtml(applet)) {
+        return ensureAppletRuntimeHtml(applet.widgetHtml, {
+            appletId: String(applet._id),
+        });
+    }
+    const saved = await Applet.findOneAndUpdate(
+        {
+            _id: applet._id,
+            updatedAt: sourceUpdatedAt || { $exists: false },
+            $or: [
+                { widgetHtml: { $exists: false } },
+                { widgetHtml: null },
+                { widgetHtml: /^\s*$/ },
+            ],
+        },
+        { $set: { widgetHtml: html, widgetHtmlUpdatedAt: new Date() } },
+        { new: true },
+    );
+    if (saved)
+        return ensureAppletRuntimeHtml(saved.widgetHtml, {
+            appletId: String(saved._id),
+        });
+    const current = await loadAppletForWidgetGeneration(user, id);
+    if (getStoredWidgetHtml(current)) {
+        return ensureAppletRuntimeHtml(current.widgetHtml, {
+            appletId: String(current._id),
+        });
+    }
+    const error = new Error("Applet changed during widget generation");
+    error.code = "WIDGET_SOURCE_CHANGED";
+    error.status = 409;
+    throw error;
+}
+
+export async function resolveInstalledAppletRuntime(
+    user,
+    id,
+    { variant } = {},
+) {
     const applet = await loadAppletWithAccess(user, id, {
         materializeLegacy: true,
     });
+    const appletId = applet._id?.toString?.() || String(applet._id || id);
+    let isWidgetFallback = false;
+
+    if (variant === "widget") {
+        const widgetHtml = getStoredWidgetHtml(applet);
+        if (widgetHtml) {
+            return {
+                applet,
+                html: ensureAppletRuntimeHtml(widgetHtml, { appletId }),
+                runtimeSource: "widget",
+                hasWidgetHtml: true,
+                isWidgetFallback: false,
+                publishedVersionIndex: publishedIndexOf(applet),
+                latestVersionIndex:
+                    versionsOf(applet).length > 0
+                        ? versionsOf(applet).length - 1
+                        : null,
+            };
+        }
+
+        // Widget HTML is stored on the applet itself, so only an owner or editor
+        // can persist a generated one. Store viewers get the full applet in the
+        // tile instead of a generation they would not be allowed to save.
+        if (await canSaveAppletWidget(applet, user)) {
+            const error = new Error("Widget version not found");
+            error.status = 404;
+            error.code = "WIDGET_MISSING";
+            throw error;
+        }
+        isWidgetFallback = true;
+    }
+
     const versions = versionsOf(applet);
     let html = null;
     let runtimeSource = null;
@@ -1015,9 +1179,11 @@ export async function resolveInstalledAppletRuntime(user, id) {
     return {
         applet,
         html: ensureAppletRuntimeHtml(html, {
-            appletId: applet._id?.toString?.() || String(applet._id || id),
+            appletId,
         }),
         runtimeSource,
+        hasWidgetHtml: Boolean(getStoredWidgetHtml(applet)),
+        isWidgetFallback,
         publishedVersionIndex: publishedIndexOf(applet),
         latestVersionIndex: versions.length > 0 ? versions.length - 1 : null,
     };
@@ -1238,11 +1404,22 @@ async function updateAppletRegistryUnlocked(user, id, body = {}) {
         restoreVersion == null &&
         publishVersion == null &&
         deleteVersion == null &&
-        !clearDraft
+        !clearDraft &&
+        body.widgetHtml === undefined
     ) {
         const error = new Error("html is required when saving or publishing");
         error.status = 400;
         throw error;
+    }
+
+    if (body.widgetHtml !== undefined) {
+        if (typeof body.widgetHtml !== "string") {
+            const error = new Error("widgetHtml must be a string");
+            error.status = 400;
+            throw error;
+        }
+        applet.widgetHtml = body.widgetHtml;
+        applet.widgetHtmlUpdatedAt = new Date();
     }
 
     if (body.unpublish) {
@@ -1307,16 +1484,18 @@ async function updateAppletRegistryUnlocked(user, id, body = {}) {
             isV2(savedApplet || applet) &&
             publishedIndexOf(savedApplet || applet) != null);
 
-    if (didPublish && body.publishToAppStore !== true) {
-        const targetApplet = savedApplet || applet;
-        const publishSharingModeProvided =
-            body.publishViaLink !== undefined ||
-            body.publishRecipients !== undefined;
+    const targetApplet = savedApplet || applet;
 
-        if (body.publishViaLink === true || !publishSharingModeProvided) {
+    if (
+        body.unpublish === true ||
+        (didPublish && body.publishToAppStore === true)
+    ) {
+        await deleteEntityShare("published_applet", targetApplet._id);
+    } else if (didPublish) {
+        if (body.publishViaLink === true) {
             try {
                 await upsertEntityShare({
-                    entityType: "applet",
+                    entityType: "published_applet",
                     entityId: targetApplet._id,
                     ownerId: targetApplet.owner,
                     recipients: [],
@@ -1335,7 +1514,7 @@ async function updateAppletRegistryUnlocked(user, id, body = {}) {
             try {
                 recipients = sanitizeShareRecipients(body.publishRecipients, {
                     ownerId: targetApplet.owner,
-                    entityType: "applet",
+                    entityType: "published_applet",
                 });
             } catch (error) {
                 error.status = 400;
@@ -1351,7 +1530,7 @@ async function updateAppletRegistryUnlocked(user, id, body = {}) {
 
             try {
                 await upsertEntityShare({
-                    entityType: "applet",
+                    entityType: "published_applet",
                     entityId: targetApplet._id,
                     ownerId: targetApplet.owner,
                     recipients,

@@ -1,47 +1,25 @@
-import React, { useContext } from "react";
-import config from "../../../config";
-import { ThemeContext } from "../../contexts/ThemeProvider";
-import { LanguageContext } from "../../contexts/LanguageProvider";
+import ColleagueAvatar, {
+    getEntityWispVariant,
+} from "../colleagues/ColleagueAvatar";
+import React from "react";
 
 // Accept an optional size prop (defaults to 'small' if not provided)
-const EntityIcon = ({ entity, size = "sm" }) => {
-    const { theme } = useContext(ThemeContext) || {};
-    const { language } = useContext(LanguageContext) || {};
-
-    // If entity is default, show the app logo
-    if (entity?.isDefault) {
-        const logoUrl = config.global.getLogo(language, theme);
-        return (
-            <img
-                src={logoUrl}
-                alt="Concierge Logo"
-                className={`${size === "lg" ? "w-8 h-8" : size === "xs" ? "w-4 h-4" : "w-5 h-5"}`}
-            />
-        );
-    }
-
-    // Get the first letter of the entity name
-    const letter = entity?.name ? entity.name[0].toUpperCase() : "?";
-
-    // Default colors if not provided
-    const bgColorClass = entity?.bgColorClass || "bg-sky-500";
-    const textColorClass = entity?.textColorClass || "text-white";
-
-    // Size classes mapping
-    const sizeClasses =
-        {
-            lg: "w-8 h-8 text-xl mt-2 mx-auto",
-            sm: "w-5 h-5 text-lg",
-            xs: "w-4 h-4 text-sm",
-        }[size] || "w-5 h-5 text-lg"; // Default to sm classes if invalid size
-
+const EntityIcon = ({ entity, size = "sm", activity }) => {
     return (
-        // Remove w-full h-full, apply sizeClasses directly
-        <div
-            className={`flex items-center justify-center font-bold ${sizeClasses} ${bgColorClass} rounded-full ${textColorClass}`}
-        >
-            {letter}
-        </div>
+        <ColleagueAvatar
+            variant={getEntityWispVariant(entity)}
+            entityId={entity?.id || entity?.name}
+            activity={activity}
+            className={
+                size === "chat"
+                    ? "h-11 w-11 sm:h-[50px] sm:w-[50px]"
+                    : size === "lg"
+                      ? "h-8 w-8"
+                      : size === "xs"
+                        ? "h-4 w-4"
+                        : "h-6 w-6"
+            }
+        />
     );
 };
 

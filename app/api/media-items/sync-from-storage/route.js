@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "../../utils/cfh-client.mjs";
 import crypto from "crypto";
 import mime from "mime-types";
 import config from "../../../../config/index.js";
@@ -330,9 +331,12 @@ export async function POST() {
             mediaHelperUrl.searchParams.set(key, value);
         }
 
-        const listResponse = await fetch(mediaHelperUrl.toString(), {
-            cache: "no-store",
-        });
+        const listResponse = await authorizedMediaFetch(
+            mediaHelperUrl.toString(),
+            {
+                cache: "no-store",
+            },
+        );
         if (!listResponse.ok) {
             const errorBody = await listResponse.text().catch(() => "");
             throw new Error(

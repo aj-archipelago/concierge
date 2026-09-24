@@ -58,6 +58,8 @@ const renderTranscribeVideo = (props = {}) =>
                     xaiTranscribeEnabled: true,
                     xaiTranscribeDefaultEnabled: false,
                     maiTranscribeEnabled: true,
+                    gemini35TranscribeEnabled: true,
+                    scribeV2TranscribeEnabled: true,
                 }}
             >
                 <LanguageContext.Provider value={{ direction: "ltr" }}>
@@ -324,3 +326,24 @@ describe("AddTrackOptions TranscribeVideo", () => {
         });
     });
 });
+
+for (const model of ["Gemini 3.5 Transcribe", "Scribe v2"]) {
+    test(`${model} preserves word timing and Arabic language in the queued task`, async () => {
+        mockMutateAsync.mockClear();
+        const payload = await submitSelection({
+            model,
+            format: "vtt",
+            transcriptionType: "wordsPerLine",
+            wordsPerLine: 3,
+            language: "ar",
+        });
+        expect(payload).toEqual(
+            expect.objectContaining({
+                modelOption: model,
+                wordTimestamped: true,
+                language: "ar",
+                maxWordsPerLine: 3,
+            }),
+        );
+    });
+}

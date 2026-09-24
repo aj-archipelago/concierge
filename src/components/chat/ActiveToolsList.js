@@ -73,7 +73,11 @@ export function getActiveToolsPopoverStyle(
     return { left, top, width, maxHeight };
 }
 
-function ActiveToolsList({ displayState = "full" }) {
+function ActiveToolsList({
+    displayState = "full",
+    buttonClassName,
+    showLabel = false,
+}) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
     const popoverId = useId();
@@ -175,9 +179,12 @@ function ActiveToolsList({ displayState = "full" }) {
         >
             <button
                 type="button"
-                className={`flex items-center gap-1 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 ${
-                    isDocked ? "px-1.5 py-1 text-xs" : "px-2 py-1.5 text-sm"
-                }`}
+                className={cn(
+                    `flex items-center gap-1 rounded-md transition-colors border bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 ${
+                        isDocked ? "px-1.5 py-1 text-xs" : "px-2 py-1.5 text-sm"
+                    }`,
+                    buttonClassName,
+                )}
                 title={t("View available tools")}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
@@ -191,8 +198,10 @@ function ActiveToolsList({ displayState = "full" }) {
             >
                 <Wrench className={isDocked ? "w-3 h-3" : "w-4 h-4"} />
                 {!isDocked && (
-                    <span className="hidden text-xs sm:inline">
-                        {totalToolsCount}
+                    <span className="text-xs">
+                        {showLabel
+                            ? t("{{count}} tools", { count: totalToolsCount })
+                            : totalToolsCount}
                     </span>
                 )}
                 {isDocked && (

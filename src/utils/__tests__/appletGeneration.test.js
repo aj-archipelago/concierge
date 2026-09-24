@@ -26,6 +26,52 @@ jest.mock("../storageTargets", () => ({
 }));
 
 describe("appletGeneration helpers", () => {
+    test("flags an unapproved workspace import before creating a record", async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            text: async () =>
+                "<html><script>ConciergeSDK.sourceQa.query({})</script></html>",
+        });
+        await expect(
+            registerCanvasAppletFromWorkspaceFile({
+                workspacePath: "/workspace/files/applets/news.html",
+                userContextId: "ctx",
+                specialistSkill: "source-qa",
+            }),
+        ).rejects.toThrow("restricted Source Q&A service");
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test("ignores the retired specialist opt-in and stops on a generation review error", async () => {
+        const dispatch = jest.fn();
+        const encoder = new TextEncoder();
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            body: {
+                getReader: () => ({
+                    read: jest
+                        .fn()
+                        .mockResolvedValueOnce({
+                            done: false,
+                            value: encoder.encode(
+                                'data: {"event":"error","data":{"error":"Source Q&A review required"}}\n\n',
+                            ),
+                        })
+                        .mockResolvedValue({ done: true }),
+                }),
+            },
+        });
+        const { completion } = launchAppletGeneration({
+            prompt: "Build Source Q&A",
+            specialistSkill: "source-qa",
+            dispatch,
+        });
+        await expect(completion).rejects.toThrow("Source Q&A review required");
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+            prompt: "Build Source Q&A",
+        });
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
     beforeEach(() => {
         jest.clearAllMocks();
     });
@@ -176,6 +222,41 @@ describe("appletGeneration helpers", () => {
         );
     });
 
+    test("deduplicates identical applet generations while they are running", async () => {
+        const dispatch = jest.fn();
+        let resolveFetch;
+        global.fetch = jest.fn(
+            () =>
+                new Promise((resolve) => {
+                    resolveFetch = resolve;
+                }),
+        );
+
+        const first = launchAppletGeneration({
+            prompt: "Build a timer",
+            dispatch,
+            chatId: "chat-1",
+            userContextId: "ctx",
+            agentContext: "create",
+        });
+        const duplicate = launchAppletGeneration({
+            prompt: "Build a timer",
+            dispatch,
+            chatId: "chat-1",
+            userContextId: "ctx",
+            agentContext: "create",
+        });
+
+        expect(duplicate).toBe(first);
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+
+        resolveFetch({
+            ok: false,
+            json: async () => ({ error: "Generation stopped" }),
+        });
+        await expect(first.completion).rejects.toThrow("Generation stopped");
+    });
+
     test("starts applet asset generation after prompt generation saves an applet", async () => {
         const encoder = new TextEncoder();
         const dispatch = jest.fn();
@@ -196,16 +277,18 @@ describe("appletGeneration helpers", () => {
         };
         uploadFileToMediaHelper.mockResolvedValue({
             url: "https://files.example/applets/timer.html",
-            hash: "hash-timer",
             displayFilename: "timer.html",
-            name: "applets/timer.html",
+            blobPath: "applets/timer.html",
         });
         global.fetch = jest
             .fn()
             .mockResolvedValueOnce({ ok: true, body: stream })
             .mockResolvedValueOnce({
                 ok: true,
-                json: async () => ({ _id: "applet-123" }),
+                json: async () => ({
+                    _id: "applet-123",
+                    agentContext: "applet-shared:507f191e810c19729de860ea",
+                }),
             })
             .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
 
@@ -214,11 +297,22 @@ describe("appletGeneration helpers", () => {
             dispatch,
             tabId: "tab-1",
             userContextId: "ctx",
+            agentContext: "create",
         });
 
         const result = await completion;
 
+        expect(result.saved).toBe(true);
+        expect(result.workspacePath).toBe(
+            "/workspace/files/applets/timer.html",
+        );
         expect(result.appletId).toBe("applet-123");
+        expect(result.agentContext).toBe(
+            "applet-shared:507f191e810c19729de860ea",
+        );
+        expect(JSON.parse(global.fetch.mock.calls[1][1].body)).toMatchObject({
+            agentContext: "create",
+        });
         expect(kickoffAppletAssetGeneration).toHaveBeenCalledWith({
             appletId: "applet-123",
             metadata: { name: "Timer" },

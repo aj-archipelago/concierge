@@ -9,6 +9,12 @@ import {
     APPLET_SDK_LIMITS,
     withAppletSdkGuard,
 } from "../../../applet/sdk-guard";
+import {
+    formatDbErrorForLog,
+    getCosmosRetryAfterMs,
+    isCosmosRateLimitError,
+    withCosmosRetry,
+} from "../../../utils/db-retry.mjs";
 
 function toPlainData(doc) {
     return doc?.data && typeof doc.data === "object" ? doc.data : {};
@@ -23,10 +29,28 @@ function mergeAppletData({ legacyDoc, keyedDocs }) {
     };
 }
 
+function cosmosRateLimitResponse(error, { message, code }) {
+    const retryAfterMs = getCosmosRetryAfterMs(error) ?? 1000;
+    const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    const response = NextResponse.json(
+        {
+            error: message,
+            code,
+            retryAfterMs,
+        },
+        { status: 429 },
+    );
+    if (response.headers && typeof response.headers.set === "function") {
+        response.headers.set("Retry-After", String(retryAfterSeconds));
+    }
+    return response;
+}
+
 // GET: retrieve data for a canvas applet
 export async function GET(request, { params }) {
     params = await params;
     const { id } = params;
+    let requestedKey = null;
 
     try {
         const access = await getCanvasAppletForDataAccess(id);
@@ -35,7 +59,7 @@ export async function GET(request, { params }) {
         const { user } = access;
 
         const requestUrl = new URL(request.url || "http://localhost");
-        const requestedKey = requestUrl.searchParams.get("key");
+        requestedKey = requestUrl.searchParams.get("key");
         let keyValidation = null;
         if (requestUrl.searchParams.has("key")) {
             keyValidation = validateMongoDBKey(requestedKey);
@@ -62,13 +86,19 @@ export async function GET(request, { params }) {
                 };
 
                 if (keyValidation) {
-                    const [legacyDoc, keyedDoc] = await Promise.all([
-                        AppletData.findOne(query),
-                        AppletUserData.findOne({
-                            ...query,
-                            key: keyValidation.sanitizedKey,
-                        }),
-                    ]);
+                    const [legacyDoc, keyedDoc] = await withCosmosRetry(
+                        () =>
+                            Promise.all([
+                                AppletData.findOne(query),
+                                AppletUserData.findOne({
+                                    ...query,
+                                    key: keyValidation.sanitizedKey,
+                                }),
+                            ]),
+                        {
+                            label: `canvas applet data.get key appletId=${id} key=${keyValidation.sanitizedKey}`,
+                        },
+                    );
                     const legacyData = toPlainData(legacyDoc);
                     const found =
                         Boolean(keyedDoc) ||
@@ -87,10 +117,16 @@ export async function GET(request, { params }) {
                     });
                 }
 
-                const [legacyDoc, keyedDocs] = await Promise.all([
-                    AppletData.findOne(query),
-                    AppletUserData.find(query),
-                ]);
+                const [legacyDoc, keyedDocs] = await withCosmosRetry(
+                    () =>
+                        Promise.all([
+                            AppletData.findOne(query),
+                            AppletUserData.find(query),
+                        ]),
+                    {
+                        label: `canvas applet data.get all appletId=${id}`,
+                    },
+                );
 
                 return NextResponse.json({
                     data: mergeAppletData({ legacyDoc, keyedDocs }),
@@ -98,7 +134,20 @@ export async function GET(request, { params }) {
             },
         });
     } catch (error) {
-        console.error("Error retrieving canvas applet data:", error);
+        console.error(
+            "Error retrieving canvas applet data: appletId=%s key=%s: %s",
+            id,
+            requestedKey ?? "all",
+            formatDbErrorForLog(error),
+            error,
+        );
+        if (isCosmosRateLimitError(error)) {
+            return cosmosRateLimitResponse(error, {
+                message:
+                    "Applet data retrieval is temporarily rate limited. Retry shortly.",
+                code: "APPLET_DATA_RATE_LIMITED",
+            });
+        }
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 },
@@ -110,6 +159,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
     params = await params;
     const { id } = params;
+    let requestKey = null;
 
     try {
         const parsedBody = await parseJsonRequest(request);
@@ -117,6 +167,7 @@ export async function PUT(request, { params }) {
             return parsedBody.errorResponse;
         }
         const body = parsedBody.body;
+        requestKey = body?.key ?? null;
 
         if (!body.key || body.value === undefined) {
             return NextResponse.json(
@@ -159,27 +210,39 @@ export async function PUT(request, { params }) {
                     return sizeValidation.response;
                 }
 
-                await AppletUserData.findOneAndUpdate(
+                await withCosmosRetry(
+                    () =>
+                        AppletUserData.findOneAndUpdate(
+                            {
+                                ...query,
+                                key: keyValidation.sanitizedKey,
+                            },
+                            {
+                                $set: {
+                                    value: body.value,
+                                    valueBytes: sizeValidation.valueBytes,
+                                },
+                            },
+                            {
+                                new: true,
+                                upsert: true,
+                                runValidators: true,
+                            },
+                        ),
                     {
-                        ...query,
-                        key: keyValidation.sanitizedKey,
-                    },
-                    {
-                        $set: {
-                            value: body.value,
-                            valueBytes: sizeValidation.valueBytes,
-                        },
-                    },
-                    {
-                        new: true,
-                        upsert: true,
-                        runValidators: true,
+                        label: `canvas applet data.set write appletId=${id} key=${keyValidation.sanitizedKey}`,
                     },
                 );
-                const [legacyDoc, keyedDocs] = await Promise.all([
-                    AppletData.findOne(query),
-                    AppletUserData.find(query),
-                ]);
+                const [legacyDoc, keyedDocs] = await withCosmosRetry(
+                    () =>
+                        Promise.all([
+                            AppletData.findOne(query),
+                            AppletUserData.find(query),
+                        ]),
+                    {
+                        label: `canvas applet data.set reload appletId=${id} key=${keyValidation.sanitizedKey}`,
+                    },
+                );
 
                 return NextResponse.json({
                     success: true,
@@ -188,7 +251,20 @@ export async function PUT(request, { params }) {
             },
         });
     } catch (error) {
-        console.error("Error storing canvas applet data:", error);
+        console.error(
+            "Error storing canvas applet data: appletId=%s key=%s: %s",
+            id,
+            requestKey ?? "unknown",
+            formatDbErrorForLog(error),
+            error,
+        );
+        if (isCosmosRateLimitError(error)) {
+            return cosmosRateLimitResponse(error, {
+                message:
+                    "Applet data storage is temporarily rate limited. Retry shortly.",
+                code: "APPLET_DATA_RATE_LIMITED",
+            });
+        }
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 },

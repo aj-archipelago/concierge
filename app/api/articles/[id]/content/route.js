@@ -90,6 +90,22 @@ export async function PUT(req, { params }) {
             },
             {
                 storageTarget: createArticleStorageTarget(ownerContextId),
+                // findArticleForAccess established editor/owner permission above.
+                storageAuthorization: {
+                    user,
+                    routing: {
+                        userId: ownerContextId,
+                        contextId: ownerContextId,
+                        fileScope: "articles",
+                    },
+                    targets: [
+                        {
+                            owner: ownerContextId,
+                            path: `articles/${filename}`,
+                            actions: ["upload"],
+                        },
+                    ],
+                },
             },
         );
 

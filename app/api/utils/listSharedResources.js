@@ -8,6 +8,7 @@ import {
     isShareActive,
     shareEntityUrl,
 } from "@/components/share/shareUtils.js";
+import { normalizeShareLink } from "./shareHelpers.js";
 
 const ENTITY_CONFIG = {
     chat: { model: Chat, titleField: "title", defaultTitle: "Untitled chat" },
@@ -17,6 +18,11 @@ const ENTITY_CONFIG = {
         defaultTitle: "Untitled workspace",
     },
     applet: {
+        model: Applet,
+        titleField: "name",
+        defaultTitle: "Untitled applet",
+    },
+    published_applet: {
         model: Applet,
         titleField: "name",
         defaultTitle: "Untitled applet",
@@ -51,7 +57,7 @@ function toListItem({
         entityId: String(entityId),
         title: title || ENTITY_CONFIG[entityType]?.defaultTitle || "",
         url: shareEntityUrl(entityType, entityId),
-        link: link || { enabled: false, role: "viewer" },
+        link: normalizeShareLink(entityType, link),
         recipientCount: recipientCount || 0,
         updatedAt: updatedAt || null,
         legacyShared: Boolean(legacyShared),

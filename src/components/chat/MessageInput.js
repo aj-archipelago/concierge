@@ -3,6 +3,7 @@ import "highlight.js/styles/github.css";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
+import { useIdleConversationOpening } from "../../hooks/useIdleConversationOpening";
 import { usePortal } from "../../contexts/PortalContext";
 import {
     Paperclip,
@@ -32,6 +33,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import SlashCommandMenu from "./SlashCommandMenu";
+import { useChatActivity } from "./ChatActivity";
 import {
     buildFileCollectionAttachments,
     CHAT_FILE_ATTACH_EVENT,
@@ -99,6 +101,7 @@ const MessageInput = React.memo(
             chatId: chatIdProp,
             onCopyAndContinue,
             copyInProgress = false,
+            idleOpening,
         },
         ref,
     ) {
@@ -119,6 +122,8 @@ const MessageInput = React.memo(
         const [isUploadingMedia, setIsUploadingMedia] = useState(false);
         const MAX_INPUT_LENGTH = 100000;
         const [inputValue, setInputValue] = useState("");
+        const [composerFocused, setComposerFocused] = useState(false);
+        const { report: reportActivity } = useChatActivity();
         const [isListening, setIsListening] = useState(false);
         const recognitionRef = useRef(null);
         const baseRef = useRef("");
@@ -138,6 +143,19 @@ const MessageInput = React.memo(
         });
         const { openPortal } = usePortal();
         const router = useRouter();
+
+        const drafting =
+            composerFocused &&
+            Boolean(inputValue.trim()) &&
+            !viewingReadOnlyChat &&
+            initializedForChat === activeChatId;
+        useEffect(() => {
+            reportActivity({
+                drafting,
+                ...(drafting ? { outcome: null } : {}),
+            });
+            return () => reportActivity({ drafting: false });
+        }, [drafting, reportActivity]);
 
         // Reset initialization when chat changes to a different chat
         useEffect(() => {
@@ -216,6 +234,28 @@ const MessageInput = React.memo(
         );
         const [isDragging, setIsDragging] = useState(false);
         const isSendingRef = useRef(false);
+
+        useIdleConversationOpening({
+            ...idleOpening,
+            chatId: activeChatId,
+            ready: initializedForChat === activeChatId,
+            enabled:
+                Boolean(idleOpening?.enabled) &&
+                !loading &&
+                !sendBlocked &&
+                !viewingReadOnlyChat,
+            hasIntent: Boolean(
+                inputValue ||
+                    files.length ||
+                    urlsData.length ||
+                    showFileUpload ||
+                    isUploadingMedia ||
+                    isListening ||
+                    isDragging,
+            ),
+            inputRef: textareaRef,
+            language: i18n.language,
+        });
 
         const prepareMessage = (inputText) => {
             const textPart = [
@@ -416,14 +456,12 @@ const MessageInput = React.memo(
             // Media urls, will be sent with active message
             if (isSupportedFileUrl(url)) {
                 setUrlsData((currentUrlsData) => {
+                    // New uploads have no content hash. Distinct upload URLs
+                    // must remain separate attachments, even for identical bytes.
                     const isDuplicate = currentUrlsData.some(
-                        (existingUrl) => existingUrl.hash === urlData.hash,
+                        (existingUrl) => existingUrl.url === url,
                     );
                     if (isDuplicate) {
-                        console.log(
-                            "Skipping duplicate URL with hash:",
-                            urlData.hash,
-                        );
                         return currentUrlsData;
                     }
 
@@ -588,8 +626,11 @@ const MessageInput = React.memo(
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                 >
-                    {showFileUpload && (
-                        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 pt-2">
+                    {(showFileUpload || files.length > 0) && (
+                        <div
+                            hidden={!showFileUpload}
+                            className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 pt-2"
+                        >
                             <DynamicFileUploader
                                 addUrl={addUrl}
                                 files={files}
@@ -651,6 +692,7 @@ const MessageInput = React.memo(
                                 ) : (
                                     <button
                                         type="button"
+                                        data-testid="hide-file-upload-button"
                                         onClick={() => {
                                             setShowFileUpload(false);
                                         }}
@@ -682,6 +724,8 @@ const MessageInput = React.memo(
                                         openPortal("capabilities", "skills");
                                     } else if (cmdId === "automations") {
                                         router.push("/automations");
+                                    } else if (cmdId === "edit-automations") {
+                                        router.push("/automations?edit=1");
                                     } else if (cmdId === "settings") {
                                         openPortal("discover");
                                     }
@@ -1068,6 +1112,8 @@ const MessageInput = React.memo(
                                     }
                                 }}
                                 placeholder={placeholder || "Send a message"}
+                                onFocus={() => setComposerFocused(true)}
+                                onBlur={() => setComposerFocused(false)}
                                 value={inputValue}
                                 onChange={handleInputChange}
                                 autoComplete="on"

@@ -39,7 +39,7 @@ describe("media-service-utils identifier fallbacks", () => {
         console.error = originalError;
     });
 
-    it("checkMediaFile tries blobPath before hash fallback", async () => {
+    it("checkMediaFile can renew a legacy hash reference after its old location moves", async () => {
         global.fetch
             .mockResolvedValueOnce({
                 ok: false,
@@ -64,6 +64,9 @@ describe("media-service-utils identifier fallbacks", () => {
             hash: "hash123",
         });
         expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(
+            new URL(global.fetch.mock.calls[1][0]).searchParams.get("hash"),
+        ).toBe("hash123");
 
         const firstUrl = new URL(global.fetch.mock.calls[0][0]);
         expect(global.fetch.mock.calls[0][1]).toMatchObject({
@@ -72,17 +75,9 @@ describe("media-service-utils identifier fallbacks", () => {
         expect(firstUrl.searchParams.get("blobPath")).toBe("global/file.pdf");
         expect(firstUrl.searchParams.get("hash")).toBeNull();
         expect(firstUrl.searchParams.get("checkHash")).toBeNull();
-
-        const secondUrl = new URL(global.fetch.mock.calls[1][0]);
-        expect(global.fetch.mock.calls[1][1]).toMatchObject({
-            cache: "no-store",
-        });
-        expect(secondUrl.searchParams.get("blobPath")).toBeNull();
-        expect(secondUrl.searchParams.get("hash")).toBe("hash123");
-        expect(secondUrl.searchParams.get("checkHash")).toBe("true");
     });
 
-    it("deleteMediaFile retries with hash after blobPath miss", async () => {
+    it("deleteMediaFile never deletes a different location through a hash", async () => {
         global.fetch
             .mockResolvedValueOnce({
                 ok: false,
@@ -101,8 +96,8 @@ describe("media-service-utils identifier fallbacks", () => {
             contextId: "ctx123",
         });
 
-        expect(result).toEqual({ deleted: true });
-        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(result).toBeNull();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(global.fetch.mock.calls[0][1]).toMatchObject({
             method: "DELETE",
         });
@@ -110,10 +105,6 @@ describe("media-service-utils identifier fallbacks", () => {
         const firstUrl = new URL(global.fetch.mock.calls[0][0]);
         expect(firstUrl.searchParams.get("blobPath")).toBe("global/file.pdf");
         expect(firstUrl.searchParams.get("hash")).toBeNull();
-
-        const secondUrl = new URL(global.fetch.mock.calls[1][0]);
-        expect(secondUrl.searchParams.get("blobPath")).toBeNull();
-        expect(secondUrl.searchParams.get("hash")).toBe("hash123");
     });
 
     it("deleteMediaFile can skip hash fallback after blobPath miss", async () => {

@@ -4,6 +4,8 @@ import {
     computeTotalTokens,
     computeUsageCost,
     getWindowDays,
+    getUsageCostDetails,
+    getUsageDateRange,
 } from "./usageMetrics";
 
 describe("usageMetrics", () => {
@@ -30,7 +32,7 @@ describe("usageMetrics", () => {
         },
     ]);
 
-    it("sums provider total tokens from input and output buckets", () => {
+    it("includes all four metered token buckets", () => {
         expect(
             computeTotalTokens({
                 input_tokens: 100,
@@ -38,13 +40,14 @@ describe("usageMetrics", () => {
                 cache_creation_input_tokens: 25,
                 cache_read_input_tokens: 10,
             }),
-        ).toBe(150);
+        ).toBe(185);
     });
 
-    it("prefers a precomputed total token count when present", () => {
+    it("prefers a precomputed metered token count over provider totals", () => {
         expect(
             computeTotalTokens({
-                total_tokens: 999,
+                metered_tokens: 999,
+                total_tokens: 2,
                 input_tokens: 1,
                 output_tokens: 1,
             }),
@@ -66,7 +69,7 @@ describe("usageMetrics", () => {
         ).toBeCloseTo(23.25);
     });
 
-    it("computes grouped-row cost from per-model breakdowns", () => {
+    it("retains the known subtotal when another model is unpriced", () => {
         expect(
             computeUsageCost(
                 {
@@ -127,7 +130,213 @@ describe("usageMetrics", () => {
         const startDate = "2026-03-11T00:00:00.000Z";
         const endDate = "2026-03-18T23:59:59.999Z";
 
-        expect(getWindowDays(startDate, endDate)).toBe(8);
+        expect(getWindowDays(startDate, endDate)).toBeCloseTo(8);
         expect(computeRunRate(80, startDate, endDate)).toBeCloseTo(300);
     });
+});
+
+it("uses the configured Luna prices for auto-review without duplicating a rate card", () => {
+    const row = {
+        model: "codex-auto-review",
+        requests: 2,
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+    };
+    const prices = buildPricingMap([
+        {
+            modelId: "oai-gpt56-luna",
+            emulateOpenAIChatModel: "gpt-5.6-luna",
+            pricing: { input: 2, output: 10, cacheRead: 0.2 },
+        },
+    ]);
+    expect(getUsageCostDetails(row, prices)).toEqual({
+        cost: 12.2,
+        complete: true,
+        unpricedRequests: 0,
+        unpricedModels: [],
+    });
+    expect(
+        computeUsageCost(row, {
+            ...prices,
+            "codex-auto-review": { input: 1, output: 1, cacheRead: 1 },
+        }),
+    ).toBe(3);
+    expect(computeUsageCost(row, {})).toBeNull();
+});
+
+it("shows a priced subtotal and identifies omitted requests", () => {
+    const result = getUsageCostDetails(
+        {
+            model_breakdown: [
+                { model: "known", requests: 2, input_tokens: 1000000 },
+                { model: "missing", requests: 3, input_tokens: 500 },
+            ],
+        },
+        { known: { input: 5 } },
+    );
+    expect(result).toEqual({
+        cost: 5,
+        complete: false,
+        unpricedRequests: 3,
+        unpricedModels: ["missing"],
+    });
+});
+it("uses elapsed time rather than rounding partial days or counting future hours", () => {
+    const now = new Date("2026-09-07T12:00:00Z");
+    const range = getUsageDateRange("7d", now);
+    expect(range).toEqual({
+        startDate: "2026-08-31T12:00:00.000Z",
+        endDate: now.toISOString(),
+    });
+    const today = getUsageDateRange("today", now);
+    expect(getWindowDays(today.startDate, today.endDate)).toBe(0.5);
+    expect(computeRunRate(10, today.startDate, today.endDate)).toBe(600);
+});
+
+it("keeps known costs when every model also has legacy requests", () => {
+    const modern = {
+        model: "known",
+        requests: 1,
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        metered_tokens: 2_000_000,
+        unbucketed_requests: 0,
+    };
+    const mixed = {
+        ...modern,
+        requests: 2,
+        metered_tokens: 2_000_050,
+        unbucketed_requests: 1,
+    };
+    const prices = { known: { input: 5, output: 30 } };
+    expect(getUsageCostDetails(modern, prices).cost).toBe(35);
+    expect(getUsageCostDetails(mixed, prices)).toEqual({
+        cost: 35,
+        complete: false,
+        unpricedRequests: 1,
+        unpricedModels: ["known"],
+    });
+    // The dashboard's overall subtotal uses this same breakdown calculation.
+    expect(getUsageCostDetails({ model_breakdown: [mixed] }, prices).cost).toBe(
+        35,
+    );
+    expect(computeUsageCost(mixed, prices)).toBe(35);
+    expect(
+        computeRunRate(
+            computeUsageCost(mixed, prices),
+            "2026-09-01",
+            "2026-09-08",
+        ),
+    ).toBe(150);
+});
+it("does not present all-legacy usage as a priced zero or count unknown requests twice", () => {
+    const row = {
+        model: "known",
+        requests: 2,
+        input_tokens: 0,
+        output_tokens: 0,
+        metered_tokens: 50,
+        unbucketed_requests: 2,
+    };
+    for (const prices of [{ known: { input: 5, output: 30 } }, {}]) {
+        expect(getUsageCostDetails(row, prices)).toEqual({
+            cost: null,
+            complete: false,
+            unpricedRequests: 2,
+            unpricedModels: ["known"],
+        });
+    }
+});
+it("keeps aggregates without legacy counts conservatively unpriced", () => {
+    expect(
+        getUsageCostDetails(
+            {
+                model: "known",
+                requests: 2,
+                input_tokens: 10,
+                metered_tokens: 60,
+            },
+            { known: { input: 5 } },
+        ).cost,
+    ).toBeNull();
+});
+
+it("retains input and output costs when the cache rate is missing", () => {
+    const row = {
+        model: "known",
+        requests: 2,
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+    };
+    expect(
+        getUsageCostDetails(row, { known: { input: 5, output: 30 } }),
+    ).toEqual({
+        cost: 35,
+        complete: false,
+        unpricedRequests: 2,
+        unpricedModels: ["known"],
+    });
+});
+it.each([undefined, -1, NaN, Infinity])(
+    "does not treat a missing or invalid rate (%s) as free usage",
+    (rate) => {
+        expect(
+            getUsageCostDetails(
+                { model: "known", requests: 1, cache_read_input_tokens: 100 },
+                { known: { cacheRead: rate } },
+            ),
+        ).toEqual({
+            cost: null,
+            complete: false,
+            unpricedRequests: 1,
+            unpricedModels: ["known"],
+        });
+    },
+);
+it("accepts an explicitly free token category", () => {
+    expect(
+        getUsageCostDetails(
+            { model: "known", requests: 1, cache_read_input_tokens: 100 },
+            { known: { cacheRead: 0 } },
+        ),
+    ).toEqual({
+        cost: 0,
+        complete: true,
+        unpricedRequests: 0,
+        unpricedModels: [],
+    });
+});
+
+it("prices dated OpenAI snapshots using only their configured base model", () => {
+    const row = {
+        _id: "gpt-5.2-2025-12-11",
+        requests: 1,
+        input_tokens: 1_000_000,
+        output_tokens: 1_000_000,
+        cache_read_input_tokens: 1_000_000,
+    };
+    const prices = { "gpt-5.2": { input: 1.75, output: 14, cacheRead: 0.175 } };
+    expect(getUsageCostDetails(row, prices)).toEqual({
+        cost: 15.925,
+        complete: true,
+        unpricedRequests: 0,
+        unpricedModels: [],
+    });
+    expect(
+        computeUsageCost(row, {
+            ...prices,
+            "gpt-5.2-2025-12-11": { input: 2, output: 10, cacheRead: 0.5 },
+        }),
+    ).toBe(12.5);
+    expect(
+        computeUsageCost({ ...row, _id: "gpt-unknown-2025-12-11" }, prices),
+    ).toBeNull();
+    expect(
+        computeUsageCost(
+            { ...row, _id: "claude-sonnet-2025-12-11" },
+            { "claude-sonnet": prices["gpt-5.2"] },
+        ),
+    ).toBeNull();
 });

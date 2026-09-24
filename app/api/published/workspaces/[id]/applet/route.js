@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
-import Workspace from "@/app/api/models/workspace";
-import Applet from "@/app/api/models/applet";
-import App, { APP_STATUS } from "@/app/api/models/app";
-import { resolvePublishedAppletContent } from "@/app/api/canvas-applets/versioning";
+import Workspace from "../../../../models/workspace";
+import Applet from "../../../../models/applet";
+import App, { APP_STATUS } from "../../../../models/app";
+import { getCurrentUser } from "../../../../utils/auth";
+import { resolveShareAccess } from "../../../../utils/shareAccess";
+import { resolvePublishedAppletContent } from "../../../../canvas-applets/versioning";
 
 // Public endpoint for legacy workspace applet links. This intentionally avoids
 // the authenticated workspace editor route so published links keep working for
@@ -32,7 +34,7 @@ export async function GET(request, { params }) {
             publishedVersionIndex: { $exists: true, $ne: null },
         })
             .select(
-                "name htmlVersions publishedVersionIndex publishedContentUrl publishedContentBlobPath publishedContentHash publishedContentSize publishedContentContextId publishedContentVersionIndex publishedContentTimestamp",
+                "name owner htmlVersions publishedVersionIndex publishedContentUrl publishedContentBlobPath publishedContentHash publishedContentSize publishedContentContextId publishedContentVersionIndex publishedContentTimestamp",
             )
             .lean();
 
@@ -48,11 +50,28 @@ export async function GET(request, { params }) {
             type: "applet",
             status: APP_STATUS.ACTIVE,
         })
-            .select("name slug description icon status type")
+            .select("name slug description icon status type listedInStore")
             .lean();
 
+        if (app?.listedInStore === false) {
+            const currentUser = await getCurrentUser(false);
+            const access = await resolveShareAccess({
+                entityType: "published_applet",
+                entityId: applet._id,
+                userId: currentUser?._id,
+                ownerId: applet.owner,
+            });
+
+            if (!access.canAccess) {
+                return NextResponse.json(
+                    { error: "Unauthorized" },
+                    { status: 401 },
+                );
+            }
+        }
+
         return NextResponse.json({
-            app: app || null,
+            app: app?.listedInStore !== false ? app || null : null,
             applet: {
                 _id: applet._id,
                 name: applet.name,

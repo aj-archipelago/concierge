@@ -30,6 +30,7 @@ jest.mock("../utils/media-service-utils", () => ({
 }));
 
 jest.mock("../../../src/utils/storageTargets", () => ({
+    getStorageContextId: ({ storageTarget }) => storageTarget.userContextId,
     createAppletGlobalStorageTarget: jest.fn((userContextId) => ({
         kind: "applet-global",
         userContextId,
@@ -225,6 +226,15 @@ describe("ensureAppletWorkspaceFile", () => {
                 kind: "applet-global",
                 userContextId: "ctx1",
             },
+            expect.objectContaining({
+                targets: [
+                    {
+                        owner: "ctx1",
+                        path: "applets/versions/a1/v000001.html",
+                        actions: ["read"],
+                    },
+                ],
+            }),
         );
         const uploadedHtml =
             uploadBufferToMediaService.mock.calls[0][0].toString("utf8");

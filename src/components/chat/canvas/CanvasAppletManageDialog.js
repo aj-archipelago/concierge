@@ -42,7 +42,12 @@ export default function CanvasAppletManageDialog({
     const [showAppStoreForm, setShowAppStoreForm] = useState(false);
 
     const app = appletRecord?.app;
-    const isAppStorePublished = app?.slug && app?.status === "active";
+    // Match /api/apps/[slug]: an App Store URL only works when the app is
+    // actively listed. Metadata can create a slug while listedInStore is false.
+    const isAppStorePublished =
+        Boolean(app?.slug) &&
+        app?.status === "active" &&
+        app?.listedInStore !== false;
     const defaultAppName = appletRecord?.name || "";
 
     const publishedLink = isAppStorePublished

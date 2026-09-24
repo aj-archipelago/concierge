@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../../src/layout/PageHeader";
+import { HeaderTabs } from "../../../src/layout/HeaderControls";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useApolloClient } from "@apollo/client";
 import { useTranslation } from "react-i18next";
@@ -345,38 +347,26 @@ export default function FeedbackAdminClient({
 
     return (
         <div dir={direction} className="px-4 py-2 sm:px-6 lg:px-8">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                        {t("admin_feedback_title")}
-                    </h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        {t("admin_feedback_description")}
-                    </p>
-                </div>
-                <div className="flex overflow-x-auto rounded-md border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
-                    {FILTERS.map((filter) => (
-                        <button
-                            key={filter.id}
-                            type="button"
-                            onClick={() => setStatus(filter.id)}
-                            className={cn(
-                                "h-10 whitespace-nowrap rounded px-3 text-sm font-medium text-gray-600 transition-colors dark:text-gray-300",
-                                status === filter.id
-                                    ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
-                                    : "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-gray-100",
-                            )}
-                        >
-                            {t(filter.label)}
-                            {filter.id !== "all" ? (
-                                <span className="ms-2 text-xs opacity-70">
+            <PageHeader
+                title={t("admin_feedback_title")}
+                description={t("admin_feedback_description")}
+            >
+                <HeaderTabs
+                    label={t("admin_feedback_title")}
+                    value={status}
+                    onChange={setStatus}
+                    items={FILTERS.map((filter) => ({
+                        value: filter.id,
+                        label: t(filter.label),
+                        badge:
+                            filter.id !== "all" ? (
+                                <span className="text-xs opacity-70">
                                     {counts[filter.id] || 0}
                                 </span>
-                            ) : null}
-                        </button>
-                    ))}
-                </div>
-            </div>
+                            ) : null,
+                    }))}
+                />
+            </PageHeader>
 
             {error ? (
                 <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">

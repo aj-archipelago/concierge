@@ -10,7 +10,7 @@ import {
 import Task from "../models/task.mjs";
 import UserState from "../models/user-state.mjs";
 import Chat from "../models/chat.mjs";
-import { prepareMessagesForPersistence } from "../chats/persistence.js";
+import { appendChatMessage } from "../chats/message-store.js";
 import Automation from "../models/automation.js";
 import {
     assertTranscribeModelOptionEnabled,
@@ -46,25 +46,12 @@ async function addProgressMessageToChat(chatId, taskId, user) {
                 isServerGenerated: true,
             };
 
-            // Create a new messages array with all existing messages plus the new one
-            const prepared = prepareMessagesForPersistence([
-                ...(chat.messages || []),
-                progressMessage,
-            ]);
-            const updateData = {
-                messages: prepared.messages,
-                isChatLoading: false,
-                messageStorageBytes: prepared.messageStorageBytes,
-            };
-            if (prepared.messagesCompacted) {
-                updateData.messagesCompacted = true;
-                updateData.messagesCompactedAt = new Date();
-            }
-
-            // Replace the entire messages array in one operation
-            await Chat.findOneAndUpdate(
+            await appendChatMessage(chat, progressMessage, {
+                dedupeKey: `task:${taskId}`,
+            });
+            await Chat.updateOne(
                 { _id: chatId, userId: user._id },
-                updateData,
+                { $set: { isChatLoading: false } },
             );
 
             console.log(
@@ -258,7 +245,12 @@ export async function POST(req) {
                 type,
                 metadata: taskMetadata,
                 synchronous,
-                invokedFrom: { source, chatId },
+                invokedFrom: {
+                    // When a chatId is present, default source to "chat" so
+                    // sidebar status enrichment can associate the task.
+                    source: source || (chatId ? "chat" : "unknown"),
+                    chatId,
+                },
             };
             if (taskTimeout) {
                 backgroundTaskArgs.timeout = taskTimeout;
@@ -285,7 +277,10 @@ export async function POST(req) {
             });
         } catch (error) {
             console.error(`${error.message}:`, error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json(
+                { error: error.message },
+                { status: error.status === 400 ? 400 : 500 },
+            );
         }
     } catch (error) {
         console.error(`${error.message}:`, error);

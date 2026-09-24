@@ -262,4 +262,51 @@ describe("useFileUpload", () => {
 
         expect(event.target.value).toBe("");
     });
+    test("reference uploads return results without replacing the existing selection", async () => {
+        uploadFileToMediaHelper.mockResolvedValueOnce({
+            url: "https://storage.example/clip.mp4",
+        });
+        const {
+            result,
+            createMediaItem,
+            setSelectedImages,
+            setSelectedImagesObjects,
+        } = renderUploadHook();
+        const item = { cortexRequestId: "video" };
+        createMediaItem.mutateAsync.mockResolvedValueOnce(item);
+        let uploaded;
+        await act(async () => {
+            uploaded = await result.current.handleFilesUpload(
+                [new File(["video"], "clip.mp4")],
+                { selectUploaded: false },
+            );
+        });
+        expect(uploaded).toEqual([item]);
+        expect(setSelectedImages).not.toHaveBeenCalled();
+        expect(setSelectedImagesObjects).not.toHaveBeenCalled();
+    });
+
+    test("database save failures remain visible and clear on a successful retry", async () => {
+        const log = jest.spyOn(console, "error").mockImplementation(() => {});
+        uploadFileToMediaHelper.mockResolvedValue({
+            url: "https://storage.example/clip.mp4",
+        });
+        const { result, createMediaItem } = renderUploadHook();
+        createMediaItem.mutateAsync
+            .mockRejectedValueOnce(new Error("save failed"))
+            .mockResolvedValueOnce({ cortexRequestId: "video" });
+        const files = [new File(["video"], "clip.mp4")];
+        await act(async () => {
+            await result.current.handleFilesUpload(files);
+        });
+        expect(result.current.isUploading).toBe(false);
+        expect(result.current.uploadError).toBe(
+            "File upload failed. Please try again.",
+        );
+        await act(async () => {
+            await result.current.handleFilesUpload(files);
+        });
+        expect(result.current.uploadError).toBeNull();
+        log.mockRestore();
+    });
 });

@@ -11,11 +11,14 @@ import {
 } from "./appletGeneration";
 import { kickoffAppletAssetGeneration } from "./appletAssetGeneration";
 import {
+    getActiveAppletDocument,
     getActiveAppletSandbox,
     inspectApplet,
     requireActiveAppletDocument,
+    waitForActiveAppletDocument,
 } from "./activeAppletSandbox";
 import { MCP_PRESETS } from "./mcpPresets";
+import { reauthenticateCustomMcpServer } from "./customMcpReauthentication";
 import config from "../../config";
 import { uploadFileToMediaHelper } from "./fileUploadUtils";
 import { createUserGlobalStorageTarget } from "./storageTargets";
@@ -33,6 +36,7 @@ import {
     updateCanvasTab,
     updateCanvasTabForChat,
 } from "../stores/chatSlice";
+import { markChatNeedsAttention } from "./chatsUnread";
 
 // Route-based tool exclusions
 // Maps route patterns to arrays of tool names that should be excluded on those routes
@@ -74,6 +78,7 @@ export function getClientSideToolFocusError(toolName, context = {}) {
 function assertClientSideToolHasFocus(toolName, context) {
     const focusError = getClientSideToolFocusError(toolName, context);
     if (focusError) {
+        markChatNeedsAttention(context?.queryClient, context?.chatId);
         throw new Error(focusError);
     }
 }
@@ -411,10 +416,11 @@ export const CLIENT_SIDE_TOOLS = [
     {
         type: "function",
         icon: "⚡",
+        timeout: 900000,
         function: {
             name: "CreateApplet",
             description:
-                "Create a new file-backed applet. For a brand new applet request, strongly prefer prompt to generate a new interactive HTML applet with a live streaming preview. CreateApplet also automatically starts applet-specific metadata and card-image generation after the applet record exists, so do not call GenerateAppletMetadata or GenerateAppletImage just to finish initial creation. Use workspacePath only to import/register an existing complete HTML workspace file as a new applet. Use exactly one of prompt or workspacePath. You may also provide name to control the applet name. Do not use this tool to edit an already-registered applet; edit its Draft workspace file with the workspace shell, then call SaveAppletDraftAsVersion only when the user wants a checkpoint. If an applet is already active and you intentionally want a separate new applet, pass createNew: true. If the user asks for a homepage/launchpad/launcher applet that opens other applets, build launch actions with ConciergeSDK.navigation.open(path) or ConciergeSDK.navigation.navigate(path) to /apps/[slug] or the canonical app route before any browser fallback; after creation, save Draft as a version, publish that saved version locally, and set it as Home.",
+                "Create a new file-backed applet. For a brand new applet request, strongly prefer prompt to generate a new interactive HTML applet with a live streaming preview. The tool returns only after registration and includes the new appletId. When the applet needs private files or skills, set agentContext to create so an independent reusable context ID is saved during registration; it is not the applet ID. For another applet sharing that folder, pass the canonical agentContext returned by the first CreateApplet. Create multiple applets sequentially: wait for each CreateApplet result before calling it again; never issue parallel CreateApplet calls. CreateApplet also automatically starts applet-specific metadata and card-image generation after the applet record exists, so do not call GenerateAppletMetadata or GenerateAppletImage just to finish initial creation. Use workspacePath only to import/register an existing complete HTML workspace file as a new applet. Use exactly one of prompt or workspacePath. You may also provide name to control the applet name. Do not use this tool to edit an already-registered applet; edit its Draft workspace file with the workspace shell, then call SaveAppletDraftAsVersion only when the user wants a checkpoint. If an applet is already active and you intentionally want a separate new applet, pass createNew: true. If the user asks for a homepage/launchpad/launcher applet that opens other applets, build launch actions with ConciergeSDK.navigation.open(path) or ConciergeSDK.navigation.navigate(path) to /apps/[slug] or the canonical app route before any browser fallback; after creation, save Draft as a version, publish that saved version locally, and set it as Home.",
             descriptionAr:
                 "أنشئ تطبيقاً مصغّراً مرتبطاً بملف. إمّا عبر prompt لتوليد HTML تفاعلي جديد مع معاينة مباشرة، أو عبر workspacePath لتسجيل ملف HTML موجود في المساحة. استخدم prompt أو workspacePath (واحد فقط). يمكن name للاسم. لا تُحدّث تطبيقاً مسجّلاً مسبقاً — لذلك لديك أدوات التحديث. عند إنشاء صفحة رئيسية أو لوحة تشغيل لتطبيقات أخرى، استخدم ConciergeSDK.navigation.open أو ConciergeSDK.navigation.navigate للانتقال، ثم احفظ إصداراً وانشره محلياً وعيّنه كصفحة رئيسية.",
             parameters: {
@@ -439,6 +445,12 @@ export const CLIENT_SIDE_TOOLS = [
                         type: ["boolean", "string"],
                         description:
                             'When an applet is already active, set to true or "createNew" only if the user explicitly wants a separate new applet instead of editing the current one.',
+                    },
+                    agentContext: {
+                        type: "string",
+                        pattern: "^(create|applet-shared:[A-Fa-f0-9]{24})$",
+                        description:
+                            'Optional private agent folder binding. Use "create" to generate an independent reusable context ID, or copy the canonical applet-shared:<context-id> returned by another CreateApplet to share it.',
                     },
                     userMessage: {
                         type: "string",
@@ -622,11 +634,6 @@ export const CLIENT_SIDE_TOOLS = [
                         description:
                             "Whether runs should produce a stored HTML document.",
                     },
-                    pinnedToSidebar: {
-                        type: "boolean",
-                        description:
-                            "For HTML-producing automations, whether to pin the latest result in the sidebar.",
-                    },
                     userMessage: {
                         type: "string",
                         description:
@@ -643,7 +650,7 @@ export const CLIENT_SIDE_TOOLS = [
         function: {
             name: "UpdateAutomation",
             description:
-                "Update an existing automation's configuration or AUTOMATION.md content. Use ReadAutomation first unless the user supplied exact replacement content. Omitted fields are preserved. Use this to enable/disable schedules, change cadence, toggle HTML output, or pin/unpin from the sidebar.",
+                "Update an existing automation's configuration or AUTOMATION.md content. Use ReadAutomation first unless the user supplied exact replacement content. Omitted fields are preserved. Use this to enable/disable schedules, change cadence, or toggle HTML output.",
             descriptionAr:
                 "حدّث إعدادات أتمتة موجودة أو محتوى AUTOMATION.md. استخدم ReadAutomation أولاً ما لم يزوّد المستخدم محتوى بديلاً كاملاً. الحقول غير المرسلة تبقى كما هي.",
             parameters: {
@@ -683,11 +690,6 @@ export const CLIENT_SIDE_TOOLS = [
                         type: "boolean",
                         description:
                             "Whether future runs should produce HTML output.",
-                    },
-                    pinnedToSidebar: {
-                        type: "boolean",
-                        description:
-                            "Whether the latest HTML output should be pinned in the sidebar.",
                     },
                     userMessage: {
                         type: "string",
@@ -995,6 +997,40 @@ export const CLIENT_SIDE_TOOLS = [
                     },
                 },
                 required: ["idOrSlug", "userMessage"],
+            },
+        },
+    },
+    {
+        type: "function",
+        icon: "📚",
+        timeout: 900000,
+        function: {
+            name: "ManageAgentContext",
+            description:
+                "Attach and manage a reusable cloud folder for an applet agent. Initialize the context owner without agentContext to generate an independent context ID, then copy the returned canonical agentContext verbatim when initializing other applets that share it; it is not an applet ID. List inspects the folder. Upsert writes a file at the root when directory is omitted, or in the exact directory requested. Do not invent folders, AGENTS.md, or skills. A requested loadable skill uses directory skills/<skill-name> and filename SKILL.md.",
+            parameters: {
+                type: "object",
+                properties: {
+                    action: {
+                        type: "string",
+                        enum: ["initialize", "list", "upsert"],
+                    },
+                    appletId: { type: "string" },
+                    agentContext: {
+                        type: "string",
+                        pattern: "^applet-shared:[A-Fa-f0-9]{24}$",
+                        description:
+                            "Canonical value returned by initializing the context owner. Omit for the owner; never guess or use a placeholder. Copy the returned value verbatim for another applet.",
+                    },
+                    filename: { type: "string" },
+                    directory: { type: "string" },
+                    content: { type: "string" },
+                    sourceBlobPath: { type: "string" },
+                    sourceHash: { type: "string" },
+                    sourceMimeType: { type: "string" },
+                    userMessage: { type: "string" },
+                },
+                required: ["action", "appletId", "userMessage"],
             },
         },
     },
@@ -1390,6 +1426,47 @@ function buildAutomationPayload(toolInfo, allowedFields) {
 // Handler functions for each client-side tool
 // Note: Handlers receive (toolInfo, context) where context contains { router, dispatch, isStreaming, queryClient, chatId }
 export const CLIENT_SIDE_TOOL_HANDLERS = {
+    manageagentcontext: async (toolInfo) => {
+        const appletId = String(getToolArg(toolInfo, "appletId", ""));
+        if (!/^[A-Fa-f0-9]{24}$/.test(appletId)) {
+            throw new Error("A valid appletId is required.");
+        }
+        const body = { action: getToolArg(toolInfo, "action") };
+        for (const field of [
+            "agentContext",
+            "filename",
+            "directory",
+            "content",
+            "sourceBlobPath",
+            "sourceHash",
+            "sourceMimeType",
+        ]) {
+            const value = getToolArg(toolInfo, field);
+            if (value !== undefined) body[field] = value;
+        }
+        if (body.agentContext === "applet-shared:000000000000000000000000") {
+            delete body.agentContext;
+        }
+        if (
+            body.action === "initialize" &&
+            body.agentContext &&
+            !/^applet-shared:(?!0{24}$)[A-Fa-f0-9]{24}$/.test(body.agentContext)
+        ) {
+            throw new Error(
+                "Do not invent an agentContext label. Omit agentContext for the context owner, then copy the returned canonical value verbatim to other applets.",
+            );
+        }
+        const data = await fetchJsonOrThrow(
+            `/api/canvas-applets/${appletId}/agent-context`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            },
+        );
+        return { success: true, data };
+    },
+
     submitfeedback: async (toolInfo, context = {}) => {
         const message = String(getToolArg(toolInfo, "message", "")).trim();
 
@@ -1932,6 +2009,10 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             throw new Error("serverKey is required");
         }
 
+        if (typeof serverKey === "string" && serverKey.startsWith("custom-")) {
+            return reauthenticateCustomMcpServer(serverKey);
+        }
+
         const preset = MCP_PRESETS[serverKey];
         if (!preset) {
             throw new Error(`Unknown MCP server: ${serverKey}`);
@@ -2212,7 +2293,6 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             "schedule",
             "timezone",
             "producesHtml",
-            "pinnedToSidebar",
         ]);
 
         if (!payload.name || !payload.description || !payload.content) {
@@ -2236,7 +2316,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             data: {
                 ...automation,
                 ...paths,
-                instructions: `Automation "${automation.name}" created successfully.${paths.automationDirectory ? ` Files are stored under **${paths.automationDirectory}/** and the main instructions are at **${paths.automationMdPath}**. Add supporting files in that directory if needed.` : ""} Use RunAutomation to start it manually, or UpdateAutomation to change schedule, HTML output, or sidebar pinning.`,
+                instructions: `Automation "${automation.name}" created successfully.${paths.automationDirectory ? ` Files are stored under **${paths.automationDirectory}/** and the main instructions are at **${paths.automationMdPath}**. Add supporting files in that directory if needed.` : ""} Use RunAutomation to start it manually, or UpdateAutomation to change schedule or HTML output.`,
             },
         };
     },
@@ -2254,7 +2334,6 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             "schedule",
             "timezone",
             "producesHtml",
-            "pinnedToSidebar",
         ]);
 
         if (Object.keys(payload).length === 0) {
@@ -2375,6 +2454,8 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
         const requestedName = toolInfo.toolArgs?.name || toolInfo.name;
         const createNew =
             toolInfo.toolArgs?.createNew ?? toolInfo.createNew ?? false;
+        const agentContext =
+            toolInfo.toolArgs?.agentContext ?? toolInfo.agentContext ?? null;
         const hasPrompt = !!prompt?.trim?.();
         const hasWorkspacePath = !!workspacePath?.trim?.();
         const activeHtmlContent = context?.getActiveHtmlContent
@@ -2385,6 +2466,15 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             createNew === true ||
             (typeof createNew === "string" &&
                 createNew.toLowerCase() === "createnew");
+
+        if (
+            agentContext &&
+            !/^(create|applet-shared:[A-Fa-f0-9]{24})$/.test(agentContext)
+        ) {
+            throw new Error(
+                'agentContext must be "create" or a canonical applet-shared:<id> value.',
+            );
+        }
 
         if (hasPrompt === hasWorkspacePath) {
             throw new Error(
@@ -2415,6 +2505,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
                 workspacePath: workspacePath.trim(),
                 appletName: requestedName,
                 userContextId: user?.contextId || null,
+                agentContext,
             });
 
             const nextContent = {
@@ -2449,6 +2540,7 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
                 success: true,
                 data: {
                     appletId: registration.appletId,
+                    agentContext: registration.agentContext,
                     workspacePath: registration.workspacePath,
                     filename: registration.filename,
                     description: `Registered "${registration.appletName}" as a new applet from the existing workspace file.`,
@@ -2456,13 +2548,14 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             };
         }
 
-        const { tabId, completion } = launchAppletGeneration({
+        const { completion } = launchAppletGeneration({
             prompt,
             dispatch,
             chatId: context?.chatId || null,
             userContextId: user?.contextId || null,
             tabId: uuidv4(),
             appletName: requestedName,
+            agentContext,
             onError: (error) => {
                 console.error("Error generating applet:", error);
             },
@@ -2471,14 +2564,32 @@ The canvas will automatically update as you write to this file. ${toolInfo.toolA
             },
         });
 
-        void completion.catch(() => {});
+        const result = await completion;
+        if (!result?.saved || !result?.appletId) {
+            return {
+                success: false,
+                error:
+                    result?.error ||
+                    "Applet generated, but registration failed.",
+                data: {
+                    tabId: result?.tabId,
+                    appletId: result?.appletId || null,
+                    filename: result?.filename,
+                    workspacePath: result?.workspacePath || null,
+                    description: result?.appletId
+                        ? "The applet record exists but saving its version failed. Inspect this applet and retry saving its Draft; do not create a duplicate."
+                        : result?.workspacePath
+                          ? "Generated HTML was uploaded. Recover it by calling CreateApplet with this workspacePath; do not regenerate it."
+                          : "Generated HTML remains in the canvas tab. Inspect that tab and save its HTML before regenerating.",
+                },
+            };
+        }
 
-        // Return immediately — streaming happens in the background
         return {
             success: true,
             data: {
-                description: `Generating applet with a live preview in the canvas. The applet is being created based on your description and will appear in real-time.`,
-                tabId,
+                ...result,
+                description: `Created and registered "${result.appletName}" as applet ${result.appletId}.`,
             },
         };
     },
@@ -2689,7 +2800,7 @@ CLIENT_SIDE_TOOL_HANDLERS.clickappletelement = async (toolInfo, context) => {
     const selector = getToolArg(toolInfo, "selector");
     const text = getToolArg(toolInfo, "text");
     const nth = getToolArg(toolInfo, "nth");
-    const doc = requireActiveAppletDocument();
+    const doc = await waitForActiveAppletDocument();
     const elements = resolveAppletElements(doc, selector);
     const target = pickAppletElement(elements, { text, nth });
     if (target.disabled) {
@@ -2715,7 +2826,7 @@ CLIENT_SIDE_TOOL_HANDLERS.fillappletfield = async (toolInfo, context) => {
     const value = getToolArg(toolInfo, "value");
     const nth = getToolArg(toolInfo, "nth");
     const submit = getToolArg(toolInfo, "submit") === true;
-    const doc = requireActiveAppletDocument();
+    const doc = await waitForActiveAppletDocument();
     const elements = resolveAppletElements(doc, selector);
     const target = pickAppletElement(elements, { nth });
     const result = setAppletFieldValue(target, value);
@@ -2750,7 +2861,7 @@ CLIENT_SIDE_TOOL_HANDLERS.queryappletdom = async (toolInfo, context) => {
             ? requestedLimit
             : 10,
     );
-    const doc = requireActiveAppletDocument();
+    const doc = await waitForActiveAppletDocument();
     const elements = resolveAppletElements(doc, selector);
     const matches = elements.slice(0, limit).map(describeAppletElement);
     return {
@@ -2776,12 +2887,14 @@ CLIENT_SIDE_TOOL_HANDLERS.waitforappletelement = async (toolInfo, context) => {
             ? requestedTimeout
             : 5000,
     );
-    const doc = requireActiveAppletDocument();
+    await waitForActiveAppletDocument({ timeoutMs });
     const start = Date.now();
     let attempts = 0;
     while (Date.now() - start < timeoutMs) {
         attempts += 1;
-        const elements = resolveAppletElements(doc, selector);
+        const liveDoc =
+            getActiveAppletDocument() || requireActiveAppletDocument();
+        const elements = resolveAppletElements(liveDoc, selector);
         const satisfied = gone ? elements.length === 0 : elements.length > 0;
         if (satisfied) {
             return {
@@ -2852,7 +2965,7 @@ CLIENT_SIDE_TOOL_HANDLERS.getappletpagesnapshot = async (toolInfo, context) => {
             "No applet is currently open in the canvas. Open one before snapshotting.",
         );
     }
-    const doc = requireActiveAppletDocument();
+    const doc = await waitForActiveAppletDocument();
     const win = entry.iframe.contentWindow;
 
     const headings = Array.from(doc.querySelectorAll("h1, h2, h3"))

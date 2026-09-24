@@ -3,11 +3,15 @@
  * Consumed by the admin SDK Playground docs tab and the built-in `applets` skill.
  * Keep in sync with `public/applet-sdk.js` behavior and version.
  */
+import { APPLET_API_SELECTION } from "./appletApiSelection.js";
+
 export const APPLET_SDK_DOCUMENTATION = `# Concierge Applet SDK
 
 **Version:** 1.12.0
 
 The Concierge Applet SDK is automatically injected into every applet at runtime and exposed as the global \`ConciergeSDK\` object on \`window\`.
+
+${APPLET_API_SELECTION}
 
 ## Getting Started
 
@@ -28,7 +32,7 @@ console.log(ConciergeSDK.version); // "1.12.0"
 Query parameters on the applet page URL are injected at runtime. This supports direct navigation and iframe embeds:
 
 \`\`\`html
-<iframe src="https://your-concierge-host/apps/my-applet?team=team-alpha"></iframe>
+<iframe src="https://your-concierge-host/apps/my-applet?team=sample-team"></iframe>
 \`\`\`
 
 \`\`\`js
@@ -96,7 +100,7 @@ Read all URL query parameters as a plain object. Concierge-internal keys are exc
 **Example:**
 
 \`\`\`js
-const team = ConciergeSDK.params.get("team"); // e.g. "team-alpha"
+const team = ConciergeSDK.params.get("team"); // e.g. "sample-team"
 \`\`\`
 
 #### \`ConciergeSDK.navigation.open(path, options)\`
@@ -125,30 +129,28 @@ await ConciergeSDK.navigation.open("/apps/project-dashboard?tab=summary", {
 
 #### \`ConciergeSDK.agent.chat(options)\`
 
-Send messages to the AI agent and get a response. Each call is **scoped to the currently logged-in user** and runs through that user's personal agent when one is configured, so the agent can use tools and connectors available to that user. Applet data and files are still isolated per applet and per user; the applet author's private data is never shared with other users of the same applet.
+Send messages to the AI agent and get a response. Each call is **scoped to the currently logged-in user** and runs through that user's personal agent when one is configured, so the agent can use tools and connectors available to that user. The SDK resolves the current applet from its injected \`applet-id\`, and the server automatically attaches any saved agent context; applet code does not need—and cannot override—the context ID. Applet data and files are still isolated per applet and per user; the applet author's private data is never shared with other users of the same applet. Long calls use a streaming transport internally to keep the connection alive, but the promise still resolves once with the complete response.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | \`options.messages\` | \`Array<{role, content}>\` | Yes | Conversation messages. At least one required. |
 | \`options.systemPrompt\` | \`string\` | No | System prompt to set the agent's behavior. |
 | \`options.model\` | \`string\` | No | Model override. Defaults to the platform default. |
+| \`options.signal\` | \`AbortSignal\` | No | Cancels the in-flight request when aborted. |
 
 **Returns:** \`Promise<{ result: string, citations: Array, metadata: Object, warnings: Array, errors: Array }>\`
 
-For rich output inside Concierge, render \`result\` through the native sandbox bridge:
+Inside Concierge, always render the complete response through the native renderer so Markdown and citations stay connected:
 
 \`\`\`html
-<pre id="output" class="llm-output"></pre>
+<div id="output"></div>
 \`\`\`
 
 \`\`\`js
-document.getElementById("output").textContent = JSON.stringify({
-    markdown: response.result,
-    citations: response.citations || [],
-});
+ConciergeSDK.agent.render("output", response);
 \`\`\`
 
-The host app renders \`pre.llm-output\` JSON with Concierge's chat Markdown renderer. Extra tool metadata from Cortex is available on \`response.metadata\`.
+\`ConciergeSDK.agent.render()\` creates the native \`pre.llm-output\` bridge and preserves the response's \`:cd_source[…]\` markers and citation objects. Do not ask the agent for JSON references, strip citation markers, or build custom source/reference chips. Extra tool metadata from Cortex is available on \`response.metadata\`.
 
 **Examples:**
 
@@ -160,13 +162,22 @@ const response = await ConciergeSDK.agent.chat({
 console.log(response.result); // "The capital of France is Paris."
 \`\`\`
 
+#### \`ConciergeSDK.agentContext\`
+
+\`getAccess()\` reports whether the current applet has attached context without exposing its context ID: \`{ appletId, attached, canManage }\`.
+
+\`\`\`js
+const access = await ConciergeSDK.agentContext.getAccess();
+console.log(access.attached, access.canManage);
+\`\`\`
+
 \`\`\`js
 // With system prompt
-const translation = await ConciergeSDK.agent.chat({
-    messages: [{ role: "user", content: "Good morning" }],
-    systemPrompt: "Translate all user messages to Arabic. Return only the translation.",
+const schedule = await ConciergeSDK.agent.chat({
+    messages: [{ role: "user", content: "Find my upcoming meetings" }],
+    systemPrompt: "Use my connected calendar and group meetings by day.",
 });
-console.log(translation.result);
+console.log(schedule.result);
 \`\`\`
 
 \`\`\`js
@@ -178,83 +189,6 @@ const response = await ConciergeSDK.agent.chat({
         { role: "user", content: "What is my name?" },
     ],
 });
-\`\`\`
-
-#### \`ConciergeSDK.sourceQa.query(options)\`
-
-Ask the source Q&A retrieval pathway and receive the complete Cortex result payload, including parsed retrieval diagnostics. \`query()\` uses the same streaming transport as \`stream()\` internally, but it resolves only after the final metadata arrives and does not expose partial chunks unless callback options are supplied.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| \`options.text\` | \`string\` | Yes | Question to answer. \`question\` is accepted as an alias. |
-| \`options.contextInfo\` | \`string \\| object\` | No | Prior context for follow-up resolution. Keep the new user question in \`text\`; pass prior context here. Prefer \`{ topic, previousQuestion, previousAnswer, turns, notes }\`. |
-| \`options.language\` | \`string\` | No | Response language label. Defaults to \`auto\`, so source Q&A infers the response language from the latest question. Only pass this when intentionally forcing output language. |
-| \`options.maxSearchResults\` | \`number\` | No | Maximum sources to return to synthesis. Defaults to 12. |
-| \`options.maxRefinementRounds\` | \`number\` | No | Override source Q&A refinement rounds. |
-| \`options.searchInternet\` | \`boolean\` | No | Include the internet news fallback alongside indexed sources. Defaults to \`true\`. |
-| \`options.maxInternetResults\` | \`number\` | No | Maximum internet fallback results per query. Defaults to 5. |
-| \`options.followUpQuestionCount\` | \`number\` | No | Ask Cortex to return up to this many suggested next questions. Defaults to 0. |
-| \`options.skipAnswerSynthesis\` | \`boolean\` | No | Return retrieval diagnostics without final synthesis. |
-| \`options.stream\` | \`boolean\` | No | Stream answer chunks before resolving with the complete response. You can also call \`ConciergeSDK.sourceQa.stream(options)\` directly. |
-
-**Returns:** \`Promise<{ result: string, citations: Array, followUpQuestions: Array, confidence: "high"|"medium"|"low"|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, rawResultData: string|null, rawTool: string|null, warnings: Array, errors: Array }>\`
-
-\`result\` contains \`:cd_source[N]\` citation markers. \`citations\` contains the cited source objects. \`confidence\` is a coarse answerability label. \`coverage\` contains structured coverage state such as whether a caveated answer is possible or clarification is required. \`followUpQuestions\` contains suggested next questions when requested. \`metadata\` / \`resultData\` include \`searchResults\`, \`queryPlan\`, \`coverage\`, \`searches\`, and \`timings\` when Cortex returns them. Internet fallback results are open-web news search results; configured trusted domains may be identified as first-party coverage, while other domains should be treated as external outlets.
-
-Do not prefetch source Q&A answers for suggested follow-up questions. source Q&A performs live retrieval and synthesis; run it only for the user's active question. It is fine to render \`followUpQuestions\` as buttons, but clicking a button should start one fresh visible request.
-
-Streaming calls may emit an early \`metadata\` update after retrieval and coverage complete, before answer text is finished. Use \`onUpdate("metadata", data)\` to update confidence/source UI early. After that point, \`onChunk(chunk, eventData)\` also includes \`eventData.metadata\` when early metadata is available. The final resolved response remains the authoritative complete payload.
-
-\`ConciergeSDK.sourceQa.initialQuestions({ language })\` returns cached home-screen starter questions for \`"en"\` or \`"ar"\`. The server generates one 18-question set per language for the TTL, registers exact Cortex answer-cache keys for those questions, and starts bounded server-side answer prewarming. Use it for the initial/home-screen suggestions only; when the user selects one, call \`sourceQa.query()\` or \`sourceQa.stream()\` with the selected question as usual.
-
-\`\`\`js
-const starters = await ConciergeSDK.sourceQa.initialQuestions({ language: "en" });
-renderSuggestionSets(starters.sets);
-\`\`\`
-
-\`\`\`js
-const response = await ConciergeSDK.sourceQa.query({
-    text: "What changed in the latest policy update?",
-    contextInfo: {
-        topic: "Policy updates",
-        previousQuestion: "What was the earlier policy?",
-        previousAnswer: "The earlier policy required manual review.",
-    },
-    searchInternet: true,
-    followUpQuestionCount: 4,
-});
-
-document.getElementById("output").textContent = JSON.stringify({
-    markdown: response.result,
-    citations: response.citations || [],
-    followUpQuestions: response.followUpQuestions || [],
-});
-console.log(response.resultData.coverage, response.resultData.searchResults);
-\`\`\`
-
-To stream the synthesis as it arrives:
-
-\`\`\`js
-const response = await ConciergeSDK.sourceQa.stream({
-    text: "What are the main details from the latest update?",
-    followUpQuestionCount: 3,
-    onChunk(chunk, eventData) {
-        document.getElementById("output").textContent += chunk;
-        if (eventData.metadata) {
-            renderConfidence(eventData.metadata.confidence);
-        }
-    },
-    onUpdate(eventName, data) {
-        if (eventName === "metadata") {
-            renderSources(data.citations || []);
-            renderConfidence(data.confidence);
-            return;
-        }
-        console.log(eventName, data.progress);
-    },
-});
-
-console.log(response.citations, response.confidence, response.coverage);
 \`\`\`
 
 #### \`ConciergeSDK.models.list()\`
@@ -295,6 +229,7 @@ Make a stateless direct model call without the user's personal agent, tools, con
 | \`options.systemPrompt\` | \`string\` | No | System prompt/instructions. |
 | \`options.model\` | \`string\` | No | Model ID from \`models.list()\`. Defaults to the applet default model. |
 | \`options.reasoningEffort\` | \`"none" \\| "low" \\| "medium" \\| "high"\` | No | Optional reasoning effort. Must be supported by the selected model. |
+| \`options.signal\` | \`AbortSignal\` | No | Cancels the in-flight request when aborted. |
 
 **Returns:** \`Promise<{ result: string, citations: Array, metadata: Object }>\`
 
@@ -321,6 +256,25 @@ const response = await ConciergeSDK.models.executePrompt({
 const data = JSON.parse(response.result);
 \`\`\`
 
+For UI timeouts, cancel the underlying SDK request rather than racing it with a timer:
+
+\`\`\`js
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
+try {
+    const response = await ConciergeSDK.models.executePrompt({
+        prompt: "Translate to Arabic: Good morning",
+        signal: controller.signal,
+    });
+    renderAnswer(response);
+} finally {
+    clearTimeout(timeoutId);
+}
+\`\`\`
+
+\`Promise.race([sdkRequest, timeout])\` by itself does **not** cancel \`sdkRequest\`. Retrying after that wrapper rejects leaves the first request in flight and can trigger \`APPLET_SDK_CONCURRENCY_LIMITED\`.
+
 #### \`ConciergeSDK.media.transcribe(options)\`
 
 Start transcription from \`{ url }\`, \`{ file }\`, or \`{ fileId }\`; local uploads should use \`File\`/\`fileId\`, not applet file content URLs. Returns \`{ taskId, jobId? }\`; poll with \`ConciergeSDK.tasks.get(taskId)\`.
@@ -339,9 +293,32 @@ Start subtitle translation for timed SRT/VTT text: \`{ text, to, format?, name? 
 
 List media generation models available to applets. Each model includes \`id\`/\`modelId\`, \`name\`, \`provider\`, \`category\` (\`"image"\`, \`"video"\`, \`"audio"\`, \`"tts"\`, or \`"upscaling"\`), \`mediaDefaults\`, \`mediaControls\`, Media-page option families such as \`availableAspectRatios\`, \`availableImageSizes\`, \`availableResolutions\`, \`availableDurations\`, \`availableOutputFormats\`, conditional \`mediaDefaultOverrides\`, \`mediaInputModes\`, reference roles, and URL preferences. Use this before building a custom model/settings picker. Each \`mediaControls[]\` entry is the caller-facing schema for a model setting: use \`key\` as the setting name, \`aliases\` for equivalent setting keys, \`type\` to choose the control UI, \`options\` for valid select values, \`min\`/\`max\`/\`step\`/\`unit\` for numeric values, \`showWhen\`/\`hideWhen\` for conditional visibility, and \`mediaDefaults[key]\` as the initial value. \`mediaInputModes[]\` describes promptless or multimodal generation modes, including required reference counts and any required prompt/settings alternatives.
 
+Conditional option lists are supplied in \`mediaDefaultOverrides[].mediaOptions\`, keyed by setting name (for example \`image_size\`, \`resolution\`, or \`fps\`). Match every \`when\` condition against current settings, falling back to \`mediaDefaults\`; an array condition means any listed value matches. Apply matching option lists in order to both controls and option families, and reset incompatible selections to an allowed default or the first option. The initial lists returned by \`media.models()\` reflect the default mode; retain the original metadata and rules when recomputing after a mode/duration change.
+
+#### \`ConciergeSDK.media.ensureImage(options)\`
+
+Use this for a widget background or other reusable image. Pass a stable \`key\` plus image generation options such as \`prompt\`, \`model\`, and \`aspectRatio\`. Returns \`Promise<{ url: string, taskId?: string }>\` after the image is ready.
+
+Concierge scopes the key to the authenticated user and applet. It reuses previously saved \`data\` image URLs and owns one durable task for an uncached key. Concurrent tabs and later visits resume that task; closing the widget does not lose its result. A failed task or cache read never starts a replacement generation automatically. Keep a readable fallback on error. Change the key only when intentionally requesting new artwork; never put a timestamp or random ID in it.
+
+\`\`\`js
+const { url } = await ConciergeSDK.media.ensureImage({
+  key: "atmosphereUrl",
+  prompt: "Photorealistic newsroom at dusk. No text or logos.",
+  aspectRatio: "16:9",
+});
+surface.style.backgroundImage = "url(" + JSON.stringify(url) + ")";
+\`\`\`
+
+For backgrounds, do not build a separate \`data.get/createImage/tasks.wait/data.set\` loop. Use \`media.createImage\` for explicit requests for a new image each time.
+
 #### \`ConciergeSDK.media.create(options)\`
 
 Start a media-generation task through the same background pipeline used by the Media page. Returns \`{ taskId, jobId? }\`; use \`ConciergeSDK.tasks.wait(taskId)\` or \`ConciergeSDK.tasks.get(taskId)\` to monitor completion. Completed media task data includes fields such as \`url\`, \`azureUrl\`, \`gcsUrl\`, \`hash\`, \`blobPath\`, \`type\`, \`model\`, and \`prompt\`.
+
+Multi-output generations also return \`outputFiles\` (all stored outputs and layer metadata when supplied). Recraft returns \`providerMetadata.styleId\` for reuse, and Lyria 3.5 retains \`providerMetadata.lyrics\`. Use \`inputAudios\` for multiple audio references; the selected model metadata controls the allowed count.
+
+Priority model controls also accept \`fps\`, \`generationMode\`, \`watermark\`, \`matchInputImage\`, \`enablePromptExpansion\`, \`layerDecomposition\`, \`styleId\`, \`styleMatch\`, \`sourceUrl\`, \`sourceLanguage\`, \`targetLanguage\`, \`cloningStrength\`. Dubbing takes exactly one audio/video reference or source URL and needs no prompt.
 
 Common options:
 
@@ -353,7 +330,7 @@ Common options:
 | \`mediaKind\` | Optional category hint: \`"image"\`, \`"video"\`, \`"audio"\`, or \`"tts"\`. |
 | \`settings\` | Full Media-page settings object, including \`settings.models[model]\`. |
 | \`modelSettings\` | Per-model settings merged into \`settings.models[model]\`. |
-| \`inputImages\`, \`inputVideos\`, \`inputAudio\` | References by public URL, applet \`fileId\`, applet file content URL, or a completed media task/data object with URL fields. |
+| \`inputImages\`, \`inputVideos\`, \`inputAudio\`, \`inputAudios\` | References by public URL, applet \`fileId\`, applet file content URL, or a completed media task/data object with URL fields. |
 | \`outputFolder\` | Optional destination folder under the user's media storage. |
 | \`inputTags\` | Optional tags inherited onto the generated media item. |
 
@@ -517,14 +494,14 @@ Load one stored key or all key-value data for **this applet and the current user
 
 #### \`ConciergeSDK.data.set(key, value)\`
 
-Store one per-user key. Values must be JSON-serializable and small. Concierge stores each key independently and rejects individual values over 2MB. Use applet files or \`ConciergeSDK.files\` applet-user files for large uploaded transcripts, extracted segment arrays, media metadata, or other datasets.
+Store one per-user key. Values must be JSON-serializable and small. Concierge stores each key independently. Values must fit within the 2MB storage limit, including BSON encoding and document metadata; arrays can reach that limit before their JSON reaches 2MB. Oversized writes reject with HTTP 413 and \`APPLET_DATA_VALUE_TOO_LARGE\`, leaving the previously saved value intact. Use applet files or \`ConciergeSDK.files\` applet-user files for large uploaded transcripts, extracted segment arrays, media metadata, or other datasets.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | \`key\` | \`string\` | Yes | Non-empty string. Avoid \`$\` prefix and dots in keys (MongoDB field rules). |
 | \`value\` | \`any\` | Yes | Any JSON-serializable value. |
 
-**Returns:** \`Promise<Object>\` — the **full** updated data object after this write.
+**Returns:** \`Promise<Object>\` — the **full** updated data object after this write. Saves for the same applet/key in one SDK instance run in call order, including retries, so an older autosave cannot retry over a newer one. Separate tabs/devices still use last-write-wins; use \`sharedData\` revisions for collaborative state. Handle rejected saves visibly and keep unsaved edits available for retry.
 
 \`\`\`js
 const all = await ConciergeSDK.data.set("settings", { theme: "dark" });
@@ -632,7 +609,7 @@ In the **SDK Playground**, set the same value in the template’s meta tag so da
 - **Agent chat context**: \`agent.chat\` also does NOT persist memory between calls. To maintain conversation context, pass the full message history in \`messages\`.
 - **User-isolated**: Each user gets their own applet data/file context. The applet author's data is never exposed to other users.
 - **Personal agent tools**: \`agent.chat\` runs as the currently logged-in user's agent and may use that user's available tools/connectors. Tool access still depends on the user's normal permissions and connection state.
-- **SDK safety limits**: Concierge rate-limits and concurrency-limits applet SDK APIs. The SDK automatically backs off and retries limited AI and read calls, but service-token, write, upload, and delete calls surface the error without retrying. Avoid tight render loops, recursive prefetch, and unbounded timers. Repeated limit violations temporarily suspend SDK access for the applet for about 15 minutes; after fixing the applet, clear the suspension with \`UpdateAppletMetadata { clearSdkSuspension: true }\` or wait for it to expire.
+- **SDK safety limits**: Concierge rate-limits and concurrency-limits applet SDK APIs. The SDK automatically backs off and retries limited AI and read calls, but service-token, write, upload, and delete calls surface the error without retrying. Avoid tight render loops, recursive prefetch, and unbounded timers. Abandoned in-flight requests expire after a few minutes, so a hung or disconnected call cannot block later SDK requests indefinitely. Repeated limit violations temporarily suspend SDK access for the applet for about 15 minutes; after fixing the applet, clear the suspension with \`UpdateAppletMetadata { clearSdkSuspension: true }\` or wait for it to expire.
 
 ---
 

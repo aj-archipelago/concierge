@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../../src/layout/PageHeader";
+import { HeaderAction } from "../../../src/layout/HeaderControls";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -90,16 +92,44 @@ export default function Workspaces() {
         <div className="pb-4">
             <div className="mb-4">
                 {/* Header */}
-                <div className="mb-4">
-                    <h1 className="text-lg font-semibold">
-                        {t("Applet Workspaces")}
-                    </h1>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {debouncedFilterText
-                            ? `${filteredWorkspaces.length} ${t("matching")} ${t("workspaces")}`
-                            : `${workspaces?.length || 0} ${t("workspaces")}`}
+                <PageHeader
+                    title={t("Applet Workspaces")}
+                    description={
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {debouncedFilterText
+                                ? `${filteredWorkspaces.length} ${t("matching")} ${t("workspaces")}`
+                                : `${workspaces?.length || 0} ${t("workspaces")}`}
+                        </div>
+                    }
+                >
+                    <div className="flex items-center gap-2">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <HeaderAction
+                                        variant="default"
+                                        icon={
+                                            createWorkspace.isPending
+                                                ? Loader2
+                                                : Plus
+                                        }
+                                        iconClassName={
+                                            createWorkspace.isPending
+                                                ? "animate-spin"
+                                                : undefined
+                                        }
+                                        label={t("New Workspace")}
+                                        onClick={handleCreate}
+                                        disabled={createWorkspace.isPending}
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {t("New Workspace")}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
-                </div>
+                </PageHeader>
 
                 {/* Filter and Create Button */}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -116,28 +146,6 @@ export default function Workspaces() {
                     />
 
                     {/* Create Button */}
-                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        className="lb-primary inline-flex items-center justify-center h-9 w-9 p-0"
-                                        onClick={handleCreate}
-                                        disabled={createWorkspace.isPending}
-                                    >
-                                        {createWorkspace.isPending ? (
-                                            <Loader2 className="h-5 w-5 animate-spin" />
-                                        ) : (
-                                            <Plus className="h-5 w-5" />
-                                        )}
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {t("New Workspace")}
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
                 </div>
             </div>
 

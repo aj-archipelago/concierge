@@ -32,6 +32,7 @@ const KNOWN_CLIENT_TOOLS = [
     "UnpublishApplet",
     "GetAppletVersionSource",
     "CopyAppletVersionToDraft",
+    "UpdateAppletWidget",
     "DeleteApplet",
     "SearchChats",
     "GetChatContent",

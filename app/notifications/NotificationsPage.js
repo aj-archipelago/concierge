@@ -1,5 +1,9 @@
 "use client";
 
+import TeamNotificationItem from "../../src/components/notifications/TeamNotificationItem";
+import AssistantTaskNotificationItem from "../../src/components/notifications/AssistantTaskNotificationItem";
+import PageHeader from "../../src/layout/PageHeader";
+import { HeaderAction } from "../../src/layout/HeaderControls";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -20,6 +24,7 @@ import { toast } from "react-toastify";
 import stringcase from "stringcase";
 import { useJob } from "../../app/queries/jobs";
 import {
+    useDismissInboxItem,
     useCancelTask,
     useDeleteOldTasks,
     useDeleteInboxItem,
@@ -31,6 +36,11 @@ import {
     getStatusColorClass,
 } from "../../src/components/notifications/NotificationButton";
 import { TASK_INFO } from "../../src/utils/task-info";
+import { AuthContext } from "../../src/App";
+import { useColleagues } from "../../src/hooks/useColleagues";
+import ColleagueNotificationItem, {
+    resolveNotificationCompanion,
+} from "../../src/components/notifications/ColleagueNotificationItem";
 import {
     getNotificationNavigationPath,
     getShareNotificationSubtitle,
@@ -129,6 +139,7 @@ const JobInfoBox = ({ job }) => {
 
 function NotificationItem({
     notification,
+    entity,
     displayType,
     t,
     handleCancelRequest,
@@ -137,6 +148,7 @@ function NotificationItem({
     onMarkRead,
 }) {
     const { data: job } = useJob(notification.jobId);
+    const dismissItem = useDismissInboxItem();
     const navigationPath = getNotificationNavigationPath(notification);
     const accessErrorMessage =
         notification.type === "transcribe"
@@ -157,6 +169,33 @@ function NotificationItem({
         : null;
     const isUnreadNotification =
         notification.inboxKind === "notification" && !notification.read;
+
+    if (notification.team)
+        return (
+            <TeamNotificationItem
+                {...{ notification, router, onMarkRead, t }}
+                handleDismiss={(id, inboxKind) =>
+                    dismissItem.mutate({ id, inboxKind })
+                }
+            />
+        );
+
+    if (notification.assistantProgress)
+        return (
+            <AssistantTaskNotificationItem
+                {...{ notification, router, handleCancelRequest, t }}
+            />
+        );
+
+    if (notification.type === "colleague-message")
+        return (
+            <ColleagueNotificationItem
+                {...{ notification, entity, router, onMarkRead, t }}
+                handleDismiss={() => handleDelete(notification)}
+                actionLabel="Delete"
+                ActionIcon={TrashIcon}
+            />
+        );
 
     return (
         <div
@@ -185,18 +224,27 @@ function NotificationItem({
                 <div className="flex flex-col grow overflow-hidden">
                     <div className="flex justify-between items-start">
                         <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {isShareNotification(notification)
-                                ? getShareNotificationTitle(notification, t)
-                                : displayType(notification.type)}
+                            {notification.type === "colleague-message"
+                                ? t(
+                                      notification.metadata?.kind === "help"
+                                          ? "colleagues.needsHelp"
+                                          : "colleagues.messageFrom",
+                                      { name: notification.metadata?.name },
+                                  )
+                                : isShareNotification(notification)
+                                  ? getShareNotificationTitle(notification, t)
+                                  : displayType(notification.type)}
                         </span>
                         <div className="flex gap-2">
-                            {notification.status === "in_progress" && (
+                            {["in_progress", "pending", "waiting"].includes(
+                                notification.status,
+                            ) && (
                                 <button
                                     onClick={(event) => {
                                         event.stopPropagation();
                                         handleCancelRequest(notification._id);
                                     }}
-                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                                    className="min-h-10 min-w-10 p-1 rounded flex items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Cancel")}
                                 >
                                     <XIcon className="h-4 w-4" />
@@ -211,7 +259,7 @@ function NotificationItem({
                                         event.stopPropagation();
                                         handleDelete(notification);
                                     }}
-                                    className="p-1 rounded flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
+                                    className="min-h-10 min-w-10 p-1 rounded flex items-center justify-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                                     title={t("Delete")}
                                 >
                                     <TrashIcon className="h-4 w-4" />
@@ -234,10 +282,21 @@ function NotificationItem({
                         <span
                             className={`text-sm font-semibold ${getStatusColorClass(notification.status)}`}
                         >
-                            {t(stringcase.sentencecase(notification.status))}
+                            {t(
+                                notification.status === "waiting"
+                                    ? "colleagues.runStatus.waiting"
+                                    : stringcase.sentencecase(
+                                          notification.status,
+                                      ),
+                            )}
                         </span>
                     ) : null}
 
+                    {notification.type === "colleague-message" && (
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                            {notification.metadata?.message}
+                        </p>
+                    )}
                     <StatusText text={statusText} id={notification._id} t={t} />
 
                     {notification.status === "in_progress" && (
@@ -259,6 +318,8 @@ function NotificationItem({
 
 export default function NotificationsPage() {
     const { t } = useTranslation();
+    const { user } = useContext(AuthContext);
+
     const router = useRouter();
     const { direction: pageDirection } = useContext(LanguageContext);
     const direction = pageDirection ?? "ltr";
@@ -307,6 +368,17 @@ export default function NotificationsPage() {
     }, [cancelRequestId, cancelRequest]);
 
     const notifications = data?.pages.flatMap((page) => page.requests) ?? [];
+    const { data: colleagues = [] } = useColleagues({
+        ids: [
+            ...new Set(
+                notifications
+                    .map((item) => item.metadata?.entityId)
+                    .filter(Boolean),
+            ),
+        ],
+        limit: 100,
+        status: "all",
+    });
 
     const displayType = useCallback(
         (type) => {
@@ -319,7 +391,9 @@ export default function NotificationsPage() {
 
     const handleMarkRead = useCallback(
         (id) => {
-            markNotificationsRead.mutate({ ids: [id] });
+            markNotificationsRead.mutate({
+                ids: Array.isArray(id) ? id : [id],
+            });
         },
         [markNotificationsRead],
     );
@@ -347,23 +421,15 @@ export default function NotificationsPage() {
 
     return (
         <div className="p-2">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                    {t("All notifications")}
-                </h1>
-                <button
+            <PageHeader title={t("All notifications")}>
+                <HeaderAction
+                    icon={ClockIcon}
+                    label={t("Delete Old Notifications")}
                     onClick={() => setShowDeleteOldDialog(true)}
                     disabled={deleteOldTasks.isPending}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {deleteOldTasks.isPending ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 dark:border-gray-100" />
-                    ) : (
-                        <ClockIcon className="h-4 w-4" />
-                    )}
-                    {t("Delete Old Notifications")}
-                </button>
-            </div>
+                    aria-busy={deleteOldTasks.isPending}
+                />
+            </PageHeader>
             <div className="space-y-4">
                 {status === "pending" ? (
                     <div className="flex justify-center">
@@ -379,6 +445,11 @@ export default function NotificationsPage() {
                             <NotificationItem
                                 key={notification._id}
                                 notification={notification}
+                                entity={resolveNotificationCompanion(
+                                    notification,
+                                    colleagues,
+                                    user,
+                                )}
                                 displayType={displayType}
                                 t={t}
                                 handleCancelRequest={handleCancelRequest}

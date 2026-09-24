@@ -4,6 +4,7 @@ export const STORAGE_TARGET_KINDS = Object.freeze({
     CHAT: "chat",
     APPLET_USER: "applet-user",
     APPLET_SHARED: "applet-shared",
+    AGENT_CONTEXT: "agent-context",
     APPLET_GLOBAL: "applet-global",
     APPLET_PUBLISHED: "applet-published",
     WORKSPACE_PRIVATE: "workspace-private",
@@ -38,6 +39,7 @@ const FILE_SCOPE_BY_KIND = Object.freeze({
     [STORAGE_TARGET_KINDS.CHAT]: "chat",
     [STORAGE_TARGET_KINDS.APPLET_USER]: "applet-user",
     [STORAGE_TARGET_KINDS.APPLET_SHARED]: "applet-shared",
+    [STORAGE_TARGET_KINDS.AGENT_CONTEXT]: "all",
     [STORAGE_TARGET_KINDS.APPLET_GLOBAL]: "applets",
     [STORAGE_TARGET_KINDS.APPLET_PUBLISHED]: "applets",
     [STORAGE_TARGET_KINDS.WORKSPACE_PRIVATE]: "workspace-user-legacy",
@@ -89,6 +91,9 @@ function inferStorageTargetKind({
         return kind;
     }
 
+    if (fileScope === "all") {
+        return STORAGE_TARGET_KINDS.AGENT_CONTEXT;
+    }
     if (fileScope === "applet-user") {
         return STORAGE_TARGET_KINDS.APPLET_USER;
     }
@@ -175,6 +180,12 @@ export function createAppletSharedStorageTarget(appletId) {
     });
 }
 
+export function createAgentContextStorageTarget(contextId) {
+    return createStorageTarget(STORAGE_TARGET_KINDS.AGENT_CONTEXT, {
+        contextId,
+    });
+}
+
 export function createMediaStorageTarget(userContextId) {
     return createStorageTarget(STORAGE_TARGET_KINDS.MEDIA, {
         userContextId,
@@ -232,6 +243,54 @@ export function createAutomationStorageTarget(userContextId) {
         userContextId,
     });
 }
+
+// File-manager paths are relative to the user's container. Resolve the folder
+// selected at upload time without changing its owner or falling back to global.
+export function getUserFolderUploadDestination(
+    userContextId,
+    folderPath,
+    defaultStorageTarget,
+) {
+    if (!userContextId) return null;
+    if (folderPath == null || folderPath === "") {
+        return { storageTarget: defaultStorageTarget, subPath: null };
+    }
+    if (typeof folderPath !== "string") return null;
+    const segments = folderPath.split("/");
+    // Match CFH's supported subpaths. Invalid paths must not silently upload
+    // to a parent folder when CFH discards an unsupported subPath.
+    if (segments.some((segment) => !/^[A-Za-z0-9_-]{1,128}$/.test(segment))) {
+        return null;
+    }
+    const [root, id, ...rest] = segments;
+    if (root === "chats") {
+        if (!id) return null;
+        return {
+            storageTarget: createChatStorageTarget(userContextId, id),
+            subPath: rest.join("/") || null,
+        };
+    }
+    const factories = {
+        global: createUserGlobalStorageTarget,
+        media: createMediaStorageTarget,
+        profile: createProfileStorageTarget,
+        articles: createArticleStorageTarget,
+        applets: createAppletGlobalStorageTarget,
+        skills: createSkillStorageTarget,
+        automations: createAutomationStorageTarget,
+    };
+    const factory = Object.hasOwn(factories, root) ? factories[root] : null;
+    return factory
+        ? {
+              storageTarget: factory(userContextId),
+              subPath: segments.slice(1).join("/") || null,
+          }
+        : {
+              storageTarget: createAgentContextStorageTarget(userContextId),
+              subPath: folderPath,
+          };
+}
+
 export function resolveStorageTarget(input = {}) {
     const target = input.storageTarget || input.target || input;
     const kind = inferStorageTargetKind({
@@ -278,6 +337,8 @@ export function resolveStorageTarget(input = {}) {
         resolvedContextId = buildAppletUserContextId(userContextId, appletId);
     } else if (kind === STORAGE_TARGET_KINDS.APPLET_SHARED) {
         resolvedContextId = buildAppletSharedContextId(appletId);
+    } else if (kind === STORAGE_TARGET_KINDS.AGENT_CONTEXT) {
+        resolvedContextId = toNullableString(contextIdHint);
     } else if (kind === STORAGE_TARGET_KINDS.APPLET_PUBLISHED) {
         resolvedContextId =
             toNullableString(contextIdHint) ||
@@ -343,4 +404,62 @@ export function buildMediaHelperListParams({
         appletId: toNullableString(appletId),
         chatId: toNullableString(chatId),
     });
+}
+
+// Resolve a deletion from the file's location, not the folder currently open in
+// the UI. Explicit non-user containers retain their owner/access checks.
+export function getFileDeletionRouting(file, defaults = {}) {
+    const input = {
+        ...defaults,
+        ...file,
+        storageTarget:
+            file.storageTarget || file._storageTarget || defaults.storageTarget,
+    };
+    const target = resolveStorageTarget(input);
+    const userContainer = ![
+        STORAGE_TARGET_KINDS.APPLET_USER,
+        STORAGE_TARGET_KINDS.APPLET_SHARED,
+        STORAGE_TARGET_KINDS.WORKSPACE_SHARED,
+        STORAGE_TARGET_KINDS.APPLET_PUBLISHED,
+    ].includes(target.kind);
+    if (file.blobPath && userContainer) {
+        const parts = file.blobPath.split("/");
+        const [root, id] = parts;
+        const scopes = {
+            global: "global",
+            media: "media",
+            articles: "articles",
+            profile: "profile",
+            applets: "applets",
+            skills: "skills",
+            automations: "automations",
+        };
+        if (root === "chats" && id && parts.length > 2) {
+            return buildMediaHelperFileParams({
+                contextId: target.userContextId || target.contextId,
+                fileScope: "chat",
+                chatId: id,
+            });
+        }
+        if (root === "workspaces" && id && parts.length > 2) {
+            return buildMediaHelperFileParams({
+                contextId: target.userContextId || target.contextId,
+                fileScope: "workspace-user-legacy",
+                workspaceId: id,
+            });
+        }
+        if (Object.hasOwn(scopes, root)) {
+            return buildMediaHelperFileParams({
+                contextId: target.userContextId || target.contextId,
+                fileScope: scopes[root],
+            });
+        }
+        // User-container files can also live in custom or historical folders.
+        // Authorization still fixes the container owner on the server.
+        return buildMediaHelperFileParams({
+            contextId: target.userContextId || target.contextId,
+            fileScope: "all",
+        });
+    }
+    return buildMediaHelperFileParams(input);
 }

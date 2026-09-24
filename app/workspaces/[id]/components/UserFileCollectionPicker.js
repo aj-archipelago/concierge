@@ -191,6 +191,7 @@ export default function UserFileCollectionPicker({
 
         if (
             !fileHash &&
+            !file?.blobPath &&
             !mongoFileId &&
             !(isAppletUserFile && folderWorkspaceId && appletFilename)
         ) {
@@ -228,7 +229,7 @@ export default function UserFileCollectionPicker({
                     workspaceId: folderWorkspaceId,
                     filename: appletFilename,
                 });
-            } else if (fileHash) {
+            } else if (fileHash || file?.blobPath) {
                 // We have a fileHash but either:
                 // - No workspaceId (not a workspace file)
                 // - Or workspaceId but couldn't find MongoDB _id (lookup not ready or file not in MongoDB)

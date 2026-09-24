@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "./cfh-client.mjs";
 import { NextResponse } from "next/server.js";
 import xxhash from "xxhash-wasm";
 import {
@@ -41,14 +42,15 @@ function appendRoutingParams(url, input = {}) {
 export function buildFileIdentifierAttempts({
     blobPath,
     hash,
-    fallbackToHash = true,
+    fallbackToHash = false,
 } = {}) {
     const attempts = [];
 
     if (blobPath) {
         attempts.push({ blobPath, identifier: blobPath });
     }
-    if (hash && (fallbackToHash || !blobPath)) {
+    // Only explicit legacy reads may renew a moved historical hash reference.
+    if (hash && (!blobPath || fallbackToHash)) {
         attempts.push({ hash, identifier: hash });
     }
 
@@ -57,19 +59,29 @@ export function buildFileIdentifierAttempts({
 
 /**
  * Check if a file exists in CFH.
- * Prefers blobPath when available; falls back to hash.
+ * Uses blobPath when supplied; hash-only references are legacy compatibility.
  * @param {Object} params
  * @param {string} [params.blobPath] - Blob path within the container (preferred)
  * @param {string} [params.hash] - File hash (fallback)
  * @returns {Promise<Object|null>} Response data or null on miss/error
  */
-export async function checkMediaFile({ blobPath, hash, ...routing } = {}) {
+export async function checkMediaFile({
+    storageAuthorization = {},
+    blobPath,
+    hash,
+    signal,
+    ...routing
+} = {}) {
     if (!blobPath && !hash) {
         return null;
     }
 
     try {
-        for (const attempt of buildFileIdentifierAttempts({ blobPath, hash })) {
+        for (const attempt of buildFileIdentifierAttempts({
+            blobPath,
+            hash,
+            fallbackToHash: true,
+        })) {
             const url = new URL(getMediaHelperUrl());
             if (attempt.blobPath) {
                 url.searchParams.set("blobPath", attempt.blobPath);
@@ -79,9 +91,14 @@ export async function checkMediaFile({ blobPath, hash, ...routing } = {}) {
             }
             appendRoutingParams(url, routing);
 
-            const response = await fetch(url.toString(), {
-                cache: "no-store",
-            });
+            const response = await authorizedMediaFetch(
+                url.toString(),
+                {
+                    cache: "no-store",
+                    signal,
+                },
+                storageAuthorization,
+            );
             if (!response.ok) {
                 continue;
             }
@@ -101,17 +118,16 @@ export async function checkMediaFile({ blobPath, hash, ...routing } = {}) {
 
 /**
  * Delete a file from CFH.
- * Prefers blobPath when available; falls back to hash.
+ * Uses blobPath when supplied; hash-only references are legacy compatibility.
  * @param {Object} params
  * @param {string} [params.blobPath] - Blob path within the container (preferred)
  * @param {string} [params.hash] - File hash (fallback)
- * @param {boolean} [params.fallbackToHash=true] - Whether to try hash after a blobPath miss
  * @returns {Promise<Object|null>} Response data or null on error
  */
 export async function deleteMediaFile({
     blobPath,
     hash,
-    fallbackToHash = true,
+    storageAuthorization = {},
     ...routing
 } = {}) {
     if (!blobPath && !hash) {
@@ -124,7 +140,7 @@ export async function deleteMediaFile({
         for (const attempt of buildFileIdentifierAttempts({
             blobPath,
             hash,
-            fallbackToHash,
+            fallbackToHash: false,
         })) {
             const url = new URL(getMediaHelperUrl());
             if (attempt.blobPath) {
@@ -134,12 +150,16 @@ export async function deleteMediaFile({
             }
             appendRoutingParams(url, routing);
 
-            const response = await fetch(url.toString(), {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
+            const response = await authorizedMediaFetch(
+                url.toString(),
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                 },
-            });
+                storageAuthorization,
+            );
 
             if (response.ok) {
                 return response.json().catch(() => null);
@@ -176,7 +196,12 @@ export async function deleteMediaFile({
 export async function uploadBufferToMediaService(
     fileBuffer,
     metadata,
-    { storageTarget = null, subPath = null, ...routing } = {},
+    {
+        storageTarget = null,
+        subPath = null,
+        storageAuthorization = {},
+        ...routing
+    } = {},
 ) {
     try {
         const mediaHelperUrl = getMediaHelperUrl();
@@ -211,15 +236,17 @@ export async function uploadBufferToMediaService(
         // File must come after routing fields (see above)
         uploadFormData.append("file", blob, metadata.filename);
 
-        // Hash can come after the file — processFile awaits busboyFinished for it
-        if (metadata.hash) {
-            uploadFormData.append("hash", metadata.hash);
-        }
+        // Checksums used by document versioning stay with those records. They
+        // are not cloud identifiers and do not create a CFH hash-map entry.
 
-        const uploadResponse = await fetch(mediaHelperUrl, {
-            method: "POST",
-            body: uploadFormData,
-        });
+        const uploadResponse = await authorizedMediaFetch(
+            mediaHelperUrl,
+            {
+                method: "POST",
+                body: uploadFormData,
+            },
+            storageAuthorization,
+        );
 
         if (!uploadResponse.ok) {
             const errorBody = await uploadResponse.text();
@@ -268,7 +295,7 @@ async function listScopedFiles({
             url.searchParams.set("subPath", subPath);
         }
 
-        const response = await fetch(url.toString());
+        const response = await authorizedMediaFetch(url.toString());
         if (!response.ok) {
             return [];
         }
@@ -283,6 +310,7 @@ async function listScopedFiles({
 export async function listMediaFiles({
     storageTarget = null,
     subPath = null,
+    throwOnError = false,
     ...routing
 } = {}) {
     try {
@@ -299,13 +327,15 @@ export async function listMediaFiles({
             url.searchParams.set("subPath", subPath);
         }
 
-        const response = await fetch(url.toString());
+        const response = await authorizedMediaFetch(url.toString());
         if (!response.ok) {
+            if (throwOnError) throw new Error("Unable to list materials");
             return [];
         }
         const data = await response.json().catch(() => null);
         return Array.isArray(data?.files) ? data.files : [];
     } catch (error) {
+        if (throwOnError) throw error;
         console.error("Error listing media files:", error);
         return [];
     }
@@ -347,9 +377,17 @@ export async function listAutomationFiles(userContextId, automationSlug) {
  * @param {Object} storageTarget - Storage target for routing
  * @returns {Promise<string|null>} The file's text content or null
  */
-export async function readBlobContent(blobPath, storageTarget) {
+export async function readBlobContent(
+    blobPath,
+    storageTarget,
+    storageAuthorization = {},
+) {
     try {
-        const fileInfo = await checkMediaFile({ blobPath, storageTarget });
+        const fileInfo = await checkMediaFile({
+            blobPath,
+            storageTarget,
+            storageAuthorization,
+        });
         if (!fileInfo?.url) {
             return null;
         }

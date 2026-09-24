@@ -4,6 +4,7 @@ export const SHARE_ENTITY_TYPES = [
     "chat",
     "workspace",
     "applet",
+    "published_applet",
     "automation",
     "article",
 ];

@@ -32,6 +32,10 @@ const ENTITY_META = {
         icon: Bot,
         labelKey: "portal_sharing_type_applet",
     },
+    published_applet: {
+        icon: Bot,
+        labelKey: "portal_sharing_type_published_applet",
+    },
     automation: {
         icon: Workflow,
         labelKey: "portal_sharing_type_automation",
@@ -61,15 +65,15 @@ function formatShareSummary(item, t) {
     return parts.join(" · ");
 }
 
-function SharingListItem({ item, t, direction }) {
+function SharingListItem({ item, t }) {
     const meta = ENTITY_META[item.entityType] || ENTITY_META.chat;
     const Icon = meta.icon;
     const summary = formatShareSummary(item, t);
 
     return (
-        <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-700/80 dark:bg-gray-800/80 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sky-50 dark:bg-sky-900/30">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-400/10">
                     <Icon className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                 </div>
                 <div className="min-w-0">
@@ -93,7 +97,7 @@ function SharingListItem({ item, t, direction }) {
                 {item.url ? (
                     <Link
                         href={item.url}
-                        className="inline-flex min-h-10 items-center rounded-md border border-gray-200 px-3 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700/50"
+                        className="inline-flex min-h-10 items-center rounded-xl border border-gray-200 px-3 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700/50"
                     >
                         {t("portal_sharing_open")}
                     </Link>
@@ -150,10 +154,6 @@ export default function SharingSection() {
 
     return (
         <div dir={direction} className="space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 text-start">
-                {t("portal_sharing_description")}
-            </p>
-
             {items.length > 0 ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
                     {filterOptions.map(({ id, labelKey }) => {
@@ -164,10 +164,11 @@ export default function SharingSection() {
                                 key={id}
                                 type="button"
                                 onClick={() => setFilter(id)}
+                                aria-pressed={active}
                                 className={cn(
                                     "inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
                                     active
-                                        ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+                                        ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-400/10 dark:text-sky-300"
                                         : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700/50",
                                 )}
                             >
@@ -182,24 +183,24 @@ export default function SharingSection() {
             ) : null}
 
             {isLoading ? (
-                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                     {t("portal_sharing_loading")}
                 </div>
             ) : isError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center dark:border-red-900/50 dark:bg-red-900/20">
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center dark:border-red-900/50 dark:bg-red-900/20">
                     <p className="text-sm text-red-700 dark:text-red-300">
                         {t("portal_sharing_error")}
                     </p>
                     <button
                         type="button"
                         onClick={() => refetch()}
-                        className="mt-3 text-sm font-medium text-red-700 underline dark:text-red-300"
+                        className="mt-3 min-h-10 rounded-lg px-3 text-sm font-medium text-red-700 underline dark:text-red-300"
                     >
                         {t("Retry")}
                     </button>
                 </div>
             ) : visibleItems.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-200 px-4 py-10 text-center dark:border-gray-700">
+                <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center dark:border-gray-700">
                     <Users className="mx-auto mb-3 h-8 w-8 text-gray-300 dark:text-gray-600" />
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {t("portal_sharing_empty_title")}
@@ -215,16 +216,17 @@ export default function SharingSection() {
                             key={`${item.entityType}:${item.entityId}`}
                             item={item}
                             t={t}
-                            direction={direction}
                         />
                     ))}
                 </div>
             )}
 
             {items.length > 0 ? (
-                <div className="flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+                <div className="flex items-start gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
                     <Globe className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p className="text-start">{t("portal_sharing_hint")}</p>
+                    <p className="mb-0 text-start">
+                        {t("portal_sharing_hint")}
+                    </p>
                 </div>
             ) : null}
         </div>

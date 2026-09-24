@@ -138,7 +138,7 @@ function SkillCreateEditor({ onSave, onComplete, onCancel, uploadSkillFile }) {
                     value={name}
                     onChange={(e) => setName(e.target.value.toLowerCase())}
                     placeholder="my-skill"
-                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
             </div>
 
@@ -151,7 +151,7 @@ function SkillCreateEditor({ onSave, onComplete, onCancel, uploadSkillFile }) {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder={t("When to use this skill...")}
-                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {t(
@@ -196,7 +196,7 @@ function SkillCreateEditor({ onSave, onComplete, onCancel, uploadSkillFile }) {
                     {t("Supporting Files")}
                 </label>
                 {stagedFiles.length > 0 && (
-                    <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden mb-2">
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-2">
                         {stagedFiles.map((file) => (
                             <div
                                 key={file.name}
@@ -235,7 +235,7 @@ function SkillCreateEditor({ onSave, onComplete, onCancel, uploadSkillFile }) {
                     className="hidden"
                 />
                 <Button
-                    size="sm"
+                    size="default"
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={saving}
@@ -253,14 +253,14 @@ function SkillCreateEditor({ onSave, onComplete, onCancel, uploadSkillFile }) {
                     </span>
                 )}
                 <Button
-                    size="sm"
+                    size="default"
                     variant="ghost"
                     onClick={onCancel}
                     disabled={saving}
                 >
                     {t("Cancel")}
                 </Button>
-                <Button size="sm" onClick={handleSave} disabled={saving}>
+                <Button size="default" onClick={handleSave} disabled={saving}>
                     <Save className="me-1 h-4 w-4" />
                     {saving ? t("Creating...") : t("Create Skill")}
                 </Button>
@@ -411,7 +411,7 @@ function SkillFileBrowser({
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t("Name")}
                 </label>
-                <div className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
+                <div className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400">
                     {skill.name}
                 </div>
                 <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 font-mono">
@@ -432,11 +432,11 @@ function SkillFileBrowser({
                             setDescription(e.target.value);
                             setDescDirty(true);
                         }}
-                        className="flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     {descDirty && (
                         <Button
-                            size="sm"
+                            size="default"
                             onClick={handleDescriptionSave}
                             disabled={savingDesc}
                             aria-label={t("Save")}
@@ -482,14 +482,14 @@ function SkillFileBrowser({
                     />
                     <div className="flex justify-end gap-2">
                         <Button
-                            size="sm"
+                            size="default"
                             variant="ghost"
                             onClick={() => setEditingContent(false)}
                         >
                             {t("Cancel")}
                         </Button>
                         <Button
-                            size="sm"
+                            size="default"
                             onClick={handleSaveContent}
                             disabled={savingContent}
                         >
@@ -511,7 +511,7 @@ function SkillFileBrowser({
                             {t("Loading files...")}
                         </div>
                     ) : (
-                        <div className="rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                             {/* SKILL.md — always first */}
                             <div
                                 className={classNames(
@@ -532,10 +532,10 @@ function SkillFileBrowser({
                                     )}
                                 </div>
                                 <Button
-                                    size="sm"
+                                    size="default"
                                     variant="ghost"
                                     onClick={handleEditContent}
-                                    className="h-7 px-2"
+                                    className="min-h-10 px-3"
                                 >
                                     <Pencil className="h-3.5 w-3.5 me-1" />
                                     {t("Edit")}
@@ -569,7 +569,7 @@ function SkillFileBrowser({
                                                     file.name?.split("/").pop(),
                                             )
                                         }
-                                        className="ms-2 flex-shrink-0 text-gray-400 hover:text-red-500"
+                                        className="ms-2 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                                         aria-label={t("Remove {{name}}", {
                                             name:
                                                 file.filename ||
@@ -597,7 +597,7 @@ function SkillFileBrowser({
                         className="hidden"
                     />
                     <Button
-                        size="sm"
+                        size="default"
                         variant="outline"
                         className="mt-2"
                         onClick={() => fileInputRef.current?.click()}
@@ -691,7 +691,7 @@ export function SkillsContent() {
                                 <div
                                     key={skill.name}
                                     className={classNames(
-                                        "rounded-lg border p-3",
+                                        "rounded-xl border p-4",
                                         "border-gray-200 dark:border-gray-600",
                                         "bg-white dark:bg-gray-800",
                                     )}
@@ -706,7 +706,7 @@ export function SkillsContent() {
                                             </div>
                                         </div>
                                         <Button
-                                            size="sm"
+                                            size="default"
                                             variant="outline"
                                             onClick={() =>
                                                 handleEdit({
@@ -728,7 +728,7 @@ export function SkillsContent() {
                                 {t("Your skills")}
                             </h4>
                             <Button
-                                size="sm"
+                                size="default"
                                 variant="outline"
                                 onClick={() => setView("new")}
                             >
@@ -752,7 +752,7 @@ export function SkillsContent() {
                                     <div
                                         key={skill.name}
                                         className={classNames(
-                                            "rounded-lg border p-3",
+                                            "rounded-xl border p-4",
                                             "border-gray-200 dark:border-gray-600",
                                             "bg-white dark:bg-gray-800",
                                         )}
@@ -771,7 +771,7 @@ export function SkillsContent() {
                                             </div>
                                             <div className="flex items-center gap-1 ms-2">
                                                 <Button
-                                                    size="sm"
+                                                    size="default"
                                                     variant="ghost"
                                                     onClick={() =>
                                                         handleEdit(skill)
@@ -781,9 +781,9 @@ export function SkillsContent() {
                                                     <Pencil className="h-4 w-4" />
                                                 </Button>
                                                 <Button
-                                                    size="sm"
+                                                    size="default"
                                                     variant="ghost"
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
                                                     onClick={() =>
                                                         handleDelete(skill.name)
                                                     }
@@ -850,7 +850,7 @@ export function SkillsContent() {
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                             {viewingContent.description}
                         </p>
-                        <div className="rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-3 max-h-96 overflow-y-auto">
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-3 max-h-96 overflow-y-auto">
                             <pre
                                 className="text-xs font-mono whitespace-pre-wrap text-gray-700 dark:text-gray-300"
                                 dir="ltr"

@@ -1,3 +1,8 @@
+import adminUsage from "./help-guides/admin-usage.md";
+import adminUsageAr from "./help-guides/admin-usage.ar.md";
+// Import help guide markdown files
+// When adding a new guide, create a .md file in help-guides/ and add an import
+// here. For each guide, also add an .ar.md file with the Arabic translation.
 import gettingStarted from "./help-guides/getting-started.md";
 import usingChat from "./help-guides/using-chat.md";
 import sharingCollaboration from "./help-guides/sharing-collaboration.md";
@@ -8,11 +13,14 @@ import creatingUsingApplets from "./help-guides/creating-using-applets.md";
 import workingWithMedia from "./help-guides/working-with-media.md";
 import usingDockedChat from "./help-guides/using-docked-chat.md";
 import managingApps from "./help-guides/managing-apps.md";
-import usingConnectors from "./help-guides/using-connectors.md";
-import usingAutomations from "./help-guides/using-automations.md";
-import usingSkills from "./help-guides/using-skills.md";
+import personalizingYourHome from "./help-guides/personalizing-your-home.md";
 import managingProfileSettings from "./help-guides/managing-profile-settings.md";
 import keyboardShortcuts from "./help-guides/keyboard-shortcuts.md";
+import usingSkills from "./help-guides/using-skills.md";
+import usingConnectors from "./help-guides/using-connectors.md";
+import usingColleagues from "./help-guides/using-colleagues.md";
+import usingColleaguesAr from "./help-guides/using-colleagues.ar.md";
+import usingAutomations from "./help-guides/using-automations.md";
 
 import gettingStartedAr from "./help-guides/getting-started.ar.md";
 import usingChatAr from "./help-guides/using-chat.ar.md";
@@ -24,11 +32,12 @@ import creatingUsingAppletsAr from "./help-guides/creating-using-applets.ar.md";
 import workingWithMediaAr from "./help-guides/working-with-media.ar.md";
 import usingDockedChatAr from "./help-guides/using-docked-chat.ar.md";
 import managingAppsAr from "./help-guides/managing-apps.ar.md";
-import usingConnectorsAr from "./help-guides/using-connectors.ar.md";
-import usingAutomationsAr from "./help-guides/using-automations.ar.md";
-import usingSkillsAr from "./help-guides/using-skills.ar.md";
+import personalizingYourHomeAr from "./help-guides/personalizing-your-home.ar.md";
 import managingProfileSettingsAr from "./help-guides/managing-profile-settings.ar.md";
 import keyboardShortcutsAr from "./help-guides/keyboard-shortcuts.ar.md";
+import usingSkillsAr from "./help-guides/using-skills.ar.md";
+import usingConnectorsAr from "./help-guides/using-connectors.ar.md";
+import usingAutomationsAr from "./help-guides/using-automations.ar.md";
 
 import parseFrontmatter from "./parseFrontmatter";
 
@@ -45,6 +54,7 @@ function parseGuide(raw) {
 
 const guidesByLang = {
     en: [
+        adminUsage,
         gettingStarted,
         usingChat,
         sharingCollaboration,
@@ -55,13 +65,16 @@ const guidesByLang = {
         workingWithMedia,
         usingDockedChat,
         managingApps,
-        usingConnectors,
-        usingAutomations,
-        usingSkills,
+        personalizingYourHome,
         managingProfileSettings,
         keyboardShortcuts,
+        usingSkills,
+        usingConnectors,
+        usingAutomations,
+        usingColleagues,
     ].map(parseGuide),
     ar: [
+        adminUsageAr,
         gettingStartedAr,
         usingChatAr,
         sharingCollaborationAr,
@@ -72,11 +85,13 @@ const guidesByLang = {
         workingWithMediaAr,
         usingDockedChatAr,
         managingAppsAr,
-        usingConnectorsAr,
-        usingAutomationsAr,
-        usingSkillsAr,
+        personalizingYourHomeAr,
         managingProfileSettingsAr,
         keyboardShortcutsAr,
+        usingSkillsAr,
+        usingConnectorsAr,
+        usingAutomationsAr,
+        usingColleaguesAr,
     ].map(parseGuide),
 };
 

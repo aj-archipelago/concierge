@@ -1,0 +1,35 @@
+# Digest and automation execution
+
+Periodic digest work is now a dispatcher. It pages recently active users and creates one durable Task per existing prompt card. The four-hour repeat schedule, card IDs, prompts, language preferences, personal context, model selection and Home layout are retained. Automation-linked cards remain read-through views of automation results. Digest greeting generation, display and GraphQL queries have been removed; existing stored greeting values are left untouched. New accounts receive an empty digest instead of a hidden default news card.
+
+## Capacity
+
+`build-digest` and `automation-run` use the existing `task` queue at priority 10. Ordinary unprioritized tasks are served first. A Redis script admits six background runs across all replicas and one per owner. Jobs which cannot enter move to delayed state for 15–20 seconds without occupying execution slots or fetching/decrypting their Task documents. This bounds agent concurrency; it is not a measured provider capacity guarantee. A single agent can invoke several tools.
+
+Each admitted job gets a 20-minute absolute budget, including setup. Concierge passes its deadline and cancellation signal into registration; Cortex keeps a deadline on the executing instance and propagates cancellation to nested model requests. Cancellation mutations are broadcast across instances, with a one-hour marker checked before bounded async execution. Ordinary chats do not perform this additional Redis lookup.
+
+Leases last 21 minutes. Successful tasks release them immediately; failed, canceled or crashed tasks retain their reservation until expiry because their remote outcome may be uncertain. This can temporarily reduce throughput during failures. Deadlines and aborts are cooperative: they prevent subsequent model dispatch and abort supported HTTP requests, but cannot undo a tool's completed external action or guarantee that an external service stopped work. Keep worker and Cortex clocks synchronized.
+
+Admission-deferred jobs contribute to the existing autoscaling metric. Adding replicas does not increase the six-run provider budget. `background_run_finished` records duration and terminal status; `task_scale_metric.backgroundWaiting` exposes admission pressure. The queue monitor counts completions directly in Redis and samples at most 100 waiting jobs instead of downloading retained history.
+
+## Persistence and recovery
+
+Mongo Task records are the dispatch outbox. A deterministic BullMQ job ID covers task creation, enqueue and acknowledgement interruptions. Periodic digest identity includes its slot, card, prompt and generation key; schedules use automation ID and due time. Pending outbox entries are reconciled in batches of 100 each scheduler tick. Digest recovery uses the same card claim as normal enqueue. Concurrent refresh requests coalesce on the existing task.
+
+A worker atomically sets `executionStartedAt` before invoking an agent. A stalled job with a started execution is never automatically invoked again. A surviving live worker is left alone; an interrupted run becomes abandoned. Legacy active records older than 30 minutes become abandoned only when Redis reports no live worker and the queue job is absent or terminal. Output and history remain intact. This favors avoiding duplicate external actions over automatic retry after an unknown outcome.
+
+Automation dispatch uses a shared Mongo claim for manual and scheduled starts. Due rows are sorted in Mongo before the 200-row limit. `nextRunAt` advances after durable enqueue; a failed acknowledgement retries the same slot key. An already active run still coalesces a due occurrence. Missing next-run timestamps are repaired to the next future occurrence using the existing schedule/timezone calculator; missed historical occurrences are not replayed. File-watch baselines and two-observation stability rules remain intact.
+
+Digest blocks are encrypted as one array. All application writers reread it and replace it with a plaintext `blocksRevision` plus `updatedAt` compare-and-swap. Results also check the card generation and task owner. Concurrent results merge; deleted cards stay deleted; older results cannot replace prompt changes or newer refreshes. Editing configuration does not copy stale generated content or task markers supplied by the browser. Failed refreshes preserve the last good result.
+
+## Deployment and review
+
+This change adds no Azure configuration, changes no analytics, and requires no version bump. Mongo auto-indexing is disabled. Before activating new workers, run `node scripts/ensure-background-indexes.mjs --apply` inside the selected deployment environment; without `--apply` it only prints the plan and opens no connection. The script additively creates and verifies the outbox, orphan-reconciliation, active-automation lookup and ordered-schedule indexes. The schedule index must be `{ nextRunAt: 1, _id: 1 }` to match the actual sort: Cosmos rejects that sort when the index has an extra `enabled` prefix, even though the query filters on `enabled: true`. Rerunning the installer adds the correct index without dropping any existing indexes. Verify an actual scheduler tick as well as index existence before completing a rollout.
+
+Pause producers/consumers and drain or explicitly handle old global digest jobs before deploying Cortex: those jobs may still call the retired greeting pathway. Then deploy Cortex and coordinate Concierge web and workers before resuming background work. Old workers do not enforce the new admission limits or revision checks, so a mixed worker deployment is not a supported steady state. Preserve the repeat schedule. Existing repeat entries may lack the new dispatch retry options; reconcile those options during the release window without changing their cadence. Mongo outbox recovery remains available independently of periodic-job retries.
+
+Dev acceptance must include a real mixed chat/background burst, oldest waiting age, provider throttling, CPU/memory, complete outputs, Arabic cards, manual refresh, file-watch triggers, reconnects, and a worker replacement while a run is active. Local Redis/Mongo tests prove locking and race behavior; they do not establish production throughput or interactive latency. Do not promote to production before that review.
+
+Rollback requires pausing and draining background work before restoring older workers. Do not delete queue keys, card content, task history, schedules or admission leases. Older workers cannot enforce the new budget or stale-result checks.
+
+Assistant continuations are intentional new turns, distinct from crash retries. Parking after a completed Cortex turn releases automation admission; resumption clears `executionStartedAt` and uses a new `assistantTurn` queue receipt. Stale receipts cannot abandon a newer turn. Direct `assistant-run` handoffs retain team parallelism outside the digest/automation admission pool, but receive the same absolute runtime deadline and upstream cancellation. Their existing team limits still apply.

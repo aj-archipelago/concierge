@@ -8,6 +8,30 @@ import {
 } from "../utils/llm-file-utils.js";
 import { checkMediaFile } from "../utils/media-service-utils.js";
 import { resolveStorageTarget } from "../../../src/utils/storageTargets.js";
+import {
+    resolveProfileImageRefreshTarget,
+    matchesProfileImageTarget,
+} from "../utils/profile-image";
+import {
+    isGeneratedAppletCoverUrl,
+    isSameCoverBlob,
+    resolveAppletCoverRefreshTarget,
+} from "../canvas-applets/cover-image";
+
+// Targets come only from saved-image provenance checks, never request parameters.
+function savedImageAuthorization(user, target) {
+    return {
+        user: { contextId: user.contextId || "concierge:shared-image" },
+        routing: { contextId: target.contextId, fileScope: "all" },
+        targets: [
+            {
+                owner: target.contextId,
+                path: target.blobPath,
+                actions: ["read"],
+            },
+        ],
+    };
+}
 
 async function resolveImageUrl({ url, blobPath, contextId, fileScope }) {
     if (!blobPath || !contextId || !fileScope) {
@@ -47,6 +71,7 @@ export async function GET(req) {
         const blobPath = searchParams.get("blobPath");
         const contextId = searchParams.get("contextId") || user.contextId;
         const fileScope = searchParams.get("fileScope");
+        const download = searchParams.get("download") === "1";
 
         if (!url && !blobPath) {
             return Response.json(
@@ -55,17 +80,51 @@ export async function GET(req) {
             );
         }
 
-        let resolvedUrl = await resolveImageUrl({
-            url,
-            blobPath,
-            contextId,
-            fileScope,
-        });
+        const generatedCover = isGeneratedAppletCoverUrl(url);
+        const profileTarget = generatedCover
+            ? null
+            : await resolveProfileImageRefreshTarget(user, {
+                  url,
+                  blobPath,
+                  contextId,
+                  fileScope,
+              });
+
+        // Cover URLs carry their own blob identity. Never resolve them through
+        // caller-supplied storage hints before checking app access/provenance.
+        let resolvedUrl = profileTarget
+            ? (
+                  await fetchShortLivedUrl({
+                      ...profileTarget,
+                      storageAuthorization: savedImageAuthorization(
+                          user,
+                          profileTarget,
+                      ),
+                  })
+              )?.url
+            : generatedCover
+              ? url
+              : await resolveImageUrl({
+                    url,
+                    blobPath,
+                    contextId,
+                    fileScope,
+                });
 
         if (!resolvedUrl) {
             return Response.json(
                 { error: "Failed to resolve image URL" },
                 { status: 404 },
+            );
+        }
+
+        if (
+            profileTarget &&
+            !matchesProfileImageTarget(resolvedUrl, profileTarget)
+        ) {
+            return Response.json(
+                { error: "Refreshed profile does not match the saved image" },
+                { status: 502 },
             );
         }
 
@@ -80,18 +139,30 @@ export async function GET(req) {
         // previews commonly request ranges and should preserve 206 metadata.
         let response = await fetchAllowedBlobUrl(resolvedUrl, fetchOptions);
 
-        // If SAS token expired (403), try to refresh via media-helper
-        if (response.status === 403 && contextId) {
+        let renewedAppletCover = Boolean(profileTarget);
+        // Generated covers belong to their creator, which may differ from the viewer.
+        if (response.status === 403) {
+            const coverTarget = await resolveAppletCoverRefreshTarget(
+                user,
+                resolvedUrl,
+            );
+            const refreshContextId = coverTarget?.contextId || contextId;
             const resolvedBlobPath =
+                coverTarget?.blobPath ||
                 blobPath ||
                 extractBlobPathFromUrl(resolvedUrl) ||
                 extractBlobPathFromUrl(url);
 
-            if (fileScope && resolvedBlobPath) {
+            if (
+                !coverTarget &&
+                fileScope &&
+                resolvedBlobPath &&
+                refreshContextId
+            ) {
                 resolvedUrl = await resolveImageUrl({
                     url,
                     blobPath: resolvedBlobPath,
-                    contextId,
+                    contextId: refreshContextId,
                     fileScope,
                 });
                 if (resolvedUrl) {
@@ -100,19 +171,41 @@ export async function GET(req) {
                         fetchOptions,
                     );
                 }
-            } else {
-                const hash = extractHashFromBlobUrl(resolvedUrl || url);
+            } else if (refreshContextId) {
+                const hash = coverTarget
+                    ? null
+                    : extractHashFromBlobUrl(resolvedUrl || url);
                 if (resolvedBlobPath || hash) {
                     const refreshed = await fetchShortLivedUrl({
                         blobPath: resolvedBlobPath,
                         hash,
-                        contextId,
+                        contextId: refreshContextId,
+                        ...(coverTarget
+                            ? {
+                                  storageAuthorization: savedImageAuthorization(
+                                      user,
+                                      coverTarget,
+                                  ),
+                              }
+                            : {}),
                     });
                     if (refreshed?.url) {
+                        if (
+                            coverTarget &&
+                            !isSameCoverBlob(resolvedUrl, refreshed.url)
+                        ) {
+                            throw Object.assign(
+                                new Error(
+                                    "Refreshed cover does not match the saved image",
+                                ),
+                                { status: 502 },
+                            );
+                        }
                         response = await fetchAllowedBlobUrl(
                             refreshed.url,
                             fetchOptions,
                         );
+                        renewedAppletCover = Boolean(coverTarget);
                     }
                 }
             }
@@ -130,8 +223,32 @@ export async function GET(req) {
         const responseHeaders = {
             "Content-Type": contentType,
             "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "public, max-age=2592000, immutable",
+            "Cache-Control": renewedAppletCover
+                ? "private, max-age=300"
+                : "public, max-age=2592000, immutable",
         };
+
+        if (download) {
+            let filename = "download";
+            try {
+                filename =
+                    decodeURIComponent(
+                        new URL(resolvedUrl).pathname.split("/").pop(),
+                    ) || filename;
+            } catch {
+                // Keep a safe fallback for malformed legacy filenames.
+            }
+            const encodedFilename = encodeURIComponent(filename).replace(
+                /['()*]/g,
+                (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+            );
+            // Generated HTML must download, never execute on the app origin.
+            responseHeaders["Content-Disposition"] =
+                `attachment; filename="download"; filename*=UTF-8''${encodedFilename}`;
+            responseHeaders["Content-Security-Policy"] = "sandbox";
+            responseHeaders["X-Content-Type-Options"] = "nosniff";
+            responseHeaders["Cache-Control"] = "private, no-store";
+        }
 
         const contentLength = response.headers.get("content-length");
         const contentRange = response.headers.get("content-range");
@@ -140,7 +257,7 @@ export async function GET(req) {
         if (contentRange) responseHeaders["Content-Range"] = contentRange;
         if (acceptRanges) responseHeaders["Accept-Ranges"] = acceptRanges;
 
-        // Cache for 30 days — proxy URLs are stable and files are content-addressed (xxHash64)
+        // Renewed app covers stay in the viewer's private cache for five minutes.
         return new Response(arrayBuffer, {
             status: response.status,
             headers: responseHeaders,

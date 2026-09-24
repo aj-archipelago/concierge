@@ -42,7 +42,10 @@ describe("options route personal entity sync", () => {
         const query = jest.fn().mockResolvedValue({
             data: {
                 sys_entity_update: {
-                    result: JSON.stringify({ success: true, name: "Lana" }),
+                    result: JSON.stringify({
+                        success: true,
+                        name: "Assistant",
+                    }),
                 },
             },
         });
@@ -51,7 +54,7 @@ describe("options route personal entity sync", () => {
         const response = await POST({
             json: async () => ({
                 userId: "user-1",
-                aiName: "Lana",
+                aiName: "Assistant",
             }),
         });
 
@@ -60,7 +63,7 @@ describe("options route personal entity sync", () => {
             variables: {
                 entityId: "personal-context-1",
                 contextId: "context-1",
-                name: "Lana",
+                name: "Assistant",
             },
             fetchPolicy: "network-only",
         });

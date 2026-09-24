@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import classNames from "../../../../app/utils/class-names";
 
 export default function AdvancedTab({
     form,
@@ -98,6 +97,48 @@ export default function AdvancedTab({
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 pt-2 space-y-3">
+                    <div className="space-y-1.5">
+                        <Label htmlFor="retained-runs">
+                            {t("automations.outputRetention")}
+                        </Label>
+                        <select
+                            id="retained-runs"
+                            className="min-h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                            value={form.retainedRuns ?? 30}
+                            disabled={readOnly || !canManage}
+                            onChange={(event) =>
+                                onFieldChange(
+                                    "retainedRuns",
+                                    Number(event.target.value),
+                                )
+                            }
+                        >
+                            {[
+                                ...new Set([
+                                    10,
+                                    30,
+                                    100,
+                                    ...(form.retainedRuns
+                                        ? [form.retainedRuns]
+                                        : []),
+                                ]),
+                            ]
+                                .sort((a, b) => a - b)
+                                .map((count) => (
+                                    <option key={count} value={count}>
+                                        {t("automations.keepSuccessfulRuns", {
+                                            count,
+                                        })}
+                                    </option>
+                                ))}
+                            <option value={0}>
+                                {t("automations.keepAllOutputs")}
+                            </option>
+                        </select>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {t("automations.outputRetentionHelp")}
+                        </p>
+                    </div>
                     <div className="flex items-center gap-2">
                         <Checkbox
                             id="produces-html"
@@ -112,30 +153,6 @@ export default function AdvancedTab({
                             className="text-sm font-normal text-gray-700 dark:text-gray-300"
                         >
                             {t("Produce HTML output")}
-                        </Label>
-                    </div>
-                    <div
-                        className={classNames(
-                            "flex items-center gap-2",
-                            !form.producesHtml && "opacity-50",
-                        )}
-                    >
-                        <Checkbox
-                            id="pin-sidebar"
-                            disabled={readOnly || !form.producesHtml}
-                            checked={form.producesHtml && form.pinnedToSidebar}
-                            onCheckedChange={(checked) =>
-                                onFieldChange(
-                                    "pinnedToSidebar",
-                                    Boolean(checked),
-                                )
-                            }
-                        />
-                        <Label
-                            htmlFor="pin-sidebar"
-                            className="text-sm font-normal text-gray-700 dark:text-gray-300"
-                        >
-                            {t("Pin latest HTML result to sidebar")}
                         </Label>
                     </div>
                     <div className="flex items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-700 mt-1">

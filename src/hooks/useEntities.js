@@ -1,23 +1,40 @@
 import { useQuery } from "@apollo/client";
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { SYS_GET_ENTITIES } from "../graphql";
 
-export function useEntities(userAiName, { userId, personalEntityId } = {}) {
-    const { data: entitiesData, error } = useQuery(SYS_GET_ENTITIES, {
-        variables: { userId },
+export function useEntities(
+    userAiName,
+    { userId, personalEntityId, selectedEntityId, query = "" } = {},
+) {
+    const {
+        data: entitiesData,
+        error,
+        loading,
+    } = useQuery(SYS_GET_ENTITIES, {
+        variables: {
+            userId,
+            entityId: selectedEntityId || personalEntityId || undefined,
+            fresh: "true",
+            query,
+        },
         skip: !userId,
         fetchPolicy: "cache-and-network",
+        notifyOnNetworkStatusChange: true,
     });
-
-    const rawResult = entitiesData?.sys_get_entities?.result;
-
-    const prevRawRef = useRef(rawResult);
-    if (rawResult !== prevRawRef.current) {
-        if (rawResult === undefined || rawResult !== prevRawRef.current) {
-            prevRawRef.current = rawResult;
-        }
-    }
-    const stableRawResult = prevRawRef.current;
+    const { data: personalData, loading: personalLoading } = useQuery(
+        SYS_GET_ENTITIES,
+        {
+            variables: { userId, entityId: personalEntityId, fresh: "true" },
+            skip:
+                !userId ||
+                !personalEntityId ||
+                !selectedEntityId ||
+                selectedEntityId === personalEntityId,
+            fetchPolicy: "cache-and-network",
+        },
+    );
+    const personalResult = personalData?.sys_get_entities?.result;
+    const stableRawResult = entitiesData?.sys_get_entities?.result;
 
     return useMemo(() => {
         const defaultResponse = {
@@ -39,6 +56,18 @@ export function useEntities(userAiName, { userId, personalEntityId } = {}) {
         let entities;
         try {
             entities = JSON.parse(stableRawResult);
+            const additional = JSON.parse(personalResult || "[]");
+            if (!Array.isArray(entities) || !Array.isArray(additional))
+                return defaultResponse;
+            entities = [
+                ...new Map(
+                    [...entities, ...additional].map((entity) => [
+                        entity.id,
+                        entity,
+                    ]),
+                ).values(),
+            ];
+            if (!Array.isArray(entities)) return defaultResponse;
         } catch (parseError) {
             console.error("Failed to parse entities:", parseError);
             return defaultResponse;
@@ -76,7 +105,16 @@ export function useEntities(userAiName, { userId, personalEntityId } = {}) {
         return {
             entities: aliasedEntities,
             defaultEntityId,
-            entitiesLoaded: Boolean(stableRawResult),
+            entitiesLoaded:
+                Boolean(stableRawResult) && !loading && !personalLoading,
         };
-    }, [stableRawResult, error, userAiName, personalEntityId]);
+    }, [
+        stableRawResult,
+        personalResult,
+        error,
+        loading,
+        personalLoading,
+        userAiName,
+        personalEntityId,
+    ]);
 }

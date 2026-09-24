@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
+import { HeaderAction } from "../../layout/HeaderControls";
 import { useContext } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -40,13 +42,13 @@ export default function GuidePage({ guideId }) {
 
     return (
         <div dir={direction} className="p-4 max-w-4xl mx-auto">
-            <button
-                className="mb-4 text-sm text-sky-500 hover:text-sky-600 flex items-center gap-1"
-                onClick={() => router.push("/help")}
-            >
-                <BackIcon className="h-4 w-4" />
-                {t("Back to Help")}
-            </button>
+            <PageHeader title={guide.title}>
+                <HeaderAction
+                    icon={BackIcon}
+                    label={t("Back to Help")}
+                    onClick={() => router.push("/help")}
+                />
+            </PageHeader>
             <div className="flex items-center gap-2 mb-4">
                 <span
                     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${categoryColorClasses[guide.category] || categoryColorClasses.general}`}

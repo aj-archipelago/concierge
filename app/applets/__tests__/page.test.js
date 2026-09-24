@@ -14,6 +14,6 @@ describe("Applets route", () => {
     test("redirects to the My Applets tab in Apps", () => {
         Page();
 
-        expect(redirect).toHaveBeenCalledWith("/apps?tab=my-applets");
+        expect(redirect).toHaveBeenCalledWith("/apps");
     });
 });

@@ -12,6 +12,11 @@ describe("reasoningEffortI18n", () => {
         const keys = [
             "Reasoning",
             "Reasoning Effort",
+            "thinkingControl.label",
+            "thinkingControl.settings",
+            "thinkingControl.choose",
+            "thinkingControl.hint",
+            "thinkingControl.fixed",
             ...REASONING_EFFORT_LEVELS.map((l) =>
                 reasoningEffortLevelLabelKey(l),
             ),

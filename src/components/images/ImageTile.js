@@ -7,6 +7,7 @@ import { ImageWithFallback } from "../chat/MediaCard";
 import ProgressUpdate from "../editor/ProgressUpdate";
 import SyncedAudioControl from "./SyncedAudioControl";
 import { getDownloadUrl } from "../../utils/fileDownloadUtils";
+import { describeMediaGenerationError } from "../../utils/mediaGenerationErrors";
 import {
     Dialog,
     DialogContent,
@@ -45,6 +46,10 @@ function ImageTile({
     const { cortexRequestId, prompt, result, regenerating, uploading, error } =
         image || {};
     const { code, message } = error || result?.error || {};
+    const failure = describeMediaGenerationError(image, t);
+    const hasFailure = Boolean(
+        error || result?.error || image?.status === "failed",
+    );
     const isSelected = selectedImages.has(cortexRequestId);
     const stopCardClick = (event) => event.stopPropagation();
     const mediaId = cortexRequestId || image.taskId;
@@ -247,8 +252,7 @@ function ImageTile({
                             image?.status !== "failed" &&
                             !result && <ProgressComponent />}
                         {/* Show specific error states */}
-                        {code === "ERR_BAD_REQUEST" && <BadRequestError />}
-                        {code && code !== "ERR_BAD_REQUEST" && <OtherError />}
+                        {hasFailure && <OtherError />}
                         {expired && hasValidUrl && <ExpiredImageComponent />}
                         {loadError && <ExpiredImageComponent />}
                     </div>
@@ -270,15 +274,17 @@ function ImageTile({
                         </DialogTitle>
                     </DialogHeader>
                     <div className="mt-4 space-y-3 overflow-auto">
+                        {failure.kind !== "error" && (
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
+                                {failure.message}
+                            </p>
+                        )}
                         <div>
                             <span className="font-semibold text-gray-700 dark:text-gray-300">
                                 {t("Error Details")}:
                             </span>
                             <pre className="mt-2 text-xs p-2 bg-gray-50 text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
-                                {message ||
-                                    error?.message ||
-                                    result?.error?.message ||
-                                    t("Unknown error occurred")}
+                                {failure.details || t("Unknown error occurred")}
                             </pre>
                         </div>
                         {code && (
@@ -337,52 +343,9 @@ function ImageTile({
         );
     }
 
-    function BadRequestError() {
-        return (
-            <div
-                className="flex flex-col items-center justify-center h-full p-4 overflow-hidden cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setShowErrorDialog(true);
-                }}
-            >
-                <div className="text-center overflow-hidden w-full">
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                        <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
-                            <svg
-                                className="w-4 h-4 text-red-600 dark:text-red-400"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                            >
-                                <path
-                                    fillRule="evenodd"
-                                    d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z"
-                                    clipRule="evenodd"
-                                />
-                            </svg>
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 break-words overflow-hidden px-2">
-                            {t("Content blocked by safety system")}
-                        </div>
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500 break-words overflow-hidden px-2">
-                        {t("Please try a different prompt")}
-                    </div>
-                    <div className="text-xs text-sky-600 dark:text-sky-400 mt-2">
-                        {t("Click for details")}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     function OtherError() {
         // Get the actual error message from multiple possible sources
-        const actualErrorMessage =
-            message ||
-            error?.message ||
-            result?.error?.message ||
-            "Unknown error occurred";
+        const actualErrorMessage = failure.message;
 
         return (
             <div className="flex flex-col items-center justify-center h-full overflow-hidden">
@@ -407,12 +370,12 @@ function ImageTile({
                                 />
                             </svg>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
-                            {t("Media generation failed")}
+                        <div className="text-sm text-gray-600 dark:text-gray-200 break-words">
+                            {failure.title}
                         </div>
                     </div>
                     <div
-                        className="text-xs text-gray-500 dark:text-gray-500 px-2 line-clamp-4 break-words overflow-hidden"
+                        className="text-xs text-gray-500 dark:text-gray-300 px-2 line-clamp-4 break-words overflow-hidden"
                         title={actualErrorMessage}
                     >
                         {actualErrorMessage}
@@ -504,7 +467,7 @@ function ImageTile({
                                 />
                             </svg>
                         </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 break-words">
                             {t("Media generation failed")}
                         </div>
                     </div>

@@ -1,81 +1,27 @@
 import mongoose from "mongoose";
-import { taskSchema } from "./task.mjs";
-
-const validatePayload = (value) => {
-    return (
-        typeof value === "string" ||
-        (Array.isArray(value) &&
-            value.every((item) => typeof item === "string"))
-    );
-};
-
-// Define the individual message schema
-const messageSchema = new mongoose.Schema(
-    {
-        payload: {
-            type: mongoose.Schema.Types.Mixed,
-            required: true,
-            validate: [
-                validatePayload,
-                "Payload should be a string or an array of strings",
-            ],
-        },
-        sender: {
-            type: String,
-            required: true,
-        },
-        tool: {
-            type: String,
-            default: null,
-        },
-        sentTime: {
-            type: String,
-            required: true,
-        },
-        direction: {
-            type: String,
-            required: true,
-        },
-        position: {
-            type: String,
-            required: true,
-        },
-        entityId: {
-            type: String,
-            default: null,
-        },
-        taskId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Task",
-            default: null,
-        },
-        task: taskSchema,
-        isServerGenerated: {
-            type: Boolean,
-            default: false,
-        },
-        ephemeralContent: {
-            type: String,
-            default: null,
-        },
-        thinkingDuration: {
-            type: Number,
-            default: 0,
-        },
-        toolCalls: {
-            type: mongoose.Schema.Types.Mixed,
-            default: null,
-        },
-    },
-    {
-        timestamps: true,
-    },
-);
+import { messageSchema } from "./message.mjs";
 
 // Define the schema for lists of message lists with an auto-generated ID
 const chatSchema = new mongoose.Schema(
     {
         messages: [messageSchema],
+        messageStorageMode: {
+            type: String,
+            enum: ["external"],
+            default: null,
+        },
+        messageStorageGeneration: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null,
+        },
+        nextMessageSequence: {
+            type: Number,
+            default: 0,
+        },
+        lastMessageSequence: {
+            type: Number,
+            default: 0,
+        },
         _id: {
             type: mongoose.Schema.Types.ObjectId,
             auto: true,
@@ -126,21 +72,32 @@ const chatSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
-        messageStorageBytes: {
-            type: Number,
-            default: 0,
-        },
-        messagesCompacted: {
-            type: Boolean,
-            default: false,
-        },
-        messagesCompactedAt: {
-            type: Date,
-            default: null,
+        // A private, one-shot opening reservation. Draft replies never enter
+        // conversation history until the browser confirms continued idleness.
+        conversationOpening: {
+            type: mongoose.Schema.Types.Mixed,
+            select: false,
         },
         selectedEntityId: {
             type: String,
             default: "",
+        },
+        assistantQuestionId: mongoose.Schema.Types.ObjectId,
+        pinned: {
+            type: Boolean,
+            default: false,
+        },
+        pinnedAt: {
+            type: Date,
+            default: null,
+        },
+        archived: {
+            type: Boolean,
+            default: false,
+        },
+        archivedAt: {
+            type: Date,
+            default: null,
         },
     },
     {
@@ -153,6 +110,7 @@ chatSchema.index({ updatedAt: -1 });
 chatSchema.index({ createdAt: -1 });
 chatSchema.index({ userId: 1, updatedAt: -1 });
 chatSchema.index({ userId: 1, createdAt: -1 });
+chatSchema.index({ userId: 1, archived: 1, pinned: -1, updatedAt: -1 });
 
 // Create the Chat model from the schema
 const Chat = mongoose.models?.Chat || mongoose.model("Chat", chatSchema);

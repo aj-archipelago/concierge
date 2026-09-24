@@ -170,8 +170,10 @@ export function extractLegacyFilesFromMessages(messages = [], chatId = null) {
 function getFileIdentityKeys(file) {
     return [
         file?.blobPath || file?.name || null,
-        file?.hash || null,
         getStableUrlKey(file?.url || file?.image_url?.url || file?.file),
+        !file?.blobPath && !file?.url && !file?.image_url?.url
+            ? file?.hash
+            : null,
     ].filter(Boolean);
 }
 
@@ -486,7 +488,11 @@ export function useUnifiedFileData({
 
     const removeFileOptimistically = useCallback(
         (file) => {
-            const keys = getFileIdentityKeys(file);
+            const removed = Array.isArray(file) ? file : [file];
+            const keys = removed.flatMap(getFileIdentityKeys);
+            const names = new Set(
+                removed.map((entry) => entry.name).filter(Boolean),
+            );
             if (keys.length > 0) {
                 setHiddenLegacyKeys((prev) => {
                     const next = new Set(prev);
@@ -494,7 +500,7 @@ export function useUnifiedFileData({
                     return next;
                 });
             }
-            updateFiles((prev) => prev.filter((f) => f.name !== file.name));
+            updateFiles((prev) => prev.filter((f) => !names.has(f.name)));
         },
         [updateFiles],
     );

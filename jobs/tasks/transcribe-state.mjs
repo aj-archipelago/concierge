@@ -1,17 +1,11 @@
+import { getTranscriptionSourceIdentity } from "../../src/utils/transcriptionSource.js";
+
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeUrlForComparison(value) {
-    if (!value) return "";
-
-    try {
-        const url = new URL(value);
-        url.hash = "";
-        return url.href;
-    } catch {
-        return String(value);
-    }
+    return getTranscriptionSourceIdentity(value);
 }
 
 export function shouldApplyTranscriptionToState(

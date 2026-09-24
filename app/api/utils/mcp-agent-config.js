@@ -3,6 +3,7 @@ import {
     MCP_PRESETS,
 } from "../../../src/utils/mcpPresets.js";
 import { refreshExpiringMcpServersForUser } from "./mcp-token-refresh.js";
+import { localMcpConfigForUser } from "./companion.js";
 
 async function resolveAtlassianCloudId({ user, mcpServers, logPrefix }) {
     const atlassian = mcpServers?.atlassian;
@@ -78,6 +79,13 @@ export async function buildMcpAgentConfigForUser(
             delete mcpServers[serverKey];
         }
     }
+
+    // Companion grants come only from the authenticated relay, never from a
+    // customer-editable remote connector record. Keep unattended jobs excluded.
+    for (const [key, server] of Object.entries(mcpServers)) {
+        if (server?.type === "local-companion") delete mcpServers[key];
+    }
+    Object.assign(mcpServers, await localMcpConfigForUser(user, { headless }));
 
     const mcpServerKeys = mcpServers ? Object.keys(mcpServers) : [];
     console.log(
