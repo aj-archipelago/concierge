@@ -65,6 +65,47 @@ beforeEach(() => {
 });
 afterEach(() => jest.useRealTimers());
 
+test.each([null, ""])(
+    "automation completion with %s response still invokes file publishing",
+    async (data) => {
+        const { value } = tracker();
+        value.job.data.type = "automation-run";
+        const saved = {
+            summary: "Published from a file",
+            result: "<p>Report</p>",
+        };
+        const handleCompletion = jest.fn(async () => saved);
+        loadTaskDefinition.mockResolvedValue({ handleCompletion });
+        await value.handleCompletion({}, "task", data, {});
+        expect(handleCompletion).toHaveBeenCalledTimes(1);
+        expect(value.updateRequestStatus).toHaveBeenCalledWith(
+            "completed",
+            null,
+            saved,
+        );
+    },
+);
+
+test("an automation publishing error marks the task failed, never completed", async () => {
+    const { value } = tracker();
+    value.job.data.type = "automation-run";
+    loadTaskDefinition.mockResolvedValue({
+        handleCompletion: async () => ({
+            error: "No usable report. Previous output kept.",
+        }),
+    });
+    await value.handleCompletion({}, "task", null, {});
+    expect(value.updateRequestStatus).toHaveBeenCalledWith(
+        "failed",
+        "No usable report. Previous output kept.",
+    );
+    expect(
+        value.updateRequestStatus.mock.calls.some(
+            ([status]) => status === "completed",
+        ),
+    ).toBe(false);
+});
+
 test("long provider polling followed by duplicate terminal delivery persists media exactly once", async () => {
     const { value, send } = tracker();
     const saved = {

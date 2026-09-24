@@ -4,6 +4,7 @@ import User from "../models/user.mjs";
 import File from "../models/file.js";
 import { retainedRunLimit } from "../../../src/utils/taskOutputRetention.js";
 import { authorizedMediaFetch } from "./cfh-client.mjs";
+import { taskOutputDirectory } from "./task-html-output.mjs";
 import {
     claimAutomationDispatch,
     releaseAutomationDispatch,
@@ -20,8 +21,8 @@ function runQuery(automation) {
     };
 }
 
-// Only files written by saveAutomationResult belong to this policy. Never
-// delete a folder, instructions, uploaded materials, or arbitrary agent files.
+// Only published reports and designated files in server-issued attempt
+// directories belong to this policy. Never delete folders or arbitrary files.
 export function retainedOutputPaths(automation, run) {
     if (
         !/^[a-z0-9][a-z0-9-]{0,63}$/.test(automation.slug) ||
@@ -39,6 +40,17 @@ export function retainedOutputPaths(automation, run) {
         if (!output[field]) continue;
         if (output[field] !== `${prefix}/${filename}`) return null;
         paths.push(output[field]);
+    }
+    const attempts =
+        run.metadata?.outputAttemptIds ||
+        (run.metadata?.outputAttemptId ? [run.metadata.outputAttemptId] : []);
+    if (!Array.isArray(attempts) || attempts.length > 64) return null;
+    for (const attempt of new Set(attempts)) {
+        const directory = taskOutputDirectory(prefix, attempt);
+        if (!directory) return null;
+        for (const filename of ["result.json", "index.html", "widget.html"]) {
+            paths.push(`${directory}/${filename}`);
+        }
     }
     return paths;
 }
@@ -73,7 +85,7 @@ export async function planAutomationRetention(automation) {
             .sort({ createdAt: 1, _id: 1 })
             .skip(offset)
             .limit(BATCH_SIZE)
-            .select("automation createdAt")
+            .select("automation createdAt metadata")
             .lean();
         for (const run of runs) {
             const paths = retainedOutputPaths(automation, run);

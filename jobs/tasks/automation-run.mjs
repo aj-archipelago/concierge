@@ -1,5 +1,6 @@
 import { issueAgentToolsToken } from "../../app/api/utils/agent-tool-capabilities.mjs";
 import { requireColleague } from "../../app/api/utils/colleagues.js";
+import { randomUUID } from "node:crypto";
 import Automation from "../../app/api/models/automation.js";
 import Task from "../../app/api/models/task.mjs";
 import User from "../../app/api/models/user.mjs";
@@ -33,6 +34,12 @@ import {
     prepareAssistantTurn,
     parkAssistantTurn,
 } from "../../app/api/utils/assistant-coordination.mjs";
+import {
+    taskOutputDirectory,
+    resolveTaskHtmlOutput,
+    readTaskOutputFile,
+    TASK_HTML_OUTPUT_ERROR,
+} from "../../app/api/utils/task-html-output.mjs";
 
 const MAX_PREVIOUS_RUN_CHARS = 12000;
 
@@ -371,6 +378,7 @@ function buildPrompt({
     previousOutputFiles,
     inputs,
     trigger,
+    outputDirectory,
 }) {
     const previousRunSummary = previousRun
         ? `Previous completed run: ${previousRun._id}
@@ -380,7 +388,7 @@ ${previousOutputFiles.length ? "The previous run's HTML output is attached as pr
         : "No previous completed run was found.";
 
     const outputContract = automation.producesHtml
-        ? buildAutomationHtmlOutputContract()
+        ? buildAutomationHtmlOutputContract({ outputDirectory })
         : "Return the completed automation output as Markdown or plain text.";
 
     return `Run the "${automation.name}" automation.
@@ -444,6 +452,21 @@ class AutomationRunTask extends BaseTask {
             : null;
         metadata.colleagueName = colleague?.name || null;
         metadata.entityId = colleague?.id || null;
+        // A retry gets a new destination; prior attempts cannot supply output.
+        const earlierAttempts =
+            metadata.outputAttemptIds ||
+            (metadata.outputAttemptId ? [metadata.outputAttemptId] : []);
+        metadata.outputAttemptId = randomUUID();
+        metadata.outputAttemptIds = [
+            ...new Set([
+                ...(Array.isArray(earlierAttempts) ? earlierAttempts : []),
+                metadata.outputAttemptId,
+            ]),
+        ];
+        const outputDirectory = taskOutputDirectory(
+            `automations/${automation.slug}/outputs/${taskId}`,
+            metadata.outputAttemptId,
+        );
 
         // metadata is CSFLE-encrypted as a whole object; dotted paths like
         // metadata.automationName are invalid (analyze_query / Error 51102).
@@ -514,6 +537,7 @@ class AutomationRunTask extends BaseTask {
             previousOutputFiles: fileContext.previousOutputFiles,
             inputs: metadata.inputs || automation.inputs,
             trigger: metadata.trigger || "manual",
+            outputDirectory,
         });
         const assistantTurn = await prepareAssistantTurn(
             taskId,
@@ -537,6 +561,12 @@ class AutomationRunTask extends BaseTask {
                 : "You are running a scheduled task for the user. Complete the work using the user's workspace, skills, and connected tools.",
             "Use ListAssistants and MessageAssistants to delegate work. Put independent requests in one batch; wait for their replies before dependent stages. For a user decision, use AskUser with a checkpoint naming the current stage, completed work, file paths, and what should happen after the answer. Set wait=true to suspend now, or false to continue independent work. A suspended task will resume automatically; do not poll. Save files before handoff and give parallel editors different output paths. Never infer approval from silence. NotifyUser is for updates that do not require a resumable answer.",
         ];
+        // Continuations include the original brief, which names an older attempt.
+        if (automation.producesHtml && assistantTurn.turn > 0) {
+            systemContent.push(
+                buildAutomationHtmlOutputContract({ outputDirectory }),
+            );
+        }
         if (watchedFolderNotice) systemContent.push(watchedFolderNotice);
         if (headlessMcpNotice) {
             systemContent.push(headlessMcpNotice);
@@ -659,17 +689,39 @@ class AutomationRunTask extends BaseTask {
             throw new Error("User not found");
         }
 
-        const parsed = parseAutomationResult(
-            rawResult,
-            automation.producesHtml,
-        );
+        let parsed = parseAutomationResult(rawResult, automation.producesHtml);
+        if (automation.producesHtml) {
+            parsed = await resolveTaskHtmlOutput({
+                parsed,
+                directory: taskOutputDirectory(
+                    `automations/${metadata.automationSlug || automation.slug}/outputs/${taskId}`,
+                    metadata.outputAttemptId,
+                ),
+                readFile: (path) =>
+                    readTaskOutputFile(
+                        path,
+                        createAutomationStorageTarget(user.contextId),
+                        user,
+                    ),
+                sanitize: sanitizeGeneratedHtml,
+            });
+        }
         if (automation.producesHtml) assertNewAutomationCitations(parsed);
         const update = {
             data: {
                 summary:
                     parsed.summary ||
                     (parsed.html ? "Automation completed." : rawResult),
-                result: rawResult,
+                result: automation.producesHtml
+                    ? JSON.stringify({
+                          summary: parsed.summary,
+                          html: parsed.html,
+                          widgetHtml: parsed.widgetHtml,
+                      })
+                    : rawResult,
+                ...(parsed.publishing
+                    ? { outputPublishing: parsed.publishing }
+                    : {}),
                 tool,
                 supportingFiles: metadata.supportingFileNames || [],
                 previousRunTaskId: metadata.previousRunTaskId || null,
@@ -680,7 +732,7 @@ class AutomationRunTask extends BaseTask {
         };
 
         if (automation.producesHtml && parsed.html) {
-            const html = sanitizeGeneratedHtml(parsed.html);
+            const html = parsed.html;
             const htmlOutputPath = await writeAutomationOutputFile({
                 userContextId: user.contextId,
                 slug: automation.slug,
@@ -703,7 +755,7 @@ class AutomationRunTask extends BaseTask {
             };
 
             if (parsed.widgetHtml) {
-                const widgetHtml = sanitizeGeneratedHtml(parsed.widgetHtml);
+                const widgetHtml = parsed.widgetHtml;
                 const widgetHtmlOutputPath = await writeAutomationOutputFile({
                     userContextId: user.contextId,
                     slug: automation.slug,
@@ -768,8 +820,13 @@ class AutomationRunTask extends BaseTask {
             });
         } catch (error) {
             const failure = await this.handleError(taskId, error, metadata);
-            // The work already ran. A format failure must not replay agent tools.
-            if (error.code === "HTML_CITATION_FORMAT") return failure;
+            // Publishing failures must not replay the agent tools.
+            if (
+                [TASK_HTML_OUTPUT_ERROR, "HTML_CITATION_FORMAT"].includes(
+                    error.code,
+                )
+            )
+                return failure;
             throw error;
         } finally {
             this.clearAccumulator(taskId);

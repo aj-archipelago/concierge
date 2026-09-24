@@ -13,6 +13,7 @@ import { createAutomationStorageTarget } from "../../../src/utils/storageTargets
 import { AUTOMATION_HOME_WIDGET_RULES } from "../../../src/utils/homeWidgetCraft.js";
 import { resolveShareAccess } from "../utils/shareAccess.js";
 import User from "../models/user.mjs";
+import { taskOutputFileInstructions } from "../utils/task-html-output.mjs";
 
 export const AUTOMATION_MD = "AUTOMATION.md";
 export const AUTOMATION_TASK_TYPE = "automation-run";
@@ -219,13 +220,14 @@ export function parseAutomationTaskOutput(taskOrData) {
     };
 }
 
-export function buildAutomationHtmlOutputContract() {
-    return `Return ONLY a JSON object with this shape:
-{
-  "summary": "short Markdown summary of what you produced",
-  "html": "<!doctype html>...",
-  "widgetHtml": "<!doctype html>..."
-}
+export function buildAutomationHtmlOutputContract({ outputDirectory } = {}) {
+    return `For inline output, return ONLY a JSON object with these fields:
+- "summary": a short Markdown summary of what you produced.
+- "html": the complete report HTML, including all report content.
+- "widgetHtml": the complete Home widget HTML.
+
+Concierge publishes the actual HTML in these fields. Never replace it with a path, link, ellipsis, or a claim that the full content was saved elsewhere.
+${taskOutputFileInstructions(outputDirectory)}
 
 The html field must be a complete, simple, self-contained HTML document. Do not include script tags or inline JavaScript.
 
