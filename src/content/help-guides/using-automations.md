@@ -49,6 +49,8 @@ Assistants can use connected services such as Jira, Confluence, Slack, and GitHu
 
 Use **Produce HTML output** in the editor for rich reports such as a daily digest. **Open full page** opens the full report. Enable **Show as a widget on the home screen** to see a compact version on Home. Open the widget full screen to read the full report.
 
+Concierge gives the assistant a dedicated output folder for each run. It can publish a report from that folder even if the final reply only contains a summary. You do not need to add file-location instructions to your task prompt. If the run produces no usable report, it is marked as failed and the previous successful report stays available. Working files saved elsewhere are not automatically shown as the report.
+
 Enable **Show as a widget on the home screen** when you want the latest run to appear on Home. Large Home tiles use the widget version; open **full screen** to read the full report. Older runs without a widget version show the full HTML until the automation runs again.
 
 ### Waiting and interrupted runs

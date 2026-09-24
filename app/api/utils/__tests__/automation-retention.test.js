@@ -125,6 +125,49 @@ test("keeps 30 successful runs by default; zero explicitly keeps everything", as
     expect(Task.find).not.toHaveBeenCalled();
 });
 
+test("expires only designated files from recorded attempts, including earlier paused turns", async () => {
+    const attempts = [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+    ];
+    runs[0].metadata = {
+        outputAttemptId: attempts[1],
+        outputAttemptIds: attempts,
+    };
+    const paths = retainedOutputPaths(automation, runs[0]);
+    expect(paths).toEqual([
+        run(1).automation.htmlOutputPath,
+        run(1).automation.widgetHtmlOutputPath,
+        ...attempts.flatMap((attempt) =>
+            ["result.json", "index.html", "widget.html"].map(
+                (filename) =>
+                    `automations/newswires/outputs/${id(1)}/draft-${attempt}/${filename}`,
+            ),
+        ),
+    ]);
+    const result = await pruneAutomationOutputs(automation._id);
+    expect(result).toMatchObject({
+        expiredRuns: 5,
+        deletedFiles: 16,
+        errors: [],
+    });
+});
+
+test("invalid attempt metadata cannot broaden retention to arbitrary paths", () => {
+    expect(
+        retainedOutputPaths(automation, {
+            ...run(1),
+            metadata: { outputAttemptIds: ["../scratch"] },
+        }),
+    ).toBeNull();
+    expect(
+        retainedOutputPaths(automation, {
+            ...run(1),
+            metadata: { outputAttemptIds: "anything" },
+        }),
+    ).toBeNull();
+});
+
 test("deletes only exact generated reports with owner-scoped grants, then clears the full result while preserving history", async () => {
     const result = await pruneAutomationOutputs(automation._id, {
         ownerId: automation.owner,

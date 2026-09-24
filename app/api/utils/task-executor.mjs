@@ -735,7 +735,8 @@ export class CortexRequestTracker {
             return { shouldResolve: true, dataObject };
         }
 
-        if (dataObject) {
+        // HTML automations may publish files without a final text response.
+        if (dataObject || this.job.data.type === "automation-run") {
             dataObject = await this.processCompletedData(
                 dataObject,
                 infoObject,
