@@ -42,7 +42,7 @@ export default function GenerateImageDialog({
     const { data: taskData } = useTask(taskId);
 
     // Default model for image generation
-    const defaultModel = "gemini-31-flash-image-preview";
+    const defaultModel = "gemini-flash-31-image";
 
     // Watch for task completion and fetch media item URL
     useEffect(() => {

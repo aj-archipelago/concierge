@@ -75,6 +75,51 @@ jest.mock("../models/applet", () => ({
     },
 }));
 
+jest.mock("../models/app", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    APP_STATUS: {
+        ACTIVE: "active",
+    },
+}));
+
+jest.mock("../models/share.js", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+    ],
+    SHARE_ROLES: ["viewer", "editor"],
+}));
+
+jest.mock("../models/chat.mjs", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/workspace", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/automation", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/article", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
 jest.mock("../models/applet-file", () => {
     const mockFindOne = jest.fn().mockReturnValue({
         populate: jest.fn(),
@@ -103,16 +148,21 @@ jest.mock("../models/file", () => ({
     },
 }));
 
-jest.mock("mongoose", () => ({
-    __esModule: true,
-    default: {
-        Types: {
-            ObjectId: {
-                isValid: jest.fn(),
-            },
+jest.mock("mongoose", () => {
+    const Types = {
+        ObjectId: {
+            isValid: jest.fn(),
         },
-    },
-}));
+    };
+
+    return {
+        __esModule: true,
+        default: {
+            Types,
+        },
+        Types,
+    };
+});
 
 global.fetch = jest.fn();
 
@@ -178,6 +228,18 @@ describe("Canvas Applet File Content Endpoint", () => {
             }),
         });
         Applet.updateOne.mockResolvedValue({});
+
+        const App = require("../models/app").default;
+        App.findOne.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue(null),
+            }),
+        });
+
+        const Share = require("../models/share.js").default;
+        Share.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue(null),
+        });
 
         const {
             resolveAndHealFile,

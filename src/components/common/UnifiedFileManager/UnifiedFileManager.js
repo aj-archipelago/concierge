@@ -289,7 +289,7 @@ function getSearchableFileText(file) {
  * @param {Function} props.onDownload - Download files callback
  * @param {Function} props.onMove - Move files callback (files, targetFolder)
  * @param {Function} props.onUpdateMetadata - Update file metadata callback (rename)
- * @param {Function} props.onUploadClick - Open upload dialog
+ * @param {Function} props.onUploadClick - Open upload dialog with the selected folder path
  * @param {Function} props.onAttach - When provided, adds an "Attach" bulk action that calls
  *   onAttach(selectedObjects). Used by the chat composer's file collection picker.
  * @param {Function} props.onFileDragStart - Optional drag-start handler for file cards/rows.
@@ -518,6 +518,9 @@ export default function UnifiedFileManager({
         rootPathLabel: rootFolderLabel,
         allFilesPath,
     });
+    const handleUploadClick = onUploadClick
+        ? () => onUploadClick(selectedPath === allFilesPath ? "" : selectedPath)
+        : undefined;
 
     // Files for current view (deduplicated by blobPath > _id > hash > url)
     const currentFiles = useMemo(() => {
@@ -812,15 +815,16 @@ export default function UnifiedFileManager({
 
         // Optimistic removal
         const snapshot = getSnapshot();
-        for (const file of filesToDelete) {
-            removeFileOptimistically(file);
-        }
+        removeFileOptimistically(filesToDelete);
         clearSelection();
 
         try {
             await onDelete(filesToDelete);
-        } catch {
+        } catch (error) {
             revertToSnapshot(snapshot);
+            if (error.results?.deletedFiles?.length) {
+                removeFileOptimistically(error.results.deletedFiles);
+            }
             toast.error(t("Failed to delete file(s)."));
         }
         setFilesToDelete([]);
@@ -1090,7 +1094,7 @@ export default function UnifiedFileManager({
                     icon={<Folder className="w-12 h-12" />}
                     title={t("No files in storage")}
                     description={t("Upload files to get started.")}
-                    action={onUploadClick}
+                    action={handleUploadClick}
                     actionLabel={onUploadClick ? t("Upload") : undefined}
                 />
             </div>
@@ -1117,7 +1121,7 @@ export default function UnifiedFileManager({
                 onFilterChange={setFilterText}
                 viewMode={effectiveViewMode}
                 onViewModeChange={handleViewModeChange}
-                onUploadClick={onUploadClick}
+                onUploadClick={handleUploadClick}
                 onRefresh={reloadFiles}
                 chatTitleMap={enrichedChatTitleMap}
                 isMobile={isMobile}

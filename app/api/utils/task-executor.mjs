@@ -1,3 +1,9 @@
+import {
+    BACKGROUND_RUNTIME_MS,
+    isBoundedBackgroundTask,
+} from "./background-policy.mjs";
+import User from "../models/user.mjs";
+import { grantsEnabled, withStoragePrincipal } from "./storage-grants.mjs";
 import { getClient, SUBSCRIPTIONS } from "../../../jobs/graphql.mjs";
 import { Logger } from "../../../jobs/logger.js";
 import { loadTaskDefinition } from "../../../src/utils/task-loader.mjs";
@@ -28,6 +34,7 @@ const terminalTaskStatuses = new Set([
     "failed",
     "cancelled",
     "abandoned",
+    "waiting",
 ]);
 
 const activeTaskStatusFilter = {
@@ -92,18 +99,30 @@ function getTranscriptionErrorContext(jobData) {
 }
 
 export async function executeTask(jobData, job) {
+    if (!grantsEnabled()) return executeAuthorizedTask(jobData, job);
+    const task = await Task.findById(jobData.taskId).select("owner").lean();
+    const user = task?.owner ? await User.findById(task.owner) : null;
+    if (!user?.contextId) throw new Error("Task owner is unavailable");
+    return withStoragePrincipal(user, () =>
+        executeAuthorizedTask(jobData, job),
+    );
+}
+
+async function executeAuthorizedTask(jobData, job) {
     const { taskId, type } = jobData;
     const logger = new Logger(job);
     const queueJobId = job?.id?.toString?.() || job?.id || null;
 
-    const client = await getClient();
+    const bounded = isBoundedBackgroundTask(type) || type === "assistant-run";
+    const client = await getClient(undefined, { keepAlive: 30_000 });
 
     // Check if cancelled
     const request = await Task.findOne({ _id: taskId });
-    if (request?.status === "cancelled") {
+    if (!request || terminalTaskStatuses.has(request.status)) {
         // Call handler's cancelRequest method if it exists
         const handler = await loadTaskDefinition(type);
         if (
+            request?.status === "cancelled" &&
             handler.cancelRequest &&
             typeof handler.cancelRequest === "function"
         ) {
@@ -114,7 +133,23 @@ export async function executeTask(jobData, job) {
                 // Don't throw - cancellation check should succeed
             }
         }
+        client.stop?.();
         return;
+    }
+
+    if (jobData.assistantTurn != null) {
+        const claimed = await Task.findOneAndUpdate(
+            {
+                _id: taskId,
+                status: "pending",
+                assistantTurn: jobData.assistantTurn,
+            },
+            { $set: { status: "in_progress" } },
+        );
+        if (!claimed) {
+            client.stop?.();
+            return;
+        }
     }
 
     // Create a job-like object for consistency
@@ -123,19 +158,37 @@ export async function executeTask(jobData, job) {
         data: jobData,
         client,
         opts: job?.opts || {},
+        ...(bounded
+            ? {
+                  controller: new AbortController(),
+                  deadline:
+                      job?.backgroundDeadline ||
+                      Date.now() + BACKGROUND_RUNTIME_MS,
+              }
+            : {}),
     };
+
+    taskInfo.signal = taskInfo.controller?.signal;
 
     // Initialize progress tracker
     const progressTracker = new CortexRequestTracker(taskInfo, client, logger);
 
-    // Set initial status
-    await progressTracker.updateRequestStatus("in_progress", null, null, 0.05);
-
-    // Initialize taskInfo handler
-    const handler = await loadTaskDefinition(type);
-
+    let handler;
     try {
-        const cortexRequestId = await handler.startRequest(taskInfo);
+        const initialized = await progressTracker.updateRequestStatus(
+            "in_progress",
+            null,
+            null,
+            0.05,
+        );
+        if (!initialized) return;
+        handler = await loadTaskDefinition(type);
+        if (bounded) progressTracker.startBoundedLifecycle();
+        const started = handler.startRequest(taskInfo);
+        const cortexRequestId = bounded
+            ? await Promise.race([started, progressTracker.promise])
+            : await started;
+        taskInfo.signal?.throwIfAborted();
 
         if (cortexRequestId) {
             await Task.findOneAndUpdate(
@@ -163,7 +216,7 @@ export async function executeTask(jobData, job) {
 
         // Call the handler's handleError method if it exists
         if (
-            handler.handleError &&
+            handler?.handleError &&
             typeof handler.handleError === "function" &&
             (await progressTracker.isTaskActive())
         ) {
@@ -195,12 +248,14 @@ export async function executeTask(jobData, job) {
                 ),
         );
         throw error;
+    } finally {
+        progressTracker.cleanup();
+        client.stop?.();
     }
 }
 
-class CortexRequestTracker {
-    // Task types that need a longer idle timeout (e.g. video generation
-    // polls a long-running operation with no intermediate progress updates)
+export class CortexRequestTracker {
+    // Allow slow media providers while requiring actual provider liveness.
     static LONG_TIMEOUT_TYPES = new Set(["media-generation"]);
 
     constructor(job, client, logger) {
@@ -224,11 +279,14 @@ class CortexRequestTracker {
             process.env.WEBSITE_INSTANCE_ID ||
             process.env.HOSTNAME ||
             `pid:${process.pid}`;
-        const taskIdleTimeoutMs = CortexRequestTracker.LONG_TIMEOUT_TYPES.has(
-            job.data?.type,
-        )
-            ? 10 * 60 * 1000 // 10 minutes for media generation
-            : 5 * 60 * 1000; // 5 minutes for everything else
+        this.isVideoGeneration =
+            job.data?.type === "media-generation" &&
+            job.data?.metadata?.outputType === "video";
+        const taskIdleTimeoutMs = this.isVideoGeneration
+            ? 30 * 60 * 1000
+            : CortexRequestTracker.LONG_TIMEOUT_TYPES.has(job.data?.type)
+              ? 10 * 60 * 1000 // 10 minutes for media generation
+              : 5 * 60 * 1000; // 5 minutes for everything else
         this.idleTimeoutMs = Math.max(
             taskIdleTimeoutMs,
             getConfiguredJobTimeoutMs(job) || 0,
@@ -244,6 +302,18 @@ class CortexRequestTracker {
         return getTranscriptionErrorContext(this.job?.data);
     }
 
+    startBoundedLifecycle() {
+        this.setupCancellationCheck();
+        this.deadlineTimer = setTimeout(
+            () =>
+                this.handleTimeout(
+                    "Background run exceeded its total runtime limit",
+                ),
+            Math.max(1, this.job.deadline - Date.now()),
+        );
+        this.resetIdleTimeout();
+    }
+
     resetIdleTimeout() {
         clearTimeout(this.timeoutId);
         this.timeoutId = setTimeout(
@@ -254,11 +324,19 @@ class CortexRequestTracker {
 
     async run(cortexRequestId) {
         try {
-            this.setupCancellationCheck();
+            if (!this.job.deadline) this.setupCancellationCheck();
             if (cortexRequestId) {
                 this.setupSubscription(cortexRequestId);
             }
             this.resetIdleTimeout();
+            if (this.job.data?.type === "media-generation") {
+                // Cortex allows 35 minutes for provider polling and delivery.
+                // Allow delivery/persistence time without accepting endless heartbeats.
+                this.overallTimeoutId = setTimeout(
+                    () => this.handleTimeout(true),
+                    (this.isVideoGeneration ? 40 : 35) * 60 * 1000,
+                );
+            }
             return this.promise;
         } catch (error) {
             console.error(
@@ -269,14 +347,18 @@ class CortexRequestTracker {
         }
     }
 
-    async handleTimeout() {
+    async handleTimeout(reason) {
         if (this.settled) return;
         this.settled = true;
         const timeoutMinutes = Math.round(this.idleTimeoutMs / 60000);
-        console.warn(
-            `Job ${this.job.id} timed out after ${timeoutMinutes} minutes of inactivity`,
-        );
-        const timeoutMsg = `Operation timed out after ${timeoutMinutes} minutes of inactivity`;
+        const timeoutMsg =
+            reason === true
+                ? `Media generation exceeded its ${this.isVideoGeneration ? 40 : 35} minute overall deadline`
+                : reason ||
+                  `Operation timed out after ${timeoutMinutes} minutes of inactivity`;
+        console.warn(`Job ${this.job.id}: ${timeoutMsg}`);
+        this.job.controller?.abort(new Error(timeoutMsg));
+        if (this.job.deadline) await this.cancelUpstream();
 
         this.cleanup();
         const wasTaskActive = await this.isTaskActive();
@@ -323,8 +405,22 @@ class CortexRequestTracker {
         return interval;
     }
 
+    async cancelUpstream() {
+        const handler = await loadTaskDefinition(this.job.data.type);
+        try {
+            await handler.cancelRequest?.(this.job.data.taskId, this.client);
+        } catch (error) {
+            console.error(
+                "Upstream cancellation failed:",
+                redactSensitiveText(error.message),
+            );
+        }
+    }
+
     async handleCancellationRequest() {
-        if (this.isClosed) return;
+        if (this.isClosed || this.settled) return;
+        this.settled = true;
+        this.job.controller?.abort(new Error("Task cancelled"));
 
         try {
             const { type } = this.job.data;
@@ -338,8 +434,10 @@ class CortexRequestTracker {
         } catch (error) {
             console.error("Error in handler.cancelRequest:", error);
         } finally {
+            await this.updateRequestStatus("cancelled");
             this.cleanup();
-            this.resolve({ cancelled: true });
+            if (this.job.deadline) this.reject(new Error("Task cancelled"));
+            else this.resolve({ cancelled: true });
         }
     }
 
@@ -642,6 +740,8 @@ class CortexRequestTracker {
                 dataObject,
                 infoObject,
             );
+            if (dataObject?.assistantWaiting)
+                return { shouldResolve: true, dataObject };
 
             // Check if handler returned an error in the result
             if (dataObject?.error) {
@@ -839,6 +939,8 @@ class CortexRequestTracker {
     cleanup() {
         this.isClosed = true;
         clearTimeout(this.timeoutId);
+        clearTimeout(this.deadlineTimer);
+        clearTimeout(this.overallTimeoutId);
         void clearTaskLive(this.job.data.taskId).catch((error) => {
             console.error("Error clearing task liveness:", error);
         });
@@ -901,6 +1003,8 @@ class CortexRequestTracker {
                         },
                     );
                     try {
+                        this.job.controller?.abort(error);
+                        if (this.job.deadline) await this.cancelUpstream();
                         this.cleanup();
                         await this.updateRequestStatus(
                             "failed",

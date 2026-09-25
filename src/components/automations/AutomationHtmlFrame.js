@@ -19,9 +19,15 @@ function isCacheableTaskId(taskId) {
     return taskId && taskId !== "latest";
 }
 
-function getAutomationHtmlCacheKey(automationId, taskId, theme, cacheVersion) {
+function getAutomationHtmlCacheKey(
+    automationId,
+    taskId,
+    theme,
+    cacheVersion,
+    variant = "full",
+) {
     if (!automationId || !isCacheableTaskId(taskId)) return null;
-    return `${automationId}:${taskId}:${theme || "light"}:${cacheVersion || "current"}`;
+    return `${automationId}:${taskId}:${variant}:${theme || "light"}:${cacheVersion || "current"}`;
 }
 
 function withAutomationHtmlCsp(html) {
@@ -50,6 +56,7 @@ async function fetchAutomationHtml(src, cacheKey) {
     const promise = fetch(src, { credentials: "include" })
         .then(async (response) => {
             if (!response.ok) {
+                if (response.status === 410) throw new Error("OUTPUT_EXPIRED");
                 throw new Error(
                     `Failed to load automation HTML (${response.status})`,
                 );
@@ -82,11 +89,16 @@ async function fetchAutomationHtml(src, cacheKey) {
 // Builds the proxied URL for an automation's HTML output. `taskId` defaults to
 // "latest" so the frame always shows the newest run unless a specific run is
 // requested.
-export function automationHtmlSrc(automationId, taskId = "latest") {
+export function automationHtmlSrc(
+    automationId,
+    taskId = "latest",
+    { variant } = {},
+) {
     if (!automationId || !taskId) return null;
-    return `/api/automations/${encodeURIComponent(
+    const url = `/api/automations/${encodeURIComponent(
         automationId,
     )}/runs/${encodeURIComponent(taskId)}/html`;
+    return variant === "widget" ? `${url}?variant=widget` : url;
 }
 
 export default function AutomationHtmlFrame({
@@ -96,15 +108,20 @@ export default function AutomationHtmlFrame({
     className,
     sandbox = "",
     cacheVersion,
+    variant,
 }) {
     const { t } = useTranslation();
     const { theme = "light" } = useContext(ThemeContext) || {};
-    const src = automationHtmlSrc(automationId, taskId);
+    const htmlVariant = variant === "widget" ? "widget" : "full";
+    const src = automationHtmlSrc(automationId, taskId, {
+        variant: htmlVariant,
+    });
     const cacheKey = getAutomationHtmlCacheKey(
         automationId,
         taskId,
         theme,
         cacheVersion,
+        htmlVariant,
     );
     const [html, setHtml] = useState("");
     const [isLoaded, setIsLoaded] = useState(false);
@@ -160,7 +177,9 @@ export default function AutomationHtmlFrame({
             )}
             {error ? (
                 <div className="flex h-full min-h-48 items-center justify-center p-4 text-sm text-red-600 dark:text-red-300">
-                    {t("Failed to load automation content.")}
+                    {error === "OUTPUT_EXPIRED"
+                        ? t("automations.outputExpiredHelp")
+                        : t("Failed to load automation content.")}
                 </div>
             ) : html ? (
                 <iframe

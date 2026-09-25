@@ -23,7 +23,26 @@ jest.mock("react-i18next", () => ({
     },
 }));
 
-// Mock tabs component to avoid LanguageProvider/i18n locale file dependency
+jest.mock("@/components/ui/dropdown-menu", () => ({
+    DropdownMenu: ({ children }) => (
+        <div data-testid="dropdown-menu">{children}</div>
+    ),
+    DropdownMenuTrigger: ({ children }) => children,
+    DropdownMenuContent: ({ children }) => (
+        <div data-testid="dropdown-menu-content">{children}</div>
+    ),
+    DropdownMenuItem: ({ children, disabled, onSelect, className }) => (
+        <button
+            type="button"
+            disabled={Boolean(disabled)}
+            className={className}
+            onClick={(event) => onSelect?.(event)}
+        >
+            {children}
+        </button>
+    ),
+    DropdownMenuSeparator: () => <hr />,
+}));
 jest.mock("@/components/ui/tabs", () => ({
     Tabs: ({ children, defaultValue }) => (
         <div data-testid="tabs" data-default-value={defaultValue}>
@@ -721,13 +740,12 @@ describe("HtmlPreviewTabContent", () => {
             />,
         );
 
-        expect(screen.getByTestId("tab-content-loader")).toHaveTextContent(
-            "Cortex returned 500",
+        expect(screen.getByRole("status")).toHaveTextContent(
+            "canvas.previewUnavailable",
         );
-        expect(screen.getByTestId("tab-content-loader")).toHaveAttribute(
-            "data-loading",
-            "false",
-        );
+        expect(
+            screen.queryByText("Cortex returned 500"),
+        ).not.toBeInTheDocument();
         expect(
             screen.queryByText("Generating applet..."),
         ).not.toBeInTheDocument();
@@ -1173,6 +1191,310 @@ describe("HtmlPreviewTabContent", () => {
             screen.getByRole("button", { name: "Close canvas" }),
         );
         expect(onCloseCanvas).toHaveBeenCalledTimes(1);
+    });
+
+    it("uses a dedicated applet-editor layout without canvas extras", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                widgetHtml: "<html>widget</html>",
+            }),
+        });
+
+        renderComponent({
+            editorLayout: "applet-editor",
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Toronto Weather",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+            },
+        });
+
+        expect(screen.getByTestId("tab-trigger-preview")).toBeInTheDocument();
+        expect(screen.getByTestId("applet-view-widget")).toHaveClass(
+            "whitespace-nowrap",
+            "shrink-0",
+        );
+        expect(screen.queryByTestId("share-button")).not.toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(
+                screen.getByTestId("applet-editor-widget-actions"),
+            ).toBeInTheDocument();
+        });
+        expect(
+            screen.getByRole("button", { name: "Regenerate widget" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Save widget" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByRole("button", { name: /^publish$/i }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("does not show Generating applet when the widget already exists", async () => {
+        global.fetch.mockImplementation(async (url, options = {}) => {
+            const href = String(url);
+            if (
+                options.method === "POST" &&
+                href.includes("/api/generate-applet")
+            ) {
+                throw new Error("should not generate a widget that exists");
+            }
+            if (href.includes("/runtime")) {
+                throw new Error(
+                    "should not fetch runtime when the record has widgetHtml",
+                );
+            }
+            return {
+                ok: true,
+                json: async () => ({
+                    ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                    widgetHtml: "<html>saved-widget</html>",
+                }),
+            };
+        });
+
+        renderComponent({
+            editorLayout: "applet-editor",
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "News desk",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+            },
+        });
+
+        await waitFor(() => {
+            expect(
+                screen
+                    .getAllByTestId("output-sandbox")
+                    .some(
+                        (node) =>
+                            node.getAttribute("data-content") ===
+                            "<html>saved-widget</html>",
+                    ),
+            ).toBe(true);
+        });
+        expect(
+            screen.queryByTestId("generating-applet-overlay"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.queryByText("Generating applet..."),
+        ).not.toBeInTheDocument();
+    });
+
+    it("does not leave Generating applet stuck while the applet record is still loading", async () => {
+        let releaseRecord;
+        const recordReady = new Promise((resolve) => {
+            releaseRecord = resolve;
+        });
+
+        global.fetch.mockImplementation(async (url) => {
+            const href = String(url);
+            if (href.includes("/runtime")) {
+                return new Promise(() => {});
+            }
+            if (href.includes(`/api/canvas-applets/${APPLET_ID}`)) {
+                await recordReady;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                        widgetHtml: "<html>saved-widget</html>",
+                    }),
+                };
+            }
+            return { ok: false };
+        });
+
+        renderComponent({
+            editorLayout: "applet-editor",
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "News desk",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+            },
+        });
+
+        expect(
+            screen.queryByTestId("generating-applet-overlay"),
+        ).not.toBeInTheDocument();
+
+        await act(async () => {
+            releaseRecord();
+        });
+
+        await waitFor(() => {
+            expect(
+                screen
+                    .getAllByTestId("output-sandbox")
+                    .some(
+                        (node) =>
+                            node.getAttribute("data-content") ===
+                            "<html>saved-widget</html>",
+                    ),
+            ).toBe(true);
+        });
+        expect(
+            screen.queryByTestId("generating-applet-overlay"),
+        ).not.toBeInTheDocument();
+    });
+
+    it("previews a regenerated widget without saving until Save widget", async () => {
+        const savedWidget = "<html>saved-widget</html>";
+        const generatedWidget = "<html>generated-widget</html>";
+        const putBodies = [];
+
+        global.fetch.mockImplementation(async (url, options = {}) => {
+            const href = String(url);
+            if (options.method === "PUT") {
+                putBodies.push(JSON.parse(options.body || "{}"));
+                return { ok: true, json: async () => ({}) };
+            }
+            if (href.includes("/runtime") && !href.includes("variant=")) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        applet: { runtimeHtml: HTML_CONTENT },
+                    }),
+                };
+            }
+            if (options.method === "POST" && href.endsWith("/widget")) {
+                return {
+                    ok: true,
+                    json: async () => ({
+                        status: "ready",
+                        html: generatedWidget,
+                    }),
+                };
+            }
+            return {
+                ok: true,
+                json: async () => ({
+                    ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                    widgetHtml: savedWidget,
+                }),
+            };
+        });
+
+        renderComponent({
+            editorLayout: "applet-editor",
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Toronto Weather",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+            },
+        });
+
+        await waitFor(() => {
+            expect(
+                screen.getByTestId("applet-regenerate-widget"),
+            ).toBeInTheDocument();
+        });
+        await waitFor(() => {
+            expect(
+                screen
+                    .getAllByTestId("output-sandbox")
+                    .some(
+                        (node) =>
+                            node.getAttribute("data-content") === savedWidget,
+                    ),
+            ).toBe(true);
+        });
+
+        await userEvent.click(screen.getByTestId("applet-regenerate-widget"));
+
+        await waitFor(() => {
+            expect(
+                screen
+                    .getAllByTestId("output-sandbox")
+                    .some(
+                        (node) =>
+                            node.getAttribute("data-content") ===
+                            generatedWidget,
+                    ),
+            ).toBe(true);
+        });
+        expect(putBodies).toEqual([]);
+
+        await userEvent.click(
+            screen.getByRole("button", { name: "Save widget" }),
+        );
+
+        await waitFor(() => {
+            expect(putBodies).toEqual([{ widgetHtml: generatedWidget }]);
+        });
+    });
+
+    it("keeps the main canvas chrome when canvasChrome is leftover in tab state", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                widgetHtml: "<html>widget</html>",
+            }),
+        });
+
+        renderComponent({
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Toronto Weather",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+                canvasChrome: "applet-editor",
+            },
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId("share-button")).toBeInTheDocument();
+        });
+        expect(
+            screen.queryByTestId("applet-editor-widget-actions"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getByRole("button", { name: "Regenerate widget" }),
+        ).toBeInTheDocument();
+    });
+
+    it("stacks the chat canvas toolbar so widget controls are not on one cramped row", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                ...makeAppletRecordWithVersions([HTML_CONTENT]),
+                widgetHtml: "<html>widget</html>",
+            }),
+        });
+
+        renderComponent({
+            initialContent: {
+                htmlContent: HTML_CONTENT,
+                title: "Headline Generator",
+                appletId: APPLET_ID,
+                appletViewMode: "widget",
+            },
+        });
+
+        const toolbar = screen.getByTestId("applet-canvas-toolbar");
+        expect(toolbar).toHaveClass("@container", "flex-col", "items-start");
+        expect(toolbar).not.toHaveClass("sm:flex-nowrap");
+        expect(screen.getByTestId("applet-view-full")).toHaveClass(
+            "whitespace-nowrap",
+            "shrink-0",
+        );
+        const regenerate = await screen.findByRole("button", {
+            name: "Regenerate widget",
+        });
+        expect(regenerate).toBeInTheDocument();
+        expect(
+            screen.getByTestId("applet-canvas-more-actions"),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Save" })).toHaveClass("w-8");
     });
 
     describe("Publish actions", () => {
@@ -1731,6 +2053,10 @@ describe("HtmlPreviewTabContent", () => {
             });
             expect(JSON.parse(putCall[1].body)).not.toHaveProperty("publish");
             expect(JSON.parse(putCall[1].body)).not.toHaveProperty("html");
+            // Omitting false preserves an existing App Store listing on the server.
+            expect(JSON.parse(putCall[1].body)).not.toHaveProperty(
+                "publishToAppStore",
+            );
         });
 
         it("keeps saved versions read-only until the user copies one into Draft", async () => {
@@ -2231,6 +2557,88 @@ describe("HtmlPreviewTabContent", () => {
             expect(
                 await screen.findByTestId("publish-dialog"),
             ).toBeInTheDocument();
+        });
+    });
+
+    describe("Saved HTML recovery", () => {
+        it.each([
+            { workspacePath: "/workspace/files/games/game.html" },
+            { blobPath: "games/game.html" },
+        ])(
+            "restores a saved ordinary file through its durable identity: %j",
+            (identity) => {
+                render(
+                    <HtmlPreviewTabContent
+                        tabId="restored"
+                        initialContent={{
+                            type: "html",
+                            ...identity,
+                            url: "https://expired.example/game.html",
+                        }}
+                        isActive
+                    />,
+                );
+                expect(mockUseContentLoader).toHaveBeenLastCalledWith(
+                    expect.objectContaining({
+                        url: "/api/workspace/file?path=%2Fworkspace%2Ffiles%2Fgames%2Fgame.html",
+                        fetchOptions: { cache: "no-store" },
+                    }),
+                );
+            },
+        );
+
+        it("offers file selection instead of a useless Retry when the identity is missing", () => {
+            const browse = jest.fn();
+            mockUseContentLoader.mockReturnValue({
+                loading: false,
+                error: "No URL provided",
+                content: null,
+                contentKey: 0,
+                retry: jest.fn(),
+            });
+            render(
+                <HtmlPreviewTabContent
+                    tabId="lost"
+                    initialContent={{ type: "html", title: "Saved game" }}
+                    isActive
+                    onBrowseFiles={browse}
+                />,
+            );
+            expect(
+                screen.queryByText("No URL provided"),
+            ).not.toBeInTheDocument();
+            expect(
+                screen.queryByRole("button", { name: "Retry" }),
+            ).not.toBeInTheDocument();
+            fireEvent.click(
+                screen.getByRole("button", { name: "canvas.chooseFile" }),
+            );
+            expect(browse).toHaveBeenCalledTimes(1);
+        });
+
+        it("retries a recoverable load without displaying raw transport errors", () => {
+            const retry = jest.fn();
+            mockUseContentLoader.mockReturnValue({
+                loading: false,
+                error: "Failed to fetch private transport URL",
+                content: null,
+                contentKey: 0,
+                retry,
+            });
+            render(
+                <HtmlPreviewTabContent
+                    tabId="retry"
+                    initialContent={{
+                        workspacePath: "/workspace/files/game.html",
+                    }}
+                    isActive
+                />,
+            );
+            expect(
+                screen.queryByText("Failed to fetch private transport URL"),
+            ).not.toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+            expect(retry).toHaveBeenCalledTimes(1);
         });
     });
 

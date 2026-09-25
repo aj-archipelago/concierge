@@ -168,7 +168,9 @@ export default function AppCatalogCard({
         theme === "dark"
             ? displayDarkImageUrl || displayLightImageUrl
             : displayLightImageUrl || displayDarkImageUrl;
-    const hasBackgroundImage = Boolean(displayImageUrl);
+    const [failedImageUrls, setFailedImageUrls] = useState(() => new Set());
+    const hasBackgroundImage =
+        Boolean(displayImageUrl) && !failedImageUrls.has(displayImageUrl);
     const usesImageStyleLayout =
         hasBackgroundImage ||
         (!isNative && imageOverlayVariant === "app-library");
@@ -270,8 +272,14 @@ export default function AppCatalogCard({
                 <div className="absolute inset-0 overflow-hidden">
                     {hasBackgroundImage ? (
                         <img
+                            key={displayImageUrl}
                             data-testid="app-catalog-card-image"
                             src={displayImageUrl}
+                            onError={() =>
+                                setFailedImageUrls((failed) =>
+                                    new Set(failed).add(displayImageUrl),
+                                )
+                            }
                             alt=""
                             className={cn(
                                 "h-full w-full object-cover transition duration-500",
@@ -284,7 +292,10 @@ export default function AppCatalogCard({
                             aria-hidden="true"
                         />
                     ) : (
-                        <div className="h-full w-full bg-[linear-gradient(135deg,#f8fafc_0%,#dff7ff_46%,#f8e7ef_100%)] dark:bg-[linear-gradient(135deg,#020617_0%,#164e63_50%,#581c1c_100%)]">
+                        <div
+                            data-testid="app-catalog-card-default-artwork"
+                            className="h-full w-full bg-[linear-gradient(135deg,#f8fafc_0%,#dff7ff_46%,#f8e7ef_100%)] dark:bg-[linear-gradient(135deg,#020617_0%,#164e63_50%,#581c1c_100%)]"
+                        >
                             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(0deg,rgba(15,23,42,0.05)_1px,transparent_1px)] bg-[size:48px_48px] opacity-70 dark:bg-[linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.06)_1px,transparent_1px)] dark:opacity-35" />
                             <IconComponent className="absolute end-4 top-20 h-24 w-24 text-gray-900/[0.06] dark:text-white/[0.07] sm:end-6 sm:top-24 sm:h-28 sm:w-28" />
                             <div className="absolute start-8 top-10 h-20 w-px rotate-45 bg-gray-900/10 dark:bg-white/10" />

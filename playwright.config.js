@@ -29,14 +29,17 @@ const parsedBaseURL = (() => {
 const isLocalhost =
     parsedBaseURL &&
     (parsedBaseURL.hostname === "localhost" ||
-        parsedBaseURL.hostname === "127.0.0.1");
+        parsedBaseURL.hostname === "127.0.0.1" ||
+        parsedBaseURL.hostname === "[::1]");
 const baseURLPort = parsedBaseURL?.port || (isLocalhost ? "3001" : undefined);
-const baseURLHost = isLocalhost ? parsedBaseURL?.hostname : undefined;
+const baseURLHost = isLocalhost
+    ? parsedBaseURL.hostname.replace(/^\[|\]$/g, "")
+    : undefined;
 
 const webServerCommand = (() => {
     if (isLocalhost && baseURLHost) {
         const portArg = baseURLPort ? `-p ${baseURLPort}` : "";
-        return `npm run prebuild && next dev --webpack -H ${baseURLHost} ${portArg}`.trim();
+        return `npm run prebuild && next dev --turbopack -H ${baseURLHost} ${portArg}`.trim();
     }
     return "npm run next:dev";
 })();

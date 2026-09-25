@@ -52,6 +52,69 @@ describe("CanvasAppletManageDialog", () => {
         jest.restoreAllMocks();
     });
 
+    it("uses the direct published link when the app has a slug but is not listed in the store", () => {
+        render(
+            <CanvasAppletManageDialog
+                isOpen={true}
+                onClose={jest.fn()}
+                onUnpublish={jest.fn()}
+                appletRecord={{
+                    ...appletRecord,
+                    app: {
+                        name: "Doc to Markdown Converter",
+                        slug: "doc-to-markdown-converter",
+                        description: "Convert documents",
+                        status: "active",
+                        listedInStore: false,
+                        icon: "AppWindow",
+                    },
+                }}
+            />,
+        );
+
+        expect(
+            screen.getByDisplayValue(
+                "https://concierge.test/published/applets/applet-123",
+            ),
+        ).toHaveValue("https://concierge.test/published/applets/applet-123");
+        expect(
+            screen.getByRole("button", { name: "Add to Applet Store" }),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByRole("button", { name: "Save Changes" }),
+        ).not.toBeInTheDocument();
+    });
+
+    it("shows the App Store link when the app is actively listed", () => {
+        render(
+            <CanvasAppletManageDialog
+                isOpen={true}
+                onClose={jest.fn()}
+                onUnpublish={jest.fn()}
+                appletRecord={{
+                    ...appletRecord,
+                    app: {
+                        name: "Doc to Markdown Converter",
+                        slug: "doc-to-markdown-converter",
+                        description: "Convert documents",
+                        status: "active",
+                        listedInStore: true,
+                        icon: "AppWindow",
+                    },
+                }}
+            />,
+        );
+
+        expect(
+            screen.getByDisplayValue(
+                "https://concierge.test/apps/doc-to-markdown-converter",
+            ),
+        ).toHaveValue("https://concierge.test/apps/doc-to-markdown-converter");
+        expect(
+            screen.getByRole("button", { name: "Save Changes" }),
+        ).toBeInTheDocument();
+    });
+
     it("publishes an already published direct-link applet to the Applet Store without unpublishing", async () => {
         const onAppUpdated = jest.fn();
         global.fetch.mockResolvedValueOnce({

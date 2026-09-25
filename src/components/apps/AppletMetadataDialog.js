@@ -24,6 +24,8 @@ import AppCatalogCard from "./AppCatalogCard";
 const IMAGE_POLL_INTERVAL_MS = 1000;
 const IMAGE_POLL_ATTEMPTS = 90;
 const MEDIA_URL_RETRY_ATTEMPTS = 8;
+const IMAGE_START_NETWORK_RETRIES = 2;
+const IMAGE_START_RETRY_DELAY_MS = 600;
 
 export function slugifyAppletMetadata(value) {
     return String(value || "")
@@ -110,13 +112,62 @@ function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isNetworkFetchError(error) {
+    const message = String(error?.message || error || "");
+    return (
+        error?.code === "NETWORK_ERROR" ||
+        error?.name === "TypeError" ||
+        /failed to fetch|networkerror|load failed|network request failed/i.test(
+            message,
+        )
+    );
+}
+
+function toFriendlyNetworkError(fallbackMessage) {
+    const error = new Error(fallbackMessage);
+    error.code = "NETWORK_ERROR";
+    return error;
+}
+
 async function fetchJsonOrThrow(url, options, fallbackMessage) {
-    const response = await fetch(url, options);
+    let response;
+    try {
+        response = await fetch(url, options);
+    } catch (error) {
+        if (isNetworkFetchError(error)) {
+            error.code = "NETWORK_ERROR";
+        }
+        throw error;
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
         throw new Error(data.error || data.message || fallbackMessage);
     }
     return data;
+}
+
+async function fetchJsonOrThrowWithRetry(
+    url,
+    options,
+    fallbackMessage,
+    {
+        retries = IMAGE_START_NETWORK_RETRIES,
+        networkMessage = fallbackMessage,
+    } = {},
+) {
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+            return await fetchJsonOrThrow(url, options, fallbackMessage);
+        } catch (error) {
+            lastError = isNetworkFetchError(error)
+                ? toFriendlyNetworkError(networkMessage)
+                : error;
+            if (attempt >= retries || !isNetworkFetchError(error)) break;
+            await delay(IMAGE_START_RETRY_DELAY_MS * (attempt + 1));
+        }
+    }
+    throw lastError;
 }
 
 export default function AppletMetadataDialog({
@@ -138,6 +189,7 @@ export default function AppletMetadataDialog({
     const [error, setError] = useState("");
     const searchInputRef = useRef(null);
     const imageGenerationRequestRef = useRef(0);
+    const wasOpenRef = useRef(false);
     const appletId = appletIdOf(applet);
     const SelectedIcon = Icons[form.icon] || AppWindow;
     const previewTitle = form.name.trim() || t("Untitled Applet");
@@ -147,16 +199,20 @@ export default function AppletMetadataDialog({
     const previewTags = tagsToArray(form.tags);
 
     useEffect(() => {
-        if (isOpen) {
+        // Only hydrate form when the dialog opens. Mid-session applet prop
+        // updates (e.g. after auto-saving generated images) must not wipe
+        // in-progress edits or interrupt generation UX.
+        if (isOpen && !wasOpenRef.current) {
             setForm(formFromApplet(applet));
             setError("");
             setIconSearch("");
             setShowIconSelector(false);
             setPreviewTheme(normalizePreviewTheme(appTheme));
-        } else {
+        } else if (!isOpen && wasOpenRef.current) {
             imageGenerationRequestRef.current += 1;
             setIsGeneratingImage(false);
         }
+        wasOpenRef.current = !!isOpen;
     }, [applet, appTheme, isOpen]);
 
     useEffect(() => {
@@ -327,7 +383,7 @@ export default function AppletMetadataDialog({
         setError("");
 
         try {
-            const darkData = await fetchJsonOrThrow(
+            const darkData = await fetchJsonOrThrowWithRetry(
                 `/api/canvas-applets/${appletId}/image/generate`,
                 {
                     method: "POST",
@@ -338,6 +394,11 @@ export default function AppletMetadataDialog({
                     }),
                 },
                 t("Failed to generate applet image"),
+                {
+                    networkMessage: t(
+                        "Network error while starting image generation. Please try again.",
+                    ),
+                },
             );
             const darkTaskId =
                 darkData.variants?.dark?.taskId || darkData.taskId;
@@ -450,7 +511,13 @@ export default function AppletMetadataDialog({
                 "Failed to generate applet image:",
                 error?.message || error,
             );
-            setError(error.message || t("Failed to generate applet image"));
+            setError(
+                isNetworkFetchError(error)
+                    ? t(
+                          "Network error while starting image generation. Please try again.",
+                      )
+                    : error.message || t("Failed to generate applet image"),
+            );
         } finally {
             if (imageGenerationRequestRef.current === requestId) {
                 setIsGeneratingImage(false);

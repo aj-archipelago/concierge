@@ -1,65 +1,32 @@
-/**
- * @jest-environment node
- */
-
-/* eslint-disable import/first */
-
-jest.mock("next/server", () => ({
-    NextResponse: {
-        json: jest.fn((body, init) => ({ body, init })),
-    },
-}));
-
-jest.mock("../../../utils/auth", () => ({
-    getCurrentUser: jest.fn(),
-    handleError: jest.fn((error) => ({
-        body: { error: error.message },
-        init: { status: 500 },
-    })),
-}));
-
-jest.mock("../../../models/apiKeyMapping.mjs", () => ({
-    find: jest.fn(),
-}));
-
-import ApiKeyMapping from "../../../models/apiKeyMapping.mjs";
-import { getCurrentUser } from "../../../utils/auth";
+/** @jest-environment node */
 import { GET } from "./route";
-
-function mockMappingQuery(rows) {
-    return {
-        lean: jest.fn().mockResolvedValue(rows),
-    };
-}
-
-describe("GET /api/admin/usage/key-mappings", () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
-        getCurrentUser.mockResolvedValue({ _id: "admin-1", role: "admin" });
-        ApiKeyMapping.find.mockReturnValue(
-            mockMappingQuery([
-                { apiKeyHash: "key-a", label: "Production" },
-                { apiKeyHash: "key-b", label: "Development" },
-            ]),
-        );
+const mockUser = jest.fn();
+const mockFind = jest.fn();
+jest.mock("../../../utils/auth", () => ({
+    getCurrentUser: () => mockUser(),
+    handleError: () => ({ init: { status: 500 } }),
+}));
+jest.mock("../../../models/apiKeyMapping.mjs", () => ({
+    __esModule: true,
+    default: { find: (...args) => mockFind(...args) },
+}));
+jest.mock("next/server", () => ({
+    NextResponse: { json: (body, init) => ({ body, init }) },
+}));
+beforeEach(() => {
+    jest.clearAllMocks();
+    mockUser.mockResolvedValue({ role: "admin" });
+    mockFind.mockReturnValue({
+        lean: async () => [{ apiKeyHash: "000000000001", label: "Example" }],
     });
-
-    it("requires an admin user", async () => {
-        getCurrentUser.mockResolvedValue({ _id: "user-1", role: "user" });
-
-        const response = await GET();
-
-        expect(response.init).toEqual({ status: 403 });
-        expect(ApiKeyMapping.find).not.toHaveBeenCalled();
-    });
-
-    it("returns API key hash labels", async () => {
-        const response = await GET();
-
-        expect(ApiKeyMapping.find).toHaveBeenCalledWith({}, "apiKeyHash label");
-        expect(response.body).toEqual({
-            "key-a": "Production",
-            "key-b": "Development",
-        });
-    });
+});
+it("does not expose key ownership labels to ordinary authenticated users", async () => {
+    mockUser.mockResolvedValue({ role: "user" });
+    expect((await GET()).init.status).toBe(403);
+    expect(mockFind).not.toHaveBeenCalled();
+});
+it("returns only fingerprints and labels to admins without public caching", async () => {
+    const result = await GET();
+    expect(result.body).toEqual({ "000000000001": "Example" });
+    expect(result.init.headers["Cache-Control"]).toBe("private, no-store");
 });

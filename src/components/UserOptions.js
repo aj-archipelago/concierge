@@ -10,11 +10,8 @@ import axios from "../../app/utils/axios-client";
 import { MemoryEditorContent } from "./MemoryEditor";
 import SecretsEditor from "./SecretsEditor";
 import UserAvatar from "./UserAvatar";
-import {
-    getReasoningEffortLevelsForModel,
-    normalizeReasoningEffortForModel,
-    reasoningEffortLevelLabelKey,
-} from "../utils/reasoningEffortI18n";
+import { normalizeReasoningEffortForModel } from "../utils/reasoningEffortI18n";
+import { ModelThinkingPanel } from "./ModelThinkingControl";
 import { useResolvedAgentModel } from "../hooks/useResolvedAgentModel";
 
 const UserOptions = ({ show, handleClose }) => {
@@ -50,8 +47,6 @@ const UserOptions = ({ show, handleClose }) => {
     const selectedAgentModel = agentModels?.find(
         (model) => model.modelId === agentModel,
     );
-    const reasoningEffortLevels =
-        getReasoningEffortLevelsForModel(selectedAgentModel);
     const displayedReasoningEffort = normalizeReasoningEffortForModel(
         selectedAgentModel,
         reasoningEffort,
@@ -206,6 +201,14 @@ const UserOptions = ({ show, handleClose }) => {
                     error.message ||
                     t("Failed to save options"),
             );
+            setAgentModel(resolvedAgentModel);
+            setReasoningEffort(
+                normalizeReasoningEffortForModel(
+                    selectedAgentModel,
+                    user?.reasoningEffort,
+                ),
+            );
+            return false;
         }
     };
 
@@ -401,51 +404,6 @@ const UserOptions = ({ show, handleClose }) => {
                                     dir={direction}
                                 />
                             </div>
-
-                            <div>
-                                <label
-                                    className={`block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 ${isRTL ? "text-right" : "text-left"}`}
-                                    htmlFor="agentModel"
-                                >
-                                    {t("Model")}
-                                </label>
-                                <select
-                                    id="agentModel"
-                                    value={agentModel}
-                                    onChange={(e) => {
-                                        const nextAgentModel = e.target.value;
-                                        const nextModel = agentModels?.find(
-                                            (model) =>
-                                                model.modelId ===
-                                                nextAgentModel,
-                                        );
-                                        const nextReasoningEffort =
-                                            normalizeReasoningEffortForModel(
-                                                nextModel,
-                                                reasoningEffort,
-                                            );
-
-                                        setAgentModel(nextAgentModel);
-                                        setReasoningEffort(nextReasoningEffort);
-                                        saveOptions({
-                                            agentModel: nextAgentModel,
-                                            reasoningEffort:
-                                                nextReasoningEffort,
-                                        });
-                                    }}
-                                    className="lb-input w-full text-sm"
-                                    dir={direction}
-                                >
-                                    {agentModels.map((option) => (
-                                        <option
-                                            key={option.modelId}
-                                            value={option.modelId}
-                                        >
-                                            {t(option.displayName)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
                         </div>
 
                         <div
@@ -475,34 +433,22 @@ const UserOptions = ({ show, handleClose }) => {
 
                     {/* Reasoning Effort */}
                     <hr className="border-gray-200 dark:border-gray-700" />
-                    <section className="space-y-3">
-                        <label
-                            className={`block text-xs font-medium text-gray-700 dark:text-gray-300 ${isRTL ? "text-right" : "text-left"}`}
-                        >
-                            {t("Reasoning Effort")}
-                        </label>
-                        <div className="flex rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
-                            {reasoningEffortLevels.map((level) => (
-                                <button
-                                    key={level}
-                                    type="button"
-                                    onClick={() => {
-                                        setReasoningEffort(level);
-                                        saveOptions({
-                                            reasoningEffort: level,
-                                        });
-                                    }}
-                                    className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors capitalize ${
-                                        displayedReasoningEffort === level
-                                            ? "bg-sky-500 text-white"
-                                            : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                    }`}
-                                >
-                                    {t(reasoningEffortLevelLabelKey(level))}
-                                </button>
-                            ))}
-                        </div>
-                    </section>
+                    <ModelThinkingPanel
+                        models={agentModels}
+                        modelId={agentModel}
+                        reasoningEffort={displayedReasoningEffort}
+                        disabled={updateAiOptionsMutation.isPending}
+                        onChange={(changes) => {
+                            if (changes.model) setAgentModel(changes.model);
+                            setReasoningEffort(changes.reasoningEffort);
+                            return saveOptions({
+                                ...(changes.model
+                                    ? { agentModel: changes.model }
+                                    : {}),
+                                reasoningEffort: changes.reasoningEffort,
+                            });
+                        }}
+                    />
 
                     {/* Secrets — only when user has a personal entity */}
                     {user?.personalEntityId && (

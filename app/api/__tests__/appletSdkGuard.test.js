@@ -132,6 +132,116 @@ describe("applet SDK guard", () => {
         );
     });
 
+    test("expires abandoned in-flight leases so later requests can run", async () => {
+        jest.useFakeTimers();
+        const limits = {
+            concurrent: 1,
+            maxPerWindow: 10,
+            windowMs: 60_000,
+            maxHoldMs: 1_000,
+        };
+        const hungRun = jest.fn(
+            async () =>
+                new Response(new ReadableStream({ start() {} }), {
+                    headers: { "Content-Type": "text/event-stream" },
+                }),
+        );
+        const okRun = jest.fn(async () => NextResponse.json({ ok: true }));
+
+        try {
+            const first = await withAppletSdkGuard({
+                appletId: "applet-1",
+                userId: "user-1",
+                api: "sourceQa.query",
+                limits,
+                run: hungRun,
+            });
+            const blocked = await withAppletSdkGuard({
+                appletId: "applet-1",
+                userId: "user-1",
+                api: "sourceQa.query",
+                limits,
+                run: okRun,
+            });
+
+            expect(first.status).toBe(200);
+            expect(blocked.status).toBe(429);
+            expect((await blocked.json()).code).toBe(
+                "APPLET_SDK_CONCURRENCY_LIMITED",
+            );
+            expect(okRun).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(1_000);
+
+            const afterExpiry = await withAppletSdkGuard({
+                appletId: "applet-1",
+                userId: "user-1",
+                api: "sourceQa.query",
+                limits,
+                run: okRun,
+            });
+            const body = await afterExpiry.json();
+
+            expect(afterExpiry.status).toBe(200);
+            expect(body).toEqual({ ok: true });
+            expect(okRun).toHaveBeenCalledTimes(1);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test("releases a concurrency slot when the request is aborted", async () => {
+        const limits = {
+            concurrent: 1,
+            maxPerWindow: 10,
+            windowMs: 60_000,
+            maxHoldMs: 60_000,
+        };
+        const controller = new AbortController();
+        const hungRun = jest.fn(
+            async () =>
+                new Response(new ReadableStream({ start() {} }), {
+                    headers: { "Content-Type": "text/event-stream" },
+                }),
+        );
+        const okRun = jest.fn(async () => NextResponse.json({ ok: true }));
+
+        const first = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            signal: controller.signal,
+            run: hungRun,
+        });
+        const blocked = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            run: okRun,
+        });
+
+        expect(first.status).toBe(200);
+        expect(blocked.status).toBe(429);
+        expect(okRun).not.toHaveBeenCalled();
+
+        controller.abort();
+
+        const afterAbort = await withAppletSdkGuard({
+            appletId: "applet-1",
+            userId: "user-1",
+            api: "sourceQa.query",
+            limits,
+            run: okRun,
+        });
+        const body = await afterAbort.json();
+
+        expect(afterAbort.status).toBe(200);
+        expect(body).toEqual({ ok: true });
+        expect(okRun).toHaveBeenCalledTimes(1);
+    });
+
     test("holds concurrency slots until streaming responses close", async () => {
         const encoder = new TextEncoder();
         let closeStream;

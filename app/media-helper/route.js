@@ -1,3 +1,5 @@
+import { authorizedMediaFetch } from "../api/utils/cfh-client.mjs";
+import { getCurrentUser } from "../api/utils/auth.js";
 import { NextResponse } from "next/server";
 import { isRequestAuthorized } from "../api/utils/requestAuthorization";
 
@@ -35,6 +37,30 @@ const getForwardHeaders = (request) => {
     return headers;
 };
 
+async function readJsonBody(request) {
+    const reader = request.body?.getReader();
+    if (!reader) return "";
+    const chunks = [];
+    let length = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            length += value.byteLength;
+            if (length > 100 * 1024) {
+                await reader.cancel();
+                throw Object.assign(new Error("JSON request is too large"), {
+                    status: 413,
+                });
+            }
+            chunks.push(value);
+        }
+        return Buffer.concat(chunks).toString("utf8");
+    } finally {
+        reader.releaseLock();
+    }
+}
+
 async function proxyMediaHelper(request) {
     if (!isRequestAuthorized(request)) {
         return NextResponse.json(
@@ -43,6 +69,12 @@ async function proxyMediaHelper(request) {
         );
     }
 
+    const user = await getCurrentUser(false);
+    if (!user?._id)
+        return NextResponse.json(
+            { error: "Authentication required" },
+            { status: 401 },
+        );
     const method = request.method.toUpperCase();
     const init = {
         method,
@@ -57,7 +89,18 @@ async function proxyMediaHelper(request) {
     }
 
     try {
-        const response = await fetch(getMediaHelperUrl(request), init);
+        if (
+            init.body &&
+            request.headers.get("content-type")?.includes("application/json")
+        ) {
+            init.body = await readJsonBody(request);
+            delete init.duplex;
+        }
+        const response = await authorizedMediaFetch(
+            getMediaHelperUrl(request),
+            init,
+            { user },
+        );
         return new Response(response.body, {
             status: response.status,
             statusText: response.statusText,
@@ -67,7 +110,7 @@ async function proxyMediaHelper(request) {
         console.error("Failed to proxy media-helper request:", error);
         return NextResponse.json(
             { success: false, message: "Media helper request failed" },
-            { status: 502 },
+            { status: error.status || 502 },
         );
     }
 }

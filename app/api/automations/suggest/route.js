@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getClient, QUERIES } from "../../../../src/graphql";
+import { getClient, QUERIES } from "../../utils/cortex-client.js";
 import { getCurrentUser, handleError } from "../../utils/auth";
 import { buildWorkspacePromptVariables } from "../../utils/llm-file-utils";
 import config from "../../../../config";

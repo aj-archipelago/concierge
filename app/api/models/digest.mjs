@@ -7,12 +7,10 @@ const digestSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
         },
-        greeting: {
-            type: String,
-            required: false,
-        },
+        blocksRevision: { type: Number },
         blocks: [
             {
+                generationKey: { type: String },
                 title: {
                     type: String,
                     required: true,

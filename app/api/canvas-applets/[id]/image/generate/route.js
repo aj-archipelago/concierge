@@ -11,11 +11,17 @@ import {
     deleteMediaFile,
     listMediaFiles,
 } from "../../../../utils/media-service-utils";
-import { generateAppletMetadata } from "../../../registry";
+import {
+    assertAppletEditorAccess,
+    generateAppletMetadata,
+} from "../../../registry";
 import { createAppletGlobalStorageTarget } from "../../../../../../src/utils/storageTargets";
 
 const DEFAULT_APPLET_IMAGE_MODEL = "gemini-flash-31-image";
 const DEFAULT_APPLET_IMAGE_SIZE = "512";
+// Keep the HTTP response fast: cleanup of prior card art can hang on storage
+// and was causing browser "Failed to fetch" / multi-click retries.
+const CLEANUP_TIMEOUT_MS = 4000;
 
 const DIRECTORY_IMAGE_STYLE_CUES = [
     "Create a 16:9 background artwork asset for an applet directory card. Generate only the underlying art that Concierge will place inside its own card UI.",
@@ -135,6 +141,44 @@ function buildVariantFilenamePrompt(variant) {
 
 function normalizeThemeVariant(value) {
     return value === "light" ? "light" : "dark";
+}
+
+function hasUsableClientMetadata(metadata) {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+        return false;
+    }
+    return Boolean(
+        String(metadata.name || "").trim() ||
+            String(metadata.description || "").trim() ||
+            String(metadata.imagePrompt || "").trim(),
+    );
+}
+
+async function resolveImagePromptMetadata(user, id, override = {}) {
+    if (hasUsableClientMetadata(override)) {
+        await assertAppletEditorAccess(user, id);
+        return mergeMetadata({}, override);
+    }
+    const fallback = await generateAppletMetadata(user, id);
+    return mergeMetadata(fallback.metadata || {}, override);
+}
+
+async function withTimeout(promise, ms, label) {
+    let timer;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise((_, reject) => {
+                timer = setTimeout(() => {
+                    const error = new Error(`${label} timed out after ${ms}ms`);
+                    error.code = "TIMEOUT";
+                    reject(error);
+                }, ms);
+            }),
+        ]);
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function appletAssetOutputFolder(appletId) {
@@ -314,8 +358,11 @@ export async function POST(request, { params }) {
         validateAppletId(id);
         const user = await requireUser();
         const body = await request.json().catch(() => ({}));
-        const fallback = await generateAppletMetadata(user, id);
-        const metadata = mergeMetadata(fallback.metadata || {}, body.metadata);
+        const metadata = await resolveImagePromptMetadata(
+            user,
+            id,
+            body.metadata,
+        );
         const model = DEFAULT_APPLET_IMAGE_MODEL;
         const styleCues = normalizeStyleCues(
             body.styleCues || body.visualStyleCues,
@@ -334,12 +381,31 @@ export async function POST(request, { params }) {
         const shouldCleanup =
             body.cleanupExisting !== false && requestedVariant === "dark";
         if (shouldCleanup) {
-            await cleanupAppletAssetImages({
+            // Best-effort: never block task creation on slow storage deletes.
+            // A hung cleanup was surfacing as browser "Failed to fetch".
+            const cleanupPromise = cleanupAppletAssetImages({
                 user,
                 appletId: id,
                 outputFolder,
                 storageTarget,
+            }).catch((error) => {
+                console.warn(
+                    "Applet asset cleanup failed:",
+                    error?.message || error,
+                );
             });
+            try {
+                await withTimeout(
+                    cleanupPromise,
+                    CLEANUP_TIMEOUT_MS,
+                    "Applet asset cleanup",
+                );
+            } catch (error) {
+                console.warn(
+                    "Applet asset cleanup continuing in background:",
+                    error?.message || error,
+                );
+            }
         }
 
         const variantEntries = await Promise.all(

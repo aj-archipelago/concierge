@@ -1,4 +1,4 @@
-import { Plug, BookOpen, Settings, CalendarClock } from "lucide-react";
+import { Plug, BookOpen, Settings, CalendarClock, Pencil } from "lucide-react";
 
 // Each command has a canonical English form plus per-language aliases.
 // `commands[lang]` is what is displayed; aliases are matched on input.
@@ -25,12 +25,21 @@ export const SLASH_COMMANDS = [
     },
     {
         id: "automations",
-        commands: { en: "/automations", ar: "/أتمتات" },
-        aliases: ["/automations", "/أتمتات"],
+        commands: { en: "/tasks", ar: "/مهام" },
+        aliases: ["/tasks", "/مهام", "/automations", "/أتمتات"],
         labelKey: "slash_automations_label",
         descriptionKey: "slash_automations_description",
         icon: CalendarClock,
-        path: "/automations",
+        path: "/colleagues?view=tasks",
+    },
+    {
+        id: "edit-automations",
+        commands: { en: "/edit", ar: "/تحرير" },
+        aliases: ["/edit", "/تحرير", "/edit-automations"],
+        labelKey: "slash_edit_automations_label",
+        descriptionKey: "slash_edit_automations_description",
+        icon: Pencil,
+        path: "/colleagues?view=tasks",
     },
     {
         id: "settings",

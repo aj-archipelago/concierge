@@ -65,6 +65,31 @@ describe("canvas workspace refresh helpers", () => {
         });
     });
 
+    test("keeps changed Draft HTML separate from the Home widget when widget view is active", () => {
+        expect(
+            buildHtmlWorkspaceRefreshContent(
+                {
+                    type: "html",
+                    htmlContent: "<html>old draft</html>",
+                    htmlStatus: "live",
+                    appletId: "applet-1",
+                    appletViewMode: "widget",
+                    widgetHtml: "<html>stored widget</html>",
+                    workspacePath: "/workspace/files/applets/image-lab.html",
+                },
+                "<html>blue background</html>",
+                () => 123,
+            ),
+        ).toEqual({
+            htmlContent: "<html>blue background</html>",
+            htmlStatus: "live",
+            workspaceContentVersion: 123,
+            appletActiveVersionIndex: null,
+            appletActiveVersionNumber: null,
+            appletIsViewingDraft: true,
+        });
+    });
+
     test("does not clear saved-version state for saved version file refreshes", () => {
         expect(
             buildHtmlWorkspaceRefreshContent(

@@ -9,19 +9,40 @@ export function extractTextFromProgressData(resultData) {
             return parsed;
         }
 
-        return parsed?.choices?.[0]?.delta?.content ?? "";
+        const content =
+            parsed?.choices?.[0]?.delta?.content ??
+            parsed?.content ??
+            parsed?.message;
+        return typeof content === "string" ? content : "";
     } catch {
-        return resultData;
+        return typeof resultData === "string" ? resultData : "";
     }
 }
 
 export function createGraphqlProgressSseResponse({
     logPrefix = "graphql-progress-sse",
     run,
+    timeoutMs = null,
+    timeoutMessage = "Streaming request timed out before completion",
+    keepAliveMs = null,
 }) {
     const encoder = new TextEncoder();
     let clientConnected = true;
     let graphqlSubscription = null;
+    let timeoutId = null;
+    let keepAliveId = null;
+
+    const clearTimer = () => {
+        if (!timeoutId) return;
+        clearTimeout(timeoutId);
+        timeoutId = null;
+    };
+
+    const clearKeepAlive = () => {
+        if (!keepAliveId) return;
+        clearInterval(keepAliveId);
+        keepAliveId = null;
+    };
 
     const unsubscribe = () => {
         if (!graphqlSubscription) return;
@@ -56,6 +77,8 @@ export function createGraphqlProgressSseResponse({
             };
 
             const closeStream = () => {
+                clearTimer();
+                clearKeepAlive();
                 if (!clientConnected) return;
 
                 try {
@@ -70,6 +93,31 @@ export function createGraphqlProgressSseResponse({
                     }
                 }
             };
+
+            if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+                timeoutId = setTimeout(() => {
+                    timeoutId = null;
+                    sendEvent("error", { error: timeoutMessage });
+                    unsubscribe();
+                    closeStream();
+                }, timeoutMs);
+                timeoutId.unref?.();
+            }
+
+            if (Number.isFinite(keepAliveMs) && keepAliveMs > 0) {
+                keepAliveId = setInterval(() => {
+                    if (!clientConnected) return;
+                    try {
+                        controller.enqueue(encoder.encode(": keepalive\n\n"));
+                    } catch (error) {
+                        if (error.code === "ERR_INVALID_STATE") {
+                            clientConnected = false;
+                            clearKeepAlive();
+                        }
+                    }
+                }, keepAliveMs);
+                keepAliveId.unref?.();
+            }
 
             const subscribeToRequestProgress = (
                 graphqlClient,
@@ -158,6 +206,8 @@ export function createGraphqlProgressSseResponse({
             }
         },
         cancel() {
+            clearTimer();
+            clearKeepAlive();
             clientConnected = false;
             unsubscribe();
         },

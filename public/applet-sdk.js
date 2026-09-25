@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * Concierge Applet SDK v1.12.0
+ * Concierge Applet SDK v1.15.0
  * =============================================================================
  *
  * This SDK provides applets with access to Concierge platform capabilities.
@@ -11,16 +11,20 @@
  *   <script src="/applet-sdk.js"></script>
  *
  * -----------------------------------------------------------------------------
+ * API selection: supplied-text transformations use models.executePrompt();
+ * personal tools/connectors/memory use agent.chat(); records/headlines/counts
+ * use a data/search API. Surface missing data APIs instead of using Source Q&A.
+ * Source Q&A is restricted to explicit integrations; load the source-qa skill first.
+ *
  * Quick Start
  * -----------------------------------------------------------------------------
  *
  *   // Verify the SDK is loaded
- *   console.log(ConciergeSDK.version); // "1.12.0"
+ *   console.log(ConciergeSDK.version); // "1.15.0"
  *
- *   // Call the AI agent
+ *   // Call the personal agent for connected tools or memory
  *   var response = await ConciergeSDK.agent.chat({
- *       messages: [{ role: "user", content: "Translate 'hello' to Arabic" }],
- *       systemPrompt: "You are a translation assistant.",
+ *       messages: [{ role: "user", content: "Find my upcoming meetings" }],
  *   });
  *   console.log(response.result);
  *
@@ -55,23 +59,9 @@
  *     - param  {string}   [options.systemPrompt] Optional system prompt
  *     - param  {string}   [options.model]        Optional model override
  *     - returns {Promise<{result: string, citations: Array, metadata: Object, warnings: Array, errors: Array}>}
- *     - NOTE: `result` is Markdown-formatted. In Concierge applets, prefer the
- *       native renderer bridge: write JSON to <pre class="llm-output"> with
- *       { markdown: result, citations: citations || [] }. The host renders it
- *       with Concierge's Markdown and citation UI. Use a third-party Markdown
- *       library only when the applet must also run outside Concierge.
- *
- *   ConciergeSDK.sourceQa.query(options)
- *     - Ask the source Q&A retrieval pathway.
- *     - param  {Object}   options
- *     - param  {string}   options.text       Question to answer
- *     - param  {string|Object} [options.contextInfo] Prior context for follow-up resolution
- *     - param  {string}   [options.language] Response language label; omit to let source Q&A infer it
- *     - param  {boolean}  [options.searchInternet] Include internet news fallback
- *     - param  {number}   [options.maxInternetResults] Internet fallback result count
- *     - param  {number}   [options.followUpQuestionCount] Suggested next-question count
- *     - param  {boolean}  [options.stream] Stream chunks before resolving the complete response
- *     - returns {Promise<{result: string, citations: Array, confidence: string|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, followUpQuestions: Array, warnings: Array, errors: Array}>}
+ *     - NOTE: `result` is Markdown-formatted. In Concierge applets, render the
+ *       complete response with ConciergeSDK.agent.render(target, response). The
+ *       host uses Concierge's Markdown and native citation UI.
  *
  *   ConciergeSDK.sourceQa.stream(options)
  *     - Stream source Q&A answer chunks with onChunk/onUpdate callbacks.
@@ -494,6 +484,7 @@
         retryOptions = retryOptions || {};
         var retries = retryOptions.retries || 0;
         var baseDelayMs = retryOptions.baseDelayMs || 500;
+        var parseResponse = retryOptions.parseResponse;
 
         function shouldRetry(res, attempt) {
             return (
@@ -503,7 +494,11 @@
 
         function attemptFetch(attempt) {
             return fetch(url, options).then(function (res) {
-                if (res.ok) return res.json();
+                if (res.ok) {
+                    return typeof parseResponse === "function"
+                        ? parseResponse(res)
+                        : res.json();
+                }
                 if (shouldRetry(res, attempt)) {
                     var retryAfter = _retryAfterMs(res);
                     var delay =
@@ -566,13 +561,12 @@
         return JSON.parse(dataLines.join("\n"));
     }
 
-    function _readSourceQaSseResponse(res, options) {
+    function _readSseResponse(res, options, label) {
         options = options || {};
+        label = label || "Streaming request";
         if (!res.body || typeof res.body.getReader !== "function") {
             return Promise.reject(
-                new Error(
-                    "[ConciergeSDK] source Q&A streaming is not supported",
-                ),
+                new Error("[ConciergeSDK] " + label + " is not supported"),
             );
         }
 
@@ -624,7 +618,7 @@
             }
 
             if (event === "error") {
-                throw new Error(data.error || "source Q&A streaming failed");
+                throw new Error(data.error || label + " failed");
             }
         }
 
@@ -647,7 +641,7 @@
                     processBuffer(true);
                     if (finalResponse) return finalResponse;
                     throw new Error(
-                        "source Q&A stream ended before the final metadata was received",
+                        label + " ended before the final metadata was received",
                     );
                 }
 
@@ -668,6 +662,26 @@
     }
 
     var _sharedDataRevisions = {};
+    var _dataWrites = new Map();
+
+    // Keep retries in call order for each applet/key. Otherwise an older
+    // autosave that receives a 429 can retry after a newer save and erase it.
+    function _queueDataWrite(appletId, key, write) {
+        var queueKey = JSON.stringify([appletId, key]);
+        var previous = _dataWrites.get(queueKey) || Promise.resolve();
+        var pending = previous.then(write);
+        var settled = pending.then(
+            function () {},
+            function () {},
+        );
+        _dataWrites.set(queueKey, settled);
+        settled.then(function () {
+            if (_dataWrites.get(queueKey) === settled) {
+                _dataWrites.delete(queueKey);
+            }
+        });
+        return pending;
+    }
 
     function _sharedDataArgs(keyOrOptions, value) {
         if (typeof keyOrOptions === "string") {
@@ -814,6 +828,18 @@
     }
 
     var _MEDIA_SETTING_FIELDS = [
+        "fps",
+        "generationMode",
+        "watermark",
+        "matchInputImage",
+        "enablePromptExpansion",
+        "layerDecomposition",
+        "styleId",
+        "styleMatch",
+        "sourceUrl",
+        "sourceLanguage",
+        "targetLanguage",
+        "cloningStrength",
         "aspectRatio",
         "duration",
         "outputFormat",
@@ -968,10 +994,18 @@
         inputVideos = inputVideos.filter(Boolean);
         if (inputVideos.length) body.inputVideos = inputVideos;
 
-        var inputAudio = _normalizeMediaReference(
-            options.inputAudio || options.audio || options.voiceReference,
-        );
-        if (inputAudio) body.inputAudio = inputAudio;
+        var audioSource =
+            options.inputAudios ||
+            options.inputAudio ||
+            options.audio ||
+            options.voiceReference;
+        if (Array.isArray(audioSource)) {
+            var inputAudios = _normalizeMediaReferenceList(audioSource);
+            if (inputAudios.length) body.inputAudios = inputAudios;
+        } else {
+            var inputAudio = _normalizeMediaReference(audioSource);
+            if (inputAudio) body.inputAudio = inputAudio;
+        }
 
         return body;
     }
@@ -1001,7 +1035,7 @@
          * SDK version following semver.
          * @type {string}
          */
-        version: "1.12.0",
+        version: "1.15.0",
 
         /**
          * Locale namespace — Arabic/English language and text direction.
@@ -1107,11 +1141,6 @@
              * @param {boolean} [options.stream=false] - When true, stream chunks and resolve with the final complete response. The default query path uses the same streaming transport internally but does not expose chunks unless callbacks are supplied.
              * @returns {Promise<{result: string, citations: Array, confidence: string|null, coverage: Object|null, metadata: Object, resultData: Object, tool: Object, followUpQuestions: Array, rawResultData: string|null, rawTool: string|null, warnings: Array, errors: Array}>}
              *
-             * @example
-             * var response = await ConciergeSDK.sourceQa.query({
-             *     text: "What changed in the latest policy update?",
-             * });
-             * console.log(response.result, response.citations);
              */
             query: function (options) {
                 options = options || {};
@@ -1159,8 +1188,8 @@
                     body: JSON.stringify(body),
                 }).then(function (res) {
                     if (!res.ok)
-                        return _apiError(res, "source Q&A request failed");
-                    return _readSourceQaSseResponse(res, options);
+                        return _apiError(res, "Source Q&A request failed");
+                    return _readSseResponse(res, options, "Source Q&A stream");
                 });
             },
 
@@ -1217,6 +1246,9 @@
              * Send messages to the AI agent and get a response.
              * The request runs as the currently logged-in user's agent, so
              * user-available tools/connectors may be used normally.
+             * The SDK resolves the current applet from its injected applet-id;
+             * the server automatically attaches that applet's saved agent
+             * context. Applet code never passes or discovers the context ID.
              *
              * @param {Object} options
              * @param {Array<{role: string, content: string}>} options.messages
@@ -1225,11 +1257,12 @@
              *   to set the agent's behavior (e.g. "You are a translator").
              * @param {string} [options.model] - Optional model override.
              *   Defaults to the platform's default model.
+             * @param {AbortSignal} [options.signal] - Optional cancellation signal.
              * @returns {Promise<{result: string, citations: Array, metadata: Object, warnings: Array, errors: Array}>}
              *   The `result` field contains **Markdown-formatted** text.
-             *   In Concierge applets, prefer writing JSON to
-             *   <pre class="llm-output"> so the host renders Markdown and
-             *   citation UI natively.
+             *   In Concierge applets, pass the complete response to
+             *   ConciergeSDK.agent.render(target, response) so the host renders
+             *   Markdown and citation UI natively.
              *
              * @example
              * var response = await ConciergeSDK.agent.chat({
@@ -1239,8 +1272,8 @@
              *
              * @example
              * var response = await ConciergeSDK.agent.chat({
-             *     messages: [{ role: "user", content: "Translate 'good morning'" }],
-             *     systemPrompt: "Translate all text to Arabic.",
+             *     messages: [{ role: "user", content: "Find my upcoming meetings" }],
+             *     systemPrompt: "Use my connected calendar and group meetings by day.",
              * });
              */
             chat: function (options) {
@@ -1268,6 +1301,7 @@
                 if (options.systemPrompt)
                     body.systemPrompt = options.systemPrompt;
                 if (options.model) body.model = options.model;
+                body.stream = true;
 
                 return _apiFetch(
                     "/api/applet/agent-chat",
@@ -1275,10 +1309,79 @@
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",
+                        signal: options.signal,
                         body: JSON.stringify(body),
                     },
                     "Agent chat request failed",
-                    { retries: 2 },
+                    {
+                        retries: 2,
+                        parseResponse: function (res) {
+                            var contentType =
+                                res.headers &&
+                                typeof res.headers.get === "function"
+                                    ? res.headers.get("Content-Type") || ""
+                                    : "";
+                            if (
+                                contentType
+                                    .toLowerCase()
+                                    .indexOf("text/event-stream") !== -1
+                            ) {
+                                return _readSseResponse(
+                                    res,
+                                    options,
+                                    "Agent chat stream",
+                                );
+                            }
+                            return res.json();
+                        },
+                    },
+                );
+            },
+
+            /**
+             * Render an agent response with Concierge's native Markdown and
+             * citation UI. The target may be an element or an element ID.
+             */
+            render: function (target, response) {
+                var container =
+                    typeof target === "string"
+                        ? document.getElementById(target)
+                        : target;
+                if (!container || !container.ownerDocument) {
+                    throw new Error(
+                        "[ConciergeSDK] render target was not found",
+                    );
+                }
+
+                var output = container;
+                if (String(container.tagName || "").toUpperCase() !== "PRE") {
+                    output = container.ownerDocument.createElement("pre");
+                    container.replaceChildren(output);
+                }
+
+                response = response || {};
+                output.classList.add("llm-output");
+                output.textContent = JSON.stringify({
+                    markdown: response.result || response.output || "",
+                    citations: Array.isArray(response.citations)
+                        ? response.citations
+                        : [],
+                });
+                return output;
+            },
+        },
+
+        /** Check whether this applet has attached agent context. */
+        agentContext: {
+            getAccess: function () {
+                var appletId = _requireAppletId();
+                return _apiFetch(
+                    "/api/canvas-applets/" +
+                        encodeURIComponent(appletId) +
+                        "/agent-context",
+                    { method: "GET", credentials: "include" },
+                    "Agent context access request failed",
+                    { retries: 1 },
                 );
             },
         },
@@ -1331,6 +1434,7 @@
              * @param {string} [options.model] - Optional model ID from list().
              * @param {("none"|"low"|"medium"|"high")} [options.reasoningEffort]
              *   Optional reasoning effort.
+             * @param {AbortSignal} [options.signal] - Optional cancellation signal.
              * @returns {Promise<{result: string, citations: Array, metadata: Object}>}
              *
              * @example
@@ -1377,6 +1481,7 @@
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         credentials: "include",
+                        signal: options.signal,
                         body: JSON.stringify(body),
                     },
                     "Model generate request failed",
@@ -1459,6 +1564,70 @@
                 return _createMediaTask(options, {
                     outputType: "image",
                     mediaKind: "image",
+                });
+            },
+
+            /**
+             * Reuse or generate one image for a stable applet/user key.
+             * The server owns deduplication and the task result. Reloading
+             * resumes that task even if the original page closed. Failures
+             * never cause an automatic new generation; use a new key only
+             * when intentionally requesting different artwork.
+             * @returns {Promise<{url: string, taskId?: string}>}
+             */
+            ensureImage: function (options) {
+                options = options || {};
+                if (!options.key || typeof options.key !== "string") {
+                    return Promise.reject(
+                        new Error("[ConciergeSDK] image key is required"),
+                    );
+                }
+                var appletId;
+                try {
+                    appletId = _requireAppletId();
+                } catch (error) {
+                    return Promise.reject(error);
+                }
+                function requestImage() {
+                    return _apiFetch(
+                        "/api/applet/media",
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify(
+                                Object.assign({}, options, {
+                                    appletId: appletId,
+                                    operation: "ensure-image",
+                                }),
+                            ),
+                        },
+                        "Background image request failed",
+                        { retries: 1 },
+                    );
+                }
+                return requestImage().then(function (result) {
+                    if (result.url) return result;
+                    if (!result.taskId)
+                        throw new Error(
+                            "[ConciergeSDK] missing background image task",
+                        );
+                    return ConciergeSDK.tasks
+                        .wait(result.taskId)
+                        .then(function (task) {
+                            var data = task.data || {};
+                            var url = data.azureUrl || data.url || data.gcsUrl;
+                            if (!url || !/^https?:\/\//i.test(url)) {
+                                throw new Error(
+                                    "[ConciergeSDK] background image task returned no image URL",
+                                );
+                            }
+                            // Let the server persist the completed URL. The
+                            // widget never owns the save or the cache format.
+                            return requestImage().then(function () {
+                                return { url: url, taskId: result.taskId };
+                            });
+                        });
                 });
             },
 
@@ -2008,21 +2177,30 @@
 
                 try {
                     var appletId = _requireAppletId();
+                    // Snapshot at submission time, before waiting on an older save.
+                    var requestBody = JSON.stringify({
+                        key: key,
+                        value: value,
+                    });
                 } catch (e) {
                     return Promise.reject(e);
                 }
 
-                return _apiFetch(
-                    "/api/canvas-applets/" + appletId + "/data",
-                    {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        credentials: "include",
-                        body: JSON.stringify({ key: key, value: value }),
-                    },
-                    "Failed to set applet data",
-                ).then(function (body) {
-                    return body.data;
+                return _queueDataWrite(appletId, key, function () {
+                    return _apiFetch(
+                        "/api/canvas-applets/" + appletId + "/data",
+                        {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: requestBody,
+                        },
+                        "Failed to set applet data",
+                        // Retry transient Cosmos/App Service 429s; server also retries.
+                        { retries: 2 },
+                    ).then(function (body) {
+                        return body.data;
+                    });
                 });
             },
         },

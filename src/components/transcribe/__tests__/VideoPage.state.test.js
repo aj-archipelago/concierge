@@ -4,7 +4,7 @@
 
 import React, { useCallback, useState } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import VideoPage from "../VideoPage";
+import VideoPage, { getLiveOverlayTextAtTime } from "../VideoPage";
 import { AuthContext, ServerContext } from "../../../App";
 import { LanguageContext } from "../../../contexts/LanguageProvider";
 
@@ -21,6 +21,8 @@ const mockRunTask = {
 const mockUseTask = jest.fn(() => ({
     data: null,
 }));
+let mockRealtimeAudioLiveControlsProps = null;
+let mockTranscriptViewProps = null;
 
 jest.mock("../../../App", () => {
     const React = require("react");
@@ -91,6 +93,14 @@ jest.mock("../InitialView", () => ({
     default: () => <div>Initial view</div>,
 }));
 
+jest.mock("../RealtimeAudioLiveControls", () => ({
+    __esModule: true,
+    default: (props) => {
+        mockRealtimeAudioLiveControlsProps = props;
+        return <div>Realtime audio live controls</div>;
+    },
+}));
+
 jest.mock("../TaxonomySelector", () => ({
     __esModule: true,
     default: () => null,
@@ -98,7 +108,10 @@ jest.mock("../TaxonomySelector", () => ({
 
 jest.mock("../TranscriptView", () => ({
     __esModule: true,
-    default: () => <div>Transcript view</div>,
+    default: (props) => {
+        mockTranscriptViewProps = props;
+        return <div>Transcript view</div>;
+    },
 }));
 
 jest.mock("../VideoInput", () => ({
@@ -182,6 +195,10 @@ describe("VideoPage saved state", () => {
         mockAutoTranscribeState.setIsAutoTranscribing.mockClear();
         mockRunTaskMutateAsync.mockReset();
         mockUseTask.mockReturnValue({ data: null });
+        mockRealtimeAudioLiveControlsProps = null;
+        mockTranscriptViewProps = null;
+        URL.createObjectURL = jest.fn(() => "blob:mock-vtt");
+        URL.revokeObjectURL = jest.fn();
         consoleErrorSpy = jest
             .spyOn(console, "error")
             .mockImplementation(() => {});
@@ -196,20 +213,23 @@ describe("VideoPage saved state", () => {
         const updates = [];
 
         render(
-            <StatefulAuthProvider
-                initialTranscribe={{
-                    activeTranscript: 0,
-                    transcripts: [],
-                    url: videoUrl,
-                    videoInformation: {
-                        transcriptionUrl: null,
-                        videoUrl,
-                    },
-                }}
-                updates={updates}
-            >
-                <VideoPage />
-            </StatefulAuthProvider>,
+            <>
+                <video data-testid="unrelated-video" />
+                <StatefulAuthProvider
+                    initialTranscribe={{
+                        activeTranscript: 0,
+                        transcripts: [{ format: "txt", text: "caption" }],
+                        url: videoUrl,
+                        videoInformation: {
+                            transcriptionUrl: null,
+                            videoUrl,
+                        },
+                    }}
+                    updates={updates}
+                >
+                    <VideoPage />
+                </StatefulAuthProvider>
+            </>,
         );
 
         await waitFor(() => {
@@ -234,6 +254,13 @@ describe("VideoPage saved state", () => {
                 .join("\n")
                 .includes("Maximum update depth exceeded"),
         ).toBe(false);
+
+        act(() => mockTranscriptViewProps.onSeek(15.678));
+        expect(
+            mockRealtimeAudioLiveControlsProps.mediaElementRef.current
+                .currentTime,
+        ).toBe(15.678);
+        expect(screen.getByTestId("unrelated-video").currentTime).toBe(0);
     });
 
     test("preserves saved translated language tracks for the same video", async () => {
@@ -284,6 +311,82 @@ describe("VideoPage saved state", () => {
                     : true,
             ),
         ).toBe(true);
+    });
+
+    test("locks audio-track changes while a live session is active", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 0,
+                    transcripts: [],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoLanguages: [
+                            {
+                                code: "original",
+                                label: "Original",
+                                url: videoUrl,
+                            },
+                            {
+                                code: "ar",
+                                label: "Arabic",
+                                url: "https://example.com/video-ar.mp4",
+                            },
+                        ],
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByRole("button", { name: "Arabic" })).toBeTruthy();
+        });
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveSessionActiveChange(true);
+        });
+
+        expect(screen.getByRole("button", { name: "Arabic" }).disabled).toBe(
+            true,
+        );
+        expect(
+            screen.getByRole("button", { name: "Add audio track" }).disabled,
+        ).toBe(true);
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate(
+                {
+                    format: "vtt",
+                    isLive: true,
+                    liveTrackId: "live-track-lock",
+                    name: "Live captions",
+                    text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nlive words",
+                },
+                { activate: true },
+            );
+        });
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onClearLiveTrack(
+                "live-track-lock",
+            );
+        });
+        expect(screen.getByRole("button", { name: "Arabic" }).disabled).toBe(
+            true,
+        );
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveSessionActiveChange(false);
+        });
+        expect(screen.getByRole("button", { name: "Arabic" }).disabled).toBe(
+            false,
+        );
     });
 
     test("drops stale language tracks when restored state switches to a different video", async () => {
@@ -418,6 +521,295 @@ describe("VideoPage saved state", () => {
         ).not.toHaveBeenCalledWith(false);
     });
 
+    test("clears stopped live subtitles from the player without deleting the transcript", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 1,
+                    transcripts: [
+                        {
+                            format: "text",
+                            name: "Existing transcript",
+                            text: "saved text",
+                        },
+                        {
+                            format: "vtt",
+                            isLive: true,
+                            liveTrackId: "live-track-1",
+                            name: "Live captions",
+                            previewText: "live words",
+                            showOnVideo: true,
+                            text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nlive words",
+                        },
+                    ],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(mockRealtimeAudioLiveControlsProps.activeLiveTrackId).toBe(
+                "live-track-1",
+            );
+        });
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveSessionActiveChange(true);
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate({
+                format: "vtt",
+                isLive: true,
+                liveTrackId: "live-track-1",
+                name: "Live captions",
+                previewText: "live words",
+                showOnVideo: true,
+                text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nlive words",
+            });
+        });
+        await waitFor(() => {
+            expect(screen.getByText("live words")).toBeTruthy();
+        });
+        // eslint-disable-next-line testing-library/no-node-access
+        expect(document.querySelector("track")).toBeNull();
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onClearLiveTrack("live-track-1");
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByText("live words")).toBeNull();
+        });
+        expect(screen.getAllByText("Live captions").length).toBeGreaterThan(0);
+        expect(screen.getByText("Transcript view")).toBeTruthy();
+    });
+
+    test("ignores late live-track updates after Start over", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+        jest.spyOn(window, "confirm").mockReturnValue(true);
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 0,
+                    transcripts: [],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(mockRealtimeAudioLiveControlsProps).toBeTruthy();
+        });
+        const lateLiveUpdate =
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate;
+
+        act(() => {
+            screen.getByRole("button", { name: "Start over" }).click();
+        });
+        act(() => {
+            lateLiveUpdate(
+                {
+                    format: "vtt",
+                    isLive: false,
+                    liveTrackId: "stale-live-track",
+                    name: "Live captions",
+                    previewText: "stale words",
+                    text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nstale words",
+                },
+                { activate: true },
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByText("Initial view")).toBeTruthy();
+        });
+        expect(screen.queryByText("stale words")).toBeNull();
+        expect(updates.at(-1)?.transcribe?.transcripts).toEqual([]);
+    });
+
+    test("restores interrupted live tracks as completed tracks", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 0,
+                    transcripts: [
+                        {
+                            format: "vtt",
+                            isLive: true,
+                            liveStatus: "live",
+                            liveTrackId: "interrupted-live-track",
+                            name: "Live captions",
+                            text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nsaved words",
+                        },
+                    ],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(mockRealtimeAudioLiveControlsProps.activeLiveTrackId).toBe(
+                "interrupted-live-track",
+            );
+        });
+        expect(screen.queryByText("saved words")).toBeNull();
+        // eslint-disable-next-line testing-library/no-node-access
+        expect(document.querySelector("track")).toBeTruthy();
+    });
+
+    test("suppresses stale player subtitles while a new live session is preparing", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 0,
+                    transcripts: [
+                        {
+                            format: "vtt",
+                            name: "Offline captions",
+                            text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\noffline words",
+                        },
+                    ],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        await waitFor(() => {
+            // eslint-disable-next-line testing-library/no-node-access
+            expect(document.querySelector("track")).toBeTruthy();
+        });
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveSessionActiveChange(true);
+        });
+
+        // eslint-disable-next-line testing-library/no-node-access
+        expect(document.querySelector("track")).toBeNull();
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate(
+                {
+                    format: "vtt",
+                    isLive: true,
+                    liveTrackId: "live-track-2",
+                    name: "Live captions",
+                    previewText: "live words",
+                    showOnVideo: true,
+                    text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nlive words",
+                },
+                { activate: true },
+            );
+        });
+
+        await waitFor(() => {
+            expect(mockRealtimeAudioLiveControlsProps.activeLiveTrackId).toBe(
+                "live-track-2",
+            );
+        });
+        await waitFor(() => {
+            // eslint-disable-next-line testing-library/no-node-access
+            expect(document.querySelector("track")).toBeNull();
+        });
+        expect(screen.getByText("live words")).toBeTruthy();
+    });
+
+    test("keeps native subtitle track suppressed while live VTT text changes", async () => {
+        const videoUrl = "https://example.com/video.mp4";
+        const updates = [];
+
+        render(
+            <StatefulAuthProvider
+                initialTranscribe={{
+                    activeTranscript: 0,
+                    transcripts: [],
+                    url: videoUrl,
+                    videoInformation: {
+                        transcriptionUrl: null,
+                        videoUrl,
+                    },
+                }}
+                updates={updates}
+            >
+                <VideoPage />
+            </StatefulAuthProvider>,
+        );
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveSessionActiveChange(true);
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate(
+                {
+                    format: "vtt",
+                    isLive: true,
+                    liveTrackId: "live-track-revision",
+                    name: "Live captions",
+                    previewText: "live words",
+                    showOnVideo: true,
+                    text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nlive words",
+                },
+                { activate: true },
+            );
+        });
+
+        await waitFor(() => {
+            // eslint-disable-next-line testing-library/no-node-access
+            expect(document.querySelector("track")).toBeNull();
+        });
+
+        act(() => {
+            mockRealtimeAudioLiveControlsProps.onLiveTrackUpdate({
+                format: "vtt",
+                isLive: true,
+                liveTrackId: "live-track-revision",
+                name: "Live captions",
+                previewText: "newer live words",
+                showOnVideo: true,
+                text: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nnewer live words",
+            });
+        });
+
+        await waitFor(() => {
+            // eslint-disable-next-line testing-library/no-node-access
+            expect(document.querySelector("track")).toBeNull();
+        });
+        expect(screen.getByText("newer live words")).toBeTruthy();
+    });
+
     test("clears transcription pending state after refreshed transcripts land", async () => {
         const videoUrl = "https://example.com/video.mp4";
         const updates = [];
@@ -467,5 +859,51 @@ describe("VideoPage saved state", () => {
                 mockAutoTranscribeState.setIsAutoTranscribing,
             ).toHaveBeenCalledWith(false);
         });
+    });
+});
+
+describe("VideoPage live overlay timing", () => {
+    test("shows only the active live VTT cue instead of accumulated preview text", () => {
+        const liveTrack = {
+            isLive: true,
+            previewText: "first cue second cue third cue",
+            showOnVideo: true,
+            text: [
+                "WEBVTT",
+                "",
+                "1",
+                "00:00:00.000 --> 00:00:02.000",
+                "first cue",
+                "",
+                "2",
+                "00:00:02.000 --> 00:00:04.000",
+                "second cue",
+                "",
+                "3",
+                "00:00:04.000 --> 00:00:06.000",
+                "third cue",
+            ].join("\n"),
+        };
+
+        expect(getLiveOverlayTextAtTime(liveTrack, 2.5)).toBe("second cue");
+        expect(getLiveOverlayTextAtTime(liveTrack, 5.5)).toBe("third cue");
+    });
+
+    test("keeps the most recent live cue briefly while it is still being updated", () => {
+        const liveTrack = {
+            isLive: true,
+            previewText: "latest live cue",
+            showOnVideo: true,
+            text: [
+                "WEBVTT",
+                "",
+                "1",
+                "00:00:10.000 --> 00:00:11.000",
+                "latest live cue",
+            ].join("\n"),
+        };
+
+        expect(getLiveOverlayTextAtTime(liveTrack, 12)).toBe("latest live cue");
+        expect(getLiveOverlayTextAtTime(liveTrack, 14)).toBe("");
     });
 });

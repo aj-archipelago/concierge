@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "../../utils/cfh-client.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth";
 
@@ -38,7 +39,7 @@ export async function serveWorkspaceFile(filePath) {
     lookupUrl.searchParams.set("blobPath", blobPath);
     lookupUrl.searchParams.set("userId", userId);
 
-    const lookupRes = await fetch(lookupUrl.toString());
+    const lookupRes = await authorizedMediaFetch(lookupUrl.toString());
     if (!lookupRes.ok) {
         const errBody = await lookupRes.text();
         let errMsg = lookupRes.statusText;

@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../src/layout/PageHeader";
+import { HeaderTabs } from "../../src/layout/HeaderControls";
 import { cn } from "@/lib/utils";
 import * as Icons from "lucide-react";
 import { AppWindow } from "lucide-react";
@@ -43,7 +45,7 @@ const NATIVE_APP_HREF_BY_SLUG = {
     jira: "/code/jira",
     media: "/media",
     video: "/video",
-    workspaces: "/apps?tab=my-applets",
+    workspaces: "/apps",
     write: "/write",
 };
 
@@ -124,6 +126,13 @@ function toDiscoverAppletMenuModel(
     };
 }
 
+function isAppletPlaced(applet) {
+    return Boolean(
+        applet &&
+            (applet.isHome || applet.isHomeDirectory || applet.isInstalled),
+    );
+}
+
 function AppCatalogSection({ apps, children }) {
     if (!apps.length) return null;
 
@@ -144,6 +153,7 @@ function AppCard({
     installedAppletAppsByAppletId,
     isMenuOpen = false,
     onOpen,
+    onAdd,
     onMenuOpenChange,
     onToggleHome,
     onToggleHomeDirectory,
@@ -220,11 +230,148 @@ function AppCard({
                     />
                 ) : null
             }
+            imageActions={
+                !isNative && menuApplet ? (
+                    <button
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onAdd?.(menuApplet);
+                        }}
+                        className={cn(
+                            "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-bold shadow-sm backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-sky-300/70",
+                            isAppletPlaced(menuApplet)
+                                ? "border-emerald-300 bg-emerald-50/90 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-400/40 dark:bg-emerald-500/[0.18] dark:text-emerald-50"
+                                : "border-gray-300 bg-white/90 text-gray-800 hover:bg-white dark:border-white/20 dark:bg-white/[0.12] dark:text-white dark:hover:bg-white dark:hover:text-gray-950",
+                        )}
+                    >
+                        {isAppletPlaced(menuApplet) ? (
+                            <>
+                                <Icons.Check className="h-4 w-4" />
+                                {t("Added")}
+                            </>
+                        ) : (
+                            <>
+                                <Icons.Plus className="h-4 w-4" />
+                                {t("Add")}
+                            </>
+                        )}
+                    </button>
+                ) : null
+            }
             imageActionsAlwaysVisible={!isNative}
             isInteractionActive={isMenuOpen || isInteractionHeld}
             suppressInteractionMotion={suppressInteractionMotion}
             onClick={onOpen}
         />
+    );
+}
+
+function PlacementRow({ label, desc, checked, onToggle, indented = false }) {
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={checked}
+            className={cn(
+                "flex w-full items-center gap-3 rounded-lg border p-3 text-start transition-colors",
+                indented && "ms-6 w-[calc(100%-1.5rem)]",
+                checked
+                    ? "border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30"
+                    : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800",
+            )}
+        >
+            <span
+                className={cn(
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                    checked
+                        ? "border-sky-500 bg-sky-500 text-white"
+                        : "border-gray-300 dark:border-gray-600",
+                )}
+            >
+                {checked ? <Icons.Check className="h-3.5 w-3.5" /> : null}
+            </span>
+            <span className="min-w-0">
+                <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {label}
+                </span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">
+                    {desc}
+                </span>
+            </span>
+        </button>
+    );
+}
+
+function AppletPlacementDialog({
+    applet,
+    isInHome,
+    isInSidebar,
+    isFullscreen,
+    onToggleHome,
+    onToggleSidebar,
+    onToggleFullscreen,
+    onClose,
+    direction,
+    t,
+}) {
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-gray-950/50 p-2 dark:bg-black/70 sm:items-center sm:p-4"
+            dir={direction}
+            role="dialog"
+            aria-modal="true"
+        >
+            <div className="w-full max-w-md overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                <div className="flex min-h-14 items-center justify-between gap-3 border-b border-gray-200 px-4 dark:border-gray-700">
+                    <h2 className="truncate text-base font-semibold text-gray-950 dark:text-gray-50">
+                        {t("Add {{name}}", { name: applet.name })}
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label={t("Close")}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                    >
+                        <Icons.X className="h-4 w-4" />
+                    </button>
+                </div>
+                <div className="space-y-2 p-4">
+                    <PlacementRow
+                        label={t("Home page")}
+                        desc={t("Show this applet on your home page.")}
+                        checked={isInHome}
+                        onToggle={onToggleHome}
+                    />
+                    {isInHome ? (
+                        <PlacementRow
+                            indented
+                            label={t("Full screen")}
+                            desc={t(
+                                "Replace the home dashboard with this applet.",
+                            )}
+                            checked={isFullscreen}
+                            onToggle={onToggleFullscreen}
+                        />
+                    ) : null}
+                    <PlacementRow
+                        label={t("Sidebar")}
+                        desc={t("Pin this applet to the sidebar.")}
+                        checked={isInSidebar}
+                        onToggle={onToggleSidebar}
+                    />
+                </div>
+                <div className="flex justify-end border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex items-center gap-2 rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+                    >
+                        {t("Done")}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -239,6 +386,7 @@ export default function AppsPage() {
     const [homeAppletId, setHomeAppletId] = useState(null);
     const [homeDirectoryAppletIds, setHomeDirectoryAppletIds] = useState([]);
     const [openAppletMenuKey, setOpenAppletMenuKey] = useState(null);
+    const [placementApplet, setPlacementApplet] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [sortValue, setSortValue] = useState("updated-desc");
     const requestedTab = searchParams.get("tab") || "discover";
@@ -463,6 +611,7 @@ export default function AppsPage() {
                 installedAppletAppsByAppletId={installedAppletAppsByAppletId}
                 isMenuOpen={openAppletMenuKey === menuKey}
                 onOpen={() => openApp(app)}
+                onAdd={(applet) => setPlacementApplet(applet)}
                 onMenuOpenChange={(open) =>
                     setOpenAppletMenuKey((currentKey) =>
                         open
@@ -493,36 +642,19 @@ export default function AppsPage() {
     }
 
     return (
-        <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <main className="min-h-full bg-gray-50 dark:bg-gray-900">
             <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                <div className="mb-3">
-                    <h1 className="text-xl font-semibold tracking-tight text-gray-950 dark:text-gray-50">
-                        {t("Applet Library")}
-                    </h1>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                        {t(
-                            "Browse public applets and manage your own applets from one library.",
-                        )}
-                    </p>
-                </div>
-
-                <div className="mb-4 flex gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
-                    {APP_LIBRARY_TABS.map((tab) => (
-                        <button
-                            key={tab.value}
-                            type="button"
-                            className={cn(
-                                "min-h-10 shrink-0 border-b-2 px-3 text-sm font-medium transition",
-                                activeTab === tab.value
-                                    ? "border-sky-500 text-sky-700 dark:text-sky-300"
-                                    : "border-transparent text-gray-500 hover:text-gray-950 dark:text-gray-400 dark:hover:text-gray-100",
-                            )}
-                            onClick={() => handleTabChange(tab.value)}
-                        >
-                            {t(tab.label)}
-                        </button>
-                    ))}
-                </div>
+                <PageHeader title={t("Applet Library")}>
+                    <HeaderTabs
+                        label={t("Applet Library")}
+                        value={activeTab}
+                        onChange={handleTabChange}
+                        items={APP_LIBRARY_TABS.map((tab) => ({
+                            value: tab.value,
+                            label: t(tab.label),
+                        }))}
+                    />
+                </PageHeader>
 
                 {activeTab === "discover" && (
                     <>
@@ -569,6 +701,54 @@ export default function AppsPage() {
                 {activeTab === "workspaces" && <Applets scope="workspaces" />}
                 {activeTab === "shared" && <Applets scope="shared" />}
             </div>
+
+            {placementApplet
+                ? (() => {
+                      const appletId = String(
+                          placementApplet.appletId || placementApplet._id,
+                      );
+                      const isInHome =
+                          homeDirectoryAppletIds.includes(appletId);
+                      const isInSidebar =
+                          installedAppletAppsByAppletId.has(appletId);
+                      const isFullscreen = homeAppletId === appletId;
+                      const liveApplet = {
+                          ...placementApplet,
+                          isHome: isFullscreen,
+                          isHomeDirectory: isInHome,
+                          isInstalled: isInSidebar,
+                      };
+                      return (
+                          <AppletPlacementDialog
+                              applet={placementApplet}
+                              direction={direction}
+                              t={t}
+                              isInHome={isInHome}
+                              isInSidebar={isInSidebar}
+                              isFullscreen={isFullscreen}
+                              onToggleHome={() =>
+                                  handleToggleHomeDirectory(
+                                      { stopPropagation() {} },
+                                      liveApplet,
+                                  )
+                              }
+                              onToggleSidebar={() =>
+                                  handleToggleAppletInstall(
+                                      { stopPropagation() {} },
+                                      liveApplet,
+                                  )
+                              }
+                              onToggleFullscreen={() =>
+                                  handleToggleHomeApplet(
+                                      { stopPropagation() {} },
+                                      liveApplet,
+                                  )
+                              }
+                              onClose={() => setPlacementApplet(null)}
+                          />
+                      );
+                  })()
+                : null}
         </main>
     );
 }

@@ -1,3 +1,8 @@
+import {
+    grantsEnabled,
+    signStorageGrant,
+    storageClientName,
+} from "../utils/storage-grants.mjs";
 import User from "../models/user";
 
 const MEDIA_HELPER_URL =
@@ -27,7 +32,18 @@ export async function fetchOwnerArticleHtml(article) {
     lookupUrl.searchParams.set("blobPath", blobPath);
     lookupUrl.searchParams.set("userId", ownerContextId);
 
-    const lookupRes = await fetch(lookupUrl.toString());
+    const grant = grantsEnabled()
+        ? signStorageGrant({ contextId: ownerContextId }, [
+              { owner: ownerContextId, path: blobPath, actions: ["read"] },
+          ])
+        : null;
+    const lookupRes = await fetch(lookupUrl.toString(), {
+        headers: {
+            "x-cfh-client": storageClientName(),
+            ...(grant ? { "x-cfh-grant": grant } : {}),
+        },
+        redirect: "manual",
+    });
     if (!lookupRes.ok) {
         return { ok: false, status: 404, error: "Article file not found" };
     }

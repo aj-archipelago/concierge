@@ -2,7 +2,7 @@ import { getCurrentUser } from "../utils/auth.js";
 import MediaItem from "../models/media-item.mjs";
 import { parseSearchQuery } from "../utils/search-parser.js";
 
-const MAX_INPUT_IMAGE_REFERENCES = 14;
+const MAX_INPUT_IMAGE_REFERENCES = 30;
 
 function getInputImageFieldName(index) {
     return index === 0 ? "inputImageUrl" : `inputImageUrl${index + 1}`;

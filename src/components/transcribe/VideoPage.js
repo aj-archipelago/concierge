@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
+import { HeaderAction } from "../../layout/HeaderControls";
 import {
     Dialog,
     DialogContent,
@@ -60,6 +62,7 @@ import LoadingButton from "../editor/LoadingButton";
 import AzureVideoTranslate from "./AzureVideoTranslate";
 import TranscribeErrorBoundary from "./ErrorBoundary";
 import InitialView from "./InitialView";
+import RealtimeAudioLiveControls from "./RealtimeAudioLiveControls";
 import TaxonomySelector from "./TaxonomySelector";
 import { AddTrackButton } from "./TranscriptionOptions";
 import TranscriptView from "./TranscriptView";
@@ -68,6 +71,7 @@ import { useAutoTranscribe } from "../../contexts/AutoTranscribeContext";
 import Loader from "../../../app/components/loader";
 import { useRunTask, useTask } from "../../../app/queries/notifications";
 import { isAudioUrl } from "../../utils/mediaUtils";
+import { getMediaPlaybackUrl } from "../../utils/fileDownloadUtils";
 import {
     getAlternateTranscribeModelOption,
     getDefaultTranscribeModelOption,
@@ -81,6 +85,16 @@ const TERMINAL_TASK_STATUSES = new Set([
 ]);
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const LIVE_OVERLAY_GRACE_SECONDS = 2.5;
+
+function getTextRevisionKey(text = "") {
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+        hash = (hash * 31 + text.charCodeAt(index)) | 0;
+    }
+
+    return `${text.length}:${hash >>> 0}`;
+}
 
 const isValidUrl = (url) => {
     try {
@@ -90,6 +104,58 @@ const isValidUrl = (url) => {
         return false;
     }
 };
+
+function normalizeSubtitleText(text) {
+    return `${text || ""}`.replace(/\s+/g, " ").trim();
+}
+
+function cueTimeToSeconds(value) {
+    return Math.max(0, (value || 0) / 1000);
+}
+
+export function getLiveOverlayTextAtTime(
+    liveOverlayTrack,
+    currentTime = 0,
+    graceSeconds = LIVE_OVERLAY_GRACE_SECONDS,
+) {
+    if (!liveOverlayTrack?.isLive || liveOverlayTrack?.showOnVideo === false) {
+        return "";
+    }
+
+    const text = `${liveOverlayTrack.text || ""}`.trim();
+    if (!text) return normalizeSubtitleText(liveOverlayTrack.previewText);
+
+    let cues = [];
+    try {
+        cues = parse(text)?.cues || [];
+    } catch {
+        return text.startsWith("WEBVTT")
+            ? ""
+            : normalizeSubtitleText(liveOverlayTrack.previewText);
+    }
+
+    if (!cues.length) {
+        return text.startsWith("WEBVTT")
+            ? ""
+            : normalizeSubtitleText(liveOverlayTrack.previewText);
+    }
+
+    const time = Math.max(0, currentTime || 0);
+    const activeCue = cues.find((cue) => {
+        const startTime = cueTimeToSeconds(cue.startTime);
+        const endTime = cueTimeToSeconds(cue.endTime);
+        return time >= startTime && time <= endTime;
+    });
+    if (activeCue) return normalizeSubtitleText(activeCue.text);
+
+    const recentCue = [...cues].reverse().find((cue) => {
+        const startTime = cueTimeToSeconds(cue.startTime);
+        const endTime = cueTimeToSeconds(cue.endTime);
+        return time >= startTime && time <= endTime + graceSeconds;
+    });
+
+    return normalizeSubtitleText(recentCue?.text);
+}
 
 const getNormalizedVideoLanguages = (videoInformation, videoLanguages, t) => {
     const languages = Array.isArray(videoLanguages) ? videoLanguages : [];
@@ -128,35 +194,34 @@ const areVideoLanguagesEqual = (first = [], second = []) =>
             language?.url === second[index]?.url,
     );
 
-// New DownloadButton component
+function downloadTranscriptFile({ format, name, text, selectedFormat }) {
+    let downloadText = text;
+    if (["srt", "vtt"].includes(selectedFormat) && format !== selectedFormat) {
+        downloadText = build(parse(text).cues, selectedFormat);
+    } else if (selectedFormat === "txt" && ["srt", "vtt"].includes(format)) {
+        downloadText = parse(text)
+            .cues.map((cue) => cue.text)
+            .join("\n");
+    }
+
+    const element = document.createElement("a");
+    const file = new Blob([downloadText], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `${name}.${selectedFormat}`;
+    element.style.display = "none";
+    document.body.appendChild(element);
+    element.click();
+    setTimeout(() => {
+        document.body.removeChild(element);
+        URL.revokeObjectURL(element.href);
+    }, 100);
+}
+
 function DownloadButton({ format, name, text }) {
     const { t } = useTranslation();
 
-    const downloadFile = (selectedFormat) => {
-        let downloadText = text;
-
-        // Convert format if needed
-        if (selectedFormat === "srt") {
-            const parsed = parse(downloadText);
-            downloadText = build(parsed.cues, "srt");
-        }
-
-        const element = document.createElement("a");
-        const file = new Blob([downloadText], { type: "text/plain" });
-        element.href = URL.createObjectURL(file);
-        const fileExt = selectedFormat;
-        element.download = `${name}.${fileExt}`;
-        element.style.display = "none";
-        document.body.appendChild(element);
-
-        const event = new MouseEvent("click");
-        element.dispatchEvent(event);
-
-        setTimeout(() => {
-            document.body.removeChild(element);
-            URL.revokeObjectURL(element.href);
-        }, 100);
-    };
+    const downloadFile = (selectedFormat) =>
+        downloadTranscriptFile({ format, name, text, selectedFormat });
 
     return (
         <DropdownMenu>
@@ -185,6 +250,12 @@ function DownloadButton({ format, name, text }) {
                         onClick={() => downloadFile("vtt")}
                     >
                         {t("Download VTT")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        className="text-xs"
+                        onClick={() => downloadFile("txt")}
+                    >
+                        {t("Download .txt")}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             ) : (
@@ -223,6 +294,7 @@ function EditableTranscriptSelect({
     const [tempName, setTempName] = useState("");
     const { isAutoTranscribing } = useAutoTranscribe();
     const [taxonomyDialogOpen, setTaxonomyDialogOpen] = useState(false);
+    const activeTrackIsLive = Boolean(transcripts[activeTranscript]?.isLive);
 
     useEffect(() => {
         if (transcripts[activeTranscript]) {
@@ -378,18 +450,29 @@ function EditableTranscriptSelect({
                                                             </div>
                                                             <span
                                                                 className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md 
-                                                ${transcripts[index].format === "vtt" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}`}
+                                                ${
+                                                    transcript.isLive
+                                                        ? "bg-red-100 text-red-800"
+                                                        : transcripts[index]
+                                                                .format ===
+                                                            "vtt"
+                                                          ? "bg-green-100 text-green-800"
+                                                          : "bg-orange-100 text-orange-800"
+                                                }`}
                                                             >
-                                                                {transcripts[
-                                                                    index
-                                                                ].format ===
-                                                                "vtt"
-                                                                    ? t(
-                                                                          "Subtitles",
-                                                                      )
-                                                                    : t(
-                                                                          "Transcript",
-                                                                      )}
+                                                                {transcript.isLive
+                                                                    ? t("Live")
+                                                                    : transcripts[
+                                                                            index
+                                                                        ]
+                                                                            .format ===
+                                                                        "vtt"
+                                                                      ? t(
+                                                                            "Subtitles",
+                                                                        )
+                                                                      : t(
+                                                                            "Transcript",
+                                                                        )}
                                                             </span>
                                                         </div>
 
@@ -538,143 +621,72 @@ function EditableTranscriptSelect({
                                                 <>
                                                     <DropdownMenuItem
                                                         className="sm:hidden text-xs"
-                                                        onClick={() => {
-                                                            let downloadText =
-                                                                transcripts[
-                                                                    activeTranscript
-                                                                ].text;
-                                                            const parsed =
-                                                                parse(
-                                                                    downloadText,
-                                                                );
-                                                            downloadText =
-                                                                build(
-                                                                    parsed.cues,
-                                                                    "srt",
-                                                                );
-
-                                                            const element =
-                                                                document.createElement(
-                                                                    "a",
-                                                                );
-                                                            const file =
-                                                                new Blob(
-                                                                    [
-                                                                        downloadText,
+                                                        onClick={() =>
+                                                            downloadTranscriptFile(
+                                                                {
+                                                                    ...transcripts[
+                                                                        activeTranscript
                                                                     ],
-                                                                    {
-                                                                        type: "text/plain",
-                                                                    },
-                                                                );
-                                                            element.href =
-                                                                URL.createObjectURL(
-                                                                    file,
-                                                                );
-                                                            element.download = `${transcripts[activeTranscript].name}.srt`;
-                                                            element.style.display =
-                                                                "none";
-                                                            document.body.appendChild(
-                                                                element,
-                                                            );
-                                                            element.click();
-                                                            setTimeout(() => {
-                                                                document.body.removeChild(
-                                                                    element,
-                                                                );
-                                                                URL.revokeObjectURL(
-                                                                    element.href,
-                                                                );
-                                                            }, 100);
-                                                        }}
+                                                                    selectedFormat:
+                                                                        "srt",
+                                                                },
+                                                            )
+                                                        }
                                                     >
                                                         {t("Download SRT")}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         className="sm:hidden text-xs"
-                                                        onClick={() => {
-                                                            const element =
-                                                                document.createElement(
-                                                                    "a",
-                                                                );
-                                                            const file =
-                                                                new Blob(
-                                                                    [
-                                                                        transcripts[
-                                                                            activeTranscript
-                                                                        ].text,
+                                                        onClick={() =>
+                                                            downloadTranscriptFile(
+                                                                {
+                                                                    ...transcripts[
+                                                                        activeTranscript
                                                                     ],
-                                                                    {
-                                                                        type: "text/plain",
-                                                                    },
-                                                                );
-                                                            element.href =
-                                                                URL.createObjectURL(
-                                                                    file,
-                                                                );
-                                                            element.download = `${transcripts[activeTranscript].name}.vtt`;
-                                                            element.style.display =
-                                                                "none";
-                                                            document.body.appendChild(
-                                                                element,
-                                                            );
-                                                            element.click();
-                                                            setTimeout(() => {
-                                                                document.body.removeChild(
-                                                                    element,
-                                                                );
-                                                                URL.revokeObjectURL(
-                                                                    element.href,
-                                                                );
-                                                            }, 100);
-                                                        }}
+                                                                    selectedFormat:
+                                                                        "vtt",
+                                                                },
+                                                            )
+                                                        }
                                                     >
                                                         {t("Download VTT")}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        className="sm:hidden text-xs"
+                                                        onClick={() =>
+                                                            downloadTranscriptFile(
+                                                                {
+                                                                    ...transcripts[
+                                                                        activeTranscript
+                                                                    ],
+                                                                    selectedFormat:
+                                                                        "txt",
+                                                                },
+                                                            )
+                                                        }
+                                                    >
+                                                        {t("Download .txt")}
                                                     </DropdownMenuItem>
                                                 </>
                                             ) : (
                                                 <DropdownMenuItem
                                                     className="sm:hidden text-xs"
-                                                    onClick={() => {
-                                                        const element =
-                                                            document.createElement(
-                                                                "a",
-                                                            );
-                                                        const file = new Blob(
-                                                            [
-                                                                transcripts[
-                                                                    activeTranscript
-                                                                ].text,
+                                                    onClick={() =>
+                                                        downloadTranscriptFile({
+                                                            ...transcripts[
+                                                                activeTranscript
                                                             ],
-                                                            {
-                                                                type: "text/plain",
-                                                            },
-                                                        );
-                                                        element.href =
-                                                            URL.createObjectURL(
-                                                                file,
-                                                            );
-                                                        element.download = `${transcripts[activeTranscript].name}.txt`;
-                                                        element.style.display =
-                                                            "none";
-                                                        document.body.appendChild(
-                                                            element,
-                                                        );
-                                                        element.click();
-                                                        setTimeout(() => {
-                                                            document.body.removeChild(
-                                                                element,
-                                                            );
-                                                            URL.revokeObjectURL(
-                                                                element.href,
-                                                            );
-                                                        }, 100);
-                                                    }}
+                                                            selectedFormat:
+                                                                "txt",
+                                                        })
+                                                    }
                                                 >
                                                     {t("Download .txt")}
                                                 </DropdownMenuItem>
                                             )}
                                             <DropdownMenuItem
-                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20 text-xs"
+                                                disabled={activeTrackIsLive}
+                                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20 text-xs disabled:cursor-not-allowed disabled:opacity-50"
                                                 onClick={() => {
                                                     if (
                                                         window.confirm(
@@ -719,25 +731,43 @@ function EditableTranscriptSelect({
 }
 
 function VideoPlayer({
+    mediaElementRef,
     videoLanguages,
     setYoutubePlayer,
     activeLanguage,
     onTimeUpdate,
+    currentTime,
     vttUrl,
+    vttKey,
+    activeSubtitleTrack,
+    liveOverlayTrack,
     videoInformation,
     copied,
     handleCopy,
+    onPlaybackErrorChange,
 }) {
     const [isAudioOnly, setIsAudioOnly] = useState(
         videoLanguages[activeLanguage]?.url?.includes(".mp3"),
     );
-    const videoRef = useRef(null);
+    const fallbackVideoRef = useRef(null);
+    const videoRef = mediaElementRef || fallbackVideoRef;
     const videoUrl =
         videoLanguages[activeLanguage]?.url || videoInformation?.videoUrl;
     const isYouTube = isYoutubeUrl(videoUrl);
     const embedUrl = isYouTube ? getYoutubeEmbedUrl(videoUrl) : videoUrl;
+    const playbackVideoUrl = isYouTube
+        ? videoUrl
+        : getMediaPlaybackUrl(videoUrl);
     const [videoError, setVideoError] = useState(false);
     const { t } = useTranslation();
+    const liveOverlayText = getLiveOverlayTextAtTime(
+        liveOverlayTrack,
+        currentTime,
+    );
+
+    useEffect(() => {
+        onPlaybackErrorChange?.(videoError);
+    }, [onPlaybackErrorChange, videoError]);
 
     useEffect(() => {
         if (!videoUrl || !isYouTube) return;
@@ -816,59 +846,84 @@ function VideoPlayer({
 
     return (
         <div className="flex flex-col gap-1">
-            <div
-                className={classNames(
-                    "rounded-lg flex justify-center items-center overflow-hidden",
-                    isAudioOnly ? "h-[50px] w-96" : "w-full bg-[#000] border",
-                )}
-            >
-                {videoError ? (
-                    <div className="w-full p-6 bg-gray-50 dark:bg-gray-800">
-                        <div className="text-gray-600 font-medium mb-2 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4" />
-                            {t("Video Unavailable")}
+            <div className={classNames("relative")}>
+                <div
+                    className={classNames(
+                        "rounded-lg flex justify-center items-center overflow-hidden",
+                        isAudioOnly
+                            ? "h-[50px] w-96"
+                            : "w-full bg-[#000] border",
+                    )}
+                >
+                    {videoError ? (
+                        <div className="w-full p-6 bg-gray-50 dark:bg-gray-800">
+                            <div className="text-gray-600 font-medium mb-2 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                {t("Video Unavailable")}
+                            </div>
+                            <p className="text-sm text-gray-500">
+                                {t(
+                                    "The video URL cannot be accessed. It may have expired or been deleted.",
+                                )}
+                            </p>
                         </div>
-                        <p className="text-sm text-gray-500">
-                            {t(
-                                "The video URL cannot be accessed. It may have expired or been deleted.",
-                            )}
-                        </p>
-                    </div>
-                ) : isYouTube ? (
-                    <div className="w-full relative h-[40vh] max-h-[40vh]">
-                        <div
-                            id="ytplayer"
-                            className="rounded-lg aspect-video mx-auto max-w-full h-full"
-                            src={embedUrl}
-                            allowFullScreen
-                            title="YouTube video player"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        />
-                    </div>
-                ) : (
-                    <video
-                        className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "w-full max-h-[40vh]"}`}
-                        ref={videoRef}
-                        src={videoUrl}
-                        controls
-                        onLoadedData={handleVideoReady}
-                        onError={handleVideoError}
-                        onTimeUpdate={() =>
-                            onTimeUpdate(videoRef.current?.currentTime)
-                        }
-                        controlsList="nodownload"
-                    >
-                        {vttUrl && (
-                            <track
-                                kind="subtitles"
-                                src={vttUrl}
-                                srcLang="en"
-                                label="English"
-                                default
+                    ) : isYouTube ? (
+                        <div className="w-full relative h-[40vh] max-h-[40vh]">
+                            <div
+                                id="ytplayer"
+                                className="rounded-lg aspect-video mx-auto max-w-full h-full"
+                                src={embedUrl}
+                                allowFullScreen
+                                title="YouTube video player"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             />
-                        )}
-                    </video>
-                )}
+                        </div>
+                    ) : (
+                        <video
+                            className={`rounded-lg ${isAudioOnly ? "h-[50px] w-96" : "w-full max-h-[40vh]"}`}
+                            ref={videoRef}
+                            src={playbackVideoUrl}
+                            controls
+                            onLoadedData={handleVideoReady}
+                            onError={handleVideoError}
+                            onTimeUpdate={() =>
+                                onTimeUpdate(videoRef.current?.currentTime)
+                            }
+                            controlsList="nodownload"
+                        >
+                            {vttUrl && (
+                                <track
+                                    key={vttKey}
+                                    kind="subtitles"
+                                    src={vttUrl}
+                                    srcLang={
+                                        activeSubtitleTrack?.targetLanguage ||
+                                        activeSubtitleTrack?.sourceLanguage ||
+                                        "en"
+                                    }
+                                    label={
+                                        activeSubtitleTrack?.name ||
+                                        t("Subtitles")
+                                    }
+                                    default
+                                />
+                            )}
+                        </video>
+                    )}
+                    {liveOverlayText && !isAudioOnly && !isYouTube && (
+                        <div className="pointer-events-none absolute inset-x-4 bottom-4 flex justify-center">
+                            <div className="max-w-[90%] rounded-md bg-black/75 px-3 py-2 text-center text-sm leading-snug text-white shadow-lg">
+                                <div className="mb-1 inline-flex items-center gap-1 rounded bg-red-600/90 px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                    {t("Live")}
+                                </div>
+                                <div className="line-clamp-3">
+                                    {liveOverlayText}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="">
@@ -1040,6 +1095,8 @@ function VideoInformationBox({
 function VideoPage() {
     const [transcripts, setTranscripts] = useState([]);
     const transcriptsRef = useRef(transcripts);
+    const activeTranscriptRef = useRef(0);
+    const videoElementRef = useRef(null);
     const videoInformationRef = useRef(null);
     const [activeTranscript, setActiveTranscript] = useState(0);
     const [url, setUrl] = useState("");
@@ -1054,6 +1111,7 @@ function VideoPage() {
         xaiTranscribeDefaultEnabled,
         transcribeDefaultModelOption,
         transcribeAlternateModelOption,
+        realtimeAudio,
     } = useContext(ServerContext);
     const { attemptedAutoTranscribe, markAttempted, setIsAutoTranscribing } =
         useAutoTranscribe();
@@ -1067,12 +1125,17 @@ function VideoPage() {
     const videoLanguagesRef = useRef(videoLanguages);
     const [activeLanguage, setActiveLanguage] = useState(0);
     const [copied, setCopied] = useState(false);
-    const [vttUrl, setVttUrl] = useState(null);
+    const [vttSource, setVttSource] = useState(null);
+    const [clearedLiveTrackId, setClearedLiveTrackId] = useState(null);
+    const [suppressPlayerSubtitleForLive, setSuppressPlayerSubtitleForLive] =
+        useState(false);
+    const [liveSessionActive, setLiveSessionActive] = useState(false);
     const { language } = useContext(LanguageContext);
     const [isUploading, setIsUploading] = useState(false);
     const [youtubePlayer, setYoutubePlayer] = useState(null);
     const [isYTPlaying, setIsYTPlaying] = useState(false);
     const [isRetranscribing, setIsRetranscribing] = useState(false);
+    const [videoPlaybackError, setVideoPlaybackError] = useState(false);
     const [autoTranscriptionTaskId, setAutoTranscriptionTaskId] =
         useState(null);
     const [retranscriptionTaskId, setRetranscriptionTaskId] = useState(null);
@@ -1165,6 +1228,10 @@ function VideoPage() {
     }, [transcripts]);
 
     useEffect(() => {
+        activeTranscriptRef.current = activeTranscript;
+    }, [activeTranscript]);
+
+    useEffect(() => {
         videoInformationRef.current = userState?.transcribe?.videoInformation;
     }, [userState?.transcribe?.videoInformation]);
 
@@ -1172,22 +1239,57 @@ function VideoPage() {
         videoLanguagesRef.current = videoLanguages;
     }, [videoLanguages]);
 
+    const activeSubtitleTrack = transcripts[activeTranscript] || null;
+    const isActiveLiveSubtitleTrack =
+        activeSubtitleTrack?.isLive &&
+        activeSubtitleTrack?.showOnVideo !== false;
+    const liveOverlayTrack =
+        isActiveLiveSubtitleTrack &&
+        activeSubtitleTrack?.liveTrackId !== clearedLiveTrackId
+            ? activeSubtitleTrack
+            : null;
+    const shouldSuppressPlayerSubtitle =
+        suppressPlayerSubtitleForLive ||
+        isActiveLiveSubtitleTrack ||
+        activeSubtitleTrack?.liveTrackId === clearedLiveTrackId;
+    const playerSubtitleTrack = shouldSuppressPlayerSubtitle
+        ? null
+        : activeSubtitleTrack;
+    const playerSubtitleTrackIdentity =
+        playerSubtitleTrack?.format === "vtt"
+            ? playerSubtitleTrack.liveTrackId ||
+              `${activeTranscript}:${playerSubtitleTrack.name || ""}:${
+                  playerSubtitleTrack.timestamp || ""
+              }`
+            : null;
+    const playerSubtitleTrackKey = playerSubtitleTrackIdentity
+        ? `${playerSubtitleTrackIdentity}:${getTextRevisionKey(
+              playerSubtitleTrack.text,
+          )}`
+        : null;
+    const vttUrl =
+        vttSource?.key === playerSubtitleTrackKey ? vttSource.url : null;
+
     // Handle VTT URL creation and cleanup
     useEffect(() => {
-        if (transcripts[activeTranscript]?.format === "vtt") {
-            const file = new Blob([transcripts[activeTranscript].text], {
+        if (playerSubtitleTrack?.format === "vtt" && playerSubtitleTrackKey) {
+            const file = new Blob([playerSubtitleTrack.text], {
                 type: "text/plain",
             });
             const url = URL.createObjectURL(file);
-            setVttUrl(url);
+            setVttSource({ key: playerSubtitleTrackKey, url });
 
             return () => {
                 URL.revokeObjectURL(url);
             };
         } else {
-            setVttUrl(null);
+            setVttSource(null);
         }
-    }, [transcripts, activeTranscript]);
+    }, [
+        playerSubtitleTrack?.format,
+        playerSubtitleTrack?.text,
+        playerSubtitleTrackKey,
+    ]);
 
     const handleCopy = async (text) => {
         try {
@@ -1216,17 +1318,23 @@ function VideoPage() {
     );
 
     const clearVideoInformation = () => {
+        videoInformationRef.current = null;
+        transcriptsRef.current = [];
+        activeTranscriptRef.current = 0;
         setVideoInformation("");
         setUrl("");
         setTranscripts([]);
         setVideoLanguages([]);
         setActiveLanguage(0);
-        updateUserState({
-            url: "",
-            videoInformation: null,
-            transcripts: [],
-            videoLanguages: [],
-        });
+        updateUserState(
+            {
+                url: "",
+                videoInformation: null,
+                transcripts: [],
+                videoLanguages: [],
+            },
+            { immediate: true },
+        );
     };
 
     useEffect(() => {
@@ -1269,7 +1377,17 @@ function VideoPage() {
                 userState.transcribe?.transcripts?.length !==
                 prevUserStateRef.current?.transcribe?.transcripts?.length
             ) {
-                setTranscripts(userState.transcribe?.transcripts || []);
+                setTranscripts(
+                    (userState.transcribe?.transcripts || []).map((track) =>
+                        track?.isLive && !liveSessionActive
+                            ? {
+                                  ...track,
+                                  isLive: false,
+                                  liveStatus: "interrupted",
+                              }
+                            : track,
+                    ),
+                );
             }
 
             if (
@@ -1445,8 +1563,7 @@ function VideoPage() {
                     }
                 }
             } else {
-                // For regular videos, use the video element API
-                const videoElement = document.querySelector("video");
+                const videoElement = videoElementRef.current;
                 if (videoElement) {
                     videoElement.currentTime = time;
                 }
@@ -1508,11 +1625,101 @@ function VideoPage() {
         // Ensure index is valid or default to 0
         const validIndex = index >= 0 && index < transcripts.length ? index : 0;
 
+        setClearedLiveTrackId(null);
         setActiveTranscript(validIndex);
+        activeTranscriptRef.current = validIndex;
         updateUserState({
             activeTranscript: validIndex,
         });
     };
+
+    const updateLiveSubtitleTrack = useCallback(
+        (track, { activate = false } = {}) => {
+            if (!track?.liveTrackId || !videoInformationRef.current?.videoUrl) {
+                return;
+            }
+
+            const currentTranscripts = transcriptsRef.current || [];
+            const existingIndex = currentTranscripts.findIndex(
+                (transcript) => transcript.liveTrackId === track.liveTrackId,
+            );
+            const nextTrack = {
+                ...(existingIndex >= 0
+                    ? currentTranscripts[existingIndex]
+                    : {}),
+                ...track,
+                timestamp:
+                    (existingIndex >= 0
+                        ? currentTranscripts[existingIndex]?.timestamp
+                        : null) ||
+                    track.timestamp ||
+                    new Date().toISOString(),
+            };
+            const updatedTranscripts =
+                existingIndex >= 0
+                    ? currentTranscripts.map((transcript, index) =>
+                          index === existingIndex ? nextTrack : transcript,
+                      )
+                    : [...currentTranscripts, nextTrack];
+            const liveTrackIndex =
+                existingIndex >= 0
+                    ? existingIndex
+                    : updatedTranscripts.length - 1;
+            const nextActiveTranscript = activate
+                ? liveTrackIndex
+                : activeTranscriptRef.current;
+
+            transcriptsRef.current = updatedTranscripts;
+            setTranscripts(updatedTranscripts);
+
+            if (activate) {
+                setClearedLiveTrackId(null);
+                setIsEditing(false);
+                setActiveTranscript(liveTrackIndex);
+                activeTranscriptRef.current = liveTrackIndex;
+            }
+
+            updateUserState({
+                videoInformation: videoInformationRef.current,
+                transcripts: updatedTranscripts,
+                activeTranscript: nextActiveTranscript,
+            });
+        },
+        [updateUserState],
+    );
+
+    const selectLiveSubtitleTrack = useCallback(
+        (liveTrackId) => {
+            const trackIndex = (transcriptsRef.current || []).findIndex(
+                (transcript) => transcript.liveTrackId === liveTrackId,
+            );
+            if (trackIndex < 0) return;
+
+            setClearedLiveTrackId(null);
+            setSuppressPlayerSubtitleForLive(false);
+            setIsEditing(false);
+            setActiveTranscript(trackIndex);
+            activeTranscriptRef.current = trackIndex;
+            updateUserState({
+                activeTranscript: trackIndex,
+            });
+        },
+        [updateUserState],
+    );
+
+    const clearActiveLiveSubtitleTrack = useCallback((liveTrackId) => {
+        const activeTrack =
+            (transcriptsRef.current || [])[activeTranscriptRef.current] || null;
+        if (!liveTrackId || activeTrack?.liveTrackId !== liveTrackId) return;
+
+        setClearedLiveTrackId(liveTrackId);
+        setSuppressPlayerSubtitleForLive(false);
+    }, []);
+
+    const handleLiveSessionActiveChange = useCallback((active) => {
+        setSuppressPlayerSubtitleForLive(active);
+        setLiveSessionActive(active);
+    }, []);
 
     // Add function to start transcription
     const startTranscription = useCallback(async () => {
@@ -1692,36 +1899,32 @@ function VideoPage() {
         );
     }
 
+    const activeLiveTrackId = activeSubtitleTrack?.liveTrackId;
+    const liveDisabledReason = isYoutubeUrl(videoInformation?.videoUrl)
+        ? t("Live capture needs a direct audio or video file.")
+        : videoPlaybackError
+          ? t("Video Unavailable")
+          : null;
+
     return (
         <TranscribeErrorBoundary>
             <div>
-                <div className="flex flex-col gap-4 mb-4">
-                    <div className="flex gap-4 justify-end">
-                        <div className="flex-shrink-0 sm:w-[13rem] flex justify-end">
-                            <div>
-                                <button
-                                    onClick={() => {
-                                        if (
-                                            window.confirm(
-                                                t(
-                                                    "Are you sure you want to start over?",
-                                                ),
-                                            )
-                                        ) {
-                                            markAttempted(false);
-                                            clearVideoInformation();
-                                        }
-                                    }}
-                                    className="lb-outline-secondary lb-sm flex items-center gap-2 flex-shrink-0"
-                                    aria-label="Clear video"
-                                >
-                                    <RefreshCwIcon className="w-4 h-4" />
-                                    {t("Start over")}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <PageHeader title={t("Transcription and translation")}>
+                    <HeaderAction
+                        icon={RefreshCwIcon}
+                        label={t("Start over")}
+                        onClick={() => {
+                            if (
+                                window.confirm(
+                                    t("Are you sure you want to start over?"),
+                                )
+                            ) {
+                                markAttempted(false);
+                                clearVideoInformation();
+                            }
+                        }}
+                    />
+                </PageHeader>
                 <div>
                     <div className="video-player-container overflow-hidden mb-4">
                         {isValidUrl(videoInformation?.videoUrl) ? (
@@ -1729,14 +1932,24 @@ function VideoPage() {
                                 <div className="flex gap-4 flex-col sm:flex-row">
                                     <div className="sm:w-[calc(100%-13rem)] flex flex-col gap-3">
                                         <VideoPlayer
+                                            mediaElementRef={videoElementRef}
                                             setYoutubePlayer={setYoutubePlayer}
                                             videoLanguages={videoLanguages}
                                             activeLanguage={activeLanguage}
                                             onTimeUpdate={setCurrentTime}
+                                            currentTime={currentTime}
                                             vttUrl={vttUrl}
+                                            vttKey={playerSubtitleTrackKey}
+                                            activeSubtitleTrack={
+                                                playerSubtitleTrack
+                                            }
+                                            liveOverlayTrack={liveOverlayTrack}
                                             videoInformation={videoInformation}
                                             copied={copied}
                                             handleCopy={handleCopy}
+                                            onPlaybackErrorChange={
+                                                setVideoPlaybackError
+                                            }
                                         />
                                     </div>
                                     <div className="flex flex-col gap-2 sm:w-[13rem]">
@@ -1753,11 +1966,6 @@ function VideoPage() {
                                                               )
                                                             : false;
 
-                                                    // Only show audio tracks section for video files
-                                                    if (isAudioFile) {
-                                                        return null;
-                                                    }
-
                                                     return (
                                                         <div className="border rounded-lg border-gray-200/50 dark:border-gray-600/50 p-3 space-y-3">
                                                             <div className="text-sm text-sky-600 font-semibold flex items-center gap-2">
@@ -1770,6 +1978,9 @@ function VideoPage() {
                                                             {/* Mobile Select View */}
                                                             <div className="sm:hidden">
                                                                 <Select
+                                                                    disabled={
+                                                                        liveSessionActive
+                                                                    }
                                                                     value={activeLanguage.toString()}
                                                                     onValueChange={(
                                                                         value,
@@ -1834,6 +2045,9 @@ function VideoPage() {
                                                                                             {idx !==
                                                                                                 0 && (
                                                                                                 <button
+                                                                                                    disabled={
+                                                                                                        liveSessionActive
+                                                                                                    }
                                                                                                     onClick={(
                                                                                                         e,
                                                                                                     ) => {
@@ -1862,7 +2076,7 @@ function VideoPage() {
                                                                                                             );
                                                                                                         }
                                                                                                     }}
-                                                                                                    className="text-gray-500 hover:text-red-500 transition-colors"
+                                                                                                    className="text-gray-500 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                                                                                                 >
                                                                                                     <TrashIcon className="h-3 w-3" />
                                                                                                 </button>
@@ -1905,12 +2119,15 @@ function VideoPage() {
                                                                         >
                                                                             <div className="flex w-[13rem] rounded-md border border-gray-200 dark:border-gray-600 overflow-hidden">
                                                                                 <button
+                                                                                    disabled={
+                                                                                        liveSessionActive
+                                                                                    }
                                                                                     onClick={() => {
                                                                                         setActiveLanguage(
                                                                                             idx,
                                                                                         );
                                                                                     }}
-                                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 transition-colors
+                                                                                    className={`grow truncate text-start text-xs px-3 py-1.5 hover:bg-sky-100 active:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-50 transition-colors
                                                                             ${activeLanguage === idx ? "bg-sky-50 dark:bg-sky-900/20 text-gray-900 dark:text-gray-100" : "text-gray-600 dark:text-gray-400"}`}
                                                                                 >
                                                                                     {lang.label ||
@@ -1931,6 +2148,9 @@ function VideoPage() {
                                                                                         activeLanguage ===
                                                                                             idx && (
                                                                                             <button
+                                                                                                disabled={
+                                                                                                    liveSessionActive
+                                                                                                }
                                                                                                 onClick={(
                                                                                                     e,
                                                                                                 ) => {
@@ -1993,19 +2213,55 @@ function VideoPage() {
                                                                 )}
                                                             </div>
 
-                                                            <button
-                                                                onClick={() =>
-                                                                    setShowTranslateDialog(
-                                                                        true,
-                                                                    )
+                                                            {!isAudioFile && (
+                                                                <button
+                                                                    disabled={
+                                                                        liveSessionActive
+                                                                    }
+                                                                    onClick={() =>
+                                                                        setShowTranslateDialog(
+                                                                            true,
+                                                                        )
+                                                                    }
+                                                                    className="lb-outline-secondary lb-sm flex items-center gap-1 w-full disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    <PlusIcon className="h-4 w-4" />
+                                                                    {t(
+                                                                        "Add audio track",
+                                                                    )}
+                                                                </button>
+                                                            )}
+
+                                                            <RealtimeAudioLiveControls
+                                                                mediaElementRef={
+                                                                    videoElementRef
                                                                 }
-                                                                className="lb-outline-secondary lb-sm flex items-center gap-1 w-full"
-                                                            >
-                                                                <PlusIcon className="h-4 w-4" />
-                                                                {t(
-                                                                    "Add audio track",
-                                                                )}
-                                                            </button>
+                                                                realtimeAudio={
+                                                                    realtimeAudio
+                                                                }
+                                                                disabledReason={
+                                                                    liveDisabledReason
+                                                                }
+                                                                onLiveTrackUpdate={
+                                                                    updateLiveSubtitleTrack
+                                                                }
+                                                                onSelectLiveTrack={
+                                                                    selectLiveSubtitleTrack
+                                                                }
+                                                                onClearLiveTrack={
+                                                                    clearActiveLiveSubtitleTrack
+                                                                }
+                                                                onLiveSessionActiveChange={
+                                                                    handleLiveSessionActiveChange
+                                                                }
+                                                                activeLiveTrackId={
+                                                                    activeLiveTrackId
+                                                                }
+                                                                activeLiveTrackRole={
+                                                                    activeSubtitleTrack?.liveRole
+                                                                }
+                                                                className="border-t border-gray-200/70 pt-3 dark:border-gray-700"
+                                                            />
                                                         </div>
                                                     );
                                                 })()}
@@ -2128,6 +2384,7 @@ function VideoPage() {
                     isEditing={isEditing}
                     setIsEditing={setIsEditing}
                     onDeleteTrack={() => {
+                        if (transcripts[activeTranscript || 0]?.isLive) return;
                         const updatedTranscripts = transcripts.filter(
                             (_, index) => index !== (activeTranscript || 0),
                         );
@@ -2190,7 +2447,9 @@ function VideoPage() {
                                 onRetranscribe={handleRetranscribe}
                                 isRetranscribing={isRetranscribing}
                                 showRetranscribeButton={
-                                    !transcripts[activeTranscript].isAlternative
+                                    !transcripts[activeTranscript]
+                                        .isAlternative &&
+                                    !transcripts[activeTranscript].isLive
                                 }
                                 url={videoInformation?.videoUrl || url}
                             />

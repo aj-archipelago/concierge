@@ -7,7 +7,7 @@ const audioDataUrl =
 
 const mediaModels = [
     {
-        modelId: "gemini-31-flash-image-preview",
+        modelId: "gemini-flash-31-image",
         displayName: "Gemini 3.1 Flash Image",
         category: "image",
         provider: "gemini",
@@ -43,7 +43,7 @@ const referenceImage = {
     taskId: "media-image-1",
     cortexRequestId: "media-image-1",
     type: "image",
-    model: "gemini-31-flash-image-preview",
+    model: "gemini-flash-31-image",
     status: "completed",
     prompt: "Reference newsroom frame",
     url: imageDataUrl,

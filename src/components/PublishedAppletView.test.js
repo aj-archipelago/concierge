@@ -99,3 +99,7 @@ describe("PublishedAppletView", () => {
         expect(screen.getByTestId("output-sandbox")).toBeInTheDocument();
     });
 });
+
+jest.mock("../contexts/LanguageProvider", () => ({
+    LanguageContext: require("react").createContext({ direction: "ltr" }),
+}));

@@ -239,6 +239,74 @@ describe("chatSlice — per-chat canvas state", () => {
         expect(state.canvasByChatId.__pending__).toBeUndefined();
     });
 
+    test("restoreCanvasState attaches a legacy single-blob shape to the active chat when one is already known", () => {
+        let state = emptyChatState();
+        state = chatReducer(state, setActiveCanvasChat("chat-A"));
+        const legacy = {
+            canvasContent: { type: "html", title: "Legacy" },
+            canvasTabs: [
+                {
+                    id: "t1",
+                    content: { type: "html", title: "Legacy" },
+                    title: "Legacy",
+                },
+            ],
+            activeTabId: "t1",
+            canvasVisible: true,
+        };
+
+        state = chatReducer(state, restoreCanvasState(legacy));
+
+        expect(state.canvasContent?.title).toBe("Legacy");
+        expect(state.canvasByChatId["chat-A"].canvasContent?.title).toBe(
+            "Legacy",
+        );
+        expect(state.canvasByChatId.__pending__).toBeUndefined();
+
+        state = chatReducer(state, setActiveCanvasChat("chat-B"));
+        expect(state.canvasContent).toBeNull();
+        expect(state.canvasTabs).toHaveLength(0);
+        expect(state.canvasByChatId["chat-B"]).toBeUndefined();
+    });
+
+    test("restoreCanvasState does not clobber an active canvas with late legacy state", () => {
+        let state = emptyChatState();
+        state = chatReducer(state, setActiveCanvasChat("chat-A"));
+        state = chatReducer(
+            state,
+            openCanvas({
+                tabId: "fresh-tab",
+                type: "html",
+                title: "Fresh Applet",
+                filename: "fresh.html",
+            }),
+        );
+
+        const legacy = {
+            canvasContent: { type: "html", title: "Legacy" },
+            canvasTabs: [
+                {
+                    id: "legacy-tab",
+                    content: { type: "html", title: "Legacy" },
+                    title: "Legacy",
+                },
+            ],
+            activeTabId: "legacy-tab",
+            canvasVisible: true,
+        };
+
+        state = chatReducer(state, restoreCanvasState(legacy));
+
+        expect(state.canvasContent?.title).toBe("Fresh Applet");
+        expect(state.activeTabId).toBe("fresh-tab");
+        expect(state.canvasByChatId["chat-A"].canvasContent?.title).toBe(
+            "Fresh Applet",
+        );
+        expect(state.canvasByChatId.__pending__.canvasContent?.title).toBe(
+            "Legacy",
+        );
+    });
+
     test("setCanvasVisibility writes through to the active bucket", () => {
         let state = emptyChatState();
         state = chatReducer(state, setActiveCanvasChat("chat-A"));

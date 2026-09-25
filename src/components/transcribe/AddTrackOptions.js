@@ -335,6 +335,8 @@ export default function TranscribeVideo({
         xaiTranscribeEnabled,
         xaiTranscribeDefaultEnabled,
         maiTranscribeEnabled,
+        gemini35TranscribeEnabled,
+        scribeV2TranscribeEnabled,
         transcribeDefaultModelOption,
     } = useContext(ServerContext);
     const defaultModelOption = getDefaultTranscribeModelOption(
@@ -398,11 +400,20 @@ export default function TranscribeVideo({
         ) {
             setSelectedModelOption(defaultModelOption);
         }
+        if (
+            (!gemini35TranscribeEnabled &&
+                selectedModelOption === "Gemini 3.5 Transcribe") ||
+            (!scribeV2TranscribeEnabled && selectedModelOption === "Scribe v2")
+        ) {
+            setSelectedModelOption(defaultModelOption);
+        }
     }, [
         defaultModelOption,
         selectedModelOption,
         xaiTranscribeEnabled,
         maiTranscribeEnabled,
+        gemini35TranscribeEnabled,
+        scribeV2TranscribeEnabled,
     ]);
 
     const handleModelOptionChange = useCallback((value) => {
@@ -658,6 +669,8 @@ export default function TranscribeVideo({
                     neuralspaceEnabled={neuralspaceEnabled}
                     xaiTranscribeEnabled={xaiTranscribeEnabled}
                     maiTranscribeEnabled={maiTranscribeEnabled}
+                    gemini35TranscribeEnabled={gemini35TranscribeEnabled}
+                    scribeV2TranscribeEnabled={scribeV2TranscribeEnabled}
                     disabled={isYouTubeVideo}
                 />
             </div>
@@ -847,6 +860,8 @@ function ModelSelector({
     neuralspaceEnabled,
     xaiTranscribeEnabled,
     maiTranscribeEnabled,
+    gemini35TranscribeEnabled,
+    scribeV2TranscribeEnabled,
     disabled,
 }) {
     const { t } = useTranslation();
@@ -863,6 +878,14 @@ function ModelSelector({
                 <option value="NeuralSpace">{t("NeuralSpace")}</option>
             )}
             <option value="Gemini">{t("Gemini")}</option>
+            {gemini35TranscribeEnabled && (
+                <option value="Gemini 3.5 Transcribe">
+                    {t("Gemini 3.5 Transcribe")}
+                </option>
+            )}
+            {scribeV2TranscribeEnabled && (
+                <option value="Scribe v2">{t("Scribe v2")}</option>
+            )}
             {maiTranscribeEnabled && (
                 <option value="MAI-Transcribe-1.5">
                     {t("MAI-Transcribe-1.5")}

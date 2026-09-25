@@ -2,7 +2,7 @@
 id: "keyboard-shortcuts"
 title: "Keyboard Shortcuts & Tips"
 category: "general"
-date: "2025-04-17T09:00:00Z"
+date: "2026-09-04"
 ---
 
 ## Keyboard Shortcuts & Tips
@@ -30,5 +30,5 @@ Speed up your workflow with these keyboard shortcuts and productivity tips.
 
 - Use **applets** for repetitive tasks — create a custom applet once, reuse it forever
 - **Upload files** directly in chat for quick AI analysis
-- Check the **Home page** for a digest of recent activity
+- Customize **Home** with applet shortcuts, interactive widgets, and automation reports
 - Use **Translate** for quick text translations instead of asking in chat for better results

@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 
-import { GET } from "./route.js";
+import { GET, PUT } from "./route.js";
 import Share from "../../../models/share.js";
 
 const entityId = "69fcdbb6ac8ccc9ef8a8c0b4";
@@ -25,8 +25,16 @@ jest.mock("../../../models/share.js", () => ({
             populate: jest.fn().mockReturnThis(),
             lean: jest.fn(async () => null),
         })),
+        findOneAndUpdate: jest.fn(async () => ({})),
     },
-    SHARE_ENTITY_TYPES: ["chat", "workspace", "applet", "automation"],
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+        "article",
+    ],
     SHARE_ROLES: ["viewer", "editor"],
 }));
 
@@ -96,6 +104,90 @@ describe("GET /api/shares/[entityType]/[entityId]", () => {
             entityId,
             link: { enabled: true, role: "viewer" },
             recipients: [],
+        });
+    });
+
+    it("normalizes stale viewer-only roles when reading share settings", async () => {
+        const recipientId = "507f191e810c19729de860eb";
+        Share.findOne.mockReturnValueOnce({
+            populate: jest.fn().mockReturnThis(),
+            lean: jest.fn(async () => ({
+                entityType: "workspace",
+                entityId,
+                link: { enabled: true, role: "editor" },
+                recipients: [
+                    {
+                        userId: {
+                            _id: recipientId,
+                            name: "Recipient",
+                            username: "recipient",
+                        },
+                        role: "editor",
+                    },
+                ],
+                updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+            })),
+        });
+
+        const response = await GET(
+            {},
+            {
+                params: Promise.resolve({
+                    entityType: "workspace",
+                    entityId,
+                }),
+            },
+        );
+
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        expect(body.link).toEqual({ enabled: true, role: "viewer" });
+        expect(body.recipients).toEqual([
+            expect.objectContaining({
+                userId: recipientId,
+                role: "viewer",
+            }),
+        ]);
+    });
+
+    it("forces viewer-only link roles for workspaces", async () => {
+        Share.findOne
+            .mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    lean: jest.fn(async () => null),
+                }),
+            })
+            .mockReturnValueOnce({
+                populate: jest.fn().mockReturnThis(),
+                lean: jest.fn(async () => ({
+                    entityType: "workspace",
+                    entityId,
+                    link: { enabled: true, role: "viewer" },
+                    recipients: [],
+                    updatedAt: new Date("2026-07-03T00:00:00.000Z"),
+                })),
+            });
+
+        const response = await PUT(
+            {
+                json: async () => ({
+                    link: { enabled: true, role: "editor" },
+                }),
+            },
+            {
+                params: Promise.resolve({
+                    entityType: "workspace",
+                    entityId,
+                }),
+            },
+        );
+        const body = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(body.link).toEqual({ enabled: true, role: "viewer" });
+        expect(Share.findOneAndUpdate.mock.calls[0][1].$set.link).toEqual({
+            enabled: true,
+            role: "viewer",
         });
     });
 });

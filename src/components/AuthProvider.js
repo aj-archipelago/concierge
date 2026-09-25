@@ -6,6 +6,7 @@ import {
     isAzureAppService,
     triggerAuthRefresh,
     checkAuthHeaders,
+    sanitizeAppRedirect,
 } from "../utils/auth";
 
 const AuthContext = createContext();
@@ -51,7 +52,10 @@ export const AuthProvider = ({ children }) => {
                         window.history.replaceState({}, "", newUrl.toString());
 
                         // Redirect to the original URL
-                        window.location.href = redirectUrl;
+                        window.location.href = sanitizeAppRedirect(
+                            redirectUrl,
+                            window.location.origin,
+                        );
                     } else {
                         setAuthError("Authentication failed");
                     }

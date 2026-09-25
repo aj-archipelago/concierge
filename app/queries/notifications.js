@@ -7,6 +7,7 @@ import {
 import axios from "../utils/axios-client";
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AuthContext } from "../../src/App";
+import { applyChatTaskStatusToActiveChats } from "../../src/utils/chatsUnread";
 
 const clientSideCompletionHandlers = {
     "subtitle-translate": async ({ refetchUserState }) => {
@@ -25,9 +26,9 @@ const clientSideCompletionHandlers = {
         queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
     },
     "automation-run": async ({ queryClient }) => {
-        queryClient.invalidateQueries({ queryKey: ["automations"] });
         queryClient.invalidateQueries({
-            queryKey: ["automations", "pinned"],
+            queryKey: ["automations"],
+            exact: true,
         });
         queryClient.invalidateQueries({ queryKey: ["currentUserDigest"] });
     },
@@ -85,6 +86,7 @@ export function useTask(id) {
             ) {
                 return 5000;
             }
+            if (query.state.data?.status === "waiting") return 15000;
             return false;
         },
         refetchIntervalInBackground: true,
@@ -94,7 +96,7 @@ export function useTask(id) {
 const INBOX_NOTIFICATION_POLL_MS = 60_000;
 const LIVE_TASK_IDLE_POLL_MS = 30_000;
 const LIVE_TASK_ACTIVE_POLL_MS = 5_000;
-const ACTIVE_TASK_STATUSES = new Set(["in_progress", "pending"]);
+const ACTIVE_TASK_STATUSES = new Set(["in_progress", "pending", "waiting"]);
 const TERMINAL_TASK_STATUSES = new Set([
     "abandoned",
     "cancelled",
@@ -134,6 +136,7 @@ export function mergeInboxWithLiveTasks(inboxData, liveData) {
         }
 
         seenIds.add(itemId);
+        if (item.team) return item;
         return {
             ...item,
             ...liveTaskById.get(itemId),
@@ -146,6 +149,9 @@ export function mergeInboxWithLiveTasks(inboxData, liveData) {
             taskId &&
             !seenIds.has(taskId) &&
             !task.dismissed &&
+            task.type !== "build-digest" &&
+            !task.assistantProgress?.teamId &&
+            !(task.assistantTeamRevision > 0) &&
             isActiveTask(task)
         ) {
             requests.unshift(task);
@@ -214,6 +220,81 @@ export function reconcileTrackedTaskIds(
     return Array.from(next).sort();
 }
 
+export function getLiveTaskRefetchInterval(liveQueryResult, trackedTaskIdKey) {
+    const data = liveQueryResult?.state?.data;
+    const hasActiveTasks =
+        (data?.activeTaskCount || 0) > 0 ||
+        (data?.tasks || []).some(isActiveTask);
+
+    if (hasActiveTasks) {
+        return LIVE_TASK_ACTIVE_POLL_MS;
+    }
+
+    // Keep a slow poll only while we still track ids awaiting inbox catch-up.
+    // Never treat "has tracked ids" as active — that forced 5s polling forever
+    // after completion and amplified inbox/digest invalidation storms.
+    if (trackedTaskIdKey) {
+        return LIVE_TASK_IDLE_POLL_MS;
+    }
+
+    return false;
+}
+
+function buildTaskStatusMap(items) {
+    const map = new Map();
+    (items || []).forEach((item) => {
+        const id = getItemId(item);
+        if (id) map.set(id, item.status);
+    });
+    return map;
+}
+
+export function shouldClearHandledTaskGuards(previousStatus, nextItem) {
+    if (!isActiveTask(nextItem)) return false;
+    // Clear only when the task newly becomes active (retry / re-run), not on
+    // every inbox poll while a stale in_progress row lags behind live terminal.
+    return !ACTIVE_TASK_STATUSES.has(previousStatus);
+}
+
+function patchInboxWithTerminalTasks(inboxData, terminalTasks) {
+    if (!inboxData?.requests?.length || terminalTasks.length === 0) {
+        return inboxData;
+    }
+
+    const terminalById = new Map(
+        terminalTasks
+            .map((task) => [getItemId(task), task])
+            .filter(([id]) => id),
+    );
+    let changed = false;
+    let completedActiveCount = 0;
+
+    const requests = inboxData.requests.map((item) => {
+        const id = getItemId(item);
+        const terminal = id ? terminalById.get(id) : null;
+        if (!terminal) return item;
+        if (isActiveTask(item)) {
+            completedActiveCount += 1;
+        }
+        changed = true;
+        return {
+            ...item,
+            ...terminal,
+        };
+    });
+
+    if (!changed) return inboxData;
+
+    return {
+        ...inboxData,
+        requests,
+        activeTaskCount: Math.max(
+            0,
+            (inboxData.activeTaskCount || 0) - completedActiveCount,
+        ),
+    };
+}
+
 export function useInbox(showDismissed = false) {
     const queryClient = useQueryClient();
     const { refetchUserState } = useContext(AuthContext);
@@ -222,6 +303,9 @@ export function useInbox(showDismissed = false) {
     trackedTaskIdsRef.current = trackedTaskIds;
     const handledTerminalTaskIdsRef = useRef(new Set());
     const handledCompletionTaskIdsRef = useRef(new Set());
+    // Task ids that live currently reports as terminal. Prevents a stale inbox
+    // refetch (still in_progress) from looking like a retry and clearing guards.
+    const liveTerminalTaskIdsRef = useRef(new Set());
     const previousInboxRequestsRef = useRef(null);
 
     const invalidateInbox = () => {
@@ -236,7 +320,12 @@ export function useInbox(showDismissed = false) {
             );
             return data;
         },
-        refetchInterval: () => INBOX_NOTIFICATION_POLL_MS,
+        refetchInterval: (query) =>
+            query.state.data?.requests?.some(
+                (item) => item.team && ACTIVE_TASK_STATUSES.has(item.status),
+            )
+                ? LIVE_TASK_ACTIVE_POLL_MS
+                : INBOX_NOTIFICATION_POLL_MS,
         refetchIntervalInBackground: true,
     });
 
@@ -244,21 +333,36 @@ export function useInbox(showDismissed = false) {
         previousInboxRequestsRef.current = null;
         handledTerminalTaskIdsRef.current.clear();
         handledCompletionTaskIdsRef.current.clear();
+        liveTerminalTaskIdsRef.current.clear();
     }, [showDismissed]);
 
     useEffect(() => {
         const requests = query.data?.requests;
         if (!Array.isArray(requests)) return;
 
-        requests.filter(isActiveTask).forEach((task) => {
-            const id = getItemId(task);
-            if (!id) return;
-            handledTerminalTaskIdsRef.current.delete(id);
-            handledCompletionTaskIdsRef.current.delete(id);
-        });
-
         const previousRequests = previousInboxRequestsRef.current;
         previousInboxRequestsRef.current = requests;
+
+        const previousStatusById = buildTaskStatusMap(previousRequests);
+
+        // Only clear completion guards when a task newly becomes active
+        // (retry). Clearing on every active sighting races with live terminal
+        // detection when inbox still lags behind and re-triggers digest/inbox
+        // invalidation in a tight loop.
+        requests.forEach((item) => {
+            const id = getItemId(item);
+            if (!id) return;
+            if (liveTerminalTaskIdsRef.current.has(id)) {
+                return;
+            }
+            if (
+                shouldClearHandledTaskGuards(previousStatusById.get(id), item)
+            ) {
+                handledTerminalTaskIdsRef.current.delete(id);
+                handledCompletionTaskIdsRef.current.delete(id);
+            }
+        });
+
         if (!previousRequests) return;
 
         const previousById = new Map(
@@ -284,6 +388,7 @@ export function useInbox(showDismissed = false) {
             queryClient.invalidateQueries({
                 queryKey: ["tasks", id],
             });
+            applyChatTaskStatusToActiveChats(queryClient, item);
         });
     }, [query.data?.requests, queryClient, refetchUserState]);
 
@@ -316,36 +421,69 @@ export function useInbox(showDismissed = false) {
     }, [showDismissed, inboxActiveTaskIdKey]);
 
     const liveQuery = useQuery({
-        queryKey: ["tasks", "live", trackedTaskIdKey],
+        // Tracked ids shape the request, not the identity of the live feed.
+        // Keying by ids restores an older running snapshot when a completed
+        // id is removed, which re-adds it and loops between the two caches.
+        queryKey: ["tasks", "live"],
         enabled: !showDismissed,
-        queryFn: async () => {
-            const trackedIds = decodeTaskIds(trackedTaskIdKey);
+        queryFn: async ({ signal }) => {
+            const trackedIds = trackedTaskIdsRef.current;
             const params = trackedIds.length
                 ? `?ids=${encodeURIComponent(trackedIds.join(","))}`
                 : "";
-            const { data } = await axios.get(`/api/tasks/live${params}`);
+            const { data } = await axios.get(`/api/tasks/live${params}`, {
+                signal,
+            });
             return data;
         },
-        refetchInterval: (liveQueryResult) => {
-            const data = liveQueryResult.state.data;
-            const hasActiveTasks =
-                (data?.activeTaskCount || 0) > 0 ||
-                (data?.tasks || []).some(isActiveTask) ||
-                Boolean(trackedTaskIdKey);
-            return hasActiveTasks
-                ? LIVE_TASK_ACTIVE_POLL_MS
-                : LIVE_TASK_IDLE_POLL_MS;
-        },
+        refetchInterval: (liveQueryResult) =>
+            getLiveTaskRefetchInterval(liveQueryResult, trackedTaskIdKey),
         refetchIntervalInBackground: true,
     });
+    const refetchLiveTasks = liveQuery.refetch;
 
     useEffect(() => {
-        if (showDismissed || !liveQuery.data) return;
+        if (showDismissed || !trackedTaskIdKey) return;
+        // Newly discovered ids need a fresh status, including tasks that have
+        // finished since the inbox response. Keep the last live snapshot while
+        // fetching; dropping the final tracked id needs no extra request.
+        refetchLiveTasks();
+    }, [showDismissed, trackedTaskIdKey, refetchLiveTasks]);
 
-        const liveTasks = liveQuery.data.tasks || [];
-        liveTasks.filter(isActiveTask).forEach((task) => {
+    const liveTaskStatusKey = useMemo(() => {
+        const tasks = liveQuery.data?.tasks || [];
+        return encodeTaskIds(
+            tasks
+                .map((task) => {
+                    const id = getItemId(task);
+                    return id ? `${id}:${task.status}` : null;
+                })
+                .filter(Boolean)
+                .sort(),
+        );
+    }, [liveQuery.data?.tasks]);
+    const liveQueryDataRef = useRef(liveQuery.data);
+    liveQueryDataRef.current = liveQuery.data;
+    const previousLiveStatusByIdRef = useRef(new Map());
+
+    useEffect(() => {
+        if (showDismissed || !liveQueryDataRef.current) return;
+
+        const liveTasks = liveQueryDataRef.current.tasks || [];
+        const previousStatusById = previousLiveStatusByIdRef.current;
+        previousLiveStatusByIdRef.current = buildTaskStatusMap(liveTasks);
+
+        liveTasks.forEach((task) => {
             const id = getItemId(task);
-            if (id) {
+            if (!id) return;
+            if (isTerminalTask(task)) {
+                liveTerminalTaskIdsRef.current.add(id);
+            } else if (isActiveTask(task)) {
+                liveTerminalTaskIdsRef.current.delete(id);
+            }
+            if (
+                shouldClearHandledTaskGuards(previousStatusById.get(id), task)
+            ) {
                 handledTerminalTaskIdsRef.current.delete(id);
                 handledCompletionTaskIdsRef.current.delete(id);
             }
@@ -362,6 +500,11 @@ export function useInbox(showDismissed = false) {
         });
 
         if (unhandledTerminalTasks.length > 0) {
+            // Patch inbox immediately so a lagging in_progress row cannot clear
+            // handled guards and re-invalidate digest/inbox on the next tick.
+            queryClient.setQueryData(["inbox", showDismissed], (old) =>
+                patchInboxWithTerminalTasks(old, unhandledTerminalTasks),
+            );
             queryClient.invalidateQueries({
                 queryKey: ["inbox", showDismissed],
                 exact: true,
@@ -371,6 +514,7 @@ export function useInbox(showDismissed = false) {
         unhandledTerminalTasks.forEach((task) => {
             const id = getItemId(task);
             handledTerminalTaskIdsRef.current.add(id);
+            liveTerminalTaskIdsRef.current.add(id);
 
             runClientSideCompletionHandler(task, {
                 queryClient,
@@ -381,6 +525,12 @@ export function useInbox(showDismissed = false) {
             queryClient.invalidateQueries({
                 queryKey: ["tasks", id],
             });
+            applyChatTaskStatusToActiveChats(queryClient, task);
+        });
+
+        // Keep sidebar gray pulse in sync while chat-sourced tasks are running.
+        liveTasks.filter(isActiveTask).forEach((task) => {
+            applyChatTaskStatusToActiveChats(queryClient, task);
         });
 
         const activeInboxTaskIds = decodeTaskIds(inboxActiveTaskIdKey);
@@ -389,9 +539,7 @@ export function useInbox(showDismissed = false) {
             inboxActiveTaskIds: activeInboxTaskIds,
         });
         if (!listsEqual(currentTrackedIds, nextTrackedIds)) {
-            // Use functional updater so we always reconcile against the latest
-            // trackedTaskIds without needing it in the dep array (which would
-            // create a feedback loop: setState -> dep changes -> effect re-runs).
+            // Reconcile against any ids added by the inbox effect in this pass.
             setTrackedTaskIds((prev) => {
                 const next = reconcileTrackedTaskIds(prev, {
                     liveTasks,
@@ -400,12 +548,15 @@ export function useInbox(showDismissed = false) {
                 return listsEqual(prev, next) ? prev : next;
             });
         }
+        // Depend on status fingerprint, not liveQuery.data object identity —
+        // progress/heartbeat updates must not re-enter invalidation logic.
     }, [
         inboxActiveTaskIdKey,
-        liveQuery.data,
+        liveTaskStatusKey,
         queryClient,
         refetchUserState,
         showDismissed,
+        trackedTaskIdKey,
     ]);
 
     const data = useMemo(
@@ -433,35 +584,47 @@ export function useMarkNotificationsRead() {
             await queryClient.cancelQueries({ queryKey: ["inbox"] });
 
             queryClient.setQueriesData({ queryKey: ["inbox"] }, (old) => {
-                if (!old?.requests) {
-                    return old;
-                }
-
-                const nextRequests = old.requests.map((item) => {
-                    if (item.inboxKind !== "notification") {
+                const markPage = (page) => {
+                    if (!page?.requests) return page;
+                    let marked = 0;
+                    const requests = page.requests.map((item) => {
+                        if (item.team) {
+                            const remaining = all
+                                ? []
+                                : (item.notificationIds || []).filter(
+                                      (id) => !ids?.includes(id),
+                                  );
+                            const read = remaining.length === 0;
+                            if (!item.read && read) marked += 1;
+                            return {
+                                ...item,
+                                read,
+                                notificationIds: remaining,
+                            };
+                        }
+                        if (
+                            item.inboxKind === "notification" &&
+                            (all || ids?.includes(item._id))
+                        ) {
+                            if (!item.read) marked += 1;
+                            return { ...item, read: true };
+                        }
                         return item;
-                    }
-                    if (all || ids?.includes(item._id)) {
-                        return { ...item, read: true };
-                    }
-                    return item;
-                });
-
-                let unreadNotificationCount = old.unreadNotificationCount ?? 0;
-                if (all) {
-                    unreadNotificationCount = 0;
-                } else if (ids?.length) {
-                    unreadNotificationCount = Math.max(
-                        0,
-                        unreadNotificationCount - ids.length,
-                    );
-                }
-
-                return {
-                    ...old,
-                    requests: nextRequests,
-                    unreadNotificationCount,
+                    });
+                    return {
+                        ...page,
+                        requests,
+                        unreadNotificationCount: all
+                            ? 0
+                            : Math.max(
+                                  0,
+                                  (page.unreadNotificationCount || 0) - marked,
+                              ),
+                    };
                 };
+                return old?.pages
+                    ? { ...old, pages: old.pages.map(markPage) }
+                    : markPage(old);
             });
         },
         onSettled: () => {
@@ -574,6 +737,8 @@ export function useInfiniteInbox() {
             );
             return response.json();
         },
+        refetchInterval: 5000,
+        refetchIntervalInBackground: false,
         getNextPageParam: (lastPage, pages) => {
             return lastPage.hasMore ? pages.length + 1 : undefined;
         },

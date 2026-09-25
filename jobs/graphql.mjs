@@ -1,9 +1,10 @@
+import { cortexGrantFetch } from "../app/api/utils/cortex-grants.mjs";
 import { gql } from "@apollo/client/index.js";
 
 const CORTEX_GRAPHQL_API_URL =
     process.env.CORTEX_GRAPHQL_API_URL || "http://localhost:4000/graphql";
 
-const getClient = async (serverUrl) => {
+const getClient = async (serverUrl, { keepAlive = 0 } = {}) => {
     const apollo = await import("@apollo/client/index.js");
     const { ApolloClient, InMemoryCache, split, HttpLink } = apollo;
     const { GraphQLWsLink } = await import(
@@ -24,6 +25,7 @@ const getClient = async (serverUrl) => {
 
     const httpLink = new HttpLink({
         uri: graphqlEndpoint,
+        fetch: cortexGrantFetch,
     });
 
     const wsLink = new GraphQLWsLink(
@@ -31,6 +33,7 @@ const getClient = async (serverUrl) => {
             url: graphqlEndpoint.replace("http", "ws"),
             webSocketImpl: WebSocket.default,
             connectionParams: {},
+            keepAlive,
             on: {
                 connected: () => console.log("GraphQL WebSocket connected"),
                 error: (error) =>
@@ -122,6 +125,7 @@ const SYS_SAVE_MEMORY = gql`
 
 const SYS_ENTITY_AGENT = gql`
     query StartAgent(
+        $citationFormat: String
         $chatHistory: [MultiMessage]!
         $fileAccessPlan: [FileAccessTargetInput]
         $contextId: String
@@ -131,16 +135,19 @@ const SYS_ENTITY_AGENT = gql`
         $aiMemorySelfModify: Boolean
         $title: String
         $stream: Boolean
+        $async: Boolean
         $entityId: String
         $chatId: String
         $reasoningEffort: String
         $model: String
         $userInfo: String
         $clientSideTools: String
+        $agentToolsToken: String
         $mcpConfig: String
         $mcpAvailableServers: String
     ) {
         sys_entity_agent(
+            citationFormat: $citationFormat
             chatHistory: $chatHistory
             fileAccessPlan: $fileAccessPlan
             contextId: $contextId
@@ -150,12 +157,14 @@ const SYS_ENTITY_AGENT = gql`
             aiMemorySelfModify: $aiMemorySelfModify
             title: $title
             stream: $stream
+            async: $async
             entityId: $entityId
             chatId: $chatId
             reasoningEffort: $reasoningEffort
             model: $model
             userInfo: $userInfo
             clientSideTools: $clientSideTools
+            agentToolsToken: $agentToolsToken
             mcpConfig: $mcpConfig
             mcpAvailableServers: $mcpAvailableServers
         ) {
@@ -164,48 +173,6 @@ const SYS_ENTITY_AGENT = gql`
             tool
             warnings
             errors
-        }
-    }
-`;
-
-const COGNITIVE_INSERT = gql`
-    query CognitiveInsert(
-        $text: String
-        $file: String
-        $contextId: String
-        $docId: String
-        $chatId: String
-        $privateData: Boolean
-        $async: Boolean
-    ) {
-        cognitive_insert(
-            text: $text
-            file: $file
-            contextId: $contextId
-            docId: $docId
-            chatId: $chatId
-            privateData: $privateData
-            async: $async
-        ) {
-            result
-        }
-    }
-`;
-
-const COGNITIVE_DELETE = gql`
-    query CognitiveDelete(
-        $text: String
-        $contextId: String
-        $docId: String
-        $chatId: String
-    ) {
-        cognitive_delete(
-            text: $text
-            contextId: $contextId
-            docId: $docId
-            chatId: $chatId
-        ) {
-            result
         }
     }
 `;
@@ -248,24 +215,6 @@ const HEADLINE = gql`
 const FORMAT_PARAGRAPH_TURBO = gql`
     query FormatParaghraphTurbo($text: String!, $async: Boolean) {
         format_paragraph_turbo(text: $text, async: $async) {
-            result
-        }
-    }
-`;
-
-const GREETING = gql`
-    query Greeting(
-        $text: String!
-        $async: Boolean
-        $contextId: String
-        $aiName: String
-    ) {
-        greeting(
-            text: $text
-            async: $async
-            contextId: $contextId
-            aiName: $aiName
-        ) {
             result
         }
     }
@@ -439,6 +388,70 @@ const TRANSCRIBE_MAI_15 = gql`
         $contextId: String
     ) {
         transcribe_mai_15(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_GEMINI_35 = gql`
+    query TranscribeGemini35(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_gemini_35(
+            file: $file
+            text: $text
+            language: $language
+            wordTimestamped: $wordTimestamped
+            maxLineCount: $maxLineCount
+            maxLineWidth: $maxLineWidth
+            maxWordsPerLine: $maxWordsPerLine
+            highlightWords: $highlightWords
+            responseFormat: $responseFormat
+            async: $async
+            contextId: $contextId
+        ) {
+            result
+        }
+    }
+`;
+
+const TRANSCRIBE_SCRIBE_V2 = gql`
+    query TranscribeScribeV2(
+        $file: String!
+        $text: String
+        $language: String
+        $wordTimestamped: Boolean
+        $maxLineCount: Int
+        $maxLineWidth: Int
+        $maxWordsPerLine: Int
+        $highlightWords: Boolean
+        $responseFormat: String
+        $async: Boolean
+        $contextId: String
+    ) {
+        transcribe_scribe_v2(
             file: $file
             text: $text
             language: $language
@@ -1032,6 +1045,25 @@ const MEDIA_GENERATE = gql`
         $lyricsOptimizer: Boolean
         $audioUrl: String
         $inputAudioUrl: String
+        $inputAudio: [String]
+        $fps: Int
+        $generationMode: String
+        $watermark: Boolean
+        $matchInputImage: Boolean
+        $enablePromptExpansion: Boolean
+        $layerDecomposition: Boolean
+        $styleId: String
+        $styleMatch: String
+        $sourceUrl: String
+        $sourceLanguage: String
+        $targetLanguage: String
+        $cloningStrength: Int
+        $background: String
+        $outputCompression: Int
+        $promptUpsampler: String
+        $draft: Boolean
+        $autoAspectRatio: Boolean
+        $webGrounding: Boolean
         $audioFormat: String
         $sampleRate: Int
         $bitrate: Int
@@ -1114,6 +1146,25 @@ const MEDIA_GENERATE = gql`
             lyricsOptimizer: $lyricsOptimizer
             audioUrl: $audioUrl
             inputAudioUrl: $inputAudioUrl
+            inputAudio: $inputAudio
+            fps: $fps
+            generationMode: $generationMode
+            watermark: $watermark
+            matchInputImage: $matchInputImage
+            enablePromptExpansion: $enablePromptExpansion
+            layerDecomposition: $layerDecomposition
+            styleId: $styleId
+            styleMatch: $styleMatch
+            sourceUrl: $sourceUrl
+            sourceLanguage: $sourceLanguage
+            targetLanguage: $targetLanguage
+            cloningStrength: $cloningStrength
+            background: $background
+            outputCompression: $outputCompression
+            promptUpsampler: $promptUpsampler
+            draft: $draft
+            autoAspectRatio: $autoAspectRatio
+            webGrounding: $webGrounding
             audioFormat: $audioFormat
             sampleRate: $sampleRate
             bitrate: $bitrate
@@ -1265,8 +1316,6 @@ const SYS_MODEL_METADATA = gql`
 
 const QUERIES = {
     AZURE_VIDEO_TRANSLATE,
-    COGNITIVE_DELETE,
-    COGNITIVE_INSERT,
     IMAGE,
     IMAGE_FLUX,
     IMAGE_GEMINI_25,
@@ -1285,7 +1334,6 @@ const QUERIES = {
     SUMMARY,
     HASHTAGS,
     HEADLINE,
-    GREETING,
     GRAMMAR,
     SPELLING,
     PARAPHRASE,
@@ -1303,6 +1351,8 @@ const QUERIES = {
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
     TRANSCRIBE_MAI_15,
+    TRANSCRIBE_GEMINI_35,
+    TRANSCRIBE_SCRIBE_V2,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     TRANSLATE,
@@ -1328,8 +1378,6 @@ const MUTATIONS = {
 export {
     AZURE_VIDEO_TRANSLATE,
     getClient,
-    COGNITIVE_INSERT,
-    COGNITIVE_DELETE,
     EXPAND_STORY,
     SYS_SAVE_MEMORY,
     SYS_ENTITY_AGENT,
@@ -1373,6 +1421,8 @@ export {
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_GEMINI,
     TRANSCRIBE_MAI_15,
+    TRANSCRIBE_GEMINI_35,
+    TRANSCRIBE_SCRIBE_V2,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
     FORMAT_PARAGRAPH_TURBO,

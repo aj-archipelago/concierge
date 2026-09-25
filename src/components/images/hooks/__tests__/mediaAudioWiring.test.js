@@ -1,16 +1,210 @@
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "../../../../..");
 const read = (relPath) => fs.readFileSync(path.join(repoRoot, relPath), "utf8");
 
 describe("media audio model wiring", () => {
+    test("wizard honors explicit prompt requirements without redundant requiresAnyOf", () => {
+        const src = read("src/components/images/MediaPage.js");
+        const start = src.indexOf("const promptRequiredBySelectedMode =");
+        const end = src.indexOf("const promptMissingLabel =", start);
+        const standard = { key: "standard", promptRequired: true };
+        const layers = { key: "layers", promptRequired: false };
+        const guidanceStart = src.indexOf("const buildModelGuidanceItems =");
+        const guidanceEnd = src.indexOf("\n};", guidanceStart) + 3;
+        const check = (selectedInputMode, promptText = "") =>
+            vm.runInNewContext(
+                `${src.slice(guidanceStart, guidanceEnd)};
+                const guidanceByKey = new Map(buildModelGuidanceItems({
+                    modelMeta, modelSettings, selectedModelType, promptText, controls,
+                    imageCount, videoCount, audioCount, hasPromptlessInputs,
+                    voiceDesignDescriptionMessage, t: value => value,
+                }).map(item => [item.key, item]));
+                ${src.slice(start, end)}; ({ promptRequired, promptOptional, promptComplete });`,
+                {
+                    selectedInputMode,
+                    promptText,
+                    mediaInputModes: [standard, layers],
+                    selectedModelType: "image",
+                    hasPromptlessInputs: false,
+                    hasInputModeChoice: true,
+                    getMediaInputModes: () => [standard, layers],
+                    isMediaInputModeSatisfied: () => false,
+                    getInputModeSummary: (mode) => mode.key,
+                    getPromptInputGuidanceTitle: () => "Prompt",
+                    getReferenceGuidanceItem: () => null,
+                    modelMeta: {},
+                    modelSettings: {},
+                    controls: [],
+                    imageCount: 0,
+                    videoCount: 0,
+                    audioCount: 0,
+                    voiceDesignDescriptionMessage: "",
+                    getUnsatisfiedModeSettingKeys: () => new Set(),
+                    isTextMediaControl: () => false,
+                },
+            );
+        expect(check(standard)).toEqual({
+            promptRequired: true,
+            promptOptional: false,
+            promptComplete: false,
+        });
+        expect(check(standard, "Editorial scene").promptComplete).toBe(true);
+        expect(check(layers)).toEqual({
+            promptRequired: false,
+            promptOptional: true,
+            promptComplete: true,
+        });
+    });
+
+    test("restored media settings reconcile provider-dependent options before reuse", () => {
+        const src = read("src/components/images/MediaPage.js");
+        const start = src.indexOf("const mergeWithApiModels =");
+        const end = src.indexOf("\n};", start) + 3;
+        const {
+            reconcileMediaModelOptions,
+        } = require("../../../../utils/mediaModelOptions");
+        const merge = vm.runInNewContext(
+            `${src.slice(start, end)}; mergeWithApiModels;`,
+            {
+                buildDefaultSettings: (models) =>
+                    Object.fromEntries(
+                        models.map((model) => [
+                            model.modelId,
+                            model.mediaDefaults,
+                        ]),
+                    ),
+                sanitizeMediaSettings: (settings) => settings,
+                reconcileMediaModelOptions,
+            },
+        );
+        const model = {
+            modelId: "seedream",
+            mediaDefaults: { layerDecomposition: false, image_size: "2K" },
+            mediaDefaultOverrides: [
+                {
+                    when: { layerDecomposition: false },
+                    mediaOptions: { image_size: ["1K", "2K"] },
+                },
+            ],
+        };
+        expect(
+            merge({ models: { seedream: { image_size: "auto" } } }, [model])
+                .models.seedream.image_size,
+        ).toBe("2K");
+    });
+
+    test("priority media control labels exist in both tracked locale sources", () => {
+        for (const base of [
+            "config/default/locales",
+            "config/default/locales",
+        ]) {
+            for (const language of ["en", "ar"]) {
+                const locale = JSON.parse(read(`${base}/${language}.json`));
+                for (const label of [
+                    "Negative Prompt",
+                    "Standard",
+                    "Prompt",
+                    "Layer Decomposition",
+                    "Match Input Image",
+                ]) {
+                    expect(locale[label]).toBeTruthy();
+                }
+            }
+            const arabic = JSON.parse(read(`${base}/ar.json`));
+            for (const label of [
+                "Negative Prompt",
+                "Standard",
+                "Prompt",
+                "Layer Decomposition",
+                "Match Input Image",
+            ]) {
+                expect(arabic[label]).not.toBe(label);
+            }
+        }
+    });
+
+    test("variant summaries do not require optional or unsupported references", () => {
+        const src = read("src/components/images/MediaPage.js");
+        const start = src.indexOf("const getInputModeSummary =");
+        const end = src.indexOf("\n};", start) + 3;
+        const summarize = vm.runInNewContext(
+            `${src.slice(start, end)}; getInputModeSummary;`,
+            {
+                getReferenceRange: (range) => ({ min: range?.[0] || 0 }),
+                formatModeRequirement: ({ kind }) => kind,
+            },
+        );
+        const context = {
+            selectedModelType: "video",
+            controls: [],
+            t: (s) => s,
+        };
+        expect(
+            summarize(
+                {
+                    label: "Prompt",
+                    requires: {
+                        inputImages: [0, 30],
+                        inputVideos: [0, 10],
+                        inputAudio: [0, 10],
+                    },
+                    requiresAnyOf: [{ prompt: true }],
+                },
+                context,
+            ),
+        ).toBe("Prompt: prompt");
+        expect(
+            summarize(
+                {
+                    label: "Dub Audio",
+                    requires: { inputAudio: [1, 1], inputVideos: [0, 0] },
+                },
+                context,
+            ),
+        ).toBe("Dub Audio: audio");
+        expect(
+            summarize(
+                {
+                    label: "Image Reference",
+                    requires: {
+                        inputImages: [1, 30],
+                        inputVideos: [0, 10],
+                        inputAudio: [0, 10],
+                    },
+                },
+                context,
+            ),
+        ).toBe("Image Reference: image");
+    });
+
     test("media metadata includes audio, speech, and upscaling models for the media page", () => {
-        const src = read("app/queries/modelMetadata.js");
-        expect(src).toMatch(/m\.category\s*===\s*"audio"/);
-        expect(src).toMatch(/m\.category\s*===\s*"tts"/);
-        expect(src).toMatch(/m\.category\s*===\s*"upscaling"/);
-        expect(src).toMatch(/m\.isAvailable\s*!==\s*false/);
+        const {
+            isSelectableMediaModel,
+        } = require("../../../../utils/mediaModelCatalog");
+        const models = [
+            "image",
+            "video",
+            "audio",
+            "tts",
+            "upscaling",
+            "chat",
+        ].map((category) => ({ category }));
+        expect(
+            models
+                .filter(isSelectableMediaModel)
+                .map((model) => model.category),
+        ).toEqual(["image", "video", "audio", "tts", "upscaling"]);
+        for (const category of ["audio", "tts", "upscaling"]) {
+            expect(
+                isSelectableMediaModel({ category, isAvailable: false }),
+            ).toBe(false);
+            expect(
+                isSelectableMediaModel({ category, isDeprecated: true }),
+            ).toBe(false);
+        }
     });
 
     test("model selector groups audio, speech, and upscaling models separately", () => {
@@ -86,6 +280,67 @@ describe("media audio model wiring", () => {
         expect(src).toMatch(/selectedInputModeKey/);
         expect(src).toMatch(/generationFlowStepIndex/);
         expect(src).toMatch(/formRef\.current\?\.requestSubmit/);
+        expect(src).toMatch(/t\("Back"\)/);
+        expect(src).toMatch(/renderStartOverButton/);
+        expect(src).toMatch(/media-flow-start-over/);
+        expect(src).toMatch(/t\("Start over"\)/);
+        expect(src).toMatch(/currentStep\?\.kind === "generate"/);
+        expect(src).not.toMatch(/hasSubmittedGeneration/);
+        expect(src).not.toMatch(/flowStage === "finish"/);
+        expect(src).not.toMatch(/setHasSubmittedGeneration/);
+        expect(src).not.toMatch(/t\("Generation started"\)/);
+        expect(styles).not.toMatch(/media-flow-finish/);
+        expect(styles).toMatch(/media-flow-footer-actions\.generate/);
+        expect(src).not.toMatch(/t\("Media generator"\)/);
+        expect(src).not.toMatch(/media-flow-chrome/);
+        expect(src).not.toMatch(/isMediaFlowCollapsed/);
+        expect(src).not.toMatch(/media-flow-collapsed/);
+        expect(src).not.toMatch(/media-flow-collapse-toggle/);
+        expect(src).not.toMatch(/Collapse media generator/);
+        expect(src).not.toMatch(/Expand media generator/);
+        expect(src).toMatch(/media-flow-panel/);
+        expect(src).toMatch(/media-flow-body/);
+        expect(src).toMatch(/media-flow-footer/);
+        expect(src).toMatch(/renderFlowPageHeader/);
+        expect(src).toMatch(/<PageHeader\s+title=\{title\}/);
+        expect(src).toMatch(
+            /description=\{\[\.\.\.visibleBreadcrumbs, detail\]/,
+        );
+        expect(src).toMatch(/MEDIA_FLOW_MIN_HEIGHT_PERCENT/);
+        expect(src).toMatch(/const MEDIA_FLOW_MIN_HEIGHT_PERCENT = 10/);
+        expect(src).toMatch(/MEDIA_FLOW_MAX_HEIGHT_PERCENT/);
+        expect(src).toMatch(/mediaFlowHeightPercent/);
+        expect(src).toMatch(/handleMediaFlowResizeStart/);
+        expect(src).toMatch(/media-flow-split-handle/);
+        expect(src).toMatch(/t\("Resize media generator"\)/);
+        expect(src).toMatch(/currentStepTitle/);
+        expect(src).toMatch(/t\("\{\{title\}\} \(optional\)"/);
+        expect(src).not.toMatch(/className="media-flow-heading"/);
+        expect(styles).not.toMatch(/media-flow-region\.collapsed/);
+        expect(styles).not.toMatch(/media-generation-flow\.collapsed/);
+        expect(styles).not.toMatch(/media-flow-collapsed/);
+        expect(styles).not.toMatch(/media-flow-collapse-toggle/);
+        expect(styles).not.toMatch(
+            /media-flow-step-content\.references \.media-flow-step-copy/,
+        );
+        expect(styles).toMatch(
+            /\.media-generation-flow \{[\s\S]*position: relative;[\s\S]*grid-template-rows: minmax\(0, 1fr\);/,
+        );
+        expect(styles).toMatch(
+            /\.media-flow-panel \{[\s\S]*grid-template-rows: minmax\(0, 1fr\) auto;/,
+        );
+        expect(styles).toMatch(/\.media-flow-footer \{/);
+        expect(styles).toMatch(
+            /\.media-flow-region \{[\s\S]*flex: 0 0 var\(--media-flow-size, 33\.333%\);/,
+        );
+        expect(styles).toMatch(/\.media-flow-page-header \{/);
+        expect(styles).toMatch(/position: sticky;/);
+        expect(styles).toMatch(/\.media-flow-page-breadcrumb \{/);
+        expect(styles).toMatch(/\.media-flow-split-handle \{/);
+        expect(styles).toMatch(/cursor: row-resize;/);
+        expect(styles).toMatch(
+            /\.media-flow-footer \{[\s\S]*min-height: 2\.25rem;[\s\S]*padding: 0\.18rem 0\.48rem;/,
+        );
         expect(src).toMatch(/media-settings-parameter-button/);
         expect(src).toMatch(/hasCurrentParameterSettings/);
         expect(src).toMatch(/media-parameters-panel/);
@@ -151,6 +406,23 @@ describe("media audio model wiring", () => {
         expect(src).toMatch(/isVoiceDesignMode/);
         expect(src).not.toMatch(/getModelInputAvailability/);
         expect(src).not.toMatch(/sortModelIdsByMediaPriority/);
+    });
+
+    test("speech wizard requires text to speak and surfaces missing generation inputs", () => {
+        const src = read("src/components/images/MediaPage.js");
+
+        expect(src).toMatch(/getPromptInputTitle/);
+        expect(src).toMatch(/t\("Enter speech text"\)/);
+        expect(src).toMatch(/t\("Text to speak"\)/);
+        expect(src).toMatch(
+            /t\("Enter the words to synthesize, plus any voice direction"\)/,
+        );
+        expect(src).toMatch(
+            /selectedModelType !== "tts" && hasPromptlessInputs/,
+        );
+        expect(src).toMatch(/promptlessInputsCanGenerate/);
+        expect(src).toMatch(/getMissingGenerationMessage/);
+        expect(src).toMatch(/Missing: \{\{items\}\}/);
     });
 
     test("media generation draft resets only when returning to create tiles", () => {

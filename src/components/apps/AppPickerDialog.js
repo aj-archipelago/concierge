@@ -1,7 +1,15 @@
 "use client";
 
 import * as Icons from "lucide-react";
-import { AppWindow, Check, Loader2, Plus, X } from "lucide-react";
+import {
+    AppWindow,
+    Check,
+    Loader2,
+    Plus,
+    Sparkles,
+    Store,
+    X,
+} from "lucide-react";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -28,16 +36,33 @@ function formatUpdatedAt(value) {
     return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
 }
 
-function PickerSection({ title, children }) {
+function PickerSection({ title, actions, children }) {
     return (
         <section className="space-y-3">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold text-gray-950 dark:text-gray-50">
                     {title}
                 </h3>
+                {actions ? (
+                    <div className="flex items-center gap-2">{actions}</div>
+                ) : null}
             </div>
             <div className="space-y-2">{children}</div>
         </section>
+    );
+}
+
+function PickerActionButton({ icon: Icon, label, onClick, disabled }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-sky-700 dark:hover:bg-sky-950/40 dark:hover:text-sky-200"
+        >
+            <Icon className="h-4 w-4" />
+            {label}
+        </button>
     );
 }
 
@@ -92,6 +117,8 @@ export default function AppPickerDialog({
     pendingKey = null,
     onCommit,
     onClose,
+    onCreateApplet,
+    onBrowseMarketplace,
 }) {
     const { t } = useTranslation();
     const { direction = "ltr" } = useContext(LanguageContext) || {};
@@ -147,6 +174,29 @@ export default function AppPickerDialog({
     }, [applets, normalizedFilterText]);
     const selectedCount = selectedApplets.length + selectedBuiltIns.length;
     const isPickerDisabled = Boolean(pendingKey);
+    const hasApplets = filteredApplets.length > 0;
+
+    const pickerActions =
+        onCreateApplet || onBrowseMarketplace ? (
+            <>
+                {onCreateApplet && (
+                    <PickerActionButton
+                        icon={Sparkles}
+                        label={t("Create applet")}
+                        onClick={onCreateApplet}
+                        disabled={isPickerDisabled}
+                    />
+                )}
+                {onBrowseMarketplace && (
+                    <PickerActionButton
+                        icon={Store}
+                        label={t("Browse marketplace")}
+                        onClick={onBrowseMarketplace}
+                        disabled={isPickerDisabled}
+                    />
+                )}
+            </>
+        ) : null;
 
     const toggleSelected = (setCurrentIds, id) => {
         setCurrentIds((currentIds) =>
@@ -277,8 +327,11 @@ export default function AppPickerDialog({
                                 </PickerSection>
                             )}
 
-                            <PickerSection title={t("Applets")}>
-                                {filteredApplets.length > 0 ? (
+                            <PickerSection
+                                title={t("Applets")}
+                                actions={pickerActions}
+                            >
+                                {hasApplets ? (
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                         {filteredApplets.map((applet) => {
                                             const appletId = String(

@@ -1,6 +1,15 @@
-/**
- * @jest-environment node
- */
+/** @jest-environment node */
+
+jest.mock("../../utils/team-inbox.mjs", () => ({
+    linkLegacyTeamNotifications: jest.fn(),
+    teamInboxSnapshot: jest.fn(async () => ({ items: [], unreadCount: 0 })),
+    inboxAttentionRank: () => 4,
+    hydrateTeamInboxItems: jest.fn(async (userId, items) => items),
+}));
+jest.mock("../../utils/assistant-progress.mjs", () => ({
+    enrichAssistantTasks: jest.fn(async (tasks) => tasks),
+    VISIBLE_ASSISTANT_TASK_FILTER: { assistantDepth: { $not: { $gt: 0 } } },
+}));
 
 jest.mock("../../models/task.mjs", () => ({
     __esModule: true,
@@ -59,6 +68,8 @@ const Task = require("../../models/task.mjs").default;
 const Notification = require("../../models/notification.mjs").default;
 const UserState = require("../../models/user-state.mjs").default;
 const { getCurrentUser } = require("../../utils/auth");
+const { migrateTasks } = require("../../utils/task-migration.mjs");
+const { ensureInboxMigrations } = require("../../utils/inbox");
 const { GET } = require("../route");
 
 function mockFindLean(model, items) {
@@ -79,6 +90,7 @@ describe("GET /api/inbox", () => {
             serializedState: JSON.stringify({
                 tasksMigrated: true,
                 shareNotificationsMigrated: true,
+                teamNotificationsLinked: true,
             }),
         });
         UserState.findOneAndUpdate.mockResolvedValue({});
@@ -136,5 +148,55 @@ describe("GET /api/inbox", () => {
         expect(Task.find).toHaveBeenCalled();
         expect(Notification.find).toHaveBeenCalled();
         expect(Task.aggregate).not.toHaveBeenCalled();
+        expect(UserState.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+});
+
+describe("ensureInboxMigrations", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        UserState.findOneAndUpdate.mockResolvedValue({});
+    });
+
+    it("does not rewrite user state after both inbox migrations are complete", async () => {
+        UserState.findOne.mockResolvedValue({
+            serializedState: JSON.stringify({
+                tasksMigrated: true,
+                shareNotificationsMigrated: true,
+                teamNotificationsLinked: true,
+                preferences: { theme: "dark" },
+            }),
+        });
+
+        await ensureInboxMigrations({ _id: "user-1" });
+
+        expect(migrateTasks).not.toHaveBeenCalled();
+        expect(Task.find).not.toHaveBeenCalled();
+        expect(UserState.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it("persists user state once when inbox migrations are needed", async () => {
+        UserState.findOne.mockResolvedValue({
+            serializedState: JSON.stringify({ preferences: { theme: "dark" } }),
+        });
+        mockFindLean(Task, []);
+
+        await ensureInboxMigrations({ _id: "user-1" });
+
+        expect(migrateTasks).toHaveBeenCalledWith("user-1");
+        expect(UserState.findOneAndUpdate).toHaveBeenCalledTimes(1);
+        expect(UserState.findOneAndUpdate).toHaveBeenCalledWith(
+            { user: "user-1" },
+            {
+                user: "user-1",
+                serializedState: JSON.stringify({
+                    preferences: { theme: "dark" },
+                    tasksMigrated: true,
+                    shareNotificationsMigrated: true,
+                    teamNotificationsLinked: true,
+                }),
+            },
+            { upsert: true, new: true, runValidators: true },
+        );
     });
 });

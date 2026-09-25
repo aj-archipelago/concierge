@@ -1,3 +1,7 @@
+import {
+    enrichAssistantTasks,
+    VISIBLE_ASSISTANT_TASK_FILTER,
+} from "../../utils/assistant-progress.mjs";
 import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import Task from "../../models/task.mjs";
@@ -8,7 +12,7 @@ import {
 } from "../../utils/task-utils.mjs";
 import { normalizeTaskForInbox } from "../../utils/inbox.js";
 
-const ACTIVE_TASK_STATUSES = ["pending", "in_progress"];
+const ACTIVE_TASK_STATUSES = ["pending", "in_progress", "waiting"];
 const TERMINAL_TASK_STATUSES = new Set([
     "abandoned",
     "cancelled",
@@ -53,6 +57,7 @@ export async function GET(request) {
         const activeQuery = {
             owner: user._id,
             type: { $ne: "resource-shared" },
+            ...VISIBLE_ASSISTANT_TASK_FILTER,
             dismissed: { $ne: true },
             status: { $in: ACTIVE_TASK_STATUSES },
         };
@@ -62,6 +67,7 @@ export async function GET(request) {
                 ? {
                       owner: user._id,
                       type: { $ne: "resource-shared" },
+                      ...VISIBLE_ASSISTANT_TASK_FILTER,
                       dismissed: { $ne: true },
                       _id: { $in: trackedIds },
                   }
@@ -89,7 +95,7 @@ export async function GET(request) {
         const activeTaskCount = await Task.countDocuments(activeQuery);
 
         return NextResponse.json({
-            tasks: normalizedTasks,
+            tasks: await enrichAssistantTasks(normalizedTasks, user),
             activeTaskCount,
         });
     } catch (error) {

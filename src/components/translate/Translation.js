@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApolloClient } from "@apollo/client";
 import { useContext, useEffect, useMemo, useState } from "react";
@@ -182,15 +183,15 @@ function Translation({
 
     return (
         <div className="flex flex-col h-full gap-4">
-            <div className="flex flex-col gap-2">
-                <div className="flex flex-col sm:flex-row gap-2 items-center">
-                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+            <PageHeader title={t("Translate")}>
+                <div className="flex min-w-0 flex-wrap gap-2 items-center">
+                    <div className="flex min-w-0 flex-wrap gap-2 items-center">
                         <span className="text-sm whitespace-nowrap">
                             {t("Translate to")}
                         </span>
-                        &nbsp;&nbsp;
+
                         <select
-                            className="lb-select"
+                            className="lb-select w-44 max-w-full text-sm"
                             id="translateLanguageSelect"
                             name="language"
                             aria-label={t("Translate to")}
@@ -207,9 +208,9 @@ function Translation({
                             ))}
                         </select>
                     </div>
-                    <div className="flex-1 flex gap-2 items-center justify-between w-full">
+                    <div className="flex min-w-0 flex-wrap gap-2 items-center">
                         <select
-                            className="lb-select"
+                            className="lb-select w-44 max-w-full text-sm"
                             name="strategy"
                             id="translateStrategySelect"
                             value={translationStrategy}
@@ -236,14 +237,14 @@ function Translation({
                                 {t("Newest OpenAI (GPT 5.5)")}
                             </option>
                             <option
-                                value={TRANSLATION_STRATEGIES.CLAUDE_47_OPUS}
+                                value={TRANSLATION_STRATEGIES.CLAUDE_5_SONNET}
                             >
-                                {t("Newest Anthropic (Opus 4.7)")}
+                                {t("Newest Anthropic (Sonnet 5)")}
                             </option>
                             <option
                                 value={TRANSLATION_STRATEGIES.GEMINI_3_FLASH}
                             >
-                                {t("Fastest Google (Gemini 3.5 Flash)")}
+                                {t("Fastest Google (Gemini 3.7 Flash)")}
                             </option>
                             <option value={TRANSLATION_STRATEGIES.GPT_54_MINI}>
                                 {t("Fastest OpenAI (GPT 5.4 Mini)")}
@@ -280,7 +281,7 @@ function Translation({
                         </LoadingButton>
                     </div>
                 </div>
-            </div>
+            </PageHeader>
 
             <Tabs
                 className="w-full flex flex-col gap-2 grow"

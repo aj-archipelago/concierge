@@ -42,8 +42,7 @@ const ImageWithFallback = React.memo(function ImageWithFallback({
     onError,
     ...props
 }) {
-    // Get proxied URL if needed — uses getDownloadUrl which strips SAS tokens
-    // so the proxy URL is stable and the browser can cache long-term.
+    // Preserve signed URL updates as streamed replies finish or links refresh.
     const getProxiedUrl = useCallback((url) => {
         if (!url || url.includes("/api/image-proxy")) return url;
         return getDownloadUrl(url);
@@ -152,6 +151,7 @@ const MediaCard = React.memo(function MediaCard({
     onDeleteFile,
     t,
     className = "",
+    variant = "thumbnail",
     isDeleted = false, // Whether this file has been deleted
 }) {
     const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -218,10 +218,15 @@ const MediaCard = React.memo(function MediaCard({
         (type === "file" || type === "image" || type === "video");
 
     // Standard card width - consistent size for all cards
-    const cardWidth = "w-[240px] [.docked_&]:w-[200px]";
+    const cardWidth =
+        variant === "result" ? "w-full" : "w-[240px] [.docked_&]:w-[200px]";
 
     // Preview height - full card height since filename is hidden by default
-    const previewHeight = "h-[180px] [.docked_&]:h-[150px]";
+    const previewHeight =
+        variant === "result"
+            ? "aspect-video"
+            : "h-[180px] [.docked_&]:h-[150px]";
+    const previewFit = variant === "result" ? "object-contain" : "object-cover";
 
     // Build a synthetic file object for FilePreviewDialog
     const fileObj = useMemo(
@@ -270,7 +275,7 @@ const MediaCard = React.memo(function MediaCard({
                     <ImageWithFallback
                         src={src}
                         alt={filename || translationFn("Image")}
-                        className="w-full h-full object-cover media-card-image"
+                        className={`w-full h-full ${previewFit} media-card-image`}
                         style={{ maxWidth: "100%", maxHeight: "100%" }}
                         onLoad={onLoad}
                     />
@@ -284,7 +289,7 @@ const MediaCard = React.memo(function MediaCard({
                     <video
                         src={previewSrc}
                         data-testid="media-card-video-preview"
-                        className="w-full h-full object-cover rounded-t-lg"
+                        className={`w-full h-full ${previewFit} rounded-t-lg`}
                         onLoadedData={onLoad}
                         preload="metadata"
                         autoPlay

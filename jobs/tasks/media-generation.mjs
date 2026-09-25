@@ -1,3 +1,9 @@
+import {
+    getInputRequirementRange,
+    hasSatisfiedPromptlessInputMode,
+} from "../../src/utils/mediaInputModes.js";
+import { buildMediaVariables } from "../../src/utils/mediaGenerationVariables.js";
+import { authorizedMediaFetch } from "../../app/api/utils/cfh-client.mjs";
 import { BaseTask } from "./base-task.mjs";
 import {
     MEDIA_GENERATE,
@@ -26,6 +32,7 @@ import {
 } from "../../app/api/utils/db-retry.mjs";
 import { redactSensitiveText } from "../../app/api/utils/log-redaction.mjs";
 import mime from "mime-types";
+import { getMediaGenerationOutputs } from "../../src/utils/mediaGenerationOutputs.js";
 
 const REFERENCE_MEDIA_PROMPT = "Media generation from references";
 
@@ -123,8 +130,8 @@ let _metadataCache = null;
 let _metadataCacheTime = 0;
 const GRAPHQL_SUBMIT_MAX_ATTEMPTS = 3;
 const GRAPHQL_SUBMIT_RETRY_DELAY_MS = 1500;
-const MAX_INPUT_IMAGE_REFERENCES = 14;
-const MAX_INPUT_VIDEO_REFERENCES = 1;
+const MAX_INPUT_IMAGE_REFERENCES = 30;
+const MAX_INPUT_VIDEO_REFERENCES = 10;
 
 function getGraphqlSubmitErrorDetails(error) {
     const details =
@@ -214,6 +221,7 @@ function pickInputAudioMetadataFields(metadata) {
         "inputAudioUrl",
         "inputAudioBlobPath",
         "inputAudioHash",
+        "inputAudios",
     ]) {
         if (metadata?.[fieldName]) {
             fields[fieldName] = metadata[fieldName];
@@ -302,7 +310,7 @@ async function fetchShortLivedUrl({ blobPath, hash, contextId } = {}) {
             url.searchParams.set("shortLived", "true");
             url.searchParams.set("duration", "300");
 
-            const response = await fetch(url.toString());
+            const response = await authorizedMediaFetch(url.toString());
             if (!response.ok) {
                 if (!attempt.hash || attempts.length === 1) {
                     const errorText = await response.text().catch(() => "");
@@ -515,114 +523,6 @@ async function refreshInputAudioUrls(inputAudio, userId) {
     }
 }
 
-// Standard variable builder for all models — maps user settings to media_generate params
-function buildMediaVariables(
-    model,
-    prompt,
-    settings,
-    inputImages,
-    inputImageRoles,
-    inputVideos,
-    inputAudioUrl,
-) {
-    return {
-        model,
-        text: prompt,
-        async: true,
-        inputImages: inputImages || [],
-        inputImageRoles: inputImageRoles || [],
-        inputVideos: inputVideos || [],
-        aspectRatio: settings.aspectRatio,
-        duration: settings.duration,
-        outputFormat: settings.outputFormat || settings.output_format,
-        outputQuality: settings.outputQuality || settings.output_quality,
-        quality: settings.quality, // model render quality preset (low|medium|high|auto)
-        negativePrompt: settings.negativePrompt,
-        numberResults: settings.numberResults,
-        seed: settings.seed,
-        optimizePrompt: settings.optimizePrompt,
-        generateAudio: settings.generateAudio,
-        forceInstrumental:
-            settings.forceInstrumental ?? settings.force_instrumental,
-        processingType: settings.processingType || settings.processing_type,
-        scene: settings.scene,
-        targetResolution:
-            settings.targetResolution || settings.target_resolution,
-        targetFps: settings.targetFps || settings.target_fps,
-        enhanceModel: settings.enhanceModel || settings.enhance_model,
-        upscaleFactor: settings.upscaleFactor || settings.upscale_factor,
-        subjectDetection:
-            settings.subjectDetection || settings.subject_detection,
-        faceEnhancement: settings.faceEnhancement ?? settings.face_enhancement,
-        faceEnhancementCreativity:
-            settings.faceEnhancementCreativity ??
-            settings.face_enhancement_creativity,
-        faceEnhancementStrength:
-            settings.faceEnhancementStrength ??
-            settings.face_enhancement_strength,
-        cutFirstSecond: settings.cutFirstSecond ?? settings.cut_first_second,
-        noOp: settings.noOp ?? settings.no_op,
-        resolution: settings.resolution,
-        cameraFixed: settings.cameraFixed,
-        imageSize: settings.imageSize || settings.image_size,
-        width: settings.width,
-        height: settings.height,
-        size: settings.size,
-        lyrics: settings.lyrics,
-        isInstrumental: settings.isInstrumental ?? settings.is_instrumental,
-        lyricsOptimizer: settings.lyricsOptimizer ?? settings.lyrics_optimizer,
-        audioUrl: settings.audioUrl || settings.audio_url,
-        inputAudioUrl:
-            inputAudioUrl || settings.inputAudioUrl || settings.input_audio_url,
-        audioFormat: settings.audioFormat || settings.audio_format,
-        sampleRate: settings.sampleRate || settings.sample_rate,
-        bitrate: settings.bitrate,
-        voiceName: settings.voiceName,
-        speaker1Name: settings.speaker1Name,
-        speaker1VoiceName: settings.speaker1VoiceName,
-        speaker2Name: settings.speaker2Name,
-        speaker2VoiceName: settings.speaker2VoiceName,
-        mode: settings.mode,
-        language: settings.language,
-        speaker: settings.speaker,
-        referenceText: settings.referenceText || settings.reference_text,
-        styleInstruction:
-            settings.styleInstruction || settings.style_instruction,
-        voiceDescription:
-            settings.voiceDescription || settings.voice_description,
-        voice: settings.voice,
-        voiceScript: settings.voiceScript || settings.voice_script,
-        voiceLanguage: settings.voiceLanguage || settings.voice_language,
-        voicePrompt: settings.voicePrompt || settings.voice_prompt,
-        videoPrompt: settings.videoPrompt || settings.video_prompt,
-        strengthNegativePrompt:
-            settings.strengthNegativePrompt ??
-            settings.strength_negative_prompt,
-        disableSafetyFilter:
-            settings.disableSafetyFilter ?? settings.disable_safety_filter,
-        disablePromptUpsampling:
-            settings.disablePromptUpsampling ??
-            settings.disable_prompt_upsampling,
-        stability: settings.stability,
-        similarityBoost: settings.similarityBoost ?? settings.similarity_boost,
-        style: settings.style,
-        speed: settings.speed,
-        previousText: settings.previousText || settings.previous_text,
-        nextText: settings.nextText || settings.next_text,
-        languageCode: settings.languageCode || settings.language_code,
-        voiceId: settings.voiceId || settings.voice_id,
-        customVoiceId: settings.customVoiceId || settings.custom_voice_id,
-        volume: settings.volume,
-        pitch: settings.pitch,
-        emotion: settings.emotion,
-        channel: settings.channel,
-        languageBoost: settings.languageBoost || settings.language_boost,
-        subtitleEnable: settings.subtitleEnable ?? settings.subtitle_enable,
-        englishNormalization:
-            settings.englishNormalization ?? settings.english_normalization,
-    };
-}
-
 function describeAudioInputRequirement(min, max) {
     if (min === 1 && max === 1) return "exactly one selected audio item";
     if (min === max) return `${min} selected audio items`;
@@ -631,81 +531,6 @@ function describeAudioInputRequirement(min, max) {
     }
     if (min > 0) return `at least ${min} selected audio items`;
     return `no more than ${max} selected audio items`;
-}
-
-function getInputRequirementRange(requirement) {
-    if (Array.isArray(requirement)) {
-        return [
-            Number(requirement[0] ?? 0) || 0,
-            Number(requirement[1] ?? requirement[0] ?? 0),
-        ];
-    }
-    if (requirement === undefined || requirement === null) return null;
-    const value = Number(requirement);
-    if (!Number.isFinite(value)) return null;
-    return [value, value];
-}
-
-function countMatchesInputRequirement(count, requirement) {
-    const range = getInputRequirementRange(requirement);
-    if (!range) return true;
-    const [min = 0, max = Number.POSITIVE_INFINITY] = range;
-    return count >= min && count <= max;
-}
-
-function hasInputModeTextRequirement(requirement, { modelSettings, prompt }) {
-    if (!requirement || typeof requirement !== "object") return false;
-    if (requirement.prompt === true)
-        return Boolean(String(prompt || "").trim());
-    if (requirement.setting) {
-        const value = modelSettings?.[requirement.setting];
-        return typeof value === "string"
-            ? Boolean(value.trim())
-            : Boolean(value);
-    }
-    return false;
-}
-
-function isMediaInputModeSatisfied(
-    mode,
-    {
-        inputImagesCount,
-        inputVideosCount,
-        inputAudioCount,
-        modelSettings,
-        prompt,
-    },
-) {
-    const requires = mode?.requires || {};
-    if (
-        !countMatchesInputRequirement(inputImagesCount, requires.inputImages) ||
-        !countMatchesInputRequirement(inputVideosCount, requires.inputVideos) ||
-        !countMatchesInputRequirement(inputAudioCount, requires.inputAudio)
-    ) {
-        return false;
-    }
-
-    if (
-        !Array.isArray(mode?.requiresAnyOf) ||
-        mode.requiresAnyOf.length === 0
-    ) {
-        return true;
-    }
-
-    return mode.requiresAnyOf.some((requirement) =>
-        hasInputModeTextRequirement(requirement, { modelSettings, prompt }),
-    );
-}
-
-function hasSatisfiedPromptlessInputMode(modelMeta, context) {
-    const modes = Array.isArray(modelMeta?.mediaInputModes)
-        ? modelMeta.mediaInputModes
-        : [];
-    return modes.some(
-        (mode) =>
-            mode?.promptRequired === false &&
-            isMediaInputModeSatisfied(mode, context),
-    );
 }
 
 class MediaGenerationHandler extends BaseTask {
@@ -730,6 +555,7 @@ class MediaGenerationHandler extends BaseTask {
                 inputImageRoles,
                 inputVideos,
                 inputAudioUrl,
+                inputAudios,
             ) => {
                 const sanitizedSettings = sanitizeMediaSettings(settings || {});
                 const ms = {
@@ -744,6 +570,7 @@ class MediaGenerationHandler extends BaseTask {
                     inputImageRoles,
                     inputVideos,
                     inputAudioUrl,
+                    inputAudios,
                 );
             },
         };
@@ -756,6 +583,16 @@ class MediaGenerationHandler extends BaseTask {
     async startRequest(job) {
         const { taskId, metadata, userId } = job.data;
         const { prompt, outputType, model, settings } = metadata;
+
+        await initializeUserModel();
+        const owner = await User.findById(userId).select("contextId").lean();
+        if (!owner?.contextId) {
+            const error = new Error(
+                "A user storage context is required for media generation",
+            );
+            error.code = "MEDIA_STORAGE_CONTEXT_REQUIRED";
+            throw error;
+        }
 
         metadata.taskId = taskId;
         metadata.userId = userId;
@@ -777,7 +614,9 @@ class MediaGenerationHandler extends BaseTask {
         const inputImageUrls = pickInputImageValues(metadata, "inputImageUrl");
         const hasInputImage = inputImageUrls.some(Boolean);
         const inputAudioUrl = metadata.inputAudioUrl || "";
-        const hasInputAudio = Boolean(inputAudioUrl);
+        const hasInputAudio = Boolean(
+            inputAudioUrl || metadata.inputAudios?.length,
+        );
         const isImageOnlyAudioGeneration =
             outputType === "audio" && hasInputImage;
 
@@ -826,15 +665,18 @@ class MediaGenerationHandler extends BaseTask {
                 hash: inputVideoHashes[index],
             }))
             .filter((item) => item.url);
-        const inputAudio = inputAudioUrl
-            ? [
-                  {
-                      url: inputAudioUrl,
-                      blobPath: metadata.inputAudioBlobPath,
-                      hash: metadata.inputAudioHash,
-                  },
-              ]
-            : [];
+        const inputAudio =
+            Array.isArray(metadata.inputAudios) && metadata.inputAudios.length
+                ? metadata.inputAudios.filter((item) => item?.url)
+                : inputAudioUrl
+                  ? [
+                        {
+                            url: inputAudioUrl,
+                            blobPath: metadata.inputAudioBlobPath,
+                            hash: metadata.inputAudioHash,
+                        },
+                    ]
+                  : [];
 
         if (
             !prompt &&
@@ -898,7 +740,11 @@ class MediaGenerationHandler extends BaseTask {
             refreshedInputImageRoles,
             refreshedInputVideos,
             refreshedInputAudioUrls[0],
+            refreshedInputAudioUrls,
         );
+        // The job owner is authoritative; never accept a destination identity
+        // from model settings or client-supplied task metadata.
+        variables.contextId = owner.contextId;
 
         console.log("[MediaGenerationHandler] Submitting media_generate", {
             model: modelName,
@@ -1116,6 +962,12 @@ class MediaGenerationHandler extends BaseTask {
             gcsUrl: processedData?.gcsUrl,
             hash: processedData?.hash,
             blobPath: processedData?.blobPath,
+            ...(processedData?.outputFiles && {
+                outputFiles: processedData.outputFiles,
+            }),
+            ...(processedData?.providerMetadata && {
+                providerMetadata: processedData.providerMetadata,
+            }),
         };
 
         console.log(
@@ -1197,6 +1049,34 @@ class MediaGenerationHandler extends BaseTask {
     }
 
     async processMediaData(dataObject, infoObject, metadata) {
+        const { outputs, providerMetadata } = getMediaGenerationOutputs(
+            dataObject,
+            infoObject,
+        );
+        const outputFiles = [];
+        for (const [index, output] of outputs.entries()) {
+            const stored = await this.processSingleMediaData(
+                output.url,
+                infoObject,
+                {
+                    ...metadata,
+                    taskId:
+                        index === 0
+                            ? metadata.taskId
+                            : `${metadata.taskId}-${index + 1}`,
+                },
+            );
+            const { url: sourceUrl, data: _data, ...details } = output;
+            outputFiles.push({ ...details, ...stored });
+        }
+        return {
+            ...(outputFiles[0] || {}),
+            ...(outputFiles.length > 1 && { outputFiles }),
+            ...(providerMetadata && { providerMetadata }),
+        };
+    }
+
+    async processSingleMediaData(dataObject, infoObject, metadata) {
         try {
             // The cortex media_generate router normalizes all responses to URLs
             // (direct URLs or data: URIs). No model-specific parsing needed.
@@ -1389,7 +1269,7 @@ class MediaGenerationHandler extends BaseTask {
             renameUrl.searchParams.set(key, value);
         }
 
-        const response = await fetch(renameUrl.toString(), {
+        const response = await authorizedMediaFetch(renameUrl.toString(), {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -1457,10 +1337,13 @@ class MediaGenerationHandler extends BaseTask {
             uploadUrl.searchParams.set(key, value);
         }
 
-        const uploadResponse = await fetch(uploadUrl.toString(), {
-            method: "POST",
-            body: formData,
-        });
+        const uploadResponse = await authorizedMediaFetch(
+            uploadUrl.toString(),
+            {
+                method: "POST",
+                body: formData,
+            },
+        );
 
         if (!uploadResponse.ok) {
             const errorBody = await uploadResponse.text();
@@ -1512,10 +1395,13 @@ class MediaGenerationHandler extends BaseTask {
             uploadUrl.searchParams.set(key, value);
         }
 
-        const uploadResponse = await fetch(uploadUrl.toString(), {
-            method: "POST",
-            body: formData,
-        });
+        const uploadResponse = await authorizedMediaFetch(
+            uploadUrl.toString(),
+            {
+                method: "POST",
+                body: formData,
+            },
+        );
 
         if (!uploadResponse.ok) {
             const errorBody = await uploadResponse.text();
@@ -1582,7 +1468,7 @@ class MediaGenerationHandler extends BaseTask {
             );
         }
 
-        const response = await fetch(url.toString(), {
+        const response = await authorizedMediaFetch(url.toString(), {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -1809,6 +1695,12 @@ class MediaGenerationHandler extends BaseTask {
                 ...(dataObject.gcsUrl && { gcsUrl: dataObject.gcsUrl }),
                 ...(dataObject.hash && { hash: dataObject.hash }),
                 ...(dataObject.blobPath && { blobPath: dataObject.blobPath }),
+                ...(dataObject.outputFiles && {
+                    outputFiles: dataObject.outputFiles,
+                }),
+                ...(dataObject.providerMetadata && {
+                    providerMetadata: dataObject.providerMetadata,
+                }),
                 ...(metadata.outputFolder && {
                     outputFolder: metadata.outputFolder,
                 }),
@@ -1876,22 +1768,10 @@ class MediaGenerationHandler extends BaseTask {
             );
 
             // Get inherited tags from input images
-            const inputImageUrls = [
-                metadata.inputImageUrl,
-                metadata.inputImageUrl2,
-                metadata.inputImageUrl3,
-                metadata.inputImageUrl4,
-                metadata.inputImageUrl5,
-                metadata.inputImageUrl6,
-                metadata.inputImageUrl7,
-                metadata.inputImageUrl8,
-                metadata.inputImageUrl9,
-                metadata.inputImageUrl10,
-                metadata.inputImageUrl11,
-                metadata.inputImageUrl12,
-                metadata.inputImageUrl13,
-                metadata.inputImageUrl14,
-            ].filter(Boolean);
+            const inputImageUrls = pickInputImageValues(
+                metadata,
+                "inputImageUrl",
+            ).filter(Boolean);
 
             const inheritedTags = await this.getInheritedTags(
                 userId,

@@ -22,6 +22,11 @@ const ENTITY_LOOKUP = {
         ownerField: "owner",
         legacyPublicField: null,
     },
+    published_applet: {
+        model: Applet,
+        ownerField: "owner",
+        legacyPublicField: null,
+    },
     automation: {
         model: Automation,
         ownerField: "owner",
@@ -39,10 +44,22 @@ const NO_ACCESS = Object.freeze({
     isOwner: false,
     role: null,
 });
+const VIEWER_ONLY_ACCESS_ENTITY_TYPES = new Set([
+    "chat",
+    "workspace",
+    "published_applet",
+]);
 
 function sameId(a, b) {
     if (!a || !b) return false;
     return String(a) === String(b);
+}
+
+function normalizeRole(entityType, role) {
+    if (VIEWER_ONLY_ACCESS_ENTITY_TYPES.has(entityType)) {
+        return "viewer";
+    }
+    return role || "viewer";
 }
 
 export async function getEntityOwner(entityType, entityId) {
@@ -97,7 +114,7 @@ export async function resolveShareAccess({
                 return {
                     canAccess: true,
                     isOwner: false,
-                    role: match.role || "viewer",
+                    role: normalizeRole(entityType, match.role),
                 };
             }
         }
@@ -105,7 +122,7 @@ export async function resolveShareAccess({
             return {
                 canAccess: true,
                 isOwner: false,
-                role: share.link.role || "viewer",
+                role: normalizeRole(entityType, share.link.role),
             };
         }
     }

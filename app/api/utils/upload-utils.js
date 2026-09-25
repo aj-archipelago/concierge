@@ -4,14 +4,11 @@ import { getCurrentUser } from "./auth.js";
 import {
     analyzeFileContent,
     FILE_VALIDATION_CONFIG,
+    normalizeUploadMimeType,
     scanForMalware,
 } from "./fileValidation.js";
 import { extractBlobPathFromUrl } from "./llm-file-utils.js";
-import {
-    checkMediaFile,
-    hashBuffer,
-    uploadBufferToMediaService,
-} from "./media-service-utils.js";
+import { uploadBufferToMediaService } from "./media-service-utils.js";
 import { resolveStorageTarget } from "../../../src/utils/storageTargets.js";
 
 import Busboy from "busboy";
@@ -89,63 +86,6 @@ export async function handleStreamingFileUpload(request, options) {
                 userId: userContextIdStr,
             });
 
-        // Check if file already exists using hash
-        if (metadata.hash) {
-            try {
-                const checkData = await checkMediaFile({
-                    hash: metadata.hash,
-                    storageTarget,
-                });
-                if (checkData?.url) {
-                    // Create a new File document with existing file data
-                    const fileUrl = checkData.converted
-                        ? checkData.converted.url
-                        : checkData.url;
-                    const newFile = new File({
-                        filename: checkData.filename || metadata.filename,
-                        originalName: metadata.filename,
-                        mimeType: metadata.mimeType,
-                        size: metadata.size,
-                        url: fileUrl,
-                        gcsUrl: checkData.converted
-                            ? checkData.converted.gcs
-                            : checkData.gcs,
-                        hash: metadata.hash,
-                        blobPath:
-                            checkData.blobPath ||
-                            extractBlobPathFromUrl(fileUrl),
-                        owner: user._id,
-                    });
-
-                    await newFile.save();
-
-                    // Associate file with workspace/applet
-                    const associationResult = await associateFile(
-                        newFile,
-                        workspace,
-                        user,
-                    );
-                    if (associationResult.error) {
-                        return { error: associationResult.error };
-                    }
-
-                    // Use the file from associationResult if provided (for duplicates), otherwise use newFile
-                    const fileToReturn = associationResult.file || newFile;
-
-                    const responseData = {
-                        success: true,
-                        file: fileToReturn,
-                        files: associationResult.files,
-                    };
-
-                    return { success: true, data: responseData };
-                }
-            } catch (error) {
-                console.error("Error checking file hash:", error);
-                // Continue with upload even if hash check fails
-            }
-        }
-
         // Upload file to media service using buffer
         const uploadResult = await uploadBufferToMediaService(
             fileBuffer,
@@ -174,8 +114,10 @@ export async function handleStreamingFileUpload(request, options) {
             size: metadata.size,
             url: url,
             gcsUrl: gcsUrl,
-            hash: uploadResult.data.hash || metadata.hash, // Use hash from upload response or computed hash from file
-            blobPath: uploadResult.data.blobPath || extractBlobPathFromUrl(url),
+            hash: uploadResult.data.hash || null,
+            blobPath: converted
+                ? converted.blobPath || extractBlobPathFromUrl(url)
+                : data.blobPath || extractBlobPathFromUrl(url),
             owner: user._id,
         });
 
@@ -234,6 +176,7 @@ export async function parseStreamingMultipart(request, user, options = {}) {
             }
 
             const busboy = Busboy({
+                defParamCharset: "utf8",
                 headers: {
                     "content-type": contentType,
                 },
@@ -253,7 +196,11 @@ export async function parseStreamingMultipart(request, user, options = {}) {
 
             // Handle file upload with streaming validation
             busboy.on("file", (fieldname, file, fileInfo) => {
-                const { filename, encoding, mimeType } = fileInfo;
+                const { filename, encoding } = fileInfo;
+                const mimeType = normalizeUploadMimeType(
+                    filename,
+                    fileInfo.mimeType,
+                );
 
                 metadata = {
                     fieldname,
@@ -402,9 +349,6 @@ export async function parseStreamingMultipart(request, user, options = {}) {
                     return;
                 }
 
-                // Compute hash from file buffer
-                const computedHash = await hashBuffer(fileData);
-
                 // Log memory usage for observability in tests and diagnostics
                 try {
                     const { heapUsed, rss } = process.memoryUsage();
@@ -418,10 +362,7 @@ export async function parseStreamingMultipart(request, user, options = {}) {
                     data: {
                         file: mockFile,
                         fileBuffer: fileData,
-                        metadata: {
-                            ...metadata,
-                            hash: computedHash,
-                        },
+                        metadata,
                         contentAnalysis,
                     },
                 });

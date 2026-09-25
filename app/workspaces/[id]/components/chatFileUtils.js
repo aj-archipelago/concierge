@@ -1,95 +1,46 @@
 /**
  * Utility functions for deleting files from chat messages
  */
-import {
-    buildMediaHelperFileParams,
-    getStorageContextId,
-} from "../../../../src/utils/storageTargets";
+import { getFileDeletionRouting } from "../../../../src/utils/storageTargets";
 
-/**
- * Delete a file from cloud storage using the CFH API.
- * Accepts either object form { hash, blobPath, contextId, storageTarget } or legacy positional args (hash, contextId).
- * @param {string|Object} hashOrOpts - File hash (legacy) or options object { hash, blobPath, contextId, storageTarget }
- * @param {string} [contextIdArg] - Optional context ID (legacy positional form)
- * @returns {Promise<void>} - Resolves even if deletion fails (errors are logged)
- */
+// Errors must reach callers so failed deletions stay visible and retryable.
 export async function deleteFileFromCloud(hashOrOpts, contextIdArg = null) {
-    // Support both legacy (hash, contextId) and new ({ hash, blobPath, contextId }) signatures
-    let hash,
-        blobPath,
-        contextId,
-        storageTarget,
-        workspaceId,
-        chatId,
-        fileScope;
-    if (typeof hashOrOpts === "object" && hashOrOpts !== null) {
-        ({
-            hash,
-            blobPath,
-            contextId,
-            storageTarget,
-            workspaceId,
-            chatId,
-            fileScope,
-        } = hashOrOpts);
-    } else {
-        hash = hashOrOpts;
-        contextId = contextIdArg;
+    const file =
+        typeof hashOrOpts === "object" && hashOrOpts !== null
+            ? hashOrOpts
+            : { hash: hashOrOpts, contextId: contextIdArg };
+    if (!file.hash && !file.blobPath) throw new Error("Missing file location");
+    const url = new URL("/api/files/delete", window.location.origin);
+    url.searchParams.set(
+        file.blobPath ? "blobPath" : "hash",
+        file.blobPath || file.hash,
+    );
+    for (const [key, value] of Object.entries(getFileDeletionRouting(file)))
+        url.searchParams.set(key, value);
+    const response = await fetch(url.toString(), { method: "DELETE" });
+    if (!response.ok)
+        throw new Error(`File deletion failed (${response.status})`);
+    return true;
+}
+
+async function deleteFileBatch(files, defaults) {
+    const response = await fetch("/api/files/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            files: files.map((file) => ({
+                blobPath: file.blobPath,
+                ...getFileDeletionRouting(file, defaults),
+            })),
+        }),
+    });
+    if (!response.ok)
+        throw new Error(`File deletion failed (${response.status})`);
+    const data = await response.json();
+    if (!Array.isArray(data.results) || data.results.length !== files.length) {
+        throw new Error("Incomplete file deletion response");
     }
-
-    if (!hash && !blobPath) return;
-
-    try {
-        const deleteUrl = new URL("/api/files/delete", window.location.origin);
-        if (blobPath) {
-            deleteUrl.searchParams.set("blobPath", blobPath);
-        }
-        if (hash) {
-            deleteUrl.searchParams.set("hash", hash);
-        }
-        const routingParams = buildMediaHelperFileParams({
-            storageTarget,
-            contextId,
-            workspaceId,
-            chatId,
-            fileScope,
-        });
-        const resolvedContextId =
-            storageTarget || routingParams.fileScope
-                ? getStorageContextId({
-                      storageTarget,
-                      contextId,
-                      workspaceId,
-                      chatId,
-                      fileScope,
-                  })
-                : contextId;
-        if (resolvedContextId) {
-            deleteUrl.searchParams.set("contextId", resolvedContextId);
-        }
-        for (const [key, value] of Object.entries(routingParams)) {
-            if (key === "contextId") continue;
-            deleteUrl.searchParams.set(key, value);
-        }
-
-        const response = await fetch(deleteUrl.toString(), {
-            method: "DELETE",
-        });
-
-        const fileIdentifier = blobPath || hash;
-        if (!response.ok) {
-            const errorBody = await response.text();
-            console.warn(
-                `Failed to delete file from cloud: ${response.statusText}. ${errorBody}`,
-            );
-        } else {
-            console.log(
-                `Successfully deleted file ${fileIdentifier} from cloud storage`,
-            );
-        }
-    } catch (error) {
-        console.error("Error deleting file from cloud storage:", error);
-    }
+    return data.results;
 }
 
 /**
@@ -208,8 +159,7 @@ export async function deleteFileFromChatPayload(fileObj, t, filename = null) {
     // For chat files, use purgeFiles instead which accepts contextId
     if (fileObj.hash || fileObj.blobPath) {
         await deleteFileFromCloud({
-            hash: fileObj.hash,
-            blobPath: fileObj.blobPath,
+            ...fileObj,
         });
     }
 
@@ -270,40 +220,80 @@ export async function purgeFiles({
         updatedMessages: null,
     };
 
-    // 1. Delete from cloud storage (in parallel)
-    // Use the provided contextId for deletion (e.g., user.contextId for user files)
-    if (!skipCloudDelete) {
-        await Promise.allSettled(
-            files
-                .filter((fileObj) => fileObj?.hash || fileObj?.blobPath)
-                .map((fileObj) =>
-                    deleteFileFromCloud({
-                        hash: fileObj.hash,
-                        blobPath: fileObj.blobPath,
-                        contextId,
-                    }),
-                ),
-        );
-        results.cloudDeleted = files.filter(
-            (f) => f?.hash || f?.blobPath,
-        ).length;
+    const deletedFiles = [];
+    const failedFiles = [];
+    results.deletedFiles = deletedFiles;
+    results.failedFiles = failedFiles;
+    if (skipCloudDelete) {
+        deletedFiles.push(...files);
+    } else {
+        // Each bounded request scans compatibility records once. Send batches
+        // sequentially to avoid amplifying storage/Redis load for a large selection.
+        const located = files.filter((file) => file.blobPath);
+        for (let offset = 0; offset < located.length; offset += 500) {
+            const batch = located.slice(offset, offset + 500);
+            try {
+                const outcomes = await deleteFileBatch(batch, {
+                    contextId,
+                    chatId,
+                });
+                batch.forEach((file, index) => {
+                    (outcomes[index]?.deleted === true
+                        ? deletedFiles
+                        : failedFiles
+                    ).push(file);
+                });
+            } catch {
+                failedFiles.push(...batch);
+            }
+        }
+        // Historical hash-only attachments are compatibility reads/mutations,
+        // never a fallback after an exact path fails.
+        for (const file of files.filter((file) => !file.blobPath)) {
+            try {
+                await deleteFileFromCloud({ contextId, chatId, ...file });
+                deletedFiles.push(file);
+            } catch {
+                failedFiles.push(file);
+            }
+        }
+        results.cloudDeleted = deletedFiles.length;
     }
-
-    // 2. CFH automatically updates Redis on delete, so no manual collection update needed
-    results.userFileCollectionRemoved = !skipUserFileCollection;
+    results.userFileCollectionRemoved =
+        !skipUserFileCollection && !failedFiles.length;
 
     // 3. Replace in chat messages with placeholders (single update for all files)
-    if (chatId && messages && Array.isArray(messages) && updateChatHook) {
+    if (
+        deletedFiles.length &&
+        chatId &&
+        messages &&
+        Array.isArray(messages) &&
+        updateChatHook
+    ) {
         try {
-            // Create a Set of file identifiers for fast lookup
-            const fileIdentifiers = new Set();
-            files.forEach((fileObj) => {
-                if (fileObj?.blobPath)
-                    fileIdentifiers.add(`blobPath:${fileObj.blobPath}`);
-                if (fileObj?.hash) fileIdentifiers.add(`hash:${fileObj.hash}`);
-                if (fileObj?.url) fileIdentifiers.add(`url:${fileObj.url}`);
-                if (fileObj?.image_url?.url)
-                    fileIdentifiers.add(`image_url:${fileObj.image_url.url}`);
+            const identifiers = (file) => {
+                // A known location takes precedence over deprecated hashes.
+                const url = file.url || file.image_url?.url;
+                if (url) {
+                    try {
+                        const parsed = new URL(url);
+                        parsed.search = "";
+                        parsed.hash = "";
+                        return [`url:${parsed.toString()}`];
+                    } catch {
+                        /* legacy malformed URL */
+                    }
+                }
+                if (file.blobPath) return [`path:${file.blobPath}`];
+                return file.hash ? [`hash:${file.hash}`] : [];
+            };
+            const fileIdentifiers = new Map();
+            deletedFiles.forEach((file) => {
+                identifiers(file).forEach((key) =>
+                    fileIdentifiers.set(key, file),
+                );
+                if (file.blobPath)
+                    fileIdentifiers.set(`path:${file.blobPath}`, file);
             });
 
             const updatedMessages = messages.map((message) => {
@@ -317,40 +307,18 @@ export async function purgeFiles({
                                 payloadObj.type === "file") &&
                             !payloadObj.hideFromClient
                         ) {
-                            const matches =
-                                (payloadObj.blobPath &&
-                                    fileIdentifiers.has(
-                                        `blobPath:${payloadObj.blobPath}`,
-                                    )) ||
-                                (payloadObj.hash &&
-                                    fileIdentifiers.has(
-                                        `hash:${payloadObj.hash}`,
-                                    )) ||
-                                (payloadObj.url &&
-                                    fileIdentifiers.has(
-                                        `url:${payloadObj.url}`,
-                                    )) ||
-                                (payloadObj.image_url?.url &&
-                                    fileIdentifiers.has(
-                                        `image_url:${payloadObj.image_url.url}`,
-                                    ));
-
-                            if (matches) {
-                                // Find matching fileObj for filename
-                                const matchingFileObj = files.find(
-                                    (fileObj) =>
-                                        (fileObj.blobPath &&
-                                            payloadObj.blobPath ===
-                                                fileObj.blobPath) ||
-                                        (fileObj.hash &&
-                                            payloadObj.hash === fileObj.hash) ||
-                                        (fileObj.url &&
-                                            payloadObj.url === fileObj.url) ||
-                                        (fileObj.image_url?.url &&
-                                            payloadObj.image_url?.url ===
-                                                fileObj.image_url.url),
-                                );
-
+                            const matchingFileObj =
+                                identifiers(payloadObj)
+                                    .map((key) => fileIdentifiers.get(key))
+                                    .find(Boolean) ||
+                                (!payloadObj.url &&
+                                !payloadObj.image_url?.url &&
+                                payloadObj.blobPath
+                                    ? fileIdentifiers.get(
+                                          `path:${payloadObj.blobPath}`,
+                                      )
+                                    : null);
+                            if (matchingFileObj) {
                                 const filename =
                                     matchingFileObj && getFilename
                                         ? getFilename(matchingFileObj)
@@ -377,19 +345,26 @@ export async function purgeFiles({
 
             await updateChatHook.mutateAsync({
                 chatId: String(chatId),
-                messages: updatedMessages,
+                messageUpdates: updatedMessages.filter(
+                    (message, index) => message !== messages[index],
+                ),
             });
 
             results.chatUpdated = true;
             results.updatedMessages = updatedMessages;
         } catch (error) {
-            console.error(
-                "Failed to update chat with file placeholders:",
-                error,
-            );
+            results.chatUpdateFailed = true;
         }
     }
 
+    results.success = !failedFiles.length && !results.chatUpdateFailed;
+    if (!results.success) {
+        const error = new Error(
+            "Some files could not be deleted or their messages updated",
+        );
+        error.results = results;
+        throw error;
+    }
     return results;
 }
 

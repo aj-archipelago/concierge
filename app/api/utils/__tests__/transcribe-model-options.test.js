@@ -146,3 +146,32 @@ describe("transcribe model option flags", () => {
         expect(getTranscribeAlternateModelOption()).toBe("MAI-Transcribe-1.5");
     });
 });
+
+describe("dedicated ASR availability", () => {
+    afterEach(() => {
+        delete process.env.ENABLE_GEMINI_35_TRANSCRIBE;
+        delete process.env.ENABLE_SCRIBE_V2_TRANSCRIBE;
+    });
+    for (const [model, flag] of [
+        ["Gemini 3.5 Transcribe", "ENABLE_GEMINI_35_TRANSCRIBE"],
+        ["Scribe v2", "ENABLE_SCRIBE_V2_TRANSCRIBE"],
+    ]) {
+        test(`${model} cannot be selected or used as default until enabled`, () => {
+            expect(getConfiguredTranscribeModelOption(model)).toBeNull();
+            expect(() => assertTranscribeModelOptionEnabled(model)).toThrow(
+                /not enabled/,
+            );
+            process.env[flag] = "true";
+            expect(getConfiguredTranscribeModelOption(model)).toBe(model);
+            expect(() =>
+                assertTranscribeModelOptionEnabled(model),
+            ).not.toThrow();
+            expect(
+                normalizeTranscribeTaskMetadata({
+                    modelOption: model,
+                    wordTimestamped: true,
+                }).wordTimestamped,
+            ).toBe(true);
+        });
+    }
+});

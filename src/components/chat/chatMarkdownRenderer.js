@@ -16,6 +16,7 @@ import MermaidPlaceholder from "../code/MermaidPlaceholder";
 import TextWithCitations from "./TextWithCitations";
 import InlineEmotionDisplay from "./InlineEmotionDisplay";
 import { MarkdownImageRenderer } from "./chatMarkdownMedia";
+import { getChatArtifactDownloadUrl } from "../../utils/fileDownloadUtils";
 
 function transformToCitation(content) {
     return content
@@ -294,7 +295,12 @@ function renderChatMarkdownMessage({
             return <pre>{children}</pre>;
         },
         a: ({ href, children, ...props }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+            <a
+                href={getChatArtifactDownloadUrl(href)}
+                target="_blank"
+                rel="noopener noreferrer"
+                {...props}
+            >
                 {children}
             </a>
         ),

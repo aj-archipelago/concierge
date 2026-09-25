@@ -11,6 +11,7 @@ const TERMINAL_TASK_STATUSES = new Set([
     "cancelled",
     "completed",
     "failed",
+    "waiting",
 ]);
 
 export async function GET(request, { params }) {

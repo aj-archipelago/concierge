@@ -57,17 +57,52 @@ export function requireActiveAppletDocument() {
     return doc;
 }
 
-// Calls the SDK's existing __APPLET_INSPECT_REQUEST__ protocol and resolves
-// with { consoleEntries, networkRequests }. The SDK is auto-injected by
-// OutputSandbox into every applet (and into the published /applet route),
-// so this works in canvas previews as well as fullscreen.
-export async function inspectApplet({ clear = false, timeoutMs = 2000 } = {}) {
+const APPLET_SANDBOX_WAIT_MS = 8000;
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForActiveAppletDocument({
+    timeoutMs = APPLET_SANDBOX_WAIT_MS,
+} = {}) {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() < deadline) {
+        const doc = getActiveAppletDocument();
+        if (doc?.documentElement) {
+            return doc;
+        }
+        await sleep(50);
+    }
+    return requireActiveAppletDocument();
+}
+
+export async function waitForActiveAppletWindow({
+    timeoutMs = APPLET_SANDBOX_WAIT_MS,
+} = {}) {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (Date.now() < deadline) {
+        const win = getActiveAppletWindow();
+        if (win) {
+            return win;
+        }
+        await sleep(50);
+    }
     const win = getActiveAppletWindow();
     if (!win) {
         throw new Error(
             "No applet is currently open in the canvas. Open one first before reading its console.",
         );
     }
+    return win;
+}
+
+// Calls the SDK's existing __APPLET_INSPECT_REQUEST__ protocol and resolves
+// with { consoleEntries, networkRequests }. The SDK is auto-injected by
+// OutputSandbox into every applet (and into the published /applet route),
+// so this works in canvas previews as well as fullscreen.
+export async function inspectApplet({ clear = false, timeoutMs = 2000 } = {}) {
+    const win = await waitForActiveAppletWindow();
 
     const requestId = `inspect-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 

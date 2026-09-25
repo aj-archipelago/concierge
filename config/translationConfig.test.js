@@ -11,11 +11,18 @@ import {
 } from "../src/components/translate/translationConfig";
 
 describe("translation model routing", () => {
-    it("keeps the legacy Gemini Flash strategy value but routes to Gemini 3.5 Flash", () => {
+    it("keeps the legacy Gemini Flash strategy value but routes to Gemini 3.7 Flash", () => {
         expect(TRANSLATION_STRATEGIES.GEMINI_3_FLASH).toBe("gemini3flash");
         expect(getTranslationModel(TRANSLATION_STRATEGIES.GEMINI_3_FLASH)).toBe(
-            "gemini-flash-35-vision",
+            "gemini-flash-37-vision",
         );
+    });
+
+    it("routes the newest Anthropic translation strategy to Claude Sonnet 5", () => {
+        expect(TRANSLATION_STRATEGIES.CLAUDE_5_SONNET).toBe("claude5sonnet");
+        expect(
+            getTranslationModel(TRANSLATION_STRATEGIES.CLAUDE_5_SONNET),
+        ).toBe("claude-5-sonnet-vertex");
     });
 
     it("keeps legacy strategy values normalized to supported defaults", () => {
@@ -30,7 +37,7 @@ describe("translation model routing", () => {
         );
     });
 
-    it("keeps user-facing Gemini Flash labels on 3.5", () => {
+    it("keeps user-facing Gemini Flash labels on 3.7", () => {
         const checkedFiles = [
             "src/components/translate/Translation.js",
             "config/default/locales/en.json",
@@ -42,8 +49,8 @@ describe("translation model routing", () => {
                 path.join(process.cwd(), file),
                 "utf8",
             );
-            expect(content).toContain("Gemini 3.5 Flash");
-            expect(content).not.toMatch(/Fastest Google \(Gemini 3 Flash\)/);
+            expect(content).toContain("Gemini 3.7 Flash");
+            expect(content).not.toContain("Gemini 3 Flash");
         }
     });
 });

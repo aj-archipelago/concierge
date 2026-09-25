@@ -19,7 +19,7 @@ Admin-protected routes in this application follow a consistent pattern:
 To run the admin protection tests:
 
 ```bash
-npm test app/api/__tests__/admin-protection.test.js
+npm test -- app/api/__tests__/admin-protection.test.js
 ```
 
 ### Adding New Admin-Protected Routes
@@ -61,7 +61,7 @@ The test file includes a function that automatically discovers admin-protected r
 To see all admin-protected routes:
 
 ```bash
-npm test app/api/__tests__/admin-protection.test.js -- --verbose
+npm test -- app/api/__tests__/admin-protection.test.js --verbose
 ```
 
 This will log all discovered admin-protected routes to the console.
@@ -71,4 +71,5 @@ This will log all discovered admin-protected routes to the console.
 1. Always protect admin routes with the standard pattern
 2. Add tests for all new admin-protected routes
 3. Run the tests regularly to ensure all admin routes remain protected
-4. Consider adding a pre-commit hook to run these tests before committing changes
+4. Run the repository-required `npm run precommit` before final pushes; use focused tests while iterating.
+5. MongoDB integration tests and free-port tests require local listener access. A sandbox `listen EPERM` requires a rerun with listener permission, not removal of the test.

@@ -19,6 +19,7 @@ export default function FilterInput({
     onChange,
     onClear,
     placeholder,
+    ariaLabel,
     className = "",
     dataTestId,
     autoFocus = false,
@@ -57,7 +58,8 @@ export default function FilterInput({
             <input
                 data-testid={dataTestId}
                 type="text"
-                className="lb-input h-full min-h-0 w-full ps-10 pe-10"
+                className="lb-input h-full min-h-10 w-full ps-10 pe-10"
+                aria-label={ariaLabel || placeholder || t("Filter...")}
                 placeholder={placeholder || t("Filter...")}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
@@ -72,7 +74,7 @@ export default function FilterInput({
             {value && (
                 <button
                     data-testid={dataTestId ? `${dataTestId}-clear` : undefined}
-                    className="absolute inset-y-0 end-2 flex items-center"
+                    className="absolute inset-y-0 end-0 flex w-10 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                     onClick={handleClear}
                     aria-label={clearLabel}
                     title={clearLabel}

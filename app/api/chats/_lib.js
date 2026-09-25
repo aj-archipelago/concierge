@@ -1,5 +1,7 @@
 import User from "../models/user";
 import Chat from "../models/chat.mjs";
+import Task from "../models/task.mjs";
+import { consolidateQuestionConversation } from "../utils/assistant-conversation.mjs";
 import { getCurrentUser } from "../utils/auth";
 import { resolveShareAccess } from "../utils/shareAccess";
 import {
@@ -14,16 +16,18 @@ import {
     extractPreviewTextFromStoredPayload,
     extractSearchableText,
 } from "../../../src/utils/assistantInlinePayload";
+import { sanitizeToolForPersistence } from "./persistence.js";
 import {
-    CHAT_STORAGE_WARNING_BYTES,
-    prepareMessagesForPersistence,
-    sanitizeToolForPersistence,
-} from "./persistence.js";
+    EXTERNAL_MESSAGE_STORAGE,
+    MESSAGE_SEARCH_BATCH_SIZE,
+    findChatsWithMatchingMessages,
+    readChatMessages,
+    replaceChatMessages,
+    usesExternalMessageStorage,
+} from "./message-store.js";
 
 export {
-    CHAT_DOCUMENT_LIMIT_BYTES,
-    CHAT_STORAGE_WARNING_BYTES,
-    prepareMessagesForPersistence,
+    prepareMessageForPersistence,
     sanitizeMessagesForPersistence,
     sanitizeToolForPersistence,
 } from "./persistence.js";
@@ -38,7 +42,12 @@ export function sanitizeMessage(msg) {
     const msgObj = msg.toObject ? msg.toObject() : msg;
     return {
         payload: msgObj.payload,
-        sender: msgObj.sender,
+        // Early inbox deliveries used "bot", which the chat UI treated as a
+        // user message. Keep those stored notifications readable as assistants.
+        sender:
+            msgObj.sender === "bot" && msgObj.isServerGenerated
+                ? "concierge"
+                : msgObj.sender,
         tool: sanitizeToolForPersistence(msgObj.tool) || null,
         sentTime: msgObj.sentTime,
         direction: msgObj.direction,
@@ -82,17 +91,12 @@ export const buildLastMessagePreview = (messages) => {
     };
 };
 
-const serializeForPersistenceComparison = (value) => {
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return null;
-    }
-};
-
 // Search limits for title search
 const DEFAULT_TITLE_SEARCH_LIMIT = 20;
 const DEFAULT_TITLE_SEARCH_SCAN_LIMIT = 500;
+// Leave most of the 10-connection Mongo pool available to interactive chat
+// traffic while background/list search reads walk individual chat partitions.
+const MESSAGE_READ_CONCURRENCY = 4;
 const DEFAULT_RECENT_CHAT_LIMIT = 20;
 const NEW_CHAT_TITLE = "New Chat";
 const getSimpleTitle = (message) => {
@@ -113,7 +117,7 @@ const buildVisibleChatQuery = (userId, activeChatId, extraQuery = {}) => {
             "messages.0": { $exists: false },
         },
         { isPublic: true },
-        nonEmptyFieldQuery("lastMessagePreview"),
+        { nextMessageSequence: { $gt: 0 } },
         nonEmptyFieldQuery("lastMessageSender"),
         nonEmptyFieldQuery("lastMessageAt"),
         nonEmptyFieldQuery("selectedEntityId"),
@@ -124,36 +128,201 @@ const buildVisibleChatQuery = (userId, activeChatId, extraQuery = {}) => {
     }
 
     return {
+        archived: { $ne: true },
         ...extraQuery,
         userId,
         $or: visibilityClauses,
     };
 };
 
+const RECENT_CHAT_PROJECTION = {
+    _id: 1,
+    title: 1,
+    titleSetByUser: 1,
+    lastMessagePreview: 1,
+    lastMessageSender: 1,
+    lastMessageAt: 1,
+    isChatLoading: 1,
+    updatedAt: 1,
+    pinned: 1,
+    pinnedAt: 1,
+    archived: 1,
+};
+
+const sortRecentChatsForSidebar = (chats) =>
+    [...chats].sort((a, b) => {
+        const aPinned = a?.pinned ? 1 : 0;
+        const bPinned = b?.pinned ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+        return (
+            new Date(b?.updatedAt || 0).getTime() -
+            new Date(a?.updatedAt || 0).getTime()
+        );
+    });
+
+const CHAT_TASK_NOTIFICATION_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+const toIsoTimestamp = (value) => {
+    if (!value) return null;
+    if (typeof value === "string") {
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : new Date(parsed).toISOString();
+    }
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const ACTIVE_CHAT_TASK_STATUSES = new Set(["pending", "in_progress"]);
+const TERMINAL_CHAT_TASK_STATUSES = new Set(["completed", "failed"]);
+
+function collectLatestChatTasks(tasks, chatIdSet, latestByChat) {
+    for (const task of tasks) {
+        // Any task linked to a chat (chatId) counts — callers often use
+        // sources like "canvas_image_modify" rather than literal "chat".
+        const chatId = task?.invokedFrom?.chatId
+            ? String(task.invokedFrom.chatId)
+            : "";
+        if (!chatId || !chatIdSet.has(chatId) || latestByChat.has(chatId)) {
+            continue;
+        }
+        latestByChat.set(chatId, {
+            latestTaskStatus: task.status,
+            latestTaskAt: toIsoTimestamp(task.updatedAt || task.createdAt),
+        });
+        if (latestByChat.size >= chatIdSet.size) break;
+    }
+}
+
+/**
+ * Attach the most recent chat-sourced task per chat so the sidebar can show
+ * gray pulse (in progress), blue (completed while away), or red (failed) dots.
+ *
+ * Cosmos/CSFLE cannot filter on nested `invokedFrom.*` paths with ORDER BY, so
+ * we query owner/status/time with a single-field sort and match chat ids in JS.
+ * Sort/filter on `createdAt` (composite index), not `updatedAt` — Cosmos
+ * rejects ORDER BY on excluded index paths.
+ * Active tasks are preferred over terminal ones for the same chat.
+ */
+export async function attachLatestChatTaskStatus(chats, userId) {
+    if (!Array.isArray(chats) || chats.length === 0 || !userId) {
+        return chats;
+    }
+
+    const chatIdSet = new Set(
+        chats
+            .map((chat) => (chat?._id ? String(chat._id) : ""))
+            .filter(Boolean),
+    );
+    if (chatIdSet.size === 0) return chats;
+
+    const since = new Date(Date.now() - CHAT_TASK_NOTIFICATION_WINDOW_MS);
+    // Bound the scan; sidebar only needs the latest task per visible chat.
+    const fetchLimit = Math.min(500, Math.max(50, chatIdSet.size * 10));
+    const projection = {
+        status: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        invokedFrom: 1,
+    };
+
+    let activeTasks = [];
+    let terminalTasks = [];
+    try {
+        [activeTasks, terminalTasks] = await Promise.all([
+            Task.find(
+                {
+                    owner: userId,
+                    type: { $ne: "resource-shared" },
+                    dismissed: { $ne: true },
+                    status: { $in: [...ACTIVE_CHAT_TASK_STATUSES] },
+                },
+                projection,
+            )
+                .sort({ createdAt: -1 })
+                .limit(fetchLimit)
+                .lean(),
+            Task.find(
+                {
+                    owner: userId,
+                    type: { $ne: "resource-shared" },
+                    dismissed: { $ne: true },
+                    status: { $in: [...TERMINAL_CHAT_TASK_STATUSES] },
+                    createdAt: { $gte: since },
+                },
+                projection,
+            )
+                .sort({ createdAt: -1 })
+                .limit(fetchLimit)
+                .lean(),
+        ]);
+    } catch (error) {
+        console.error(
+            "attachLatestChatTaskStatus: failed to load chat tasks",
+            error,
+        );
+        return chats;
+    }
+
+    const latestByChat = new Map();
+    // Prefer in-flight tasks so a chat with a running job shows the gray pulse.
+    collectLatestChatTasks(activeTasks, chatIdSet, latestByChat);
+    collectLatestChatTasks(terminalTasks, chatIdSet, latestByChat);
+
+    for (const chat of chats) {
+        const info = latestByChat.get(String(chat._id));
+        if (!info) continue;
+        chat.latestTaskStatus = info.latestTaskStatus;
+        chat.latestTaskAt = info.latestTaskAt;
+    }
+
+    return chats;
+}
+
 export async function getRecentChatsOfCurrentUser() {
     const currentUser = await getCurrentUser(false);
     if (!currentUser?._id || currentUser.userId === "nodb") {
         return [];
     }
-    const recentChats = await Chat.find(
-        buildVisibleChatQuery(currentUser._id, currentUser.activeChatId),
-        {
-            _id: 1,
-            title: 1,
-            titleSetByUser: 1,
-            lastMessagePreview: 1,
-            lastMessageAt: 1,
-            updatedAt: 1,
-        },
-    )
-        .sort({ updatedAt: -1 })
-        .limit(DEFAULT_RECENT_CHAT_LIMIT)
-        .lean();
+
+    // Cosmos DB rejects multi-field ORDER BY without a composite index, so
+    // keep DB sorts single-field and merge/pin-sort in memory.
+    const visibleQuery = buildVisibleChatQuery(
+        currentUser._id,
+        currentUser.activeChatId,
+    );
+    const [recentChats, pinnedChats] = await Promise.all([
+        Chat.find(visibleQuery, RECENT_CHAT_PROJECTION)
+            .sort({ updatedAt: -1 })
+            .limit(DEFAULT_RECENT_CHAT_LIMIT)
+            .lean(),
+        Chat.find(
+            buildVisibleChatQuery(currentUser._id, currentUser.activeChatId, {
+                pinned: true,
+            }),
+            RECENT_CHAT_PROJECTION,
+        )
+            .sort({ updatedAt: -1 })
+            .limit(DEFAULT_RECENT_CHAT_LIMIT)
+            .lean(),
+    ]);
+
+    const byId = new Map();
+    for (const chat of [...pinnedChats, ...recentChats]) {
+        if (!chat?._id) continue;
+        byId.set(String(chat._id), chat);
+    }
+    const mergedChats = sortRecentChatsForSidebar([...byId.values()]).slice(
+        0,
+        DEFAULT_RECENT_CHAT_LIMIT,
+    );
 
     // For chats without a custom title, fetch the first message separately
     // This approach avoids truncating the messages array in the main cache
-    const firstChatId = recentChats[0]?._id ? String(recentChats[0]._id) : null;
-    const chatsNeedingFirstMessage = recentChats.filter((chat) => {
+    const firstChatId = mergedChats[0]?._id ? String(mergedChats[0]._id) : null;
+    const chatsNeedingFirstMessage = mergedChats.filter((chat) => {
         const isFirstChat = firstChatId && String(chat._id) === firstChatId;
         return (
             isFirstChat ||
@@ -164,17 +333,37 @@ export async function getRecentChatsOfCurrentUser() {
     });
 
     if (chatsNeedingFirstMessage.length > 0) {
-        const chatIds = chatsNeedingFirstMessage.map((chat) => chat._id);
-        const chatsWithFirstMessage = await Chat.find(
-            { _id: { $in: chatIds } },
-            { messages: { $slice: 1 } },
+        const chatsWithStorage = await Chat.find(
+            { _id: { $in: chatsNeedingFirstMessage.map((chat) => chat._id) } },
+            {
+                messages: { $slice: 1 },
+                messageStorageMode: 1,
+                messageStorageGeneration: 1,
+            },
         ).lean();
-        const firstMessageMap = new Map(
-            chatsWithFirstMessage.map((chat) => [
-                String(chat._id),
-                chat?.messages?.[0],
-            ]),
-        );
+        const firstMessageEntries = [];
+        for (
+            let offset = 0;
+            offset < chatsWithStorage.length;
+            offset += MESSAGE_READ_CONCURRENCY
+        ) {
+            const batch = chatsWithStorage.slice(
+                offset,
+                offset + MESSAGE_READ_CONCURRENCY,
+            );
+            firstMessageEntries.push(
+                ...(await Promise.all(
+                    batch.map(async (chat) => {
+                        const page = await readChatMessages(chat, {
+                            limit: 1,
+                            fromStart: true,
+                        });
+                        return [String(chat._id), page.messages[0]];
+                    }),
+                )),
+            );
+        }
+        const firstMessageMap = new Map(firstMessageEntries);
 
         for (const chat of chatsNeedingFirstMessage) {
             const firstMessage = firstMessageMap.get(String(chat._id));
@@ -184,7 +373,16 @@ export async function getRecentChatsOfCurrentUser() {
         }
     }
 
-    return recentChats;
+    try {
+        await attachLatestChatTaskStatus(mergedChats, currentUser._id);
+    } catch (error) {
+        // Never fail the sidebar chat list because of task-status enrichment.
+        console.error(
+            "getRecentChatsOfCurrentUser: attachLatestChatTaskStatus failed",
+            error,
+        );
+    }
+    return mergedChats;
 }
 
 export async function getChatsOfCurrentUser(page = 1, limit = 20) {
@@ -302,6 +500,13 @@ export async function createNewChat(data, { setActive = true } = {}) {
     const { messages, title } = data;
     const currentUser = await getCurrentUser(false);
     const userId = currentUser._id;
+    let selectedEntityId;
+    if (data.selectedEntityId) {
+        const { requireColleague } = await import("../utils/colleagues.js");
+        selectedEntityId = (
+            await requireColleague(currentUser, data.selectedEntityId)
+        ).id;
+    }
 
     const normalizedMessages = Array.isArray(messages)
         ? messages
@@ -309,31 +514,36 @@ export async function createNewChat(data, { setActive = true } = {}) {
           ? [messages]
           : [];
 
-    const prepared = prepareMessagesForPersistence(normalizedMessages);
-    const messagesForPersistence = prepared.messages;
     const hasExplicitTitle =
         typeof title === "string" ? title.trim().length > 0 : Boolean(title);
 
     const chat = new Chat({
         userId,
-        messages: messagesForPersistence,
+        ...(selectedEntityId ? { selectedEntityId } : {}),
+        messages: [],
+        messageStorageMode: EXTERNAL_MESSAGE_STORAGE,
+        messageStorageGeneration: new Types.ObjectId(),
+        nextMessageSequence: 0,
         title:
             title ||
-            (messagesForPersistence.length === 0
+            (normalizedMessages.length === 0
                 ? NEW_CHAT_TITLE
-                : getSimpleTitle(messagesForPersistence[0] || "")),
+                : getSimpleTitle(normalizedMessages[0] || "")),
         titleSetByUser: hasExplicitTitle,
-        messageStorageBytes: prepared.messageStorageBytes,
-        messagesCompacted: prepared.messagesCompacted,
-        messagesCompactedAt: prepared.messagesCompacted ? new Date() : null,
-        ...buildLastMessagePreview(messagesForPersistence),
+        ...buildLastMessagePreview(normalizedMessages),
     });
 
     await chat.save();
+    let result = chat;
+    if (normalizedMessages.length > 0) {
+        const replacement = await replaceChatMessages(chat, normalizedMessages);
+        result = replacement.chat;
+        result.messages = replacement.messages;
+    }
     if (setActive) {
         await setActiveChatId(chat._id);
     }
-    return chat;
+    return result;
 }
 
 export async function getChatForOwnerWrite(chatId, userId) {
@@ -365,32 +575,34 @@ export async function getChatForOwnerWrite(chatId, userId) {
     return { ok: true, chat, access };
 }
 
-export async function getChatById(chatId, { limit } = {}) {
+export async function getChatById(chatId, { limit, before } = {}) {
     if (!chatId || !Types.ObjectId.isValid(chatId)) {
         return null;
     }
 
     const currentUser = await getCurrentUser(false);
 
-    const effectiveLimit =
-        typeof limit === "number" && limit > 0 ? limit + 1 : null;
-    const messageProjection = effectiveLimit ? { $slice: -effectiveLimit } : 1;
+    const boundedLimit =
+        Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : null;
+    const messageProjection =
+        boundedLimit && !before ? { $slice: -(boundedLimit + 1) } : 1;
 
-    let chat = await Chat.findOne(
+    const chat = await Chat.findOne(
         { _id: chatId },
         {
             _id: 1,
             title: 1,
             messages: messageProjection,
+            messageStorageMode: 1,
+            messageStorageGeneration: 1,
             isPublic: 1,
             isChatLoading: 1,
             activeSubscriptionId: 1,
             titleSetByUser: 1,
             selectedEntityId: 1,
-            messageStorageBytes: 1,
-            messagesCompacted: 1,
-            messagesCompactedAt: 1,
+            assistantQuestionId: 1,
             userId: 1,
+            createdAt: 1,
         },
     ).lean();
 
@@ -414,88 +626,25 @@ export async function getChatById(chatId, { limit } = {}) {
         shareRole = access.role === "editor" ? "viewer" : access.role;
     }
 
-    if (
-        isOwner &&
-        Number(chat.messageStorageBytes || 0) >= CHAT_STORAGE_WARNING_BYTES
-    ) {
-        const fullChat = await Chat.findOne(
-            { _id: chatId, userId: currentUser._id },
-            {
-                messages: 1,
-            },
-        ).lean();
-        const prepared = prepareMessagesForPersistence(
-            fullChat?.messages || [],
-        );
-        const messagesChanged =
-            serializeForPersistenceComparison(fullChat?.messages || []) !==
-            serializeForPersistenceComparison(prepared.messages);
-        const compactionTimestampNeedsUpdate = prepared.messagesCompacted
-            ? !chat.messagesCompactedAt
-            : Boolean(chat.messagesCompactedAt);
-        const currentMessagesCompacted = chat.messagesCompacted === true;
-        const storageStatusChanged =
-            Number(chat.messageStorageBytes || 0) !==
-                prepared.messageStorageBytes ||
-            currentMessagesCompacted !== prepared.messagesCompacted ||
-            compactionTimestampNeedsUpdate;
-        let nextMessagesCompactedAt = null;
-        if (prepared.messagesCompacted) {
-            nextMessagesCompactedAt =
-                messagesChanged || !chat.messagesCompactedAt
-                    ? new Date()
-                    : chat.messagesCompactedAt;
-        }
-
-        const storageUpdate = {
-            messages: prepared.messages,
-            messageStorageBytes: prepared.messageStorageBytes,
-            messagesCompacted: prepared.messagesCompacted,
-            messagesCompactedAt: nextMessagesCompactedAt,
-            ...buildLastMessagePreview(prepared.messages),
-        };
-
-        if (messagesChanged || storageStatusChanged) {
-            await Chat.updateOne(
-                { _id: chatId, userId: currentUser._id },
-                { $set: storageUpdate },
-            );
-        }
-
-        chat = {
-            ...chat,
-            ...storageUpdate,
-            messages: effectiveLimit
-                ? prepared.messages.slice(-effectiveLimit)
-                : prepared.messages,
-        };
-    }
-
     const isReadOnly = !isOwner;
     const {
         _id,
         title,
-        messages,
         isPublic,
         isChatLoading,
         activeSubscriptionId,
         titleSetByUser,
         selectedEntityId,
-        messageStorageBytes,
-        messagesCompacted,
-        messagesCompactedAt,
     } = chat;
 
-    const rawMessages = Array.isArray(messages) ? messages : [];
-    const trimmedMessages = effectiveLimit
-        ? rawMessages.slice(-limit)
-        : rawMessages;
+    const messagePage = await readChatMessages(chat, {
+        limit: boundedLimit || undefined,
+        before,
+    });
 
     // Sanitize messages to remove Mongoose metadata fields (createdAt, updatedAt)
     // that shouldn't be sent to the client
-    const sanitizedMessages = trimmedMessages.map(sanitizeMessage);
-
-    const hasMoreMessages = effectiveLimit ? rawMessages.length > limit : false;
+    const sanitizedMessages = messagePage.messages.map(sanitizeMessage);
 
     const shareDoc = await Share.findOne({
         entityType: "chat",
@@ -508,6 +657,7 @@ export async function getChatById(chatId, { limit } = {}) {
     const result = {
         _id,
         title,
+        createdAt: chat.createdAt,
         messages: sanitizedMessages,
         isPublic,
         isShared,
@@ -518,12 +668,20 @@ export async function getChatById(chatId, { limit } = {}) {
         activeSubscriptionId: activeSubscriptionId || null,
         titleSetByUser,
         selectedEntityId,
-        messageStorageBytes: messageStorageBytes || 0,
-        messagesCompacted: messagesCompacted === true,
-        messagesCompactedAt: messagesCompactedAt || null,
-        messagesTruncated: hasMoreMessages,
-        hasMoreMessages,
+        messagesTruncated: messagePage.hasMoreMessages,
+        hasMoreMessages: messagePage.hasMoreMessages,
+        messageStorageMode: usesExternalMessageStorage(chat)
+            ? EXTERNAL_MESSAGE_STORAGE
+            : "embedded",
     };
+
+    if (isOwner && !isShared && chat.assistantQuestionId) {
+        const canonicalChatId = await consolidateQuestionConversation(
+            currentUser,
+            chat,
+        );
+        if (canonicalChatId) result.canonicalChatId = canonicalChatId;
+    }
 
     if (isReadOnly) {
         const owner = await User.findById(chat.userId)
@@ -843,6 +1001,8 @@ export async function searchChatTitles(
             lastMessagePreview: 1,
             lastMessageSender: 1,
             lastMessageAt: 1,
+            messageStorageMode: 1,
+            messageStorageGeneration: 1,
         },
     )
         .sort({ updatedAt: -1 })
@@ -893,6 +1053,9 @@ export async function searchChatContent(
             lastMessageAt: 1,
             // Use a helper to ensure at least one message is returned when slice <= 0.
             messages: { $slice: getMessageSliceWindow(slice) },
+            messageStorageMode: 1,
+            messageStorageGeneration: 1,
+            nextMessageSequence: 1,
         },
     )
         .sort({ updatedAt: -1 })
@@ -900,15 +1063,27 @@ export async function searchChatContent(
         .lean();
 
     const results = [];
-    for (const chat of chats) {
-        const msgs = Array.isArray(chat?.messages) ? chat.messages : [];
-        const hasMatch = msgs.some((m) => {
-            const text = extractSearchableText(m?.payload);
-            return text ? matchesAllTerms(text, searchTerms) : false;
-        });
-        if (hasMatch) {
-            results.push(chat);
-            if (results.length >= limit) break;
+    for (
+        let offset = 0;
+        offset < chats.length && results.length < limit;
+        offset += MESSAGE_SEARCH_BATCH_SIZE
+    ) {
+        const batch = chats.slice(offset, offset + MESSAGE_SEARCH_BATCH_SIZE);
+        const matchedIds = await findChatsWithMatchingMessages(
+            batch,
+            (message) => {
+                const text = extractSearchableText(message?.payload);
+                return text ? matchesAllTerms(text, searchTerms) : false;
+            },
+            { limit: slice },
+        );
+
+        for (const chat of batch) {
+            const hasMatch = matchedIds.has(String(chat._id));
+            if (hasMatch) {
+                results.push(chat);
+                if (results.length >= limit) break;
+            }
         }
     }
     return results;

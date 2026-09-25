@@ -1,5 +1,8 @@
 "use client";
 
+import CountBadge from "../common/CountBadge";
+import TeamNotificationItem from "./TeamNotificationItem";
+import AssistantTaskNotificationItem from "./AssistantTaskNotificationItem";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -34,6 +37,7 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 import TimeAgo from "react-time-ago";
 import stringcase from "stringcase";
 import Loader from "../../../app/components/loader";
@@ -48,6 +52,11 @@ import {
 import { LanguageContext } from "../../contexts/LanguageProvider";
 import { useNotificationsContext } from "../../contexts/NotificationContext";
 import { TASK_INFO } from "../../utils/task-info";
+import { AuthContext } from "../../App";
+import { useColleagues } from "../../hooks/useColleagues";
+import ColleagueNotificationItem, {
+    resolveNotificationCompanion,
+} from "./ColleagueNotificationItem";
 import { getYouTubeTranscriptionAccessErrorMessage } from "../../utils/transcriptionErrors";
 import {
     getShareNotificationSubtitle,
@@ -77,6 +86,8 @@ export const StatusIndicator = ({ status }) => {
         return <BanIcon className="h-4 w-4 text-red-500" />;
     } else if (status === "pending") {
         return <Clock className="h-4 w-4 text-yellow-500" />;
+    } else if (status === "waiting") {
+        return <Clock className="h-4 w-4 text-amber-700 dark:text-amber-300" />;
     } else if (status === "abandoned") {
         return <BanIcon className="h-4 w-4 text-red-500" />;
     } else {
@@ -95,6 +106,8 @@ export const getStatusColorClass = (status) => {
             return "text-sky-500";
         case "pending":
             return "text-yellow-500";
+        case "waiting":
+            return "text-amber-700 dark:text-amber-300";
         case "abandoned":
             return "text-red-500";
         default:
@@ -103,6 +116,13 @@ export const getStatusColorClass = (status) => {
 };
 
 function getNotificationDisplayTitle(notification, handlerDisplayNames, t) {
+    if (notification.type === "colleague-message")
+        return t(
+            notification.metadata?.kind === "help"
+                ? "colleagues.needsHelp"
+                : "colleagues.messageFrom",
+            { name: notification.metadata?.name },
+        );
     if (isShareNotification(notification)) {
         return getShareNotificationTitle(notification, t);
     }
@@ -147,6 +167,7 @@ function handleNotificationNavigation({
 
 const NotificationItem = ({
     notification,
+    entity,
     handlerDisplayNames,
     isRetryable,
     language,
@@ -174,6 +195,50 @@ const NotificationItem = ({
     const isClickable = Boolean(getNotificationNavigationPath(notification));
     const isUnreadNotification =
         notification.inboxKind === "notification" && !notification.read;
+
+    if (notification.team)
+        return (
+            <TeamNotificationItem
+                {...{
+                    notification,
+                    router,
+                    setIsNotificationOpen,
+                    onMarkRead,
+                    handleDismiss,
+                    t,
+                }}
+            />
+        );
+
+    if (notification.assistantProgress)
+        return (
+            <AssistantTaskNotificationItem
+                {...{
+                    notification,
+                    router,
+                    setIsNotificationOpen,
+                    handleCancelRequest,
+                    handleDismiss,
+                    t,
+                }}
+            />
+        );
+
+    if (notification.type === "colleague-message")
+        return (
+            <ColleagueNotificationItem
+                {...{
+                    notification,
+                    entity,
+                    router,
+                    setIsNotificationOpen,
+                    onMarkRead,
+                    handleDismiss,
+                    dismissingIds,
+                    t,
+                }}
+            />
+        );
 
     return (
         <div
@@ -216,6 +281,11 @@ const NotificationItem = ({
                             t,
                         )}
                     </span>
+                    {notification.type === "colleague-message" && (
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                            {notification.metadata?.message}
+                        </p>
+                    )}
                     {isShareNotification(notification) ? (
                         <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
                             {getShareNotificationSubtitle(notification, t)}
@@ -295,7 +365,13 @@ const NotificationItem = ({
                         <span
                             className={`flex items-center gap-1 text-xs font-semibold ${getStatusColorClass(notification.status)}`}
                         >
-                            {t(stringcase.sentencecase(notification.status))}
+                            {t(
+                                notification.status === "waiting"
+                                    ? "colleagues.runStatus.waiting"
+                                    : stringcase.sentencecase(
+                                          notification.status,
+                                      ),
+                            )}
                         </span>
                     ) : null}
 
@@ -334,12 +410,13 @@ const NotificationItem = ({
                 </div>
                 <div className="flex gap-2">
                     {(notification.status === "in_progress" ||
-                        notification.status === "pending") && (
+                        notification.status === "pending" ||
+                        notification.status === "waiting") && (
                         <button
                             onClick={() =>
                                 handleCancelRequest(notification._id)
                             }
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
+                            className="min-h-10 min-w-10 p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-center justify-center"
                             title={t("Cancel")}
                         >
                             <XIcon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
@@ -356,7 +433,7 @@ const NotificationItem = ({
                                     notification.inboxKind || "task",
                                 )
                             }
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
+                            className="min-h-10 min-w-10 p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-center justify-center"
                             title={t("Hide")}
                         >
                             <EyeOff className="h-4 w-4 text-gray-500 dark:text-gray-300" />
@@ -369,7 +446,7 @@ const NotificationItem = ({
                         isRetryable && (
                             <button
                                 onClick={() => handleRetry(notification._id)}
-                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-start"
+                                className="min-h-10 min-w-10 p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded flex items-center justify-center"
                                 title={t("Retry")}
                             >
                                 <RotateCcw className="h-4 w-4 text-gray-500 dark:text-gray-300" />
@@ -381,8 +458,12 @@ const NotificationItem = ({
     );
 };
 
-export default function NotificationButton() {
+export default function NotificationButton({
+    buttonClassName,
+    side = "bottom",
+}) {
     const { t } = useTranslation();
+    const { user } = useContext(AuthContext);
     const { isNotificationOpen, setIsNotificationOpen } =
         useNotificationsContext();
     const { data: notificationsData } = useInbox();
@@ -390,11 +471,24 @@ export default function NotificationButton() {
         () => notificationsData?.requests || [],
         [notificationsData],
     );
+    const { data: colleagues = [] } = useColleagues({
+        ids: [
+            ...new Set(
+                notifications
+                    .map((item) => item.metadata?.entityId)
+                    .filter(Boolean),
+            ),
+        ],
+        limit: 100,
+        enabled:
+            isNotificationOpen &&
+            notifications.some((item) => item.type === "colleague-message"),
+    });
     const dismissNotification = useDismissInboxItem();
     const markNotificationsRead = useMarkNotificationsRead();
     const [dismissingIds, setDismissingIds] = useState(new Set());
     const [cancelRequestId, setCancelRequestId] = useState(null);
-    const { language } = useContext(LanguageContext);
+    const { language, direction } = useContext(LanguageContext);
     const router = useRouter();
     const cancelRequest = useCancelTask();
     const retryTask = useRetryTask();
@@ -439,7 +533,9 @@ export default function NotificationButton() {
 
     const handleMarkRead = useCallback(
         (id) => {
-            markNotificationsRead.mutate({ ids: [id] });
+            markNotificationsRead.mutate({
+                ids: Array.isArray(id) ? id : [id],
+            });
         },
         [markNotificationsRead],
     );
@@ -467,24 +563,27 @@ export default function NotificationButton() {
                 open={isNotificationOpen}
                 onOpenChange={setIsNotificationOpen}
             >
-                <PopoverTrigger className="relative mt-1">
+                <PopoverTrigger
+                    aria-label={t("Notifications")}
+                    title={t("Notifications")}
+                    className={cn("relative mt-1", buttonClassName)}
+                >
                     <Bell
                         className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                         stroke="#0284c7"
                         fill={isNotificationOpen ? "#0284c7" : "none"}
                     />
                     {badgeCount > 0 && (
-                        <>
-                            {hasActiveTasks ? (
-                                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-75" />
-                            ) : null}
-                            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-                                {badgeCount}
-                            </span>
-                        </>
+                        <CountBadge pulse={hasActiveTasks}>
+                            {badgeCount}
+                        </CountBadge>
                     )}
                 </PopoverTrigger>
-                <PopoverContent className="w-80">
+                <PopoverContent
+                    side={side}
+                    dir={direction}
+                    className="w-[min(24rem,calc(100vw-1rem))]"
+                >
                     <div className="space-y-4">
                         <h3 className="font-medium text-gray-900 dark:text-gray-100">
                             {t("Notifications")}
@@ -500,6 +599,11 @@ export default function NotificationButton() {
                                         <NotificationItem
                                             key={notification._id}
                                             notification={notification}
+                                            entity={resolveNotificationCompanion(
+                                                notification,
+                                                colleagues,
+                                                user,
+                                            )}
                                             handlerDisplayNames={Object.fromEntries(
                                                 Object.entries(TASK_INFO).map(
                                                     ([type, info]) => [

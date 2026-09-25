@@ -1,6 +1,6 @@
 import User from "../models/user";
 import mongoose from "mongoose";
-import { getClient, SYS_ENTITY_UPDATE } from "../../../src/graphql";
+import { getClient, SYS_ENTITY_UPDATE } from "../utils/cortex-client.js";
 
 export async function POST(req) {
     try {

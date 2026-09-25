@@ -20,6 +20,12 @@ const notificationSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: {},
         },
+        assistantRootId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Task",
+            default: null,
+            index: true,
+        },
         dismissed: {
             type: Boolean,
             default: false,

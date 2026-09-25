@@ -6,8 +6,10 @@ import App from "../../models/app";
 import AppletFile from "../../models/applet-file";
 import AppletSharedFile from "../../models/applet-shared-file";
 import File from "../../models/file";
+import WorkspaceMembership from "../../models/workspace-membership";
 import { getCurrentUser } from "../../utils/auth";
 import { resolveShareAccess } from "../../utils/shareAccess";
+import { deleteEntityShare } from "../../utils/shareHelpers";
 import { getWorkspace } from "./db";
 import { republishWorkspace, unpublishWorkspace } from "./publish/utils";
 
@@ -16,6 +18,10 @@ export async function DELETE(req, { params }) {
     const { id } = params;
     const user = await getCurrentUser();
     const workspace = await Workspace.findById(id);
+
+    if (!workspace) {
+        return Response.json({ error: "Workspace not found" }, { status: 404 });
+    }
 
     if (!workspace.owner?.equals(user._id)) {
         return Response.json(
@@ -84,6 +90,8 @@ export async function DELETE(req, { params }) {
 
     await Workspace.findByIdAndDelete(id);
     await WorkspaceState.deleteMany({ workspace: id });
+    await WorkspaceMembership.deleteMany({ workspace: workspace._id });
+    await deleteEntityShare("workspace", workspace._id);
     return Response.json({ success: true });
 }
 
@@ -165,12 +173,14 @@ export async function GET(req, { params }) {
             if (legacyWorkspace) {
                 workspace = await getWorkspace(legacyWorkspace._id);
 
-                // migrate to new slug using the new model
-                await Workspace.findByIdAndUpdate(legacyWorkspace._id, {
-                    $set: {
-                        slug: workspace.slug,
-                    },
-                });
+                if (workspace) {
+                    // migrate to new slug using the new model
+                    await Workspace.findByIdAndUpdate(legacyWorkspace._id, {
+                        $set: {
+                            slug: workspace.slug,
+                        },
+                    });
+                }
             }
         }
     }

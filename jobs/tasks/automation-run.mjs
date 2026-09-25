@@ -1,7 +1,9 @@
+import { issueAgentToolsToken } from "../../app/api/utils/agent-tool-capabilities.mjs";
+import { requireColleague } from "../../app/api/utils/colleagues.js";
 import Automation from "../../app/api/models/automation.js";
 import Task from "../../app/api/models/task.mjs";
 import User from "../../app/api/models/user.mjs";
-import { QUERIES } from "../graphql.mjs";
+import { QUERIES, MUTATIONS } from "../graphql.mjs";
 import { DEFAULT_CHAT_MODEL } from "../../src/utils/constants.js";
 import {
     buildFileAccessPlan,
@@ -11,6 +13,7 @@ import {
     buildHtmlPreview,
     calculateNextRunAt,
     listAutomationSupportingFiles,
+    buildAutomationHtmlOutputContract,
     parseAutomationResult,
     readAutomationContent,
     sanitizeGeneratedHtml,
@@ -25,6 +28,11 @@ import {
     resolveStorageTarget,
 } from "../../src/utils/storageTargets.js";
 import { BaseTask } from "./base-task.mjs";
+import { assertNewAutomationCitations } from "../../app/api/utils/html-citation-review.js";
+import {
+    prepareAssistantTurn,
+    parkAssistantTurn,
+} from "../../app/api/utils/assistant-coordination.mjs";
 
 const MAX_PREVIOUS_RUN_CHARS = 12000;
 
@@ -372,15 +380,7 @@ ${previousOutputFiles.length ? "The previous run's HTML output is attached as pr
         : "No previous completed run was found.";
 
     const outputContract = automation.producesHtml
-        ? `Return ONLY a JSON object with this shape:
-{
-  "summary": "short plain-text summary of what you produced",
-  "html": "<!doctype html>..."
-}
-
-The html field must be a complete, simple, self-contained HTML document. Do not include script tags or inline JavaScript.
-
-The HTML must support both light and dark themes. Use explicit colors for every background, text, border, card, table, form, icon/SVG, and shadow. Include CSS keyed off html[data-theme="dark"], plus an @media (prefers-color-scheme: dark) fallback so the document still works outside Concierge's theme wrapper. Do not rely on browser defaults for readability.`
+        ? buildAutomationHtmlOutputContract()
         : "Return the completed automation output as Markdown or plain text.";
 
     return `Run the "${automation.name}" automation.
@@ -436,6 +436,14 @@ class AutomationRunTask extends BaseTask {
         if (!user) {
             throw new Error("User not found");
         }
+
+        const colleague = automation.entityId
+            ? await requireColleague(user, automation.entityId, {
+                  runnable: true,
+              })
+            : null;
+        metadata.colleagueName = colleague?.name || null;
+        metadata.entityId = colleague?.id || null;
 
         // metadata is CSFLE-encrypted as a whole object; dotted paths like
         // metadata.automationName are invalid (analyze_query / Error 51102).
@@ -507,6 +515,11 @@ class AutomationRunTask extends BaseTask {
             inputs: metadata.inputs || automation.inputs,
             trigger: metadata.trigger || "manual",
         });
+        const assistantTurn = await prepareAssistantTurn(
+            taskId,
+            colleague?.id || user.personalEntityId,
+            prompt,
+        );
 
         const unavailableMcpServers =
             mcpAgentConfig.unavailableMcpServers || [];
@@ -514,13 +527,22 @@ class AutomationRunTask extends BaseTask {
             unavailableMcpServers.length > 0
                 ? `Some connected services are unavailable in this headless automation because their credentials could not be refreshed: ${unavailableMcpServers.map((server) => server.serverKey).join(", ")}. Do not try to connect or re-authenticate services during this run. If the automation depends on one of these services, explain that the user needs to reconnect it before rerunning the automation.`
                 : null;
+        const watchedFolderNotice =
+            automation.schedule?.frequency === "files"
+                ? `The watched input folder is ${automation.schedule.watchPath}. Read the changed inputs there and write results outside that folder.`
+                : null;
         const systemContent = [
-            "You are running a scheduled automation for the user. Complete the task fully. Do not ask follow-up questions.",
+            colleague
+                ? `You are ${colleague.name}, carrying out an assigned task. Complete the work using the user's workspace, skills, and connected tools.`
+                : "You are running a scheduled task for the user. Complete the work using the user's workspace, skills, and connected tools.",
+            "Use ListAssistants and MessageAssistants to delegate work. Put independent requests in one batch; wait for their replies before dependent stages. For a user decision, use AskUser with a checkpoint naming the current stage, completed work, file paths, and what should happen after the answer. Set wait=true to suspend now, or false to continue independent work. A suspended task will resume automatically; do not poll. Save files before handoff and give parallel editors different output paths. Never infer approval from silence. NotifyUser is for updates that do not require a resumable answer.",
         ];
+        if (watchedFolderNotice) systemContent.push(watchedFolderNotice);
         if (headlessMcpNotice) {
             systemContent.push(headlessMcpNotice);
         }
 
+        job.signal?.throwIfAborted();
         const result = await job.client.query({
             query: QUERIES.SYS_ENTITY_AGENT,
             variables: {
@@ -532,7 +554,10 @@ class AutomationRunTask extends BaseTask {
                     {
                         role: "user",
                         content: [
-                            JSON.stringify({ type: "text", text: prompt }),
+                            JSON.stringify({
+                                type: "text",
+                                text: assistantTurn.prompt,
+                            }),
                             ...fileContext.fileContent,
                         ],
                     },
@@ -540,15 +565,30 @@ class AutomationRunTask extends BaseTask {
                 fileAccessPlan,
                 contextId: runContext.contextId,
                 contextKey: runContext.contextKey,
-                entityId: user.personalEntityId || "",
-                aiName: user.aiName,
-                aiMemorySelfModify: user.aiMemorySelfModify,
-                model: user.agentModel || DEFAULT_CHAT_MODEL,
+                entityId: colleague?.id || user.personalEntityId || "",
+                agentToolsToken: await issueAgentToolsToken(
+                    user,
+                    colleague?.id || user.personalEntityId,
+                    undefined,
+                    { taskId, turn: assistantTurn.turn },
+                ),
+                aiName: colleague?.name || user.aiName,
+                aiMemorySelfModify:
+                    colleague?.memoryLearning ?? user.aiMemorySelfModify,
+                model:
+                    colleague?.model || user.agentModel || DEFAULT_CHAT_MODEL,
+                citationFormat: automation.producesHtml ? "mixed" : "markdown",
                 stream: true,
                 mcpConfig: mcpAgentConfig.mcpConfig,
                 mcpAvailableServers: mcpAgentConfig.mcpAvailableServers,
             },
             fetchPolicy: "network-only",
+            context: {
+                headers: job.deadline
+                    ? { "x-cortex-deadline": String(job.deadline) }
+                    : {},
+                fetchOptions: { signal: job.signal },
+            },
         });
 
         const subscriptionId = result.data?.sys_entity_agent?.result;
@@ -559,6 +599,17 @@ class AutomationRunTask extends BaseTask {
         }
 
         return subscriptionId;
+    }
+
+    async cancelRequest(taskId, client) {
+        const task = await Task.findById(taskId);
+        if (!task?.cortexRequestId) return;
+        await client.mutate({
+            mutation: MUTATIONS.CANCEL_REQUEST,
+            variables: { requestId: task.cortexRequestId },
+            context: { fetchOptions: { signal: AbortSignal.timeout(10_000) } },
+        });
+        this.clearAccumulator(taskId);
     }
 
     getAccumulator(taskId) {
@@ -612,6 +663,7 @@ class AutomationRunTask extends BaseTask {
             rawResult,
             automation.producesHtml,
         );
+        if (automation.producesHtml) assertNewAutomationCitations(parsed);
         const update = {
             data: {
                 summary:
@@ -643,19 +695,51 @@ class AutomationRunTask extends BaseTask {
             update["automation.outputPath"] =
                 `automations/${automation.slug}/outputs/${taskId}`;
 
-            await Automation.findByIdAndUpdate(automation._id, {
-                latestRunTaskId: taskId,
-                latestHtmlOutputPath: htmlOutputPath,
-            });
+            const automationOutputUpdate = {
+                $set: {
+                    latestRunTaskId: taskId,
+                    latestHtmlOutputPath: htmlOutputPath,
+                },
+            };
+
+            if (parsed.widgetHtml) {
+                const widgetHtml = sanitizeGeneratedHtml(parsed.widgetHtml);
+                const widgetHtmlOutputPath = await writeAutomationOutputFile({
+                    userContextId: user.contextId,
+                    slug: automation.slug,
+                    taskId,
+                    filename: "widget.html",
+                    content: widgetHtml,
+                    mimeType: "text/html",
+                });
+                update["automation.widgetHtmlOutputPath"] =
+                    widgetHtmlOutputPath;
+                automationOutputUpdate.$set.latestWidgetHtmlOutputPath =
+                    widgetHtmlOutputPath;
+            } else {
+                automationOutputUpdate.$unset = {
+                    latestWidgetHtmlOutputPath: 1,
+                };
+            }
+
+            await Automation.findByIdAndUpdate(
+                automation._id,
+                automationOutputUpdate,
+            );
         }
 
         await Task.findByIdAndUpdate(taskId, update);
 
         await Automation.findByIdAndUpdate(automation._id, {
-            lastRunAt: new Date(),
-            nextRunAt: automation.enabled
-                ? calculateNextRunAt(automation.schedule, automation.timezone)
-                : null,
+            $set: {
+                lastRunAt: new Date(),
+                nextRunAt: automation.enabled
+                    ? calculateNextRunAt(
+                          automation.schedule,
+                          automation.timezone,
+                      )
+                    : null,
+            },
             $unset: { schedulerLockedAt: 1 },
         });
 
@@ -673,6 +757,8 @@ class AutomationRunTask extends BaseTask {
         );
 
         try {
+            if (await parkAssistantTurn(taskId, rawResult))
+                return { assistantWaiting: true };
             return await this.saveAutomationResult({
                 taskId,
                 userId: metadata.userId,
@@ -681,7 +767,9 @@ class AutomationRunTask extends BaseTask {
                 tool,
             });
         } catch (error) {
-            await this.handleError(taskId, error, metadata);
+            const failure = await this.handleError(taskId, error, metadata);
+            // The work already ran. A format failure must not replay agent tools.
+            if (error.code === "HTML_CITATION_FORMAT") return failure;
             throw error;
         } finally {
             this.clearAccumulator(taskId);

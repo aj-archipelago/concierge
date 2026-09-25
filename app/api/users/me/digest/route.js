@@ -1,3 +1,10 @@
+import { hydrateDigestContent } from "../../../../../jobs/digest/content-storage.js";
+import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
+import {
+    mergeDigestEdit,
+    updateDigestBlocks,
+} from "../../../utils/digest-store.mjs";
 import { getCurrentUser } from "../../../utils/auth";
 
 import { NextResponse } from "next/server";
@@ -92,7 +99,12 @@ function enrichAutomationBlock(block, automation, latestRun) {
             updatedAt: latestRun.updatedAt || null,
             completedAt: latestRun.completedAt || null,
             summary: parsed.summary || latestRun?.data?.summary || "",
+            tool: latestRun?.data?.tool || null,
             hasHtmlOutput,
+            hasWidgetHtml: Boolean(
+                latestRun?.automation?.widgetHtmlOutputPath ||
+                    parsed.widgetHtml,
+            ),
             htmlPreview: hasHtmlOutput
                 ? latestRun?.automation?.htmlOutputPreview ||
                   (parsed.html ? buildHtmlPreview(parsed.html) : "")
@@ -115,7 +127,10 @@ function enrichAutomationBlock(block, automation, latestRun) {
 }
 
 async function enrichDigest(digest, ownerId) {
-    const blocks = digest.blocks || [];
+    const blocks = (digest.blocks || []).map((block) => ({
+        ...block,
+        content: hydrateDigestContent(block.content),
+    }));
     if (blocks.length === 0) return digest;
 
     const { automationsById, latestRunByAutomationId } =
@@ -135,120 +150,58 @@ async function enrichDigest(digest, ownerId) {
     };
 }
 
-export async function GET(req, { params }) {
-    params = await params;
+export async function GET() {
     const user = await getCurrentUser();
-
-    let digest = await Digest.findOne({
-        owner: user._id,
-    });
-
+    let digest = await Digest.findOne({ owner: user._id });
     if (!digest) {
+        // A deterministic ID makes concurrent first reads create one document.
         digest = await Digest.findOneAndUpdate(
-            {
-                owner: user._id,
-            },
-            {
-                owner: user._id,
-                blocks: [
-                    {
-                        prompt: `What's going on in the world today? If you know my profession, give me updates specific to my profession and preferences. Otherwise, give me general updates.`,
-                        title: "Daily digest",
-                    },
-                ],
-            },
-            {
-                upsert: true,
-                new: true,
-            },
+            { _id: user._id, owner: user._id },
+            { $setOnInsert: { owner: user._id, blocks: [] } },
+            { upsert: true, new: true },
         );
-
-        await enqueueBuildDigest(user._id);
+        digest = await Digest.findOne({ owner: user._id });
     }
-
-    digest = await Digest.findOneAndUpdate(
-        {
-            owner: user._id,
-        },
-        {
-            owner: user._id,
-            blocks: digest.blocks,
-        },
-        {
-            upsert: true,
-            new: true,
-        },
-    );
-
-    const enriched = await enrichDigest(digest.toJSON(), user._id);
-
-    return NextResponse.json(enriched);
+    return NextResponse.json(await enrichDigest(digest.toJSON(), user._id));
 }
 
-export async function PATCH(req, { params }) {
-    params = await params;
+export async function PATCH(req) {
     const user = await getCurrentUser();
     const { blocks } = await req.json();
-
-    const oldDigest = await Digest.findOne({
-        owner: user._id,
-    });
-
-    const oldBlocks = oldDigest?.blocks;
-
-    let newDigest = await Digest.findOneAndUpdate(
-        {
-            owner: user._id,
-        },
-        {
-            owner: user._id,
-            blocks: blocks,
-        },
-        {
-            new: true,
-        },
-    );
-
-    const newBlocks = newDigest.blocks;
-
-    for (const newBlock of newBlocks) {
-        // Automation-linked blocks render the latest automation run on read,
-        // so they don't need a digest-build task.
-        if (isAutomationLinked(newBlock)) {
-            newBlock.taskId = undefined;
-            newBlock.content = undefined;
-            newBlock.updatedAt = undefined;
-            continue;
-        }
-
-        const oldBlock = oldBlocks.find(
-            (b) => b._id?.toString() === newBlock._id?.toString(),
+    if (!Array.isArray(blocks))
+        return NextResponse.json(
+            { error: "Blocks must be an array" },
+            { status: 400 },
         );
-
-        // If the prompt has changed or there's no content, regenerate the block.
-        if (
-            !oldBlock ||
-            oldBlock?.prompt !== newBlock.prompt ||
-            !newBlock.content
-        ) {
-            const { taskId } = await enqueueBuildDigest(user._id, newBlock._id);
-            newBlock.taskId = taskId;
-            newBlock.updatedAt = null;
-            newBlock.content = null;
+    const requested = blocks.map((block) => ({
+        ...block,
+        _id: block._id || new mongoose.Types.ObjectId(),
+        generationKey: randomUUID(),
+    }));
+    const needsBuild = new Set();
+    let digest = await updateDigestBlocks(user._id, (current) => {
+        needsBuild.clear();
+        const edited = mergeDigestEdit(current, requested);
+        for (const block of edited) {
+            const old = current.find(
+                (b) => String(b._id) === String(block._id),
+            );
+            if (
+                !block.automationId &&
+                (!old || old.prompt !== block.prompt || !block.content)
+            )
+                needsBuild.add(String(block._id));
         }
-    }
-
-    await Digest.findOneAndUpdate(
-        {
-            owner: user._id,
-        },
-        {
-            blocks: newBlocks,
-        },
-    );
-
-    const enriched = await enrichDigest(newDigest.toJSON(), user._id);
-    return NextResponse.json(enriched);
+        return edited;
+    });
+    if (!digest)
+        return NextResponse.json(
+            { error: "Digest not found" },
+            { status: 404 },
+        );
+    for (const id of needsBuild) await enqueueBuildDigest(user._id, id);
+    digest = await Digest.findOne({ owner: user._id });
+    return NextResponse.json(await enrichDigest(digest.toJSON(), user._id));
 }
 
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 import { Types } from "mongoose";
-import { getClient, QUERIES } from "../../../../../src/graphql";
+import { getClient, QUERIES } from "../../../utils/cortex-client.js";
 import { getCurrentUser } from "../../../utils/auth.js";
 import MediaItem from "../../../models/media-item.mjs";
 import {

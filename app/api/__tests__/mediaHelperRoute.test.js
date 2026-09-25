@@ -5,6 +5,10 @@
 import { DELETE, GET, POST } from "../../media-helper/route";
 import { isRequestAuthorized } from "../utils/requestAuthorization";
 
+jest.mock("../utils/auth.js", () => ({
+    getCurrentUser: jest.fn(async () => ({ _id: "user", contextId: "ctx" })),
+}));
+
 jest.mock("next/server", () => ({
     NextResponse: {
         json: (data, init = {}) =>

@@ -43,6 +43,12 @@ ARG NEXT_PUBLIC_ATLASSIAN_CLIENT_ID
 ENV NEXT_PUBLIC_ATLASSIAN_CLIENT_ID=$NEXT_PUBLIC_ATLASSIAN_CLIENT_ID
 ARG NEXT_PUBLIC_BASE_PATH
 ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+ARG NEXT_PUBLIC_STORAGE_ORIGINS
+ENV NEXT_PUBLIC_STORAGE_ORIGINS=$NEXT_PUBLIC_STORAGE_ORIGINS
+ARG NEXT_PUBLIC_AUTH_USE_EASY_AUTH
+ENV NEXT_PUBLIC_AUTH_USE_EASY_AUTH=$NEXT_PUBLIC_AUTH_USE_EASY_AUTH
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 RUN npm run prebuild --legacy-peer-deps && npm run build --legacy-peer-deps
 
@@ -80,6 +86,13 @@ COPY --from=builder /app/public ./public
 RUN mkdir .next && chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Widget previews use an isolated Chromium context, without account credentials.
+COPY --from=deps /app/node_modules/playwright ./node_modules/playwright
+COPY --from=deps /app/node_modules/playwright-core ./node_modules/playwright-core
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN node node_modules/playwright/cli.js install --with-deps chromium \
+    && chmod -R a+rX /opt/playwright
 
 ENV MONGOCRYPT_PATH=/app/mongo_crypt_lib/mongo_crypt_v1.so
 

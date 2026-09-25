@@ -2,6 +2,7 @@ export const SHARE_ENTITY_URLS = {
     chat: (id) => `/chat/${id}`,
     workspace: (id) => `/workspaces/${id}`,
     applet: (id) => `/applets/${id}`,
+    published_applet: (id) => `/published/applets/${id}`,
     automation: (id) => `/automations/${id}`,
     article: (id) => `/articles/${id}`,
 };

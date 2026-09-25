@@ -9,6 +9,8 @@ const MAI_MODEL_OPTION_KEYS = new Set([
 const MAI_TRANSCRIBE_TASK_TIMEOUT_MS = 60 * 60 * 1000;
 
 const MODEL_OPTIONS = {
+    "gemini3.5transcribe": "Gemini 3.5 Transcribe",
+    scribev2: "Scribe v2",
     whisper: "Whisper",
     neuralspace: "NeuralSpace",
     gemini: "Gemini",
@@ -25,6 +27,19 @@ export function normalizeModelOption(modelOption) {
     return String(modelOption || "")
         .toLowerCase()
         .replace(/\s+/g, "");
+}
+
+export const isGemini35TranscribeEnabled = () =>
+    isEnvTrue(process.env.ENABLE_GEMINI_35_TRANSCRIBE);
+export const isScribeV2TranscribeEnabled = () =>
+    isEnvTrue(process.env.ENABLE_SCRIBE_V2_TRANSCRIBE);
+
+function isNewTranscribeOptionEnabled(modelOption) {
+    const normalized = normalizeModelOption(modelOption);
+    if (normalized === "gemini3.5transcribe")
+        return isGemini35TranscribeEnabled();
+    if (normalized === "scribev2") return isScribeV2TranscribeEnabled();
+    return true;
 }
 
 export function isXaiTranscribeEnabled() {
@@ -44,7 +59,7 @@ export function isXaiTranscribeDefaultEnabled() {
 
 export function getConfiguredTranscribeModelOption(value) {
     const modelOption = MODEL_OPTIONS[normalizeModelOption(value)];
-    if (!modelOption) return null;
+    if (!modelOption || !isNewTranscribeOptionEnabled(modelOption)) return null;
     if (isXaiTranscribeModelOption(modelOption) && !isXaiTranscribeEnabled()) {
         return null;
     }
@@ -80,6 +95,10 @@ export function isMaiTranscribeModelOption(modelOption) {
 }
 
 export function assertTranscribeModelOptionEnabled(modelOption) {
+    if (!isNewTranscribeOptionEnabled(modelOption))
+        throw new Error(
+            "This transcription model is not enabled on this deployment",
+        );
     if (isXaiTranscribeModelOption(modelOption) && !isXaiTranscribeEnabled()) {
         throw new Error("xAI transcription is not enabled on this deployment");
     }
@@ -117,7 +136,10 @@ export function normalizeTranscribeTaskMetadata(metadata = {}) {
 }
 
 export function getTranscribeTaskTimeout(modelOption) {
-    return isMaiTranscribeModelOption(modelOption)
+    return isMaiTranscribeModelOption(modelOption) ||
+        ["gemini3.5transcribe", "scribev2"].includes(
+            normalizeModelOption(modelOption),
+        )
         ? MAI_TRANSCRIBE_TASK_TIMEOUT_MS
         : undefined;
 }

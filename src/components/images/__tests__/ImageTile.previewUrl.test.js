@@ -77,6 +77,21 @@ describe("ImageTile preview URLs", () => {
         jest.clearAllMocks();
     });
 
+    it("shows an actionable Seedance refusal even when the saved error is a string", () => {
+        renderTile({
+            type: "video",
+            model: "replicate-seedance-2.0",
+            status: "failed",
+            error: "The input or output was flagged as sensitive. (E005)",
+        });
+        expect(
+            screen.getByText("Seedance declined this request"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getAllByText(/choose another video model/).length,
+        ).toBeGreaterThan(0);
+    });
+
     it("uses the managed proxy URL for video previews", () => {
         renderTile({
             type: "video",

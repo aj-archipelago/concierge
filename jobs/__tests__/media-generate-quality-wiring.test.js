@@ -13,9 +13,90 @@
 
 const fs = require("fs");
 const path = require("path");
+const vm = require("node:vm");
 
 const repoRoot = path.resolve(__dirname, "../..");
-const read = (relPath) => fs.readFileSync(path.join(repoRoot, relPath), "utf8");
+const read = (relPath) => {
+    const source = fs.readFileSync(path.join(repoRoot, relPath), "utf8");
+    // Pure builders are shared with the agent contract; the worker imports them.
+    return relPath === "jobs/tasks/media-generation.mjs"
+        ? source +
+              "\n" +
+              read("src/utils/mediaGenerationVariables.js") +
+              "\n" +
+              read("src/utils/mediaInputModes.js")
+        : source;
+};
+test("worker uses the shared media builders", () => {
+    const source = fs.readFileSync(
+        path.join(repoRoot, "jobs/tasks/media-generation.mjs"),
+        "utf8",
+    );
+    expect(source).toContain(
+        'from "../../src/utils/mediaGenerationVariables.js"',
+    );
+    expect(source).toContain('from "../../src/utils/mediaInputModes.js"');
+});
+
+describe("priority media end-to-end field wiring", () => {
+    const fields = {
+        fps: 24,
+        generationMode: "edit",
+        watermark: false,
+        matchInputImage: true,
+        enablePromptExpansion: false,
+        layerDecomposition: true,
+        styleId: "style-1",
+        styleMatch: "flexible",
+        sourceUrl: "https://example.com/source",
+        sourceLanguage: "auto",
+        targetLanguage: "ar-EG",
+        cloningStrength: 0,
+        background: "transparent",
+        outputCompression: 0,
+        promptUpsampler: "off",
+        draft: false,
+        autoAspectRatio: false,
+        webGrounding: true,
+    };
+    test("the worker forwards every priority setting and all audio URLs", () => {
+        const source = read("jobs/tasks/media-generation.mjs");
+        const builder = source.match(
+            /function\s+buildMediaVariables\([^)]*\)\s*{[\s\S]*?\n}/,
+        )[0];
+        const build = vm.runInNewContext(`(${builder})`);
+        const audio = Array.from(
+            { length: 10 },
+            (_, i) => `https://example.com/${i}.wav`,
+        );
+        const result = build(
+            "replicate-seedance-2.5",
+            "scene",
+            fields,
+            [],
+            [],
+            [],
+            audio[0],
+            audio,
+        );
+        expect(result).toEqual(
+            expect.objectContaining({ ...fields, inputAudio: audio }),
+        );
+    });
+    for (const file of ["jobs/graphql.mjs", "src/graphql.js"]) {
+        test(`${file} declares and forwards every priority setting`, () => {
+            const query = read(file).match(
+                /MEDIA_GENERATE\s*=\s*gql`([\s\S]*?)`/,
+            )[1];
+            for (const key of [...Object.keys(fields), "inputAudio"]) {
+                expect(query).toMatch(new RegExp(`\\$${key}\\s*:`));
+                expect(query).toMatch(
+                    new RegExp(`${key}\\s*:\\s*\\$${key}\\b`),
+                );
+            }
+        });
+    }
+});
 
 describe("media_generate quality wiring", () => {
     test("worker buildMediaVariables forwards settings.quality", () => {
@@ -48,7 +129,7 @@ describe("media_generate input image refresh wiring", () => {
         const src = read("jobs/tasks/media-generation.mjs");
 
         expect(src).toMatch(/function\s+normalizeInputImageReference/);
-        expect(src).toMatch(/MAX_INPUT_IMAGE_REFERENCES\s*=\s*14/);
+        expect(src).toMatch(/MAX_INPUT_IMAGE_REFERENCES\s*=\s*30/);
         expect(src).toMatch(
             /pickInputImageValues\(metadata,\s*"inputImageUrl"\)/,
         );

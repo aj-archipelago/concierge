@@ -19,7 +19,8 @@ export const appletUserDataSchema = new mongoose.Schema(
         },
         value: {
             type: mongoose.Schema.Types.Mixed,
-            required: true,
+            // JSON null is a valid data.set value. Routes reject undefined;
+            // Mongoose's required validator would reject null as well.
             default: null,
         },
         valueBytes: {

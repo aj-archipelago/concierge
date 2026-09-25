@@ -1,7 +1,6 @@
 "use client";
 
 import * as amplitude from "@amplitude/analytics-browser";
-import { useApolloClient } from "@apollo/client";
 import React, {
     useCallback,
     useContext,
@@ -11,9 +10,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import "react-quill/dist/quill.snow.css";
-import { useDispatch } from "react-redux";
 import { AuthContext } from "../../App";
-import { indexMainPaneText } from "../../utils/indexMainPaneText";
 import { stripHTML, getDOMPurifyConfig } from "../../utils/html.utils";
 import AIModal from "../AIModal";
 import { Upload, X, Plus, ChevronDown, Languages, Check } from "lucide-react";
@@ -313,14 +310,12 @@ function PreviewContent({ content }) {
 function Write({ articleEditor, isActive }) {
     const { user } = useContext(AuthContext);
     const contextId = user?.contextId;
-    const dispatch = useDispatch();
     const [selection, setSelection] = useState(null);
     const [showFeaturedImageDialog, setShowFeaturedImageDialog] =
         useState(false);
     const [activeTab, setActiveTab] = useState("editor");
     // Editor direction mode: 'ltr' for English, 'rtl' for Arabic
     const [editorDirection, setEditorDirection] = useState("ltr");
-    const client = useApolloClient();
 
     // Get state from articleEditor hook
     const {
@@ -414,24 +409,8 @@ function Write({ articleEditor, isActive }) {
 
             const updatedText = getUpdatedText(t);
             updateContent({ content: updatedText });
-            // Extract plain text for indexing
-            const plainTextForIndexing = stripHTML(updatedText);
-            indexMainPaneText(
-                plainTextForIndexing,
-                contextId,
-                dispatch,
-                client,
-            );
         },
-        [
-            dispatch,
-            action,
-            inputText,
-            selection,
-            contextId,
-            client,
-            updateContent,
-        ],
+        [action, inputText, selection, contextId, updateContent],
     );
 
     const handleEditorSelect = React.useCallback(
@@ -444,11 +423,8 @@ function Write({ articleEditor, isActive }) {
     const handleEditorChange = React.useCallback(
         (text) => {
             updateContent({ content: text });
-            // Extract plain text from HTML for indexing
-            const plainText = stripHTML(text);
-            indexMainPaneText(plainText, contextId, dispatch, client);
         },
-        [dispatch, contextId, client, updateContent],
+        [updateContent],
     );
 
     const handleImageGenerated = React.useCallback(

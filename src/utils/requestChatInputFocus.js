@@ -1,4 +1,8 @@
-import { focusChatInput } from "../stores/chatSlice";
+import {
+    closeCanvas,
+    focusChatInput,
+    setActiveCanvasChat,
+} from "../stores/chatSlice";
 
 export const requestChatInputFocus = (dispatch) => {
     if (typeof window !== "undefined") {
@@ -16,6 +20,10 @@ export const startNewChat = ({ router, dispatch, createChat }) => {
     return createChat().then((chat) => {
         const chatId = String(chat?._id || "");
         if (chatId) {
+            if (typeof dispatch === "function") {
+                dispatch(setActiveCanvasChat(chatId));
+                dispatch(closeCanvas());
+            }
             router.push(`/chat/${chatId}`);
         }
         return chatId;

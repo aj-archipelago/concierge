@@ -26,34 +26,6 @@ function parseJsonObject(value) {
     }
 }
 
-function normalizePublicAnswerCacheKey(value) {
-    return typeof value === "string"
-        ? value.replace(/^askaj:/i, "sourceqa:")
-        : value;
-}
-
-function normalizePublicStarterPayload(payload) {
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-        return payload;
-    }
-
-    return {
-        ...payload,
-        questions: Array.isArray(payload.questions)
-            ? payload.questions.map((question) =>
-                  question && typeof question === "object"
-                      ? {
-                            ...question,
-                            answerCacheKey: normalizePublicAnswerCacheKey(
-                                question.answerCacheKey,
-                            ),
-                        }
-                      : question,
-              )
-            : payload.questions,
-    };
-}
-
 export async function POST(request) {
     try {
         const { appletId, language, prewarmAnswers } = await request.json();
@@ -77,6 +49,14 @@ export async function POST(request) {
             api: "sourceQa.initialQuestions",
             limits: APPLET_SDK_LIMITS.sourceQa,
             run: async () => {
+                if (process.env.CORTEX_SOURCE_QA_ENABLED !== "true") {
+                    return NextResponse.json(
+                        {
+                            error: "Source Q&A is not configured on this installation",
+                        },
+                        { status: 503 },
+                    );
+                }
                 const graphqlClient = getClient();
                 const response = await graphqlClient.query({
                     query: QUERIES.SOURCE_QA_INITIAL_QUESTIONS,
@@ -87,10 +67,8 @@ export async function POST(request) {
                     fetchPolicy: "network-only",
                 });
 
-                const data = response.data?.ask_aj_initial_questions;
-                const payload = normalizePublicStarterPayload(
-                    parseJsonObject(data?.result),
-                );
+                const data = response.data?.source_qa_initial_questions;
+                const payload = parseJsonObject(data?.result);
 
                 return NextResponse.json({
                     ...payload,

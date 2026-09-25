@@ -2,6 +2,8 @@ import {
     TRANSCRIBE,
     TRANSCRIBE_GEMINI,
     TRANSCRIBE_MAI_15,
+    TRANSCRIBE_GEMINI_35,
+    TRANSCRIBE_SCRIBE_V2,
     TRANSCRIBE_NEURALSPACE,
     TRANSCRIBE_XAI_GEMINI,
     TRANSCRIBE_XAI,
@@ -17,6 +19,10 @@ export function getTranscribeQueryForModelOption(modelOption) {
     switch (normalizeModelOption(modelOption)) {
         case "neuralspace":
             return TRANSCRIBE_NEURALSPACE;
+        case "gemini3.5transcribe":
+            return TRANSCRIBE_GEMINI_35;
+        case "scribev2":
+            return TRANSCRIBE_SCRIBE_V2;
         case "gemini":
             return TRANSCRIBE_GEMINI;
         case "mai":

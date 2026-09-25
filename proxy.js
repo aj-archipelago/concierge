@@ -1,7 +1,8 @@
 import { isRequestAuthorized } from "./app/api/utils/requestAuthorization";
 
 export const config = {
-    matcher: "/((?!graphql(?:/|$)|media-helper(?:/|$)).*)",
+    matcher:
+        "/((?!graphql(?:/|$)|media-helper(?:/|$)|api/agent-tools(?:/|$)).*)",
 };
 
 export function proxy(request) {

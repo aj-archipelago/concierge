@@ -21,15 +21,19 @@ jest.mock("../../models/request-progress.mjs", () => ({
     default: { find: jest.fn() },
 }));
 
-jest.mock("../../models/task.mjs", () => ({
-    __esModule: true,
-    default: {
-        find: jest.fn(),
-        findById: jest.fn(),
-        findOneAndUpdate: jest.fn(),
-        countDocuments: jest.fn(),
-    },
-}));
+jest.mock("../../models/task.mjs", () => {
+    const actual = jest.requireActual("../../models/task.mjs");
+    return {
+        __esModule: true,
+        taskSchema: actual.taskSchema,
+        default: {
+            find: jest.fn(),
+            findById: jest.fn(),
+            findOneAndUpdate: jest.fn(),
+            countDocuments: jest.fn(),
+        },
+    };
+});
 
 jest.mock("../../models/user-state.mjs", () => ({
     __esModule: true,

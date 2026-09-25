@@ -6,6 +6,7 @@ import Workspace from "../models/workspace";
 import Applet from "../models/applet";
 import Automation from "../models/automation";
 import Article from "../models/article";
+import { normalizeShareRole } from "../utils/shareHelpers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,21 @@ const TITLE_FETCHERS = {
         );
     },
     applet: async (ids) => {
+        const docs = await Applet.find(
+            { _id: { $in: ids } },
+            { name: 1, title: 1, owner: 1, updatedAt: 1 },
+        ).lean();
+        return new Map(
+            docs.map((d) => [
+                String(d._id),
+                {
+                    title: d.title || d.name || "Untitled applet",
+                    ownerId: d.owner,
+                },
+            ]),
+        );
+    },
+    published_applet: async (ids) => {
         const docs = await Applet.find(
             { _id: { $in: ids } },
             { name: 1, title: 1, owner: 1, updatedAt: 1 },
@@ -134,7 +150,7 @@ export async function GET(req) {
                     title: meta.title,
                     slug: meta.slug,
                     ownerId: meta.ownerId,
-                    role: myRecipient?.role || "viewer",
+                    role: normalizeShareRole(s.entityType, myRecipient?.role),
                     updatedAt: s.updatedAt,
                 };
             })

@@ -8,6 +8,8 @@ import {
 import Chat from "../../models/chat.mjs";
 import User from "../../models/user";
 import { Types } from "mongoose";
+import { deleteEntityShare } from "../../utils/shareHelpers";
+import { deleteExternalChatMessages } from "../message-store.js";
 
 const MAX_RECENT_CHATS = 1_000;
 const AUTO_TITLE_MAX_LENGTH = 14;
@@ -225,7 +227,9 @@ export async function DELETE(req) {
 
             if (chat) {
                 deletedIds.push(id);
+                await deleteExternalChatMessages(chat._id);
                 await deleteChatIdFromRecentList(id);
+                await deleteEntityShare("chat", chat._id);
             } else {
                 missingIds.push(id);
             }

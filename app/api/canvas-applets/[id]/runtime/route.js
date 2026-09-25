@@ -35,7 +35,13 @@ export async function GET(request, { params }) {
     try {
         validateAppletId(id);
         const user = await requireUser();
-        const runtime = await resolveInstalledAppletRuntime(user, id);
+        const variant =
+            new URL(request.url).searchParams.get("variant") === "widget"
+                ? "widget"
+                : "full";
+        const runtime = await resolveInstalledAppletRuntime(user, id, {
+            variant,
+        });
         const app = await App.findOne({
             appletId: id,
             status: APP_STATUS.ACTIVE,
@@ -51,13 +57,18 @@ export async function GET(request, { params }) {
                 latestVersionIndex: runtime.latestVersionIndex,
                 runtimeSource: runtime.runtimeSource,
                 runtimeHtml: runtime.html,
+                hasWidgetHtml: runtime.hasWidgetHtml === true,
+                isWidgetFallback: runtime.isWidgetFallback === true,
             },
             app: app || null,
         });
     } catch (error) {
         console.error("Error fetching applet runtime:", error);
         return jsonNoStore(
-            { error: error?.message || "Internal server error" },
+            {
+                error: error?.message || "Internal server error",
+                ...(error?.code ? { code: error.code } : {}),
+            },
             { status: error?.status || 500 },
         );
     }

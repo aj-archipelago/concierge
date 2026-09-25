@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "../../../src/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -323,16 +324,16 @@ export default function QueuesPage() {
 
     return (
         <div>
-            <h1 className="text-2xl font-bold mb-6">Queue Monitoring</h1>
-
             <Tabs defaultValue={selectedQueue} onValueChange={setSelectedQueue}>
-                <TabsList>
-                    {QUEUE_NAMES.map((name) => (
-                        <TabsTrigger key={name} value={name}>
-                            {name}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
+                <PageHeader titleKey="Queue Monitoring">
+                    <TabsList className="max-w-full overflow-x-auto">
+                        {QUEUE_NAMES.map((name) => (
+                            <TabsTrigger key={name} value={name}>
+                                {name}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </PageHeader>
 
                 {QUEUE_NAMES.map((queueName) => (
                     <TabsContent key={queueName} value={queueName}>

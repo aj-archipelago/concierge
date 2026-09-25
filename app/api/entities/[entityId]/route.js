@@ -3,7 +3,7 @@ import {
     getClient,
     SYS_ENTITY_UPDATE,
     SYS_GET_ENTITIES,
-} from "../../../../src/graphql";
+} from "../../utils/cortex-client.js";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,7 +48,7 @@ export async function GET(req, { params }) {
         const client = getClient();
         const { data } = await client.query({
             query: SYS_GET_ENTITIES,
-            variables: { userId: user.contextId, fresh: "true" },
+            variables: { userId: user.contextId, fresh: "true", entityId },
             fetchPolicy: "network-only",
         });
 

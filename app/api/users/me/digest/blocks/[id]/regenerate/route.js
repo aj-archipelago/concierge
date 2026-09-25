@@ -40,22 +40,7 @@ export async function POST(req, { params }) {
         );
     }
 
-    const { taskId } = await enqueueBuildDigest(user._id, id);
-    block.taskId = taskId;
-
-    digest = await Digest.updateOne(
-        {
-            owner: user._id,
-        },
-        {
-            $set: {
-                blocks: digest.blocks,
-            },
-        },
-        {
-            new: true,
-        },
-    );
-
+    await enqueueBuildDigest(user._id, id);
+    digest = await Digest.findOne({ owner: user._id });
     return NextResponse.json(digest);
 }

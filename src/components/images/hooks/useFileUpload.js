@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { uploadFileToMediaHelper } from "../../../utils/fileUploadUtils";
 import { createMediaStorageTarget } from "../../../utils/storageTargets";
 import {
@@ -12,7 +12,7 @@ function createUploadId() {
     return `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function getUploadMediaType(file) {
+export function getUploadMediaType(file) {
     const mimeType = String(file?.type || "").toLowerCase();
     if (mimeType.startsWith("audio/")) return "audio";
     if (mimeType.startsWith("video/")) return "video";
@@ -40,6 +40,8 @@ export const useFileUpload = ({
 }) => {
     const { user } = useContext(AuthContext);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState(null);
+    const uploadInFlight = useRef(false);
     // Use default user contextId (not :chat, so they don't appear in chat file collections)
     const contextId = user?.contextId;
     const uploadFile = useCallback(
@@ -85,21 +87,25 @@ export const useFileUpload = ({
                         mediaItemData.blobPath = data.blobPath;
                     }
 
-                    return createMediaItem.mutateAsync(mediaItemData);
+                    return await createMediaItem.mutateAsync(mediaItemData);
                 }
+                throw new Error("Upload returned no media URL");
             } catch (error) {
                 console.error("Error uploading file:", error);
+                setUploadError(t("File upload failed. Please try again."));
             }
         },
         [t, createMediaItem, settings, contextId],
     );
 
     const handleFilesUpload = useCallback(
-        async (files) => {
+        async (files, { selectUploaded = true } = {}) => {
             const selectedFiles = Array.from(files || []).filter(Boolean);
-            if (selectedFiles.length === 0) return;
+            if (selectedFiles.length === 0 || uploadInFlight.current) return [];
 
+            uploadInFlight.current = true;
             setIsUploading(true);
+            setUploadError(null);
             try {
                 const uploadedItems = [];
                 for (const file of selectedFiles) {
@@ -109,7 +115,7 @@ export const useFileUpload = ({
                     }
                 }
 
-                if (uploadedItems.length > 0) {
+                if (uploadedItems.length > 0 && selectUploaded) {
                     setSelectedImages(
                         new Set(
                             uploadedItems.map((item) => item.cortexRequestId),
@@ -120,7 +126,9 @@ export const useFileUpload = ({
                         promptRef.current && promptRef.current.focus();
                     }, 0);
                 }
+                return uploadedItems;
             } finally {
+                uploadInFlight.current = false;
                 setIsUploading(false);
             }
         },
@@ -148,5 +156,6 @@ export const useFileUpload = ({
         handleFilesUpload,
         handleFileSelect,
         isUploading,
+        uploadError,
     };
 };

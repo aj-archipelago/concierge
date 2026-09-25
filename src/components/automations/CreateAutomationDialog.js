@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Sparkles } from "lucide-react";
 import {
@@ -17,7 +17,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { AutosizeTextarea } from "@/components/ui/autosize-textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { LanguageContext } from "../../contexts/LanguageProvider";
 import SchedulePresetChips from "./SchedulePresetChips";
+import ColleagueSelect from "../colleagues/ColleagueSelect";
 import { applyPreset, getPreset } from "./schedulePresets";
 import {
     useCreateAutomation,
@@ -41,10 +44,10 @@ function slugify(value) {
 }
 
 function buildContent(name, prompt) {
-    const heading = name ? `# ${name}` : "# Automation";
+    const heading = name ? `# ${name}` : "# Task";
     const body = prompt
         ? prompt
-        : "Describe what Concierge should do when this automation runs.";
+        : "Describe what your colleague should do for this task.";
     return `${heading}\n\n${body}\n`;
 }
 
@@ -54,20 +57,31 @@ export default function CreateAutomationDialog({
     open,
     onOpenChange,
     onCreated,
+    initialPrompt = "",
+    entityId = null,
 }) {
     const { t } = useTranslation();
+    const { direction } = useContext(LanguageContext);
     const [prompt, setPrompt] = useState("");
+    const [assignedEntityId, setAssignedEntityId] = useState(entityId);
+    useEffect(() => {
+        if (open) setAssignedEntityId(entityId);
+    }, [open, entityId]);
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [presetId, setPresetId] = useState(DEFAULT_PRESET);
-    const [enabled, setEnabled] = useState(false);
-    const [producesHtml, setProducesHtml] = useState(false);
+    // Default to enabled so a newly created automation runs on its schedule
+    // (and dashboard cards stay up to date) without an extra step.
+    const [enabled, setEnabled] = useState(true);
+    // Default to a rich HTML output.
+    const [producesHtml, setProducesHtml] = useState(true);
     const [content, setContent] = useState("");
     const [hasSuggested, setHasSuggested] = useState(false);
     const [error, setError] = useState("");
     const [placeholderIndex] = useState(() =>
         Math.floor(Math.random() * PROMPT_PLACEHOLDERS.length),
     );
+    const autoSuggestKeyRef = useRef("");
 
     const suggest = useSuggestAutomation();
     const create = useCreateAutomation();
@@ -78,19 +92,26 @@ export default function CreateAutomationDialog({
             setName("");
             setDescription("");
             setPresetId(DEFAULT_PRESET);
-            setEnabled(false);
-            setProducesHtml(false);
+            setEnabled(true);
+            setProducesHtml(true);
             setContent("");
             setHasSuggested(false);
             setError("");
+            autoSuggestKeyRef.current = "";
+            return;
         }
-    }, [open]);
+        const seeded = String(initialPrompt || "").trim();
+        if (seeded) {
+            setPrompt(seeded);
+        }
+    }, [open, initialPrompt]);
 
-    const handleSuggest = async () => {
+    const applySuggestion = async (promptText) => {
         setError("");
-        if (!prompt.trim()) return;
+        const trimmed = String(promptText || "").trim();
+        if (!trimmed) return;
         try {
-            const suggestion = await suggest.mutateAsync(prompt.trim());
+            const suggestion = await suggest.mutateAsync(trimmed);
             setHasSuggested(true);
             if (!suggestion) {
                 setError(
@@ -98,8 +119,10 @@ export default function CreateAutomationDialog({
                         "Couldn't generate a suggestion — fill in the details manually.",
                     ),
                 );
-                if (!name)
-                    setName(prompt.trim().split(/\s+/).slice(0, 6).join(" "));
+                setName(
+                    (current) =>
+                        current || trimmed.split(/\s+/).slice(0, 6).join(" "),
+                );
                 return;
             }
             setName(suggestion.name || "");
@@ -112,6 +135,22 @@ export default function CreateAutomationDialog({
         }
     };
 
+    useEffect(() => {
+        if (!open) return;
+        const seeded = String(initialPrompt || "").trim();
+        if (!seeded) return;
+        const key = `${open}:${seeded}`;
+        if (autoSuggestKeyRef.current === key) return;
+        autoSuggestKeyRef.current = key;
+        void applySuggestion(seeded);
+        // Only auto-suggest when the dialog opens with a seeded prompt.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional open/initialPrompt trigger
+    }, [open, initialPrompt]);
+
+    const handleSuggest = async () => {
+        await applySuggestion(prompt);
+    };
+
     const handleSubmit = async (openAfter) => {
         setError("");
         const trimmedName = name.trim();
@@ -122,12 +161,12 @@ export default function CreateAutomationDialog({
         const preset = getPreset(presetId) || getPreset(DEFAULT_PRESET);
         const schedule = applyPreset(preset.schedule, presetId);
         const payload = {
+            entityId: assignedEntityId,
             name: finalName,
             slug: slugify(finalName),
             description: description.trim(),
             enabled,
             producesHtml,
-            pinnedToSidebar: false,
             timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
             schedule,
             content: content.trim() ? content : buildContent(finalName, prompt),
@@ -148,15 +187,21 @@ export default function CreateAutomationDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent
+                dir={direction}
+                className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl sm:max-w-xl"
+            >
                 <DialogHeader>
                     <DialogTitle>{t("New automation")}</DialogTitle>
                     <DialogDescription>
-                        {t(
-                            "Describe what you want Concierge to do, and we'll fill in the rest.",
-                        )}
+                        {t("colleagues.taskCreateIntro")}
                     </DialogDescription>
                 </DialogHeader>
+                <ColleagueSelect
+                    value={assignedEntityId}
+                    onChange={setAssignedEntityId}
+                    disabled={isBusy}
+                />
 
                 <div className="space-y-4">
                     <div>
@@ -164,6 +209,7 @@ export default function CreateAutomationDialog({
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             placeholder={t(placeholder)}
+                            aria-label={t("colleagues.taskPrompt")}
                             minHeight={96}
                             maxHeight={240}
                             className="text-sm border-gray-200 dark:border-gray-700 dark:bg-gray-900"
@@ -179,6 +225,7 @@ export default function CreateAutomationDialog({
                                 type="button"
                                 variant="outline"
                                 size="sm"
+                                className="min-h-10"
                                 onClick={handleSuggest}
                                 disabled={!prompt.trim() || isBusy}
                             >
@@ -227,6 +274,39 @@ export default function CreateAutomationDialog({
                             </div>
                         </div>
                     )}
+
+                    <div className="space-y-2">
+                        <Label className="text-xs">{t("Output format")}</Label>
+                        <div className="flex gap-2">
+                            {[
+                                {
+                                    value: true,
+                                    label: t("colleagues.richPage"),
+                                },
+                                { value: false, label: t("Text") },
+                            ].map((opt) => (
+                                <button
+                                    key={String(opt.value)}
+                                    type="button"
+                                    onClick={() => setProducesHtml(opt.value)}
+                                    aria-pressed={producesHtml === opt.value}
+                                    className={cn(
+                                        "inline-flex min-h-10 items-center rounded-full border px-3 py-1.5 text-sm transition",
+                                        producesHtml === opt.value
+                                            ? "border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-200"
+                                            : "border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700",
+                                    )}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {t(
+                                "Text is a plain summary. HTML produces a rich, interactive page.",
+                            )}
+                        </p>
+                    </div>
 
                     <div className="space-y-2">
                         <Label className="text-xs">{t("Schedule")}</Label>

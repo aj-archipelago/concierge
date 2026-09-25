@@ -57,7 +57,7 @@ describe("/api/users/me/home-applet route", () => {
         expect(routeSrc).toMatch(/validateHomeItems\(user, homeItems\)/);
         expect(routeSrc).toMatch(/validateAppletId\(item\.appletId\)/);
         expect(routeSrc).toMatch(/getAppletRegistry\(user, item\.appletId\)/);
-        expect(routeSrc).toMatch(/setHomeItemsForUser\(user, homeItems\)/);
+        expect(routeSrc).toMatch(/setHomeItemsForUser\(user, homeItems,/);
         expect(routeSrc).toMatch(/homeItemsDefaultGroupMigrated: true/);
     });
 });

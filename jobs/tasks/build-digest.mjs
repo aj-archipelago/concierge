@@ -22,7 +22,13 @@ class BuildDigestTask extends BaseTask {
         const logger = new Logger(job);
 
         // Start the digest build process
-        await buildDigestBlock(blockId, userId, logger, taskId);
+        const result = await buildDigestBlock(blockId, userId, logger, taskId, {
+            signal: job.signal,
+            deadline: job.deadline,
+        });
+        if (!result?.success) {
+            throw new Error(result?.error || "Digest generation failed");
+        }
 
         return; // after this is done, no need to track anything else
     }

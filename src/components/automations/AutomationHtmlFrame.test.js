@@ -138,6 +138,26 @@ describe("AutomationHtmlFrame", () => {
         );
     });
 
+    it("requests the widget variant for compact home tiles", async () => {
+        global.fetch.mockResolvedValueOnce(
+            mockHtmlResponse("<html>Widget run</html>"),
+        );
+
+        render(
+            <AutomationHtmlFrame
+                automationId="automation-1"
+                taskId="run-1"
+                variant="widget"
+            />,
+        );
+
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+        expect(global.fetch).toHaveBeenCalledWith(
+            "/api/automations/automation-1/runs/run-1/html?variant=widget",
+            { credentials: "include" },
+        );
+    });
+
     it("remounts the iframe when a different run returns identical HTML", async () => {
         const identicalHtml = "<html>Same run output</html>";
         global.fetch
@@ -305,4 +325,16 @@ describe("AutomationHtmlFrame", () => {
 
         await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
     });
+});
+
+it("explains expired output on old direct links", async () => {
+    clearAutomationHtmlCache();
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 410 });
+    render(<AutomationHtmlFrame automationId="a" taskId="expired" />);
+    expect(
+        await screen.findByText("automations.outputExpiredHelp"),
+    ).toBeVisible();
+    expect(
+        screen.queryByText("Failed to load automation content."),
+    ).not.toBeInTheDocument();
 });

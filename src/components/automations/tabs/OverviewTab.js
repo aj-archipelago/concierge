@@ -1,5 +1,6 @@
 "use client";
 
+import ColleagueSelect from "../../colleagues/ColleagueSelect";
 import { useTranslation } from "react-i18next";
 import { Loader2, Play } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,14 @@ export default function OverviewTab({
 
     return (
         <div className="space-y-4">
+            {form.watchError && (
+                <p
+                    role="alert"
+                    className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                >
+                    {form.watchError}
+                </p>
+            )}
             <Card>
                 <CardHeader className="p-4 pb-2">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -38,6 +47,11 @@ export default function OverviewTab({
                     </div>
                 </CardHeader>
                 <CardContent className="p-4 pt-2 space-y-3">
+                    <ColleagueSelect
+                        value={form.entityId}
+                        onChange={(value) => onFieldChange("entityId", value)}
+                        disabled={readOnly}
+                    />
                     <div className="space-y-1.5">
                         <Label htmlFor="overview-name" className="text-xs">
                             {t("Name")}

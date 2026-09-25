@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { listUserFolder } from "../fileUploadUtils";
+import { listUserFolder, uploadFileToMediaHelper } from "../fileUploadUtils";
 import {
     createAppletUserStorageTarget,
     createWorkspacePrivateStorageTarget,
@@ -53,5 +53,55 @@ describe("listUserFolder", () => {
         expect(url.searchParams.get("userId")).toBe("user-ctx-1");
         expect(url.searchParams.get("workspaceId")).toBe("workspace-123");
         expect(url.searchParams.get("fileScope")).toBe("workspace-user-legacy");
+    });
+});
+
+describe("location-based uploads", () => {
+    const OriginalXHR = global.XMLHttpRequest;
+    afterEach(() => {
+        global.XMLHttpRequest = OriginalXHR;
+    });
+
+    it("uploads identical bytes independently to the requested locations without hash lookups", async () => {
+        const requests = [];
+        global.fetch.mockClear();
+        global.XMLHttpRequest = class {
+            upload = {};
+            status = 200;
+            responseText = JSON.stringify({
+                url: "https://files.test/new",
+                blobPath: "global/file.txt",
+            });
+            open(method, url) {
+                this.method = method;
+                this.url = url;
+            }
+            send(form) {
+                requests.push({ url: this.url, form });
+                this.onload();
+            }
+        };
+        const file = new File(["same bytes"], "file.txt", {
+            type: "text/plain",
+        });
+        for (const userId of ["first-user", "second-user"]) {
+            const result = await uploadFileToMediaHelper(file, {
+                userId,
+                fileScope: "global",
+                checkHash: true,
+                serverUrl: "http://localhost:3000/media-helper",
+            });
+            expect(result.blobPath).toBe("global/file.txt");
+            expect(result.hash).toBeUndefined();
+        }
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(requests).toHaveLength(2);
+        requests.forEach(({ url, form }, index) => {
+            expect(new URL(url).searchParams.has("hash")).toBe(false);
+            expect(form.has("hash")).toBe(false);
+            expect(form.get("userId")).toBe(
+                index ? "second-user" : "first-user",
+            );
+        });
     });
 });

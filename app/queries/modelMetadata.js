@@ -1,7 +1,9 @@
+import { isSelectableMediaModel } from "../../src/utils/mediaModelCatalog.js";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useApolloClient } from "@apollo/client";
 import { SYS_MODEL_METADATA } from "../../src/graphql";
+export { isSelectableMediaModel } from "../../src/utils/mediaModelCatalog.js";
 
 /**
  * Fetch all model metadata from cortex.
@@ -68,19 +70,11 @@ export function useChatModels() {
 /**
  * Image, video, music, speech, and upscaling models — for the media page.
  */
+
 export function useMediaModels() {
     const { data, ...rest } = useModelMetadata();
     const mediaModels = useMemo(
-        () =>
-            data?.models?.filter(
-                (m) =>
-                    m.isAvailable !== false &&
-                    (m.category === "image" ||
-                        m.category === "video" ||
-                        m.category === "audio" ||
-                        m.category === "tts" ||
-                        m.category === "upscaling"),
-            ) || [],
+        () => data?.models?.filter(isSelectableMediaModel) || [],
         [data],
     );
     return { data: mediaModels, ...rest };

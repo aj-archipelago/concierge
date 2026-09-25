@@ -11,6 +11,18 @@ import {
     getStorageContextId,
 } from "../../../src/utils/storageTargets";
 
+// These helpers receive persisted snapshot records only after the route has
+// checked applet access. Public published pages have no signed-in principal.
+// Delegate exactly the record's cloud object, never the owner's container.
+function snapshotAuthorization(storageTarget, blobPath, action) {
+    const owner = getStorageContextId({ storageTarget });
+    return {
+        user: { contextId: "concierge:applet-snapshot" },
+        routing: { contextId: owner, userId: owner, fileScope: "applets" },
+        targets: [{ owner, path: blobPath, actions: [action] }],
+    };
+}
+
 export function extractAppletVersionBlobPathFromUrl(blobUrl) {
     try {
         const urlObj = new URL(blobUrl);
@@ -88,6 +100,11 @@ async function writeHtmlSnapshot({
         {
             storageTarget,
             subPath,
+            storageAuthorization: snapshotAuthorization(
+                storageTarget,
+                `applets/${subPath}/${filename}`,
+                "upload",
+            ),
         },
     );
 
@@ -228,6 +245,11 @@ async function resolveAppletVersionSnapshot(version) {
     const content = await readBlobContent(
         blobPath,
         createAppletGlobalStorageTarget(version.contentContextId),
+        snapshotAuthorization(
+            createAppletGlobalStorageTarget(version.contentContextId),
+            blobPath,
+            "read",
+        ),
     );
 
     return {
@@ -255,6 +277,13 @@ async function resolveCanonicalPublishedAppletContent(applet) {
     return readBlobContent(
         publishedBlobPath,
         createAppletPublishedStorageTarget(applet?.publishedContentContextId),
+        snapshotAuthorization(
+            createAppletPublishedStorageTarget(
+                applet?.publishedContentContextId,
+            ),
+            publishedBlobPath,
+            "read",
+        ),
     );
 }
 
@@ -310,6 +339,17 @@ export async function deletePublishedAppletSnapshot(
     }
 
     return deleteMediaFile({
+        ...(applet.publishedContentBlobPath
+            ? {
+                  storageAuthorization: snapshotAuthorization(
+                      createAppletPublishedStorageTarget(
+                          applet.publishedContentContextId,
+                      ),
+                      applet.publishedContentBlobPath,
+                      "delete",
+                  ),
+              }
+            : {}),
         blobPath: applet.publishedContentBlobPath || null,
         hash:
             allowHashFallback || !applet.publishedContentBlobPath
@@ -487,6 +527,17 @@ export async function deleteAppletVersionSnapshots(versions = [], user = null) {
     return Promise.allSettled(
         snapshotVersions.map((version) =>
             deleteMediaFile({
+                ...(version.contentBlobPath
+                    ? {
+                          storageAuthorization: snapshotAuthorization(
+                              createAppletGlobalStorageTarget(
+                                  version.contentContextId || user?.contextId,
+                              ),
+                              version.contentBlobPath,
+                              "delete",
+                          ),
+                      }
+                    : {}),
                 blobPath: version.contentBlobPath || null,
                 hash: version.contentHash || null,
                 fallbackToHash: !version.contentBlobPath,

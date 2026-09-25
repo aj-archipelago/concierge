@@ -1,0 +1,35 @@
+.avatar {
+    isolation: isolate;
+}
+.body {
+    transform-origin: 108px 152px;
+}
+.eyes,
+.gaze {
+    transform-origin: 108px 115px;
+}
+.gaze {
+    transition: transform 180ms ease-out;
+}
+.turn {
+    transform-origin: 108px 128px;
+    transition: transform 300ms ease-out;
+}
+.shadow {
+    transform-origin: 108px 179px;
+}
+.gleam {
+    opacity: 0;
+    transform: scale(0.8);
+    transform-origin: 110px 112px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .gaze,
+    .turn {
+        transition: none;
+    }
+}
+.avatar[data-animated="false"] .gaze,
+.avatar[data-animated="false"] .turn {
+    transition: none;
+}

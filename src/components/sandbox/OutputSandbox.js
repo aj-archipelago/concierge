@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { convertMessageToMarkdown } from "../chat/ChatMessage";
 import { runAppletServiceOAuth } from "@/src/utils/appletServiceOAuth";
 import { LanguageContext } from "@/src/contexts/LanguageProvider";
+import { repairWidgetBackgroundCache } from "@/src/utils/repairWidgetBackgroundCache.js";
 import {
     normalizeAppletLocale,
     parseAppletParams,
@@ -23,7 +24,7 @@ import {
 const OutputSandbox = forwardRef(
     (
         {
-            content,
+            content: rawContent,
             height = "300px",
             theme = "light",
             autoResize = true,
@@ -34,6 +35,12 @@ const OutputSandbox = forwardRef(
         },
         ref,
     ) => {
+        // Editor previews can receive saved HTML directly instead of through
+        // the runtime route. Apply the same repair before any script executes.
+        const content = useMemo(
+            () => repairWidgetBackgroundCache(rawContent),
+            [rawContent],
+        );
         const { t } = useTranslation();
         const router = useRouter();
         const languageContext = useContext(LanguageContext) || {};
@@ -70,6 +77,7 @@ const OutputSandbox = forwardRef(
         const mutationObserverRef = useRef(null);
         const [portalContainers, setPortalContainers] = useState(new Map());
         const isInitializedRef = useRef(false);
+        const hasWrittenDocumentRef = useRef(false);
         const lastHeadContentRef = useRef("");
         const lastThemeRef = useRef(theme);
         const lastAppletParamsKeyRef = useRef(appletParamsKey);
@@ -539,6 +547,7 @@ const OutputSandbox = forwardRef(
             }
 
             const iframe = iframeRef.current;
+            let cancelled = false;
 
             const updateContent = async () => {
                 try {
@@ -547,6 +556,7 @@ const OutputSandbox = forwardRef(
                         generateFilteredSandboxHtml,
                         extractHtmlStructure,
                     } = await import("../../utils/themeUtils");
+                    if (cancelled || iframeRef.current !== iframe) return;
 
                     // Extract head and body content to check if head changed
                     const { headContent, bodyContent } =
@@ -874,15 +884,18 @@ const OutputSandbox = forwardRef(
                         isInitializedRef.current = true;
                     };
 
-                    // Use document.write instead of srcdoc so we can set a
-                    // real URL via history.replaceState — srcdoc locks the URL
-                    // to about:srcdoc, breaking window.location.search.
-                    // Falls back to srcdoc when contentDocument is unavailable
-                    // (e.g. JSDOM in tests).
-                    if (iframe.contentDocument) {
+                    // Keep a real URL on the first load. Later full reloads use
+                    // srcdoc so generated top-level const/let declarations run
+                    // in a fresh iframe realm instead of being redeclared.
+                    if (
+                        iframe.contentDocument &&
+                        (!includeRuntimeScripts ||
+                            !hasWrittenDocumentRef.current)
+                    ) {
                         iframe.contentDocument.open();
                         iframe.contentDocument.write(html);
                         iframe.contentDocument.close();
+                        hasWrittenDocumentRef.current = true;
                         // Set URL after document is fully written — doing it
                         // before open() is unreliable because open() can reset
                         // the URL per HTML spec. APPLET_PARAMS is still available
@@ -923,6 +936,7 @@ const OutputSandbox = forwardRef(
 
             // Cleanup
             return () => {
+                cancelled = true;
                 if (resizeObserverRef.current) {
                     resizeObserverRef.current.disconnect();
                     resizeObserverRef.current = null;
@@ -1037,7 +1051,7 @@ const OutputSandbox = forwardRef(
                         display: "block", // Ensure iframe is displayed as block element
                         visibility: isLoading ? "hidden" : "visible", // Add visibility for mobile
                     }}
-                    sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation"
+                    sandbox="allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation allow-modals"
                     scrolling={autoResize ? undefined : "auto"}
                     title="Output Sandbox"
                 />

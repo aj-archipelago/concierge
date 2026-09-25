@@ -1,4 +1,5 @@
 import { injectAppletIdMeta } from "./appletHtmlUtils";
+import { repairWidgetBackgroundCache } from "./repairWidgetBackgroundCache.js";
 
 /**
  * Ensures the Concierge Applet SDK script tag is present in HTML content.
@@ -34,6 +35,6 @@ export function ensureAppletSdkScript(html) {
 }
 
 export function ensureAppletRuntimeHtml(html, { appletId = null } = {}) {
-    const withSdk = ensureAppletSdkScript(html);
+    const withSdk = ensureAppletSdkScript(repairWidgetBackgroundCache(html));
     return injectAppletIdMeta(withSdk, appletId);
 }

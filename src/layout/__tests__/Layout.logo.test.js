@@ -4,20 +4,13 @@ const path = require("path");
 const repoRoot = path.resolve(__dirname, "../../..");
 
 describe("Layout logo navigation", () => {
-    it("uses the app default route for the header logo", () => {
+    it("offers the app default route from the sidebar branding", () => {
         const src = fs.readFileSync(
-            path.join(repoRoot, "src/layout/Layout.js"),
+            path.join(repoRoot, "src/layout/SidebarBrand.js"),
             "utf8",
         );
-        const logoLinkBlock = src.slice(
-            src.indexOf(
-                'className="flex min-w-0 items-center gap-2.5 leading-tight"',
-            ),
-            src.indexOf("src={getLogo(language, theme)}"),
-        );
-
-        expect(logoLinkBlock).toContain('href="/"');
-        expect(logoLinkBlock).not.toContain('href="/chat"');
+        expect(src).toContain('href="/"');
+        expect(src).not.toContain('href="/chat"');
     });
 
     it("redirects the app default route to home", () => {
@@ -47,10 +40,10 @@ describe("Layout logo navigation", () => {
             "const shouldReserveExpandedSidebar = !isCollapsed;",
         );
         expect(src).toContain(
-            'isSidebarVisuallyExpanded ? "lg:w-56" : "lg:w-16"',
+            'isSidebarVisuallyExpanded ? "lg:w-56" : "lg:w-14"',
         );
         expect(src).toMatch(
-            /shouldReserveExpandedSidebar\s*\?\s*"lg:ps-56"\s*:\s*"lg:ps-16"/,
+            /shouldReserveExpandedSidebar\s*\?\s*"lg:ps-56"\s*:\s*"lg:ps-14"/,
         );
         expect(src).toContain("onInteractionExpandedChange={");
         expect(src).toContain("setSidebarInteractionExpanded");

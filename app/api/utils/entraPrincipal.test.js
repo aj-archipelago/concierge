@@ -6,6 +6,7 @@ import { Buffer } from "buffer";
 import {
     isTenantAuthorized,
     parseAuthorizedTenantIds,
+    resolveEntraPrincipalDisplayName,
     resolveEntraTenantId,
     resolveEntraPrincipalEmail,
 } from "./entraPrincipal";
@@ -40,6 +41,42 @@ describe("entraPrincipal", () => {
         ]);
 
         expect(resolveEntraPrincipalEmail(headers)).toBe("user@example.test");
+    });
+
+    test("resolves a display name from the Entra name claim", () => {
+        const headers = new Map([
+            [
+                "X-MS-CLIENT-PRINCIPAL",
+                encodePrincipal([{ typ: "name", val: "  Grace   Hopper " }]),
+            ],
+        ]);
+
+        expect(resolveEntraPrincipalDisplayName(headers)).toBe("Grace Hopper");
+    });
+
+    test("falls back to Entra given and family name claims", () => {
+        const headers = new Map([
+            [
+                "X-MS-CLIENT-PRINCIPAL",
+                encodePrincipal([
+                    { typ: "given_name", val: "Grace" },
+                    { typ: "family_name", val: "Hopper" },
+                ]),
+            ],
+        ]);
+
+        expect(resolveEntraPrincipalDisplayName(headers)).toBe("Grace Hopper");
+    });
+
+    test("does not treat an email-shaped name claim as a display name", () => {
+        const headers = new Map([
+            [
+                "X-MS-CLIENT-PRINCIPAL",
+                encodePrincipal([{ typ: "name", val: "user@example.test" }]),
+            ],
+        ]);
+
+        expect(resolveEntraPrincipalDisplayName(headers)).toBeNull();
     });
 
     test("resolves and checks authorized tenant ids", () => {

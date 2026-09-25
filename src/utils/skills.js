@@ -2,6 +2,7 @@
 // Skills system for Concierge chat - similar to Claude Code skills
 // Skills provide specialized instructions that can be loaded into chat context on demand
 
+import { APPLET_API_SELECTION } from "../content/appletApiSelection.js";
 import { APPLET_SDK_DOCUMENTATION } from "../content/appletSdkDocumentation.js";
 
 // ============================================================================
@@ -10,6 +11,8 @@ import { APPLET_SDK_DOCUMENTATION } from "../content/appletSdkDocumentation.js";
 
 /** Intro through theme support; ends before canonical SDK documentation. */
 const APPLETS_SKILL_HEAD = `# Applets Skill
+
+${APPLET_API_SELECTION}
 
 ## What Are Applets?
 
@@ -26,6 +29,8 @@ Editing the workspace file changes Draft only. It does **not** create an immutab
 When the canvas has an active applet, \`appletId\` defaults to it across applet management tools — you usually don't need to pass it.
 
 For a brand new applet request, strongly prefer \`CreateApplet\` with \`prompt\`. It creates the workspace HTML file, registers the applet, opens the live streaming canvas preview, and automatically starts applet-specific metadata and card-image generation in the background. Only hand-build HTML first when the user specifically asks for a file-first workflow or when you already have a complete HTML file that needs registration.
+
+\`CreateApplet\` is long-running and returns the registered \`appletId\`. When creating multiple applets, call it sequentially and wait for each result before starting the next; never issue parallel \`CreateApplet\` calls.
 
 | Tool | Use when |
 |---|---|
@@ -46,6 +51,7 @@ For a brand new applet request, strongly prefer \`CreateApplet\` with \`prompt\`
 | \`DeleteApplet\` | Delete the applet. Asks the user to confirm in a dialog. |
 | \`GetCanvasState\` | Lightweight active canvas state without a screenshot. |
 | \`InspectCanvas\` | Debug screenshot, applet console errors, and network failures. |
+| \`UpdateAppletWidget\` | Save the Home widget HTML. The Home tile and Home widget preview use this stored HTML, which is separate from the full-page Draft. |
 
 Advanced/rare tools still exist for cleanup and diagnostics: \`GetApplet\`, \`GetAppletVersionSource\`, \`DeleteAppletVersion\`, \`UnpublishApplet\`, \`UpdateAppletMetadata { workspacePath }\`, and \`UpdateAppletMetadata { clearSdkSuspension }\`.
 
@@ -55,9 +61,9 @@ Advanced/rare tools still exist for cleanup and diagnostics: \`GetApplet\`, \`Ge
 
 | Scenario | Approach |
 |---|---|
-| Change colors / styling / layout | Edit the Draft workspace file. Save only when the user wants a checkpoint. |
-| Add a feature | Edit the Draft workspace file. Save only when the user wants a checkpoint. |
-| Fix a bug | Edit the Draft workspace file. Save only when the user wants a checkpoint. |
+| Change colors / styling / layout | Edit the Draft workspace file for **full page**. For the **Home widget** tile, edit \`GetAppletState.widget.html\` and call \`UpdateAppletWidget\`. |
+| Add a feature | Same split: Draft file for full page, \`UpdateAppletWidget\` for the Home tile. |
+| Fix a bug | If the canvas is on Home widget (or the bug is on the Home tile), update widget HTML with \`UpdateAppletWidget\`. Draft-only edits will not change the tile. |
 | Small tweak (text, copy, etc.) | Edit the Draft workspace file. Save only when the user wants a checkpoint. |
 | User asks to publish / ship / make live | Publish a specific saved version with \`PublishAppletVersion { version }\`. |
 | User wants an existing applet to be the Home page | Use \`SetHomeApplet\`. Keep editing Draft for ordinary Home-only updates; publishing is separate. |
@@ -70,9 +76,9 @@ Advanced/rare tools still exist for cleanup and diagnostics: \`GetApplet\`, \`Ge
 
 Follow this order whenever you change an applet:
 
-1. **Read Draft.** Use the workspace shell (\`cat <workspacePath>\`). \`workspacePath\` is in the HTML Canvas Context. For a non-active applet, call \`GetAppletState { appletId }\` or \`OpenAppletDraft { appletId }\` to discover its Draft path.
-2. **Make targeted edits.** Write the modified HTML back to the same path with the workspace shell. Preserve everything outside the user's request — minimize your diff.
-3. **Let preview refresh automatically.** The canvas follows the workspace file after tool runs. Do not call a refresh/sync tool.
+1. **Read the right source.** Full page: \`cat <workspacePath>\`. Home widget tile: \`GetAppletState\` and read \`widget.html\` (not the Draft file).
+2. **Make targeted edits.** Full page: write the modified HTML back to the same workspace path with **WorkspaceSSH**. Home widget: call **UpdateAppletWidget { html }** with the complete widget document. Preserve everything outside the user's request — minimize your diff.
+3. **Let preview refresh.** Full-page canvas follows the workspace file after shell writes. The Home widget preview follows unsaved editor HTML, **Regenerate widget**, **Save widget**, or **UpdateAppletWidget**. Do not claim the Home tile is updated until **Save widget** or **UpdateAppletWidget** persists it. Draft-only edits do not change the tile.
 4. **Save when needed.** \`SaveAppletDraftAsVersion\` checkpoints Draft as a new immutable version. Editing Draft alone does not create a version.
 5. **Publish only when asked.** \`PublishAppletVersion { version }\` promotes a specific saved version to live users. Do not publish just because a new checkpoint exists; the currently published version may intentionally stay behind Draft/latest.
 6. **Finish homepage launchers end-to-end.** If the user asked for a homepage, launchpad, or launcher applet that opens other applets, this is the exception to the ordinary Home-only flow: save Draft as a version, publish that saved version for local use, then set it as Home.
@@ -106,7 +112,7 @@ When the user asks for a homepage, launchpad, or launcher applet that opens othe
 ## Architecture
 
 - **Single HTML file** — each applet is one self-contained HTML document.
-- **Sandboxed iframe** — \`allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation\`. Same sandbox in canvas preview and on \`/published/applets/{id}\`.
+- **Sandboxed iframe** — \`allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation allow-modals\`. Same sandbox in canvas preview and on \`/published/applets/{id}\`.
 - **Tailwind CSS v4** — the browser build is auto-injected; use Tailwind utility classes freely.
 - **Concierge Applet SDK** — auto-injected at runtime; platform functions live on the global \`ConciergeSDK\` object (see SDK section below).
 - **Theme-aware** — applets receive the current theme (light/dark) and respond to theme changes.
@@ -282,10 +288,10 @@ For translation applets, branch UI strings and default prompts on \`ConciergeSDK
 
 const APPLETS_SKILL_URL_PARAMS = `## URL Parameters
 
-When an applet is loaded directly or embedded in an iframe, query parameters on the applet page URL are available to the applet at runtime. For example, \`/apps/dmv-applet?team=team-alpha\` or:
+When an applet is loaded directly or embedded in an iframe, query parameters on the applet page URL are available to the applet at runtime. For example, \`/apps/dmv-applet?team=sample-team\` or:
 
 \`\`\`html
-<iframe src="https://your-concierge-host/apps/dmv-applet?team=team-alpha"></iframe>
+<iframe src="https://your-concierge-host/apps/dmv-applet?team=sample-team"></iframe>
 \`\`\`
 
 \`\`\`javascript
@@ -302,125 +308,33 @@ const APPLETS_SKILL_AGENT_SUPPLEMENT = `## Applets skill — agent integration (
 
 The **Concierge Applet SDK** section above is the canonical API reference (same Markdown as the admin SDK Playground).
 
+### Reusable agent context
+
+When an applet needs reusable private context, pass \`agentContext: "create"\` to its \`CreateApplet\` call so an independent context ID is saved during registration; it is not the applet ID. Copy the returned canonical \`agentContext\` into \`CreateApplet\` for every applet that shares the same folder. Never invent a context label or put the ID in applet HTML or UI; the server supplies the saved binding. Use \`ManageAgentContext\` with \`list\` or \`upsert\` to manage exactly the files and directories the user requested. Omit \`directory\` for root files. \`AGENTS.md\` and skills are optional and must not be invented. When a loadable skill is requested, store it with \`directory: "skills/<name>"\` and \`filename: "SKILL.md"\`. Applet code calls \`ConciergeSDK.agent.chat()\` normally, and the server attaches the saved context automatically.
+
 ### Rendering \`agent.chat\` results
 
-\`response.result\` is **Markdown** (headings, lists, inline images, Mermaid, code blocks, links). In Concierge applets, prefer the native renderer bridge instead of shipping a separate Markdown library: write JSON into a \`<pre class="llm-output">\` element. The host sandbox replaces it with Concierge's chat Markdown renderer, including citation popovers when citations are present.
+\`response.result\` is **Markdown** (headings, lists, inline images, Mermaid, code blocks, links). In Concierge applets, every \`agent.chat()\` answer shown to the user **must** go through \`ConciergeSDK.agent.render(target, response)\`. It preserves the complete response and lets the host render Concierge Markdown and native citation popovers.
 
 \`\`\`html
-<pre id="output" class="llm-output"></pre>
+<div id="output"></div>
 <script>
 async function askAgent() {
     const response = await ConciergeSDK.agent.chat({
         messages: [{ role: "user", content: "Summarize the latest context." }],
     });
-    document.getElementById("output").textContent = JSON.stringify({
-        markdown: response.result,
-        citations: response.citations || [],
-    });
+    ConciergeSDK.agent.render("output", response);
 }
 </script>
 \`\`\`
+
+Keep the agent answer as normal Markdown with its native \`:cd_source[…]\` markers. Never ask the agent to return source/reference objects in custom JSON, strip those markers, or build custom citation UI. Do not copy attached private files into applet HTML/JavaScript as seed answers or fallbacks; use \`agent.chat()\` at runtime and pass its complete response to \`agent.render()\`. The native renderer owns citation display and interaction.
 
 \`ConciergeSDK.models.executePrompt()\` and \`ConciergeSDK.workspace.prompts.run()\` use the same renderer bridge. Use \`response.result\` for agent/model calls, \`result.output\` for workspace prompts, and always pass \`citations: value.citations || []\`. \`ConciergeSDK.models.generate()\` is available only as a backward-compatible alias; prefer \`executePrompt()\` in new applets. Only use \`marked\`, \`markdown-it\`, or another renderer when the applet must work outside Concierge.
 
-### source Q&A in applets
+### Cancelling AI requests
 
-Use \`ConciergeSDK.sourceQa.query()\` when the applet needs source-grounded news retrieval and a complete answer payload. Use \`ConciergeSDK.sourceQa.stream()\` when the UI should show answer text as it arrives. \`query()\` uses the same streaming transport internally, but resolves only when final metadata arrives. Both return the same final shape:
-
-\`\`\`js
-{
-    result: "Markdown answer with :cd_source[N] markers",
-    citations: [/* source objects for citation popovers */],
-    confidence: "high" | "medium" | "low" | null,
-    coverage: {/* answerability / clarification state */},
-    followUpQuestions: [/* suggested next source Q&A questions */],
-    metadata: {/* parsed Cortex metadata */},
-    resultData: {/* retrieval diagnostics: queryPlan, searchResults, searches, timings, coverage */},
-    warnings: [],
-    errors: []
-}
-\`\`\`
-
-Use \`ConciergeSDK.sourceQa.initialQuestions({ language })\` for the applet's initial/home-screen suggested questions. It returns cached 18-question sets for \`"en"\` or \`"ar"\`; the server owns generation, TTL caching, exact Cortex answer-cache key registration, and bounded answer prewarming. Do not use \`agent.chat()\` to generate source Q&A starter questions, and do not prefetch the returned questions in applet code. When a user chooses one, submit it through \`sourceQa.query()\` or \`sourceQa.stream()\` like any other active user question.
-
-\`\`\`js
-const starters = await ConciergeSDK.sourceQa.initialQuestions({ language: "en" });
-renderSuggestionSets(starters.sets || []);
-\`\`\`
-
-Render source Q&A answers through the native bridge exactly like agent answers:
-
-\`\`\`html
-<pre id="source-qa-output" class="llm-output"></pre>
-<script>
-function renderSourceQa(value) {
-    document.getElementById("source-qa-output").textContent = JSON.stringify({
-        markdown: value.result || "",
-        citations: value.citations || [],
-    });
-}
-</script>
-\`\`\`
-
-For a normal complete call:
-
-\`\`\`js
-const response = await ConciergeSDK.sourceQa.query({
-    text: "What changed in the latest policy update?",
-    contextInfo: {
-        topic: "Policy updates",
-        previousQuestion: "What was the earlier policy?",
-        previousAnswer: "The earlier policy required manual review.",
-        turns: [
-            { role: "user", content: "What was the earlier policy?" },
-            { role: "assistant", content: "The earlier policy required manual review." },
-        ],
-        notes: ["The next user question is a follow-up."],
-    },
-    followUpQuestionCount: 3,
-});
-
-renderSourceQa(response);
-showConfidence(response.confidence);
-showSuggestedQuestions(response.followUpQuestions || []);
-\`\`\`
-
-For streaming:
-
-\`\`\`js
-let streamedMarkdown = "";
-
-const finalResponse = await ConciergeSDK.sourceQa.stream({
-    text: "What are the main details from the latest update?",
-    contextInfo: currentSourceQaContext,
-    followUpQuestionCount: 3,
-    onChunk(chunk) {
-        streamedMarkdown += chunk;
-        document.getElementById("source-qa-output").textContent = JSON.stringify({
-            markdown: streamedMarkdown,
-            citations: [],
-        });
-    },
-});
-
-// The final resolved value includes citations/confidence/coverage. Re-render with citations.
-renderSourceQa(finalResponse);
-showConfidence(finalResponse.confidence);
-showSuggestedQuestions(finalResponse.followUpQuestions || []);
-\`\`\`
-
-Important source Q&A rules for generated applets:
-
-- Keep the latest user question in \`text\`; pass prior conversation through \`contextInfo\`. Do not prepend old Q/A text to \`text\`.
-- Prefer structured \`contextInfo\`: \`{ topic, previousQuestion, previousAnswer, turns, notes }\`.
-- Do not pass the applet host locale as source Q&A \`language\` unless the user explicitly chooses an answer language. Omit \`language\` for the default \`auto\`; source Q&A infers from the latest question.
-- Internet news fallback is on by default. Pass \`searchInternet: false\` only when the applet explicitly wants configured indexed sources only.
-- Request suggested next questions with \`followUpQuestionCount\`; treat returned \`followUpQuestions\` as buttons/prompts the user may submit next, not as questions the app should answer itself.
-- Do not prefetch source Q&A answers for suggested follow-up questions. source Q&A is a live retrieval pipeline; run it only for the user's active submitted question.
-- Streaming may emit \`onUpdate("metadata", data)\` after retrieval/coverage completes and before answer text finishes. Use that to update source/confidence UI early; \`onChunk(chunk, eventData)\` also includes \`eventData.metadata\` after metadata is available.
-- Use \`confidence\` as a coarse UI label only. Use \`coverage.clarificationRequired\` or \`coverage.answerableWithCaveat\` to decide whether to show clarification or caveat UI.
-- Streaming only resolves after the final metadata arrives. If \`sourceQa.stream()\` rejects, show a normal error/retry state instead of rendering an empty-source answer.
-- The SDK strips SSE framing; applet code should never display raw \`data:\`, \`progress\`, or \`complete\` strings.
+Never implement a timeout by wrapping an SDK request in \`Promise.race()\` alone. That rejects only the wrapper; the SDK request remains in flight, and a retry can overlap it and trigger \`APPLET_SDK_CONCURRENCY_LIMITED\`. For \`agent.chat()\` and \`models.executePrompt()\`, create an \`AbortController\`, pass \`signal: controller.signal\`, and call \`controller.abort()\` when the UI times out, unmounts, or replaces the request. Clear the timeout after the request settles.
 
 ### Entity agent
 
@@ -484,6 +398,7 @@ const APPLETS_SKILL_TAIL = `## Styling Guidelines
 - **Buttons:** \`px-4 py-2 bg-sky-500 text-white rounded-md hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2\`
 - **Page layout:** \`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8\`
 - **Cards:** \`bg-white rounded-lg shadow-md border border-gray-200 p-6\`
+- **Confirm dialogs:** Build an in-app modal overlay (fixed inset-0 backdrop + centered panel with Cancel/Confirm buttons). Never use \`window.confirm()\`, \`window.alert()\`, or \`window.prompt()\` — native dialogs block canvas inspection tools, may be hard to see inside the iframe, and ignore theme/locale styling.
 - **Corners:** \`rounded-md\`
 - **Shadows:** \`shadow-md\` for subtle elevation
 - **Hover states:** \`hover:bg-sky-50\`
@@ -521,6 +436,7 @@ const APPLETS_SKILL_TAIL = `## Styling Guidelines
 - **Set proper viewport meta** — already handled by the platform, but don't override it
 
 ### DON'T:
+- **Don't use \`window.confirm()\`, \`window.alert()\`, or \`window.prompt()\`** — use an in-app confirmation modal instead (see Component Recipes). Native dialogs block automated canvas debugging tools and cannot match light/dark or Arabic/English UI.
 - **Don't use React/Vue/Angular** — stick to vanilla HTML/CSS/JS or lightweight libraries
 - **Don't use ES modules** (import/export) — they don't work in the sandbox
 - **Don't try to access parent window** — the sandbox restricts cross-frame access
@@ -561,6 +477,7 @@ Applets can be published in two ways. Publishing always points at an immutable s
    - Query card/sidebar metadata with \`GetApplet\` or \`GetAppletState\` and read \`appMetadata\`.
    - Generate card/sidebar metadata with \`GenerateAppletMetadata\`, generate light/dark card artwork with \`GenerateAppletImage\`, or manually update fields with \`UpdateAppletMetadata { appName, appSlug, appDescription, appIcon, appImageUrl, appImageLightUrl, appImageDarkUrl, appImageAlt, appBadgeLabel, appTags, appCategory, appMetadataGeneratedAt }\`; these do not publish the applet.
    - Publish the intended version first with \`PublishAppletVersion { version }\` if the live version should change, then list/update the public app-store entry with \`UpdateAppletMetadata { publishToAppStore: true, appName, appSlug, appDescription }\`.
+   - \`PublishAppletVersion\` does not change App Store visibility. Never pass \`publishToAppStore: false\` while publishing a version — that used to clear the public slug; unlist only via metadata update.
    - Remove from store: \`UpdateAppletMetadata { publishToAppStore: false }\`.
 
 When publishing to the app store:
@@ -596,9 +513,23 @@ When publishing to the app store:
         function reset() { count = 0; el.textContent = count; }
     </script>
 </body>
-</html>
+    </html>
 \`\`\`
 `;
+
+const APPLETS_SKILL_STYLING = APPLETS_SKILL_TAIL.slice(
+    0,
+    APPLETS_SKILL_TAIL.indexOf("## Applet File Format"),
+).trim();
+
+export const APPLETS_HTML_GENERATION_GUIDE = [
+    APPLET_API_SELECTION,
+    APPLETS_SKILL_LOCALE,
+    APPLETS_SKILL_URL_PARAMS,
+    APPLET_SDK_DOCUMENTATION,
+    APPLETS_SKILL_AGENT_SUPPLEMENT,
+    APPLETS_SKILL_STYLING,
+].join("\n\n");
 
 const APPLETS_SKILL_BODY = APPLETS_SKILL_CONTENT + "\n\n" + APPLETS_SKILL_TAIL;
 

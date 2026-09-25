@@ -5,6 +5,10 @@
 import { POST } from "../applet/media/route";
 
 const mockQuery = jest.fn();
+const mockEnsureBackground = jest.fn();
+jest.mock("../utils/applet-background-image.js", () => ({
+    ensureAppletBackgroundImage: (...args) => mockEnsureBackground(...args),
+}));
 
 jest.mock("../../../src/graphql", () => ({
     getClient: () => ({
@@ -126,6 +130,162 @@ describe("POST /api/applet/media", () => {
         process.env = originalEnv;
     });
 
+    test("ensure-image binds cached reads to the authenticated user and applet", async () => {
+        mockEnsureBackground.mockResolvedValueOnce({
+            url: "https://example.test/cached.png",
+        });
+        const response = await POST(
+            createRequest({
+                operation: "ensure-image",
+                key: "background",
+                userId: "another-user",
+            }),
+        );
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+            url: "https://example.test/cached.png",
+        });
+        expect(mockEnsureBackground).toHaveBeenCalledWith(
+            expect.objectContaining({
+                appletId,
+                userId: "user-1",
+                key: "background",
+            }),
+        );
+        expect(createBackgroundTask).not.toHaveBeenCalled();
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    test("ensure-image rejects inaccessible applets before consulting cached images", async () => {
+        const { NextResponse } = require("next/server");
+        validateAppletAccess.mockResolvedValueOnce(
+            NextResponse.json({ error: "Access denied" }, { status: 403 }),
+        );
+        mockEnsureBackground.mockClear();
+        const response = await POST(
+            createRequest({ operation: "ensure-image", key: "background" }),
+        );
+        expect(response.status).toBe(403);
+        expect(mockEnsureBackground).not.toHaveBeenCalled();
+    });
+
+    test("ensure-image creates only image tasks with a server-generated idempotency key", async () => {
+        mockMediaMetadata([
+            {
+                id: "image-model",
+                category: "image",
+                type: "image",
+                provider: "openai",
+            },
+        ]);
+        mockEnsureBackground.mockImplementationOnce(({ create }) =>
+            create("widget-background-v1:background"),
+        );
+        const response = await POST(
+            createRequest({
+                operation: "ensure-image",
+                key: "background",
+                prompt: "A newsroom",
+                model: "image-model",
+                outputType: "video",
+                idempotencyKey: "spoofed",
+            }),
+        );
+        expect(response.status).toBe(200);
+        expect(createBackgroundTask).toHaveBeenCalledWith(
+            expect.objectContaining({
+                userId: "user-1",
+                type: "media-generation",
+                metadata: expect.objectContaining({ outputType: "image" }),
+                idempotencyKey: "widget-background-v1:background",
+                beforeCreate: expect.any(Function),
+            }),
+        );
+        Task.countDocuments.mockResolvedValueOnce(2);
+        await expect(
+            createBackgroundTask.mock.calls[0][0].beforeCreate(),
+        ).rejects.toMatchObject({ status: 429 });
+    });
+
+    test("priority references and settings survive the applet task boundary", async () => {
+        const model = "replicate-seedance-2.5";
+        mockMediaMetadata([
+            { modelId: model, category: "video", isAvailable: true },
+        ]);
+        const refs = (n, ext) =>
+            Array.from({ length: n }, (_, i) => ({
+                url: `https://example.com/${i}.${ext}`,
+                hash: `hash-${i}`,
+            }));
+        const response = await POST(
+            createRequest({
+                operation: "create-media",
+                model,
+                prompt: "Scene",
+                inputImages: refs(30, "png"),
+                inputVideos: refs(10, "mp4"),
+                inputAudios: refs(10, "wav"),
+                fps: 24,
+                watermark: false,
+                generationMode: "generate",
+            }),
+        );
+        expect(response.status).toBe(200);
+        const { metadata } = createBackgroundTask.mock.calls[0][0];
+        expect(metadata.inputImageUrl30).toBe("https://example.com/29.png");
+        expect(metadata.inputVideoUrl10).toBe("https://example.com/9.mp4");
+        expect(metadata.inputAudios).toHaveLength(10);
+        expect(metadata.inputAudios[9].hash).toBe("hash-9");
+        expect(metadata.settings.models[model]).toEqual(
+            expect.objectContaining({
+                fps: 24,
+                watermark: false,
+                generationMode: "generate",
+            }),
+        );
+    });
+
+    test("dubbing source URLs support promptless tasks and block private addresses", async () => {
+        const model = "replicate-elevenlabs-dubbing";
+        mockMediaMetadata([
+            { modelId: model, category: "audio", isAvailable: true },
+        ]);
+        const response = await POST(
+            createRequest({
+                operation: "create-media",
+                model,
+                sourceUrl: "https://example.com/source.mp4",
+                targetLanguage: "ar-EG",
+                cloningStrength: 0,
+            }),
+        );
+        expect(response.status).toBe(200);
+        expect(
+            createBackgroundTask.mock.calls[0][0].metadata.settings.models[
+                model
+            ],
+        ).toEqual(
+            expect.objectContaining({
+                targetLanguage: "ar-EG",
+                cloningStrength: 0,
+            }),
+        );
+        createBackgroundTask.mockClear();
+        mockMediaMetadata([
+            { modelId: model, category: "audio", isAvailable: true },
+        ]);
+        const blocked = await POST(
+            createRequest({
+                operation: "create-media",
+                model,
+                sourceUrl: "http://127.0.0.1/private",
+                targetLanguage: "ar",
+            }),
+        );
+        expect(blocked.status).toBe(400);
+        expect(createBackgroundTask).not.toHaveBeenCalled();
+    });
+
     test("enqueues a transcribe task with server user context", async () => {
         const response = await POST(
             createRequest({
@@ -210,6 +370,7 @@ describe("POST /api/applet/media", () => {
             expect.objectContaining({
                 metadata: expect.objectContaining({
                     url: "https://files.example/clip.mp4?sig=ok",
+                    sourceFile: { appletId, fileId },
                     responseFormat: "vtt",
                     modelOption: "xAI + Gemini",
                     contextId: "server-context",

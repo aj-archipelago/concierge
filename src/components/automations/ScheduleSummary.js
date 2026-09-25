@@ -36,6 +36,9 @@ export function describeSchedule(t, schedule, timezone) {
         return t("Runs only when triggered");
     }
 
+    if (schedule.frequency === "files")
+        return t("colleagues.watchSummary", { path: schedule.watchPath });
+
     if (schedule.frequency === "hourly") {
         if (schedule.hourlyMode === "clock") {
             const interval = Math.max(1, Number(schedule.interval) || 1);

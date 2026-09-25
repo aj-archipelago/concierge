@@ -4,6 +4,10 @@ import "@testing-library/jest-dom";
 
 import FileGridView from "../FileGridView";
 
+jest.mock("../../../../contexts/LanguageProvider", () => ({
+    LanguageContext: require("react").createContext({ direction: "ltr" }),
+}));
+
 jest.mock("react-i18next", () => ({
     useTranslation: () => ({
         t: (key) => key,
@@ -437,4 +441,48 @@ describe("FileGridView", () => {
 
         expect(screen.queryByTestId("media-play-cue")).not.toBeInTheDocument();
     });
+});
+
+describe("unavailable media playback", () => {
+    it.each(["video", "audio"])(
+        "shows a %s load failure and retries only that player",
+        (type) => {
+            const file = {
+                _id: "missing",
+                filename: type === "video" ? "missing.mp4" : "missing.mp3",
+                url: "https://storage.example/missing",
+                type,
+            };
+            const onSelectFile = jest.fn();
+            const onPreview = jest.fn();
+            render(
+                <FileGridView
+                    files={[file]}
+                    selectedIds={new Set()}
+                    getFileId={(entry) => entry._id}
+                    onSelectFile={onSelectFile}
+                    onPreview={onPreview}
+                />,
+            );
+            fireEvent.click(screen.getByTestId("media-play-cue"));
+            const player = screen.getByTestId(`media-inline-${type}-player`);
+            fireEvent.error(player);
+            expect(screen.getByRole("status")).toHaveTextContent(
+                "Media preview unavailable",
+            );
+            expect(
+                screen.queryByTestId(`media-inline-${type}-player`),
+            ).not.toBeInTheDocument();
+            fireEvent.click(
+                screen.getByRole("button", { name: "Retry preview" }),
+            );
+            const retriedPlayer = screen.getByTestId(
+                `media-inline-${type}-player`,
+            );
+            expect(retriedPlayer).not.toBe(player);
+            expect(retriedPlayer).toHaveAttribute("src", file.url);
+            expect(onSelectFile).not.toHaveBeenCalled();
+            expect(onPreview).not.toHaveBeenCalled();
+        },
+    );
 });

@@ -1,5 +1,7 @@
 "use client";
 
+import PageHeader from "../../../../src/layout/PageHeader";
+import { HeaderAction } from "../../../../src/layout/HeaderControls";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -21,18 +23,11 @@ import axios from "../../../utils/axios-client";
 import { useRouter } from "next/navigation";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    ArrowLeft,
-    ArrowRight,
-    Edit,
-    MoreHorizontal,
-    Link,
-} from "lucide-react";
+import { ArrowLeft, Edit, MoreHorizontal, Link } from "lucide-react";
 import stringcase from "stringcase";
 import { Modal } from "../../../../@/components/ui/modal";
 import { AuthContext, ServerContext } from "../../../../src/App";
 import LoadingButton from "../../../../src/components/editor/LoadingButton";
-import { LanguageContext } from "../../../../src/contexts/LanguageProvider";
 import { usePathway } from "../../../queries/pathways";
 import {
     useCopyWorkspace,
@@ -48,41 +43,21 @@ import ShareButton from "../../../../@/components/share/ShareButton";
 const WORKSPACE_LIBRARY_HREF = "/apps?tab=workspaces";
 
 export default function WorkspaceActions({ idOrSlug, user }) {
-    const router = useRouter();
+    const { t } = useTranslation();
     const { data: workspace, isLoading } = useWorkspace(idOrSlug);
-    const { direction } = useContext(LanguageContext);
 
     if (isLoading) return null;
 
     return (
-        <div>
-            <div className="flex gap-4 justify-between mb-4">
-                <div className="flex gap-4 grow overflow-auto">
-                    <div className="hidden sm:block">
-                        <button
-                            className="lb-outline-secondary"
-                            onClick={() => router.push(WORKSPACE_LIBRARY_HREF)}
-                        >
-                            {direction === "rtl" ? (
-                                <ArrowRight />
-                            ) : (
-                                <ArrowLeft />
-                            )}
-                        </button>
-                    </div>
-                    <div className="overflow-hidden hidden sm:block">
-                        <Name workspace={workspace} user={user} />
-                    </div>
-                    <div className="block sm:hidden">
-                        <h4 className="font-medium">{workspace?.name}</h4>
-                    </div>
-                </div>
-
-                <div className="hidden sm:block">
-                    <Actions workspace={workspace} user={user} />
-                </div>
-            </div>
-        </div>
+        <PageHeader title={<Name workspace={workspace} user={user} />}>
+            <HeaderAction
+                href={WORKSPACE_LIBRARY_HREF}
+                icon={ArrowLeft}
+                iconClassName="rtl:rotate-180"
+                label={t("Applet Workspaces")}
+            />
+            <Actions workspace={workspace} user={user} />
+        </PageHeader>
     );
 }
 
@@ -246,7 +221,7 @@ function Name({ workspace, user }) {
             <div className="flex gap-4 [&>button]:hidden ">
                 <div>
                     <h1
-                        className="text-xl font-medium hover:underline"
+                        className="max-w-56 truncate text-base font-semibold hover:underline"
                         onClick={() => setEditing(true)}
                     >
                         {name}

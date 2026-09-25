@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth";
-import { getClient, QUERIES } from "../../../../src/graphql";
+import { getClient, QUERIES } from "../../utils/cortex-client.js";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,11 @@ export async function GET() {
         });
         await client.query({
             query: QUERIES.SYS_GET_ENTITIES,
-            variables: { userId, fresh: String(Date.now()) },
+            variables: {
+                userId,
+                fresh: "true",
+                entityId: currentUser.personalEntityId,
+            },
             fetchPolicy: "network-only",
         });
 

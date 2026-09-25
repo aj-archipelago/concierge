@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
     Check,
     Copy,
@@ -40,16 +41,22 @@ import {
     ownedSharesQueryKey,
 } from "./shareUtils";
 import { useShareSettings } from "./useShareSettings";
+import { LanguageContext } from "../../../src/contexts/LanguageProvider";
 
 const ENTITY_LABELS = {
-    chat: "chat",
-    workspace: "workspace",
-    applet: "applet",
-    automation: "automation",
-    article: "article",
+    chat: "shareDialog.entity.chat",
+    workspace: "shareDialog.entity.workspace",
+    applet: "shareDialog.entity.applet",
+    published_applet: "shareDialog.entity.publishedApplet",
+    automation: "shareDialog.entity.automation",
+    article: "shareDialog.entity.article",
 };
 
-const VIEWER_ONLY_ENTITY_TYPES = new Set(["chat", "workspace"]);
+const VIEWER_ONLY_ENTITY_TYPES = new Set([
+    "chat",
+    "workspace",
+    "published_applet",
+]);
 
 function emptyShare(entityType, entityId) {
     return {
@@ -67,6 +74,8 @@ export default function ShareDialog({
     entityId,
 }) {
     const queryClient = useQueryClient();
+    const { t } = useTranslation();
+    const { direction = "ltr" } = useContext(LanguageContext) || {};
 
     const { data, isLoading } = useShareSettings(entityType, entityId, {
         enabled: open,
@@ -77,8 +86,16 @@ export default function ShareDialog({
     const [recipients, setRecipients] = useState([]);
     const [copied, setCopied] = useState(false);
 
-    const entityLabel = ENTITY_LABELS[entityType] || "item";
+    const entityLabel = t(
+        ENTITY_LABELS[entityType] || "shareDialog.entity.item",
+    );
     const isViewerOnlyShare = VIEWER_ONLY_ENTITY_TYPES.has(entityType);
+    const viewerOnlyMessage =
+        entityType === "chat"
+            ? t("shareDialog.viewerOnly.chat")
+            : entityType === "workspace"
+              ? t("shareDialog.viewerOnly.workspace")
+              : t("shareDialog.viewerOnly.publishedApplet");
 
     useEffect(() => {
         const initial = data || emptyShare(entityType, entityId);
@@ -196,28 +213,33 @@ export default function ShareDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
+            <DialogContent
+                dir={direction}
+                className="max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-lg overflow-y-auto sm:w-full"
+            >
                 <DialogHeader>
-                    <DialogTitle>Share {entityLabel}</DialogTitle>
+                    <DialogTitle>
+                        {t("shareDialog.title", { entity: entityLabel })}
+                    </DialogTitle>
                     <DialogDescription>
-                        Share with anyone via link, or invite specific people.
+                        {t("shareDialog.description")}
                     </DialogDescription>
                 </DialogHeader>
 
                 {isLoading ? (
-                    <div className="py-8 text-center text-sm text-gray-500">
-                        Loading…
+                    <div className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        {t("shareDialog.loading")}
                     </div>
                 ) : (
                     <Tabs defaultValue="link" className="w-full">
                         <TabsList>
                             <TabsTrigger value="link">
                                 <Globe className="me-1 h-4 w-4" />
-                                Link
+                                {t("shareDialog.tab.link")}
                             </TabsTrigger>
                             <TabsTrigger value="people">
                                 <UsersIcon className="me-1 h-4 w-4" />
-                                People{" "}
+                                {t("shareDialog.tab.people")}{" "}
                                 {recipients.length > 0
                                     ? `(${recipients.length})`
                                     : ""}
@@ -240,16 +262,18 @@ export default function ShareDialog({
                                         ) : (
                                             <Lock className="h-4 w-4 text-gray-400" />
                                         )}
-                                        Anyone with the link
+                                        {t("shareDialog.anyoneWithLink")}
                                     </div>
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
                                         {linkEnabled
-                                            ? "Anyone who has the URL can open this " +
-                                              entityLabel +
-                                              "."
-                                            : "Only you and people you invite can open this " +
-                                              entityLabel +
-                                              "."}
+                                            ? t(
+                                                  "shareDialog.linkEnabledDescription",
+                                                  { entity: entityLabel },
+                                              )
+                                            : t(
+                                                  "shareDialog.linkDisabledDescription",
+                                                  { entity: entityLabel },
+                                              )}
                                     </p>
                                 </div>
                             </label>
@@ -257,7 +281,7 @@ export default function ShareDialog({
                             {linkEnabled && !isViewerOnlyShare && (
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        They can
+                                        {t("shareDialog.theyCan")}
                                     </span>
                                     <Select
                                         value={linkRole}
@@ -268,10 +292,10 @@ export default function ShareDialog({
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="viewer">
-                                                View
+                                                {t("shareDialog.role.view")}
                                             </SelectItem>
                                             <SelectItem value="editor">
-                                                Edit
+                                                {t("shareDialog.role.edit")}
                                             </SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -280,9 +304,7 @@ export default function ShareDialog({
 
                             {linkEnabled && isViewerOnlyShare ? (
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Anyone with the link can view this chat.
-                                    Recipients can copy it to continue in their
-                                    own chat.
+                                    {viewerOnlyMessage}
                                 </p>
                             ) : null}
 
@@ -314,6 +336,9 @@ export default function ShareDialog({
                             <UserPicker
                                 onSelect={handleAddRecipient}
                                 excludeIds={recipients.map((r) => r.userId)}
+                                placeholder={t(
+                                    "shareDialog.searchPeoplePlaceholder",
+                                )}
                             />
 
                             {recipients.length > 0 && shareUrl && (
@@ -343,8 +368,8 @@ export default function ShareDialog({
 
                             <div className="max-h-64 space-y-1 overflow-auto">
                                 {recipients.length === 0 ? (
-                                    <p className="py-4 text-center text-xs text-gray-500">
-                                        No one invited yet.
+                                    <p className="py-4 text-center text-xs text-gray-500 dark:text-gray-400">
+                                        {t("shareDialog.noRecipients")}
                                     </p>
                                 ) : (
                                     recipients.map((r) => (
@@ -361,17 +386,21 @@ export default function ShareDialog({
                                                 <div className="truncate text-sm font-medium">
                                                     {r.user?.name ||
                                                         r.user?.username ||
-                                                        "Unknown user"}
+                                                        t(
+                                                            "shareDialog.unknownUser",
+                                                        )}
                                                 </div>
                                                 {r.user?.username && (
-                                                    <div className="truncate text-xs text-gray-500">
+                                                    <div className="truncate text-xs text-gray-500 dark:text-gray-400">
                                                         {r.user.username}
                                                     </div>
                                                 )}
                                             </div>
                                             {isViewerOnlyShare ? (
                                                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Viewer
+                                                    {t(
+                                                        "shareDialog.role.viewer",
+                                                    )}
                                                 </span>
                                             ) : (
                                                 <Select
@@ -388,10 +417,14 @@ export default function ShareDialog({
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="viewer">
-                                                            Viewer
+                                                            {t(
+                                                                "shareDialog.role.viewer",
+                                                            )}
                                                         </SelectItem>
                                                         <SelectItem value="editor">
-                                                            Editor
+                                                            {t(
+                                                                "shareDialog.role.editor",
+                                                            )}
                                                         </SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -405,7 +438,9 @@ export default function ShareDialog({
                                                         r.userId,
                                                     )
                                                 }
-                                                aria-label="Remove"
+                                                aria-label={t(
+                                                    "shareDialog.remove",
+                                                )}
                                             >
                                                 <Trash2 className="h-4 w-4 text-gray-500" />
                                             </Button>
@@ -423,13 +458,15 @@ export default function ShareDialog({
                         onClick={() => onOpenChange?.(false)}
                         disabled={mutation.isPending}
                     >
-                        Cancel
+                        {t("Cancel")}
                     </Button>
                     <Button
                         onClick={handleSave}
                         disabled={isLoading || mutation.isPending}
                     >
-                        {mutation.isPending ? "Saving…" : "Save"}
+                        {mutation.isPending
+                            ? t("shareDialog.saving")
+                            : t("Save")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -12,6 +12,8 @@ import {
     redactUrlForLog,
 } from "../../app/api/utils/log-redaction.mjs";
 import { validatePublicMediaUrl } from "../../app/api/utils/publicMediaUrlValidation.js";
+import { getStoredTranscriptionSource } from "../../src/utils/transcriptionSource.js";
+import { refreshTranscriptionSource } from "./transcribe-source.mjs";
 // Update model imports to use dynamic import since they're ES modules
 let User, UserState, Task;
 const activeTaskStatusFilter = {
@@ -107,6 +109,19 @@ class TranscribeHandler extends BaseTask {
                 );
                 throw new Error(`Invalid URL: ${redactUrlForLog(url)}`);
             }
+            if (getStoredTranscriptionSource(url)) {
+                if (!User) await initializeModels();
+                // The queue owner is server-bound. Never derive storage
+                // authority from the submitted URL or metadata.contextId.
+                const owner = await User.findById(job.data.userId)
+                    .select("contextId")
+                    .lean();
+                url = await refreshTranscriptionSource(url, owner?.contextId, {
+                    userId: job.data.userId,
+                    sourceFile: metadata.sourceFile,
+                });
+                contextId = owner.contextId;
+            }
         }
 
         // Select query based on model option
@@ -155,6 +170,8 @@ class TranscribeHandler extends BaseTask {
             data?.transcribe_neuralspace?.result ||
             data?.transcribe_gemini?.result ||
             data?.transcribe_mai_15?.result ||
+            data?.transcribe_gemini_35?.result ||
+            data?.transcribe_scribe_v2?.result ||
             data?.transcribe_xai_gemini?.result ||
             data?.transcribe_xai?.result;
 

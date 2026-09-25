@@ -2,9 +2,13 @@
  * @jest-environment jsdom
  */
 
-import { registerCanvasAppletFromWorkspaceFile } from "../appletGeneration";
+import {
+    launchAppletGeneration,
+    registerCanvasAppletFromWorkspaceFile,
+} from "../appletGeneration";
 import { kickoffAppletAssetGeneration } from "../appletAssetGeneration";
 import { uploadFileToMediaHelper } from "../fileUploadUtils";
+import { reauthenticateCustomMcpServer } from "../customMcpReauthentication";
 import {
     CLIENT_SIDE_TOOLS,
     CLIENT_SIDE_TOOL_HANDLERS,
@@ -28,17 +32,130 @@ jest.mock("../fileUploadUtils", () => ({
     uploadFileToMediaHelper: jest.fn(),
 }));
 
+jest.mock("../customMcpReauthentication", () => ({
+    reauthenticateCustomMcpServer: jest.fn(),
+}));
+
+test("ReauthenticateMcpServer routes custom keys to the custom OAuth flow", async () => {
+    reauthenticateCustomMcpServer.mockResolvedValue({ success: true });
+    await expect(
+        CLIENT_SIDE_TOOL_HANDLERS.reauthenticatemcpserver({
+            toolArgs: { serverKey: "custom-example" },
+        }),
+    ).resolves.toEqual({ success: true });
+    expect(reauthenticateCustomMcpServer).toHaveBeenCalledWith(
+        "custom-example",
+    );
+});
+
 jest.mock("../activeAppletSandbox", () => ({
     getActiveAppletSandbox: jest.fn(),
+    getActiveAppletDocument: jest.fn(),
     requireActiveAppletDocument: jest.fn(),
+    waitForActiveAppletDocument: jest.fn(),
     inspectApplet: jest.fn(),
 }));
 
 const {
     getActiveAppletSandbox: mockGetActiveAppletSandbox,
+    getActiveAppletDocument: mockGetActiveAppletDocument,
     requireActiveAppletDocument: mockRequireActiveAppletDocument,
+    waitForActiveAppletDocument: mockWaitForActiveAppletDocument,
     inspectApplet: mockInspectApplet,
 } = jest.requireMock("../activeAppletSandbox");
+
+describe("ManageAgentContext", () => {
+    test("passes the reusable context string to the applet endpoint", async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ success: true }),
+        });
+
+        await CLIENT_SIDE_TOOL_HANDLERS.manageagentcontext({
+            toolArgs: {
+                action: "initialize",
+                appletId: "507f191e810c19729de860ea",
+                agentContext: "applet-shared:507f191e810c19729de860eb",
+            },
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            "/api/canvas-applets/507f191e810c19729de860ea/agent-context",
+            expect.objectContaining({
+                method: "POST",
+                body: JSON.stringify({
+                    action: "initialize",
+                    agentContext: "applet-shared:507f191e810c19729de860eb",
+                }),
+            }),
+        );
+    });
+
+    test("rejects invented context labels with corrective guidance", async () => {
+        await expect(
+            CLIENT_SIDE_TOOL_HANDLERS.manageagentcontext({
+                toolArgs: {
+                    action: "initialize",
+                    appletId: "507f191e810c19729de860ea",
+                    agentContext: "sequoia-shared",
+                },
+            }),
+        ).rejects.toThrow("Omit agentContext for the context owner");
+    });
+
+    test("treats the reserved zero placeholder as an omitted owner context", async () => {
+        await CLIENT_SIDE_TOOL_HANDLERS.manageagentcontext({
+            toolArgs: {
+                action: "initialize",
+                appletId: "507f191e810c19729de860ea",
+                agentContext: "applet-shared:000000000000000000000000",
+            },
+        });
+
+        expect(JSON.parse(fetch.mock.lastCall[1].body)).not.toHaveProperty(
+            "agentContext",
+        );
+    });
+
+    test("upserts only the requested generic file", async () => {
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ success: true }),
+        });
+
+        await CLIENT_SIDE_TOOL_HANDLERS.manageagentcontext({
+            toolArgs: {
+                action: "upsert",
+                appletId: "507f191e810c19729de860ea",
+                filename: "copper-buoy.md",
+                content: "The inspection shifted to 16:20.",
+            },
+        });
+
+        expect(JSON.parse(fetch.mock.lastCall[1].body)).toEqual({
+            action: "upsert",
+            filename: "copper-buoy.md",
+            content: "The inspection shifted to 16:20.",
+        });
+
+        const manageTool = CLIENT_SIDE_TOOLS.find(
+            (tool) => tool.function.name === "ManageAgentContext",
+        );
+        expect(manageTool.function.parameters.properties.action.enum).toEqual([
+            "initialize",
+            "list",
+            "upsert",
+        ]);
+        expect(manageTool.function.description).toContain(
+            "at the root when directory is omitted",
+        );
+        expect(manageTool.function.description).toContain(
+            "Do not invent folders, AGENTS.md, or skills",
+        );
+        expect(manageTool.function.description).not.toContain("approved");
+        expect(manageTool.function.description).not.toContain("pending");
+    });
+});
 
 describe("clientSideTools background focus policy", () => {
     test("declines navigation tools for inactive chat streams", () => {
@@ -542,6 +659,87 @@ describe("clientSideTools CreateApplet", () => {
         expect(
             generateApplet.function.parameters.properties.prompt.description,
         ).toContain("metadata and card-image generation start automatically");
+        expect(
+            generateApplet.function.parameters.properties,
+        ).not.toHaveProperty("specialistSkill");
+        expect(generateApplet.timeout).toBe(900000);
+        expect(generateApplet.function.description).toContain(
+            "returns only after registration",
+        );
+        expect(generateApplet.function.description).toContain(
+            "never issue parallel CreateApplet calls",
+        );
+        expect(
+            generateApplet.function.parameters.properties.agentContext.pattern,
+        ).toContain("create");
+    });
+
+    test("waits for prompt generation to register and returns the applet ID", async () => {
+        launchAppletGeneration.mockReturnValue({
+            tabId: "tab-new",
+            completion: Promise.resolve({
+                tabId: "tab-new",
+                appletId: "applet-new",
+                appletName: "Juniper Reader",
+                saved: true,
+                agentContext: "applet-shared:507f191e810c19729de860ea",
+            }),
+        });
+
+        const result = await CLIENT_SIDE_TOOL_HANDLERS.createapplet(
+            {
+                toolArgs: {
+                    prompt: "Build Juniper",
+                    agentContext: "create",
+                    specialistSkill: "source-qa",
+                    userMessage: "Building",
+                },
+            },
+            { dispatch: jest.fn(), user: { contextId: "ctx" } },
+        );
+
+        expect(result.data.appletId).toBe("applet-new");
+        expect(result.data.agentContext).toBe(
+            "applet-shared:507f191e810c19729de860ea",
+        );
+        expect(launchAppletGeneration).toHaveBeenCalledWith(
+            expect.objectContaining({
+                agentContext: "create",
+            }),
+        );
+        expect(launchAppletGeneration.mock.calls[0][0]).not.toHaveProperty(
+            "specialistSkill",
+        );
+        expect(result.data.description).toContain("Created and registered");
+    });
+
+    test("fails when prompt generation does not register an applet", async () => {
+        launchAppletGeneration.mockReturnValue({
+            tabId: "tab-new",
+            completion: Promise.resolve({
+                appletId: null,
+                appletName: "Juniper Reader",
+                saved: false,
+                workspacePath: "/workspace/files/applets/juniper.html",
+                error: "Registry unavailable",
+            }),
+        });
+
+        await expect(
+            CLIENT_SIDE_TOOL_HANDLERS.createapplet(
+                {
+                    toolArgs: {
+                        prompt: "Build Juniper",
+                        userMessage: "Building",
+                    },
+                },
+                { dispatch: jest.fn(), user: { contextId: "ctx" } },
+            ),
+        ).resolves.toMatchObject({
+            success: false,
+            error: "Registry unavailable",
+            data: { workspacePath: "/workspace/files/applets/juniper.html" },
+        });
     });
 
     test("starts applet asset generation after registering an existing workspace file", async () => {
@@ -549,6 +747,7 @@ describe("clientSideTools CreateApplet", () => {
         registerCanvasAppletFromWorkspaceFile.mockResolvedValue({
             appletId: "applet-new",
             appletName: "Storm Desk",
+            agentContext: "applet-shared:507f191e810c19729de860ea",
             filename: "storm-desk.html",
             workspacePath: "/workspace/files/applets/storm-desk.html",
             html: "<html>storm</html>",
@@ -561,6 +760,7 @@ describe("clientSideTools CreateApplet", () => {
             {
                 toolArgs: {
                     workspacePath: "/workspace/files/applets/storm-desk.html",
+                    agentContext: "create",
                     userMessage: "Register applet",
                 },
             },
@@ -571,6 +771,12 @@ describe("clientSideTools CreateApplet", () => {
         );
 
         expect(result.success).toBe(true);
+        expect(result.data.agentContext).toBe(
+            "applet-shared:507f191e810c19729de860ea",
+        );
+        expect(registerCanvasAppletFromWorkspaceFile).toHaveBeenCalledWith(
+            expect.objectContaining({ agentContext: "create" }),
+        );
         expect(kickoffAppletAssetGeneration).toHaveBeenCalledWith({
             appletId: "applet-new",
             metadata: { name: "Storm Desk" },
@@ -589,6 +795,10 @@ describe("clientSideTools applet driver", () => {
         document.body.innerHTML = "";
         appletDoc = document;
         mockRequireActiveAppletDocument.mockImplementation(() => appletDoc);
+        mockWaitForActiveAppletDocument.mockImplementation(async () =>
+            mockRequireActiveAppletDocument(),
+        );
+        mockGetActiveAppletDocument.mockImplementation(() => appletDoc);
         mockGetActiveAppletSandbox.mockReturnValue({
             appletId: "applet-1",
             iframe: { contentWindow: window, isConnected: true },
@@ -677,6 +887,7 @@ describe("clientSideTools applet driver", () => {
             });
 
             expect(input.value).toBe("a@b.com");
+            expect(mockWaitForActiveAppletDocument).toHaveBeenCalled();
             expect(events).toEqual(["input", "change"]);
             expect(result.data.set.value).toBe("a@b.com");
             expect(result.data.submitted).toBe(false);

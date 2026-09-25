@@ -1,6 +1,11 @@
+import { requireColleague, validateTaskWatch } from "../utils/colleagues.js";
 import { NextResponse } from "next/server";
 import { getCurrentUser, handleError } from "../utils/auth";
 import Automation from "../models/automation";
+import {
+    isValidRetainedRunLimit,
+    retainedRunLimit,
+} from "../../../src/utils/taskOutputRetention.js";
 import {
     AUTOMATION_MD,
     calculateNextRunAt,
@@ -40,6 +45,15 @@ export async function POST(request) {
     try {
         const user = await getCurrentUser();
         const body = await request.json();
+        if (
+            body.retainedRuns !== undefined &&
+            !isValidRetainedRunLimit(body.retainedRuns)
+        ) {
+            return NextResponse.json(
+                { error: "Retained runs must be an integer from 0 to 1000" },
+                { status: 400 },
+            );
+        }
         const name = String(body.name || "").trim();
         const slug = normalizeAutomationSlug(body.slug || name);
         const schedule = normalizeSchedule(body.schedule);
@@ -67,6 +81,14 @@ export async function POST(request) {
             );
         }
 
+        const entityId = body.entityId
+            ? (
+                  await requireColleague(user, body.entityId, {
+                      watch: schedule?.frequency === "files",
+                  })
+              ).id
+            : null;
+        validateTaskWatch(schedule, entityId);
         const path = `automations/${slug}`;
         const nextRunAt = enabled
             ? calculateNextRunAt(schedule, timezone)
@@ -74,6 +96,7 @@ export async function POST(request) {
 
         const automation = await Automation.create({
             owner: user._id,
+            entityId,
             slug,
             name,
             description,
@@ -83,7 +106,8 @@ export async function POST(request) {
             path,
             inputs: body.inputs || null,
             producesHtml,
-            pinnedToSidebar: producesHtml && Boolean(body.pinnedToSidebar),
+            retainedRuns: retainedRunLimit(body.retainedRuns),
+            pinnedToSidebar: false,
             nextRunAt,
         });
 

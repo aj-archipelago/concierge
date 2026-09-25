@@ -20,7 +20,7 @@ function enrichRunForHtmlOutput(run, automation) {
             ? run.toObject({ virtuals: true })
             : run;
 
-    if (!automation.producesHtml) {
+    if (!automation.producesHtml || obj.outputExpiredAt) {
         return obj;
     }
 
@@ -37,6 +37,9 @@ function enrichRunForHtmlOutput(run, automation) {
             ...obj.automation,
             hasHtmlOutput: Boolean(
                 obj?.automation?.htmlOutputPath || sanitizedHtml,
+            ),
+            hasWidgetHtml: Boolean(
+                obj?.automation?.widgetHtmlOutputPath || parsed.widgetHtml,
             ),
             htmlOutputPreview:
                 obj?.automation?.htmlOutputPreview ||

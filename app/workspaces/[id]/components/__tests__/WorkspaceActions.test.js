@@ -145,9 +145,9 @@ describe("WorkspaceActions", () => {
             />,
         );
 
-        fireEvent.click(screen.getAllByRole("button")[0]);
-
-        expect(mockPush).toHaveBeenCalledWith("/apps?tab=workspaces");
+        expect(
+            screen.getByRole("link", { name: "Applet Workspaces" }),
+        ).toHaveAttribute("href", "/apps?tab=workspaces");
     });
 
     test("returns to the Workspaces app-library tab after deleting a workspace", async () => {

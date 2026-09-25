@@ -6,11 +6,13 @@ import { useTranslation } from "react-i18next";
 import React from "react";
 import { SignOutButton } from "../components/SignOutButton";
 import UserAvatar from "../components/UserAvatar";
+import { cn } from "@/lib/utils";
 
 export default function ProfileDropdown({
     user,
     handleShowOptions,
     setShowTos,
+    buttonClassName = "",
 }) {
     const { initials, name } = user;
     const { direction } = useContext(LanguageContext);
@@ -19,7 +21,14 @@ export default function ProfileDropdown({
     return (
         <Menu as="div" className="relative inline-block text-start">
             <div>
-                <Menu.Button className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500 overflow-hidden">
+                <Menu.Button
+                    aria-label={t("Your account")}
+                    title={t("Your account")}
+                    className={cn(
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-500 overflow-hidden",
+                        buttonClassName,
+                    )}
+                >
                     <UserAvatar
                         src={user?.profilePicture}
                         blobPath={user?.profilePictureBlobPath}
@@ -44,9 +53,10 @@ export default function ProfileDropdown({
             >
                 <Menu.Items
                     className={classNames(
-                        direction === "ltr" ? "right-0" : "left-0",
-                        "absolute z-10 mt-2 w-56 max-w-[calc(100vw-1rem)] origin-top-right overflow-hidden rounded-md border bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-gray-600 dark:bg-gray-800",
+                        "end-0 mt-2 origin-top",
+                        "absolute z-50 w-56 max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none dark:border-gray-600 dark:bg-gray-800",
                     )}
+                    dir={direction}
                 >
                     <div className="py-1">
                         <Menu.Item>

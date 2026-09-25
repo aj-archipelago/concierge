@@ -150,10 +150,7 @@ describe("check-url API", () => {
         const data = await response.json();
 
         expect(response.status).toBe(200);
-        expect(checkMediaFile).toHaveBeenCalledTimes(2);
-        expect(checkMediaFile).toHaveBeenNthCalledWith(2, {
-            hash: "hash123",
-        });
+        expect(checkMediaFile).toHaveBeenCalledTimes(1);
         expect(data).toEqual({
             exists: true,
             source: "url",
@@ -225,64 +222,23 @@ describe("check-url API", () => {
         expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    test("resolves legacy hash-map files before probing stale URL", async () => {
+    test("does not renew an unscoped legacy hash after a scoped miss", async () => {
         const { getCurrentUser } = require("../utils/auth.js");
         const {
             resolveAuthorizedMediaRouting,
         } = require("../utils/file-route-utils.js");
         const { checkMediaFile } = require("../utils/media-service-utils.js");
-
-        getCurrentUser.mockResolvedValue({
-            _id: "mongo-user-1",
-            contextId: "user-context-1",
-        });
+        getCurrentUser.mockResolvedValue({ _id: "user", contextId: "ctx" });
         resolveAuthorizedMediaRouting.mockResolvedValue({
-            storageTarget: {
-                kind: "chat",
-                contextId: "user-context-1",
-                userContextId: "user-context-1",
-                chatId: "chat-123",
-                fileScope: "chat",
-            },
+            storageTarget: { kind: "user-global", contextId: "ctx" },
         });
-        checkMediaFile.mockResolvedValueOnce(null).mockResolvedValueOnce({
-            url: "https://example.com/legacy-fresh.pdf",
-            shortLivedUrl: "https://example.com/legacy-short.pdf",
-            blobPath: "abc123_old.pdf",
-            hash: "abc123",
-        });
-
-        const response = await POST(
-            createMockRequest({
-                url: "https://customerstorage.blob.core.windows.net/cortexfiles-user-context-1/chats/chat-123/abc123_old.pdf?sv=old&sig=expired",
-                chatId: "chat-123",
-                fileScope: "chat",
-            }),
+        checkMediaFile.mockResolvedValue(null);
+        const response = await POST(createMockRequest({ hash: "abc123" }));
+        expect(await response.json()).toEqual({ exists: false, source: null });
+        expect(checkMediaFile).toHaveBeenCalledTimes(1);
+        expect(checkMediaFile).toHaveBeenCalledWith(
+            expect.objectContaining({ storageTarget: expect.any(Object) }),
         );
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
-        expect(checkMediaFile).toHaveBeenNthCalledWith(1, {
-            blobPath: "chats/chat-123/abc123_old.pdf",
-            hash: "abc123",
-            storageTarget: expect.objectContaining({
-                kind: "chat",
-                chatId: "chat-123",
-            }),
-        });
-        expect(checkMediaFile).toHaveBeenNthCalledWith(2, {
-            hash: "abc123",
-        });
-        expect(data).toEqual({
-            exists: true,
-            source: "legacy-hash",
-            file: {
-                url: "https://example.com/legacy-fresh.pdf",
-                shortLivedUrl: "https://example.com/legacy-short.pdf",
-                blobPath: "abc123_old.pdf",
-                hash: "abc123",
-            },
-        });
         expect(global.fetch).not.toHaveBeenCalled();
     });
 

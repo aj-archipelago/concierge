@@ -88,6 +88,54 @@ export default function ScheduleTab({
 
     return (
         <div className="space-y-4">
+            {form.entityId && (
+                <Card>
+                    <CardHeader className="p-4 pb-2">
+                        <CardTitle className="text-base">
+                            {t("colleagues.fileTrigger")}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 p-4 pt-2">
+                        <label className="flex min-h-10 items-center gap-2 text-sm">
+                            <input
+                                type="checkbox"
+                                disabled={readOnly}
+                                checked={form.schedule.frequency === "files"}
+                                onChange={(event) =>
+                                    onScheduleField(
+                                        "frequency",
+                                        event.target.checked
+                                            ? "files"
+                                            : "manual",
+                                    )
+                                }
+                            />
+                            {t("colleagues.watchEnable")}
+                        </label>
+                        {form.schedule.frequency === "files" && (
+                            <label className="block space-y-1.5 text-sm">
+                                <span>{t("colleagues.watchFolder")}</span>
+                                <Input
+                                    dir="ltr"
+                                    disabled={readOnly}
+                                    value={form.schedule.watchPath || ""}
+                                    onChange={(event) =>
+                                        onScheduleField(
+                                            "watchPath",
+                                            event.target.value,
+                                        )
+                                    }
+                                    placeholder="/workspace/inbox"
+                                />
+                            </label>
+                        )}
+                        <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
+                            {t("colleagues.watchNote")}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
             <Card>
                 <CardHeader className="p-4 pb-2">
                     <CardTitle className="text-base font-semibold text-gray-900 dark:text-gray-100">

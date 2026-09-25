@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { getAgentToolUser } from "./agent-tool-context.mjs";
 import config from "../../../config";
 import User from "../models/user";
 import mongoose from "mongoose";
@@ -11,6 +12,7 @@ import {
     getEntraPrincipalLogContext,
     isTenantAuthorized,
     parseAuthorizedTenantIds,
+    resolveEntraPrincipalDisplayName,
     resolveEntraTenantId,
     resolveEntraPrincipalEmail,
 } from "./entraPrincipal";
@@ -162,6 +164,8 @@ async function ensurePersonalEntity(user) {
 }
 
 export const getCurrentUser = async (convertToJsonObj = true) => {
+    const agentUser = getAgentToolUser();
+    if (agentUser) return agentUser;
     const auth = config.auth;
 
     const readyState = mongoose.connection.readyState;
@@ -214,6 +218,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
     const headerList = await headers();
     id = headerList.get("X-MS-CLIENT-PRINCIPAL-ID");
     username = resolveEntraPrincipalEmail(headerList);
+    let displayName = resolveEntraPrincipalDisplayName(headerList);
 
     // Check for local authentication token (overrides Azure headers in local development)
     let localAuthToken = null;
@@ -242,6 +247,7 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
                     // Use the Azure header format for consistency
                     id = localAuthToken.user.id;
                     username = localAuthToken.user.email;
+                    displayName = localAuthToken.user.name || displayName;
                 }
             } catch (error) {
                 console.error("Error parsing local auth token:", error);
@@ -312,16 +318,34 @@ export const getCurrentUser = async (convertToJsonObj = true) => {
                 $setOnInsert: {
                     userId: id,
                     username,
-                    name: username,
+                    name: displayName || username,
                     contextId: uuidv4(),
                     contextKey: crypto.randomBytes(32).toString("hex"),
                     aiMemorySelfModify: true,
+                    // Only new accounts skip legacy Home recovery. Do not
+                    // default this on hydrated users with existing digests.
+                    homeLegacyDigestsMigrated: true,
                     aiName: "Concierge",
                     agentModel: config.cortex.defaultChatModel,
                 },
             },
             { upsert: true, new: true },
         );
+    }
+
+    const storedName = user.name?.trim().toLowerCase();
+    const storedUsername = user.username?.trim().toLowerCase();
+    if (
+        displayName &&
+        (!storedName || storedName === storedUsername) &&
+        user.name !== displayName
+    ) {
+        user =
+            (await User.findByIdAndUpdate(
+                user._id,
+                { $set: { name: displayName } },
+                { new: true },
+            )) || user;
     }
 
     if (!user.contextId) {

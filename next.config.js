@@ -3,6 +3,8 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Next requires Turbopack and file tracing to use the same filesystem root.
+const filesystemRoot = process.env.CONCIERGE_TURBOPACK_ROOT || __dirname;
 const rawContentLoader = path.join(__dirname, "scripts/raw-content-loader.cjs");
 const rootAlias = __dirname;
 const shadcnComponentAlias = path.join(__dirname, "@", "components");
@@ -51,10 +53,12 @@ const anonymizeUrl = (urlString) => {
 };
 
 const config = {
+    // Browsers include brackets in IPv6 origins; Next's bound hostname does not.
+    allowedDevOrigins: ["[::1]"],
     async rewrites() {
         const rewrites = [
             {
-                source: "/graphql",
+                source: "/graphql-ws",
                 destination:
                     process.env.CORTEX_GRAPHQL_API_URL ||
                     "http://localhost:4000/graphql",
@@ -64,7 +68,7 @@ const config = {
         // If you have a blue/green deployment, you can use this to switch between the two
         if (process.env.CORTEX_GRAPHQL_API_BLUE_URL) {
             rewrites.push({
-                source: "/graphql-blue",
+                source: "/graphql-blue-ws",
                 destination: process.env.CORTEX_GRAPHQL_API_BLUE_URL,
             });
         }
@@ -82,7 +86,12 @@ const config = {
         proxyClientMaxBodySize: "2gb",
         proxyTimeout: 1000 * 60 * 10, // 10 minutes (600 seconds)
     },
-    serverExternalPackages: ["busboy", "mongodb", "mongodb-client-encryption"],
+    serverExternalPackages: [
+        "busboy",
+        "mongodb",
+        "mongodb-client-encryption",
+        "playwright",
+    ],
     redirects: async () => {
         return redirects;
     },
@@ -92,6 +101,9 @@ const config = {
         silenceDeprecations: ["import"],
     },
     turbopack: {
+        // Worktrees can share node_modules with another checkout. In that case,
+        // the local launcher supplies a root containing both real paths.
+        root: filesystemRoot,
         resolveAlias: {
             "@/components": shadcnComponentAlias,
             "@/lib": shadcnLibAlias,
@@ -105,7 +117,7 @@ const config = {
         },
     },
     output: "standalone",
-    outputFileTracingRoot: __dirname,
+    outputFileTracingRoot: filesystemRoot,
     basePath: basePath || "",
     webpack: (config) => {
         // Exclude mongodb and mongodb-client-encryption from the bundle to avoid errors, will be required and imported at runtime

@@ -1,3 +1,7 @@
+process.env.NEXT_PUBLIC_STORAGE_ORIGINS =
+    "https://examplefiles.blob.core.windows.net,https://storage.googleapis.com";
+process.env.CORTEX_STORAGE_CONTAINER_PREFIXES =
+    "cortexfiles,cortexfiles-dev,cortexfiles-local,files";
 const { TextEncoder, TextDecoder } = require("util");
 
 // Suppress ReactDOMTestUtils.act deprecation warning and expected test errors

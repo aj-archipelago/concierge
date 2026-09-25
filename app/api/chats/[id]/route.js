@@ -2,24 +2,26 @@ import { NextResponse } from "next/server";
 import { Types } from "mongoose";
 import Chat from "../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../utils/auth";
-import { syncChatLinkSharing } from "../../utils/shareHelpers";
+import {
+    deleteEntityShare,
+    syncChatLinkSharing,
+} from "../../utils/shareHelpers";
 import {
     deleteChatIdFromRecentList,
     getChatById,
-    sanitizeMessage,
     sanitizeMessagesForPersistence,
-    prepareMessagesForPersistence,
     addStoppedSubscription,
-    buildLastMessagePreview,
     getChatForOwnerWrite,
 } from "../_lib";
+import {
+    appendChatMessage,
+    deleteExternalChatMessages,
+    replaceChatMessages,
+    updateChatMessages,
+} from "../message-store.js";
+import { DEFAULT_CHAT_MESSAGES_LIMIT } from "../../../constants/chats.js";
 
 export const dynamic = "force-dynamic";
-
-const isServerOwnedAssistantMessage = (message) =>
-    message?.isServerGenerated === true ||
-    message?.taskId != null ||
-    (message?.sender === "assistant" && message?.direction === "incoming");
 
 // Handle POST request to add a message to an existing chat for the current user
 export async function POST(req, { params }) {
@@ -47,27 +49,12 @@ export async function POST(req, { params }) {
         }
         const chat = loaded.chat;
 
-        const prepared = prepareMessagesForPersistence([
-            ...(chat.messages || []),
-            messageForPersistence,
-        ]);
-        chat.messages = prepared.messages;
-        chat.messageStorageBytes = prepared.messageStorageBytes;
-        if (prepared.messagesCompacted) {
-            chat.messagesCompacted = true;
-            chat.messagesCompactedAt = new Date();
-        }
-        Object.assign(chat, buildLastMessagePreview(chat.messages));
-        await chat.save();
-
-        // Sanitize messages in response to remove Mongoose metadata
-        const chatObj = chat.toObject ? chat.toObject() : chat;
-        const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
-
-        return NextResponse.json({
-            ...chatObj,
-            messages: sanitizedMessages,
+        await appendChatMessage(chat, messageForPersistence, {
+            dedupeKey: message?._clientId || message?._id,
         });
+        return NextResponse.json(
+            await getChatById(id, { limit: DEFAULT_CHAT_MESSAGES_LIMIT }),
+        );
     } catch (error) {
         return handleError(error);
     }
@@ -88,6 +75,10 @@ export async function DELETE(req, { params }) {
             _id: id,
             userId: currentUser._id,
         });
+        if (chat) {
+            await deleteExternalChatMessages(chat._id);
+            await deleteEntityShare("chat", chat._id);
+        }
 
         const response = await deleteChatIdFromRecentList(id);
 
@@ -110,7 +101,8 @@ export async function GET(req, { params }) {
         const { searchParams } = new URL(req.url);
         const limitParam = searchParams.get("limit");
         const limit = limitParam ? parseInt(limitParam, 10) : undefined;
-        const chat = await getChatById(id, { limit });
+        const before = searchParams.get("before") || undefined;
+        const chat = await getChatById(id, { limit, before });
         const response = NextResponse.json(chat);
         response.headers.set(
             "Server-Timing",
@@ -147,18 +139,18 @@ export async function PUT(req, { params }) {
             return Response.json({ error: "Invalid body" }, { status: 400 });
         }
 
-        const allowMessageTruncation = body.allowMessageTruncation === true;
+        const messageUpdates = Array.isArray(body.messageUpdates)
+            ? body.messageUpdates
+            : null;
+        const messageToAppend = body.appendMessage || null;
 
         // Remove client-only fields if present (they're not part of the schema,
         // just used for routing / update intent).
         if (body.chatId) {
             delete body.chatId;
         }
-        if (
-            Object.prototype.hasOwnProperty.call(body, "allowMessageTruncation")
-        ) {
-            delete body.allowMessageTruncation;
-        }
+        delete body.messageUpdates;
+        delete body.appendMessage;
 
         // First, get the existing chat to preserve server-generated messages
         const loaded = await getChatForOwnerWrite(id, currentUser._id);
@@ -178,80 +170,22 @@ export async function PUT(req, { params }) {
             delete body.isPublic;
         }
 
-        // If the request contains messages, preserve server-owned assistant
-        // output unless the client explicitly marks this as replay/truncation.
-        if (body.messages) {
-            // Only preserve server messages if we're not clearing the chat
-            // (when messages array is empty, we're clearing the chat)
-            if (body.messages.length > 0) {
-                const messagesForPersistence = sanitizeMessagesForPersistence(
-                    body.messages,
-                );
+        if (Object.prototype.hasOwnProperty.call(body, "messages")) {
+            const replacementMessages = sanitizeMessagesForPersistence(
+                body.messages,
+            );
+            await replaceChatMessages(existingChat, replacementMessages);
+            delete body.messages;
+        }
 
-                // Sanitize messages to remove Mongoose metadata fields (defense in depth)
-                const sanitizedMessages = messagesForPersistence.map((msg) => {
-                    if (!msg || typeof msg !== "object") return msg;
-                    // Remove Mongoose metadata fields that shouldn't be in updates
-                    const { createdAt, updatedAt, ...cleanMsg } = msg;
-                    return cleanMsg;
-                });
+        if (messageUpdates?.length) {
+            await updateChatMessages(existingChat, messageUpdates);
+        }
 
-                // Create a Map of message IDs from incoming messages for quick lookup
-                const incomingMessagesMap = new Map(
-                    sanitizedMessages.map((msg) => [msg._id?.toString(), msg]),
-                );
-
-                const isReplay = allowMessageTruncation;
-
-                if (isReplay) {
-                    // During replay, the client explicitly sends the messages it wants to keep
-                    // We should NOT preserve any server-generated messages
-                    // because they may have been intentionally removed by the replay
-                    // The client's message list is the source of truth for what should remain
-                } else {
-                    // For normal updates: preserve all server-generated messages that aren't in incoming
-                    const serverGeneratedMessages =
-                        existingChat.messages.filter((msg) =>
-                            isServerOwnedAssistantMessage(msg),
-                        );
-
-                    for (const serverMsg of serverGeneratedMessages) {
-                        const msgId = serverMsg._id?.toString();
-                        if (msgId && !incomingMessagesMap.has(msgId)) {
-                            sanitizedMessages.push(sanitizeMessage(serverMsg));
-                        }
-                    }
-                }
-
-                // Sort messages by sentTime to maintain chronological order
-                sanitizedMessages.sort((a, b) => {
-                    const timeA = new Date(a.sentTime).getTime();
-                    const timeB = new Date(b.sentTime).getTime();
-                    return timeA - timeB;
-                });
-
-                const prepared =
-                    prepareMessagesForPersistence(sanitizedMessages);
-
-                body.messages = prepared.messages;
-                body.messageStorageBytes = prepared.messageStorageBytes;
-                if (prepared.messagesCompacted) {
-                    body.messagesCompacted = true;
-                    body.messagesCompactedAt = new Date();
-                }
-
-                Object.assign(body, buildLastMessagePreview(body.messages));
-            }
-            // If body.messages is empty, we don't add server messages back
-            // This allows clearing all messages including server-generated ones
-            if (body.messages?.length === 0) {
-                body.lastMessagePreview = "";
-                body.lastMessageSender = "";
-                body.lastMessageAt = "";
-                body.messageStorageBytes = 0;
-                body.messagesCompacted = false;
-                body.messagesCompactedAt = null;
-            }
+        if (messageToAppend) {
+            await appendChatMessage(existingChat, messageToAppend, {
+                dedupeKey: messageToAppend?._clientId || messageToAppend?._id,
+            });
         }
 
         // If stopRequested is being set, add current activeSubscriptionId to stopRequestedSubscriptionIds array
@@ -300,14 +234,9 @@ export async function PUT(req, { params }) {
             throw new Error("Failed to update chat");
         }
 
-        // Sanitize messages in response to remove Mongoose metadata
-        const chatObj = chat.toObject ? chat.toObject() : chat;
-        const sanitizedMessages = (chatObj.messages || []).map(sanitizeMessage);
-
-        return NextResponse.json({
-            ...chatObj,
-            messages: sanitizedMessages,
-        });
+        return NextResponse.json(
+            await getChatById(id, { limit: DEFAULT_CHAT_MESSAGES_LIMIT }),
+        );
     } catch (error) {
         console.error("Error in PUT /api/chats/[id]:", error);
         console.error("Error details:", {

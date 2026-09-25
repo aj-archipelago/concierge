@@ -1,9 +1,11 @@
+import { isSelectableMediaModel } from "../../../src/utils/mediaModelCatalog.js";
 import { SYS_MODEL_METADATA } from "../../../src/graphql";
 import {
     getReasoningEffortLevelsForModel,
     REASONING_EFFORT_LEVELS,
 } from "../../../src/utils/reasoningEffortI18n.js";
 import { buildMediaModelControls } from "../../../src/utils/mediaModelControls.js";
+import { resolveMediaModelOptions } from "../../../src/utils/mediaModelOptions.js";
 import config from "../../../app.config/config/index.js";
 
 function parseMetadataResult(result) {
@@ -34,6 +36,7 @@ function toSdkModel(model, defaultModelId) {
 }
 
 function toSdkMediaModel(model, defaultModelId) {
+    model = resolveMediaModelOptions(model);
     const id = getModelId(model);
     const controls = buildMediaModelControls(model);
 
@@ -43,6 +46,7 @@ function toSdkMediaModel(model, defaultModelId) {
         name: model.displayName || model.name || id,
         provider: model.provider || null,
         category: model.category,
+        ...(model.releaseStage && { releaseStage: model.releaseStage }),
         isDefault: id === defaultModelId,
         mediaDefaults: model.mediaDefaults || {},
         mediaControls: controls,
@@ -54,6 +58,12 @@ function toSdkMediaModel(model, defaultModelId) {
         mediaDefaultOverrides: model.mediaDefaultOverrides || [],
         mediaToggles: model.mediaToggles || [],
         referenceImageRoles: model.referenceImageRoles || [],
+        ...(model.referenceImageRoleLimits && {
+            referenceImageRoleLimits: model.referenceImageRoleLimits,
+        }),
+        ...(model.videoFrameReferenceRoles && {
+            videoFrameReferenceRoles: model.videoFrameReferenceRoles,
+        }),
         referencePurposes: model.referencePurposes || {},
         mediaReferencePurposes: model.mediaReferencePurposes || {},
         referenceDescriptions: model.referenceDescriptions || {},
@@ -114,12 +124,7 @@ export function normalizeAppletModelMetadata(
 export function normalizeAppletMediaModelMetadata(metadata) {
     const rawModels = Array.isArray(metadata?.models) ? metadata.models : [];
     const allowedModels = rawModels.filter(
-        (model) =>
-            getModelId(model) &&
-            model.isAvailable !== false &&
-            ["image", "video", "audio", "tts", "upscaling"].includes(
-                model.category,
-            ),
+        (model) => getModelId(model) && isSelectableMediaModel(model),
     );
     const resolvedDefaultModelId =
         getModelId(allowedModels.find((model) => model.isDefault)) ||

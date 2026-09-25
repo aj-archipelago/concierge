@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 
 export const taskSchema = new mongoose.Schema(
     {
+        dispatchPending: { type: Boolean },
+        executionStartedAt: { type: Date },
         // Cortex request ID
         cortexRequestId: {
             type: String,
@@ -28,6 +30,7 @@ export const taskSchema = new mongoose.Schema(
                 "failed",
                 "cancelled",
                 "abandoned",
+                "waiting",
             ],
             default: "pending",
         },
@@ -40,6 +43,20 @@ export const taskSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: null,
         },
+        assistantEntityId: String,
+        assistantRootId: mongoose.Schema.Types.ObjectId,
+        assistantTurn: { type: Number, default: 0 },
+        assistantDepth: { type: Number, default: 0 },
+        assistantPending: { type: Boolean, default: false },
+        assistantDispatches: { type: [String], default: undefined },
+        // Private task/question context must not appear in shared run responses
+        // or embedded task snapshots. Only continuation code opts into reading it.
+        assistantContext: { type: mongoose.Schema.Types.Mixed, select: false },
+        assistantTeam: { type: mongoose.Schema.Types.Mixed, select: false },
+        assistantTeamRevision: { type: Number, default: 0 },
+        assistantOutcome: { type: mongoose.Schema.Types.Mixed, select: false },
+        assistantSelfContinue: { type: Boolean, default: false },
+        assistantIncompleteTurns: { type: Number, default: 0 },
         invokedFrom: {
             source: {
                 type: String,
@@ -90,6 +107,9 @@ export const taskSchema = new mongoose.Schema(
             htmlOutputPath: {
                 type: String,
             },
+            widgetHtmlOutputPath: {
+                type: String,
+            },
             htmlOutputPreview: {
                 type: String,
             },
@@ -102,6 +122,7 @@ export const taskSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        outputExpiredAt: { type: Date, default: null },
         // BullMQ job ID
         jobId: {
             type: String,
@@ -113,9 +134,15 @@ export const taskSchema = new mongoose.Schema(
     },
 );
 
+taskSchema.index({ dispatchPending: 1, createdAt: 1 });
+taskSchema.index({ type: 1, status: 1, createdAt: 1 });
+taskSchema.index({ owner: 1, automationRefId: 1, type: 1, status: 1 });
 taskSchema.index({ cortexRequestId: 1 });
+taskSchema.index({ status: 1, assistantPending: 1, updatedAt: 1 });
 taskSchema.index({ createdAt: -1 });
+taskSchema.index({ createdAt: -1, _id: -1 });
 taskSchema.index({ owner: 1 });
+taskSchema.index({ owner: 1, assistantRootId: 1 });
 taskSchema.index({ owner: 1, status: 1, dismissed: 1, createdAt: -1 });
 taskSchema.index({ owner: 1, "automation.automationId": 1, createdAt: -1 });
 taskSchema.index({ owner: 1, automationRefId: 1, createdAt: -1 });

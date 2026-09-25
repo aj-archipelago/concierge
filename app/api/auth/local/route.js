@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { sanitizeAppRedirect } from "../../../../src/utils/auth";
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const ONE_HOUR_SECONDS = 60 * 60;
@@ -36,8 +37,10 @@ const createMockToken = (email) => {
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const action = searchParams.get("action");
-    const postLoginRedirectUrl =
-        searchParams.get("post_login_redirect_url") || "/";
+    const postLoginRedirectUrl = sanitizeAppRedirect(
+        searchParams.get("post_login_redirect_url") || "/",
+        new URL(request.url).origin,
+    );
 
     if (action === "logout") {
         // Clear all auth cookies and redirect to login page
@@ -65,7 +68,11 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { email, redirect_uri } = body;
+        const { email } = body;
+        const redirect_uri = sanitizeAppRedirect(
+            body.redirect_uri || "/",
+            new URL(request.url).origin,
+        );
 
         if (!email) {
             return NextResponse.json(

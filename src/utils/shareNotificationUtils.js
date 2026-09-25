@@ -1,4 +1,5 @@
 import { shareEntityUrl } from "@/components/share/shareUtils";
+import { normalizeNotificationDestination } from "./notificationDestination";
 
 export function isShareNotification(notification) {
     return notification?.type === "resource-shared";
@@ -52,6 +53,24 @@ export function getShareNotificationSubtitle(notification, t) {
 }
 
 export function getNotificationNavigationPath(notification) {
+    if (notification?.team?.teamId)
+        return `/teams/${encodeURIComponent(notification.team.teamId)}`;
+    if (notification?.assistantProgress?.teamId)
+        return `/teams/${encodeURIComponent(notification.assistantProgress.teamId)}`;
+    if (notification?.assistantProgress?.chatId)
+        return `/chat/${encodeURIComponent(notification.assistantProgress.chatId)}`;
+    if (notification?.type === "colleague-message")
+        return (
+            normalizeNotificationDestination(notification.metadata?.url) ||
+            (notification.metadata?.chatId
+                ? `/chat/${encodeURIComponent(notification.metadata.chatId)}`
+                : `/colleagues?entity=${encodeURIComponent(notification.metadata?.entityId || "")}`)
+        );
+    if (
+        notification?.type === "automation-run" &&
+        notification.automation?.automationId
+    )
+        return `/automations/${notification.automation.automationId}/runs/${notification._id}`;
     if (isShareNotification(notification)) {
         return getShareNotificationPath(notification);
     }

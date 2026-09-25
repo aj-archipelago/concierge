@@ -1,38 +1,47 @@
 "use client";
 
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Compass, User, Bot, Brain, Zap, Users } from "lucide-react";
+import { Compass, User, Zap, Users, SlidersHorizontal } from "lucide-react";
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { LanguageContext } from "../../contexts/LanguageProvider";
+import { AuthContext } from "../../App";
 import { cn } from "@/lib/utils";
-
 import DiscoverSection from "./DiscoverSection";
 import ProfileSection from "./ProfileSection";
 import SharingSection from "./SharingSection";
-import AIAssistantSection from "./AIAssistantSection";
-import MemorySection from "./MemorySection";
 import CapabilitiesSection from "./CapabilitiesSection";
 
 const TABS = [
-    { id: "discover", icon: Compass, labelKey: "portal_tab_discover" },
-    { id: "profile", icon: User, labelKey: "portal_tab_profile" },
-    { id: "sharing", icon: Users, labelKey: "portal_tab_sharing" },
-    { id: "ai-assistant", icon: Bot, labelKey: "portal_tab_ai_assistant" },
-    { id: "memory", icon: Brain, labelKey: "portal_tab_memory" },
-    { id: "capabilities", icon: Zap, labelKey: "portal_tab_capabilities" },
+    {
+        id: "discover",
+        icon: Compass,
+        labelKey: "portal_tab_discover",
+        description: "portal_overview_description",
+    },
+    {
+        id: "profile",
+        icon: User,
+        labelKey: "portal_tab_profile",
+        description: "portal_profile_description",
+    },
+    {
+        id: "sharing",
+        icon: Users,
+        labelKey: "portal_tab_sharing",
+        description: "portal_sharing_description",
+    },
+    {
+        id: "capabilities",
+        icon: Zap,
+        labelKey: "portal_tab_capabilities",
+        description: "portal_capabilities_description",
+    },
 ];
 
 export default function PersonalizationPortal({
@@ -43,21 +52,24 @@ export default function PersonalizationPortal({
 }) {
     const { t } = useTranslation();
     const { direction } = useContext(LanguageContext);
-
+    const { user } = useContext(AuthContext);
     const [activeTab, setActiveTab] = useState(initialTab);
     const [capabilitiesSubTab, setCapabilitiesSubTab] = useState(initialSubTab);
+    const activeNavRef = useRef(null);
 
     useEffect(() => {
         if (open) {
-            setActiveTab(initialTab);
-            if (initialTab === "capabilities") {
+            setActiveTab(
+                TABS.some((tab) => tab.id === initialTab)
+                    ? initialTab
+                    : "discover",
+            );
+            if (initialTab === "capabilities")
                 setCapabilitiesSubTab(initialSubTab);
-            }
         }
     }, [open, initialTab, initialSubTab]);
 
-    const activeTabLabel =
-        t(TABS.find((tab) => tab.id === activeTab)?.labelKey || "") || "";
+    const selectedTab = TABS.find((tab) => tab.id === activeTab) || TABS[0];
 
     return (
         <Dialog
@@ -68,13 +80,12 @@ export default function PersonalizationPortal({
         >
             <DialogContent
                 dir={direction}
-                className={cn(
-                    "p-0 gap-0 overflow-hidden",
-                    // Mobile: nearly full screen
-                    "w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] rounded-lg",
-                    // Desktop: bounded
-                    "sm:w-full sm:max-w-4xl sm:h-[min(90vh,700px)] sm:max-h-[min(90vh,700px)]",
-                )}
+                onOpenAutoFocus={(event) => {
+                    event.preventDefault();
+                    activeNavRef.current?.focus();
+                }}
+                overlayClassName="bg-gray-950/50 backdrop-blur-sm dark:bg-gray-950/65"
+                className="flex h-[calc(100dvh-1rem)] max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-0 overflow-hidden rounded-2xl border-gray-200 bg-gray-50 p-0 shadow-2xl dark:border-gray-700/80 dark:bg-gray-900 sm:h-[min(90dvh,740px)] sm:max-h-[min(90dvh,740px)] sm:w-full sm:max-w-5xl sm:rounded-3xl"
             >
                 <DialogTitle className="sr-only">
                     {t("portal_title")}
@@ -82,92 +93,81 @@ export default function PersonalizationPortal({
                 <DialogDescription className="sr-only">
                     {t("portal_dialog_description")}
                 </DialogDescription>
-                <div className="flex flex-col sm:flex-row h-full min-h-0">
-                    {/* Mobile: shadcn Select dropdown for section nav */}
-                    <div className="sm:hidden border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 ps-3 pe-12 py-3">
-                        <Select
-                            value={activeTab}
-                            onValueChange={(v) => setActiveTab(v)}
-                        >
-                            <SelectTrigger
-                                dir={direction}
-                                className="w-full bg-white dark:bg-gray-800"
-                                aria-label={t("portal_title")}
-                            >
-                                <SelectValue placeholder={activeTabLabel}>
-                                    <span className="flex items-center gap-2">
-                                        {(() => {
-                                            const ActiveIcon = TABS.find(
-                                                (tab) => tab.id === activeTab,
-                                            )?.icon;
-                                            return ActiveIcon ? (
-                                                <ActiveIcon className="h-4 w-4" />
-                                            ) : null;
-                                        })()}
-                                        <span>{activeTabLabel}</span>
-                                    </span>
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent dir={direction}>
-                                {TABS.map(({ id, icon: Icon, labelKey }) => (
-                                    <SelectItem key={id} value={id}>
-                                        <span className="flex items-center gap-2">
-                                            <Icon className="h-4 w-4" />
-                                            <span>{t(labelKey)}</span>
-                                        </span>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Desktop: vertical sidebar. dir attribute on parent flips border side automatically. */}
-                    <div className="hidden sm:flex sm:flex-col shrink-0 sm:w-48 bg-gray-50 dark:bg-gray-900 sm:overflow-y-auto sm:border-e border-gray-200 dark:border-gray-700 sm:py-3">
-                        <div className="px-4 pb-3 border-b border-gray-200 dark:border-gray-700">
-                            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <div className="flex h-full min-h-0 w-full flex-col sm:flex-row">
+                    <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-700/70 dark:bg-gray-950/30 sm:flex sm:w-56 sm:flex-col sm:border-b-0 sm:border-e">
+                        <div className="flex items-center gap-3 px-4 pb-3 pe-14 pt-4 sm:px-5 sm:pb-6 sm:pt-7">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
+                                <SlidersHorizontal
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                />
+                            </span>
+                            <h2 className="text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                                 {t("portal_title")}
                             </h2>
                         </div>
-                        <nav className="flex flex-col flex-1 py-2">
-                            {TABS.map(({ id, icon: Icon, labelKey }) => {
-                                const active = activeTab === id;
-                                return (
-                                    <button
-                                        key={id}
-                                        type="button"
-                                        onClick={() => setActiveTab(id)}
-                                        className={cn(
-                                            "flex items-center gap-2.5 text-sm transition-colors whitespace-nowrap",
-                                            "justify-start px-4 py-2.5 text-start",
-                                            active
-                                                ? "bg-white dark:bg-gray-800 text-sky-600 dark:text-sky-400 font-medium border-e-2 border-sky-500"
-                                                : "text-gray-600 dark:text-gray-400 hover:bg-white/60 dark:hover:bg-gray-800/60 hover:text-gray-900 dark:hover:text-gray-100",
-                                        )}
-                                    >
-                                        <Icon className="h-4 w-4 shrink-0" />
-                                        <span>{t(labelKey)}</span>
-                                    </button>
-                                );
-                            })}
+                        <nav
+                            aria-label={t("portal_title")}
+                            className="flex gap-1 overflow-x-auto px-3 pb-3 sm:flex-col sm:gap-1.5 sm:overflow-x-visible"
+                        >
+                            {TABS.map(({ id, icon: Icon, labelKey }) => (
+                                <button
+                                    key={id}
+                                    ref={
+                                        activeTab === id
+                                            ? activeNavRef
+                                            : undefined
+                                    }
+                                    type="button"
+                                    onClick={() => setActiveTab(id)}
+                                    aria-current={
+                                        activeTab === id ? "page" : undefined
+                                    }
+                                    className={cn(
+                                        "flex min-h-11 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-start text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500",
+                                        activeTab === id
+                                            ? "bg-sky-50 font-medium text-sky-800 ring-1 ring-inset ring-sky-200/70 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-400/15"
+                                            : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100",
+                                    )}
+                                >
+                                    <Icon
+                                        className="h-4 w-4 shrink-0"
+                                        aria-hidden="true"
+                                    />
+                                    <span>{t(labelKey)}</span>
+                                </button>
+                            ))}
                         </nav>
-                    </div>
-
-                    {/* Content pane */}
-                    <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-                        <div className="hidden sm:flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                                {activeTabLabel}
+                        {user?.name && (
+                            <div className="mx-5 mb-5 mt-auto hidden items-center gap-3 border-t border-gray-200 pt-4 dark:border-gray-700/70 sm:flex">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                    <User
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                    />
+                                </span>
+                                <span className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
+                                    {user.name}
+                                </span>
+                            </div>
+                        )}
+                    </aside>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <header className="shrink-0 px-5 pb-4 pt-5 sm:px-8 sm:pe-16 sm:pt-7">
+                            <h3 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-2xl">
+                                {t(selectedTab.labelKey)}
                             </h3>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5">
+                            <p className="mb-0 mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                {t(selectedTab.description)}
+                            </p>
+                        </header>
+                        <div
+                            key={activeTab}
+                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-1 sm:px-8 sm:pb-8"
+                        >
                             {activeTab === "discover" && <DiscoverSection />}
                             {activeTab === "profile" && <ProfileSection />}
                             {activeTab === "sharing" && <SharingSection />}
-                            {activeTab === "ai-assistant" && (
-                                <AIAssistantSection />
-                            )}
-                            {activeTab === "memory" && <MemorySection />}
                             {activeTab === "capabilities" && (
                                 <CapabilitiesSection
                                     initialSubTab={capabilitiesSubTab}

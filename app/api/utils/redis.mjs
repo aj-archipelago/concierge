@@ -13,3 +13,11 @@ export function getRedisConnection() {
     }
     return connection;
 }
+
+// Only the worker process lifecycle calls this, after all consumers drain.
+export async function closeRedisConnection() {
+    if (connection) {
+        await connection.quit();
+        connection = null;
+    }
+}

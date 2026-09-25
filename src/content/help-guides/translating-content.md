@@ -2,7 +2,7 @@
 id: "translating-content"
 title: "Translating Content"
 category: "translate"
-date: "2026-05-06"
+date: "2026-09-04"
 ---
 
 ## Translating Content
@@ -17,6 +17,8 @@ Concierge provides AI-powered translation for text, documents, and video content
 4. Choose the translation model that best fits the job, such as the newest OpenAI, Google, or Anthropic option, a faster model, or Azure
 5. Click **Translate** to get the result
 
+Roman Urdu, Punjabi, and Hindi are available as translation targets when the selected translation model or provider supports them. Google TranslateLLM appears as a model choice when it is enabled for your workspace.
+
 ### Document Translation
 
 - Upload a document file (PDF, DOCX, etc.) for translation
@@ -24,6 +26,7 @@ Concierge provides AI-powered translation for text, documents, and video content
 
 ### Video Translation
 
+- For compatible direct audio and video files, **Transcribe** also offers live translated text and speech when realtime audio is configured. See **Transcribing Audio & Video** for capture limits and live controls.
 - For video content translation (subtitles, dubbing), use the **Transcribe** feature first to generate a transcript
 - Background translation tasks appear in the **notifications** panel (bell icon)
 - You'll be notified when the translation is complete

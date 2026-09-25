@@ -11,6 +11,7 @@ import { CurrentUserContext } from "../../App.js";
 import MessageInput from "./MessageInput";
 import MessageList from "./MessageList";
 import ChatTopMenu from "./ChatTopMenu";
+import { useAssistantChatDelivery } from "../../hooks/useAssistantChatDelivery";
 
 const ChatMessages = React.memo(
     forwardRef(function ChatMessages(
@@ -42,6 +43,7 @@ const ChatMessages = React.memo(
             isLoadingOlder,
             onCopyAndContinue,
             copyInProgress = false,
+            idleOpening,
         },
         ref,
     ) {
@@ -50,6 +52,24 @@ const ChatMessages = React.memo(
         const { aiName } = user;
         const messageListRef = useRef(null);
         const messageInputRef = useRef(null);
+        const deliverySurfaceRef = useRef(null);
+        useAssistantChatDelivery({
+            chatId,
+            containerRef: deliverySurfaceRef,
+            messages,
+            enabled:
+                !viewingReadOnlyChat &&
+                !chat?.isShared &&
+                !chat?.isPublic &&
+                !chat?.readOnly,
+            busy: !!(
+                loading ||
+                isStreaming ||
+                waitingForServer ||
+                pendingAssistantMessage ||
+                pendingUserMessage
+            ),
+        });
 
         // Expose focusInput method to parent via ref
         useImperativeHandle(
@@ -83,6 +103,7 @@ const ChatMessages = React.memo(
 
         return (
             <div
+                ref={deliverySurfaceRef}
                 data-testid="chat-messages"
                 data-chat-id={chatId}
                 data-streaming={isStreaming ? "true" : "false"}
@@ -142,6 +163,7 @@ const ChatMessages = React.memo(
                         onInjectMessage={onInjectMessage}
                         onCopyAndContinue={onCopyAndContinue}
                         copyInProgress={copyInProgress}
+                        idleOpening={idleOpening}
                     />
                 </div>
             </div>

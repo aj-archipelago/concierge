@@ -56,6 +56,51 @@ jest.mock("../models/applet", () => ({
     },
 }));
 
+jest.mock("../models/app", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    APP_STATUS: {
+        ACTIVE: "active",
+    },
+}));
+
+jest.mock("../models/share.js", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+    ],
+    SHARE_ROLES: ["viewer", "editor"],
+}));
+
+jest.mock("../models/chat.mjs", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/workspace", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/automation", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/article", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
 jest.mock("../models/applet-file", () => {
     const mockFindOne = jest.fn();
     const mockFindOneAndUpdate = jest.fn();
@@ -83,16 +128,21 @@ jest.mock("../models/file", () => ({
     },
 }));
 
-jest.mock("mongoose", () => ({
-    __esModule: true,
-    default: {
-        Types: {
-            ObjectId: {
-                isValid: jest.fn(),
-            },
+jest.mock("mongoose", () => {
+    const Types = {
+        ObjectId: {
+            isValid: jest.fn(),
         },
-    },
-}));
+    };
+
+    return {
+        __esModule: true,
+        default: {
+            Types,
+        },
+        Types,
+    };
+});
 
 describe("Canvas Applet Files Routes", () => {
     let mockUser;
@@ -128,6 +178,18 @@ describe("Canvas Applet Files Routes", () => {
             }),
         });
         Applet.updateOne.mockResolvedValue({});
+
+        const App = require("../models/app").default;
+        App.findOne.mockReturnValue({
+            select: jest.fn().mockReturnValue({
+                lean: jest.fn().mockResolvedValue(null),
+            }),
+        });
+
+        const Share = require("../models/share.js").default;
+        Share.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue(null),
+        });
     });
 
     describe("GET", () => {
@@ -204,12 +266,63 @@ describe("Canvas Applet Files Routes", () => {
             expect(response.status).toBe(403);
         });
 
-        test("should allow non-owner on published applet", async () => {
+        test("should allow non-owner on listed public published applet", async () => {
             const Applet = require("../models/applet").default;
             Applet.findOne.mockResolvedValue({
                 ...mockApplet,
                 owner: { toString: () => "otherUser" },
                 publishedVersionIndex: 0,
+            });
+            const App = require("../models/app").default;
+            App.findOne.mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                    lean: jest.fn().mockResolvedValue({ _id: "app-record" }),
+                }),
+            });
+
+            const AppletFile = require("../models/applet-file").default;
+            AppletFile.findOne.mockReturnValue({
+                populate: jest.fn().mockResolvedValue(null),
+            });
+
+            const response = await GET(
+                { url: "https://example.com" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.files).toEqual([]);
+        });
+
+        test("should deny non-owner on unlisted published applet without share access", async () => {
+            const Applet = require("../models/applet").default;
+            Applet.findOne.mockResolvedValue({
+                ...mockApplet,
+                owner: { toString: () => "otherUser" },
+                publishedVersionIndex: 0,
+            });
+
+            const response = await GET(
+                { url: "https://example.com" },
+                { params: { id: "applet123" } },
+            );
+
+            expect(response.status).toBe(403);
+        });
+
+        test("should allow non-owner with explicit share access on unpublished applet", async () => {
+            const Applet = require("../models/applet").default;
+            Applet.findOne.mockResolvedValue({
+                ...mockApplet,
+                owner: { toString: () => "otherUser" },
+                publishedVersionIndex: null,
+            });
+            const Share = require("../models/share.js").default;
+            Share.findOne.mockReturnValue({
+                lean: jest.fn().mockResolvedValue({
+                    recipients: [{ userId: "user123", role: "viewer" }],
+                    link: { enabled: false, role: "viewer" },
+                }),
             });
 
             const AppletFile = require("../models/applet-file").default;

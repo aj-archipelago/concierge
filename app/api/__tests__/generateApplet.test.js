@@ -151,6 +151,62 @@ describe("generate-applet API", () => {
         expect(mockQuery).not.toHaveBeenCalled();
     });
 
+    test.each([undefined, "widget"])(
+        "flags unexpected Source Q&A use without retrying (%s)",
+        async (formFactor) => {
+            mockSseState.subscriptionHtml =
+                '<html><script>ConciergeSDK["sourceQa"].query({text:"news"})</script></html>';
+            const res = await POST(
+                createRequest({ prompt: "A news dashboard", formFactor }),
+            );
+            const events = await readGenerateAppletEvents(res);
+            expect(events).toContainEqual(
+                expect.objectContaining({
+                    event: "error",
+                    data: expect.objectContaining({
+                        code: "APPLET_SOURCE_QA_REVIEW_REQUIRED",
+                    }),
+                }),
+            );
+            expect(events.some((event) => event.event === "complete")).toBe(
+                false,
+            );
+            expect(mockQuery).toHaveBeenCalledTimes(1);
+            const system = JSON.parse(
+                mockQuery.mock.calls[0][0].variables.chatHistory[0].content[0],
+            ).text;
+            expect(system).not.toMatch(/ask.?aj|specialistSkill/i);
+            expect(system).not.toContain("options.maxRefinementRounds");
+        },
+    );
+
+    test("cannot re-enable Source Q&A with the retired specialist opt-in", async () => {
+        mockSseState.subscriptionHtml =
+            '<html><script>ConciergeSDK.sourceQa.query({text:"news"})</script></html>';
+        const res = await POST(
+            createRequest({
+                prompt: "Build the Source Q&A experience",
+                specialistSkill: "source-qa",
+            }),
+        );
+        const events = await readGenerateAppletEvents(res);
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                event: "error",
+                data: expect.objectContaining({
+                    code: "APPLET_SOURCE_QA_REVIEW_REQUIRED",
+                }),
+            }),
+        );
+        expect(events.some((event) => event.event === "complete")).toBe(false);
+        const system = JSON.parse(
+            mockQuery.mock.calls[0][0].variables.chatHistory[0].content[0],
+        ).text;
+        expect(system).not.toMatch(/ask.?aj|specialistSkill/i);
+        expect(system).not.toContain("options.maxRefinementRounds");
+        expect(mockQuery).toHaveBeenCalledTimes(1);
+    });
+
     test("prefers the cortex-default-coding model group for applet generation when the default model is weaker", async () => {
         const res = await POST(createRequest({ prompt: "A calculator" }));
         const data = await readGenerateAppletResult(res);
@@ -160,7 +216,7 @@ describe("generate-applet API", () => {
             expect.objectContaining({
                 variables: expect.objectContaining({
                     model: "cortex-default-coding",
-                    reasoningEffort: "medium",
+                    reasoningEffort: "low",
                 }),
             }),
         );
@@ -180,6 +236,140 @@ describe("generate-applet API", () => {
         expect(systemMessage).toContain("never invent/sample transcript text");
         expect(systemMessage).toContain("media preview");
         expect(systemMessage).toContain("progress/status");
+        expect(systemMessage).toContain("Do NOT use `@apply`");
+        expect(systemMessage).not.toContain("Canvas Applet Tools");
+        expect(systemMessage).not.toContain("# Applets Skill");
+    });
+
+    test("adds compact home-widget guidance when formFactor is widget", async () => {
+        const res = await POST(
+            createRequest({
+                prompt: "A translator for Arabic headlines",
+                formFactor: "widget",
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const systemMessage = JSON.parse(chatHistory[0].content[0]).text;
+        const userMessage = JSON.parse(chatHistory[1].content[0]).text;
+        expect(systemMessage).toContain("HOME WIDGET DESIGN CONTRACT");
+        expect(systemMessage).toContain("ConciergeSDK.locale.getLanguage()");
+        expect(systemMessage).toContain("ConciergeSDK.media.ensureImage");
+        expect(userMessage).toContain("Arabic");
+        expect(userMessage).toContain("A translator for Arabic headlines");
+        expect(systemMessage).not.toContain("Applets Skill");
+        expect(systemMessage).toContain("ConciergeSDK.agent.render");
+        expect(mockQuery).toHaveBeenCalledWith(
+            expect.objectContaining({
+                variables: expect.objectContaining({
+                    reasoningEffort: "medium",
+                }),
+            }),
+        );
+    });
+
+    test("includes current HTML when modifying an existing applet", async () => {
+        const res = await POST(
+            createRequest({
+                prompt: "Make the title larger",
+                formFactor: "widget",
+                currentHtml: "<html><body>Toronto weather</body></html>",
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const userMessage = JSON.parse(chatHistory[1].content[0]).text;
+        expect(userMessage).toContain("Here is the current HTML of the applet");
+        expect(userMessage).toContain(
+            "<html><body>Toronto weather</body></html>",
+        );
+        expect(userMessage).toContain("Make the title larger");
+        expect(userMessage).toContain("readable hierarchy");
+        expect(userMessage).toContain("light/dark themes");
+    });
+
+    test("compacts oversized widget source HTML before sending it to the model", async () => {
+        const bulkyHtml = `<html><body><img src="data:image/png;base64,${"A".repeat(800)}"><p>${"x".repeat(41000)}</p></body></html>`;
+        const res = await POST(
+            createRequest({
+                prompt: "Make a compact widget",
+                formFactor: "widget",
+                currentHtml: bulkyHtml,
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const userMessage = JSON.parse(chatHistory[1].content[0]).text;
+        expect(userMessage).not.toContain("AAAA");
+        expect(userMessage).toContain("<!-- truncated -->");
+        expect(userMessage.length).toBeLessThan(bulkyHtml.length);
+    });
+
+    test("compacts oversized full-page source HTML before sending it to the model", async () => {
+        const bulkyHtml = `<html><body><img src="data:image/png;base64,${"A".repeat(800)}"><p>${"x".repeat(81000)}</p></body></html>`;
+        const res = await POST(
+            createRequest({
+                prompt: "Make the title larger",
+                currentHtml: bulkyHtml,
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const userMessage = JSON.parse(chatHistory[1].content[0]).text;
+        expect(userMessage).not.toContain("AAAA");
+        expect(userMessage).toContain("<!-- truncated -->");
+        expect(userMessage.length).toBeLessThan(bulkyHtml.length);
+    });
+
+    test("attaches a widget screenshot as a vision input", async () => {
+        const screenshot = "data:image/jpeg;base64,abc123";
+        const res = await POST(
+            createRequest({
+                prompt: "Make the type larger",
+                formFactor: "widget",
+                currentHtml: "<html><body>Widget</body></html>",
+                screenshot,
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const userParts = chatHistory[1].content.map((entry) =>
+            JSON.parse(entry),
+        );
+        expect(userParts[0].text).toContain(
+            "A screenshot or labeled contact sheet of the widget is attached",
+        );
+        expect(userParts[1]).toEqual(
+            expect.objectContaining({
+                type: "image_url",
+                url: screenshot,
+                image_url: { url: screenshot },
+            }),
+        );
+    });
+
+    test("ignores invalid widget screenshots", async () => {
+        const res = await POST(
+            createRequest({
+                prompt: "Make the type larger",
+                formFactor: "widget",
+                currentHtml: "<html><body>Widget</body></html>",
+                screenshot: "https://example.com/widget.png",
+            }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        expect(chatHistory[1].content).toHaveLength(1);
+        const userMessage = JSON.parse(chatHistory[1].content[0]).text;
+        expect(userMessage).not.toContain(
+            "A screenshot or labeled contact sheet of the widget is attached",
+        );
     });
 
     test("keeps real media generation requirements in the applet generation prompt", async () => {
@@ -194,6 +384,38 @@ describe("generate-applet API", () => {
         expect(systemMessage).toContain("ConciergeSDK.media.create");
         expect(systemMessage).toContain("ConciergeSDK.tasks.wait");
         expect(systemMessage).toContain("do not invent completed media URLs");
+    });
+
+    test("requires native citations for generated agent applets", async () => {
+        const res = await POST(
+            createRequest({ prompt: "Create a private knowledge applet" }),
+        );
+        await readGenerateAppletResult(res);
+
+        const chatHistory = mockQuery.mock.calls[0][0].variables.chatHistory;
+        const systemMessage = JSON.parse(chatHistory[0].content[0]).text;
+        expect(systemMessage).toContain("ConciergeSDK.agent.render");
+        expect(systemMessage).toContain(
+            "Cite sourced claims with ordinary HTML links",
+        );
+        expect(systemMessage).toContain(
+            "Never copy context facts into HTML/JavaScript",
+        );
+        expect(systemMessage).toContain(
+            "Never build custom citation/source/reference chips",
+        );
+        expect(systemMessage).toContain(
+            "Never put an agentContext ID in generated HTML or UI",
+        );
+    });
+
+    test("rejects new applet HTML with citation markers in displayed prose", async () => {
+        mockSseState.subscriptionHtml =
+            "<html><body><p>Evidence :cd_source[abc-1]</p></body></html>";
+        const res = await POST(createRequest({ prompt: "A sourced report" }));
+        await expect(readGenerateAppletResult(res)).rejects.toThrow(
+            "HTML_CITATION_FORMAT",
+        );
     });
 
     test("falls back to config.cortex.defaultChatModel if the preferred model fails", async () => {
@@ -215,7 +437,7 @@ describe("generate-applet API", () => {
             expect.objectContaining({
                 variables: expect.objectContaining({
                     model: "cortex-default-coding",
-                    reasoningEffort: "medium",
+                    reasoningEffort: "low",
                 }),
             }),
         );
@@ -253,7 +475,7 @@ describe("generate-applet API", () => {
             expect.objectContaining({
                 variables: expect.objectContaining({
                     model: "cortex-default-coding",
-                    reasoningEffort: "medium",
+                    reasoningEffort: "low",
                 }),
             }),
         );

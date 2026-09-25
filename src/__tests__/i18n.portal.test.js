@@ -4,6 +4,22 @@ import defaultEn from "../../config/default/locales/en.json";
 import defaultAr from "../../config/default/locales/ar.json";
 
 const PORTAL_KEYS = [
+    "portal_overview_description",
+    "portal_profile_description",
+    "portal_capabilities_description",
+    "portal_appearance",
+    "portal_appearance_description",
+    "portal_language_description",
+    "portal_language_en",
+    "portal_language_ar",
+    "portal_discover_assistants_desc",
+    "portal_connectors_description",
+    "portal_skills_description",
+    "portal_secrets_description",
+    "portal_memory_learning_description",
+    "portal_secret_name",
+    "portal_secret_show",
+    "portal_secret_hide",
     "portal_title",
     "portal_tab_discover",
     "portal_tab_profile",
@@ -39,20 +55,54 @@ const PORTAL_KEYS = [
     "portal_sharing_hint",
 ];
 
-describe("portal locale labels", () => {
-    it.each(PORTAL_KEYS)("defines %s in en.json", (key) => {
+const SHARE_DIALOG_KEYS = [
+    "shareDialog.title",
+    "shareDialog.description",
+    "shareDialog.loading",
+    "shareDialog.tab.link",
+    "shareDialog.tab.people",
+    "shareDialog.entity.chat",
+    "shareDialog.entity.workspace",
+    "shareDialog.entity.applet",
+    "shareDialog.entity.publishedApplet",
+    "shareDialog.entity.automation",
+    "shareDialog.entity.article",
+    "shareDialog.entity.item",
+    "shareDialog.anyoneWithLink",
+    "shareDialog.linkEnabledDescription",
+    "shareDialog.linkDisabledDescription",
+    "shareDialog.theyCan",
+    "shareDialog.role.view",
+    "shareDialog.role.edit",
+    "shareDialog.role.viewer",
+    "shareDialog.role.editor",
+    "shareDialog.viewerOnly.chat",
+    "shareDialog.viewerOnly.workspace",
+    "shareDialog.viewerOnly.publishedApplet",
+    "shareDialog.searchPeoplePlaceholder",
+    "shareDialog.noMatches",
+    "shareDialog.noRecipients",
+    "shareDialog.unknownUser",
+    "shareDialog.remove",
+    "shareDialog.saving",
+];
+
+const LOCALE_KEYS = [...PORTAL_KEYS, ...SHARE_DIALOG_KEYS];
+
+describe("portal and sharing locale labels", () => {
+    it.each(LOCALE_KEYS)("defines %s in en.json", (key) => {
         expect(en[key]).toBeTruthy();
     });
 
-    it.each(PORTAL_KEYS)("defines %s in ar.json", (key) => {
+    it.each(LOCALE_KEYS)("defines %s in ar.json", (key) => {
         expect(ar[key]).toBeTruthy();
     });
 
-    it.each(PORTAL_KEYS)("defines %s in default en.json", (key) => {
+    it.each(LOCALE_KEYS)("defines %s in default en.json", (key) => {
         expect(defaultEn[key]).toBeTruthy();
     });
 
-    it.each(PORTAL_KEYS)("defines %s in default ar.json", (key) => {
+    it.each(LOCALE_KEYS)("defines %s in default ar.json", (key) => {
         expect(defaultAr[key]).toBeTruthy();
     });
 });

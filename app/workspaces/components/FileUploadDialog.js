@@ -28,6 +28,7 @@ export default function FileUploadDialog({
     chatId = null,
     contextId: contextIdProp = null,
     storageTarget = null,
+    subPath = null,
     title = "Upload Files",
     description = "Upload files to include in your workspace. Supported formats include images, documents, and media files.",
 }) {
@@ -108,17 +109,12 @@ export default function FileUploadDialog({
                     : null);
         const data = await uploadFileToMediaHelper(file, {
             storageTarget: directUploadTarget,
+            subPath,
             contextId,
-            checkHash: false,
             onProgress: setUploadProgress,
             serverUrl: config.endpoints.mediaHelper(serverUrl),
         });
-        return {
-            url: data.url,
-            displayFilename: data.displayFilename,
-            converted: data.converted,
-            hash: data.hash,
-        };
+        return data;
     };
 
     const handleFileUpload = async (event) => {

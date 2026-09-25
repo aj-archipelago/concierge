@@ -2,15 +2,25 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { AuthContext } from "../App";
+import {
+    applyTheme,
+    getInitialTheme,
+    normalizeTheme,
+    saveThemeCookie,
+} from "../utils/themePreference";
 
 // create the theme context with default selected theme
 export const ThemeContext = createContext({});
 
 // it provides the theme context to app
-export function ThemeProvider({ children, savedTheme = "light" }) {
+export function ThemeProvider({ children, savedTheme }) {
     const authContext = useContext(AuthContext);
     const { userState, debouncedUpdateUserState } = authContext || {};
-    const [theme, setTheme] = useState(savedTheme);
+    const accountTheme = normalizeTheme(userState?.preferences?.theme);
+    const cookieTheme = normalizeTheme(savedTheme);
+    const [theme, setTheme] = useState(
+        () => accountTheme || getInitialTheme(cookieTheme),
+    );
     const [hasMigrated, setHasMigrated] = useState(false);
 
     // Migrate existing cookie preferences to userState (run once)
@@ -20,48 +30,39 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
             userState &&
             debouncedUpdateUserState &&
             !userState.preferences?.theme &&
-            savedTheme
+            cookieTheme
         ) {
             // Migrate cookie preference to userState
             debouncedUpdateUserState((prev) => ({
                 ...prev,
                 preferences: {
                     ...prev?.preferences,
-                    theme: savedTheme,
+                    theme: cookieTheme,
                 },
             }));
             setHasMigrated(true);
         }
-    }, [userState, savedTheme, hasMigrated, debouncedUpdateUserState]);
+    }, [userState, cookieTheme, hasMigrated, debouncedUpdateUserState]);
 
     // Initialize theme from userState or fall back to savedTheme (from cookies)
     useEffect(() => {
-        if (userState?.preferences?.theme) {
-            setTheme(userState.preferences.theme);
-        } else if (savedTheme) {
-            setTheme(savedTheme);
+        if (accountTheme) {
+            setTheme(accountTheme);
+        } else if (cookieTheme) {
+            setTheme(cookieTheme);
         }
-    }, [userState?.preferences?.theme, savedTheme]);
+    }, [accountTheme, cookieTheme]);
 
     useEffect(() => {
-        // Set the data-color-mode attribute
-        document.documentElement.setAttribute("data-color-mode", theme);
-
-        // Handle body classes
-        if (theme === "dark") {
-            document.body.classList.add("dark");
-        } else {
-            document.body.classList.remove("dark");
-        }
-
-        // Set CSS custom property for applets to detect color scheme
-        // This allows applets to use CSS like: @media (prefers-color-scheme: dark) { ... }
-        // by checking the --prefers-color-scheme property
-        document.documentElement.style.setProperty(
-            "--prefers-color-scheme",
-            theme === "dark" ? "dark" : "light",
-        );
+        applyTheme(theme);
     }, [theme]);
+
+    // Account restoration must also repair missing or stale startup cookies.
+    // Do not persist a system fallback as an explicit user preference.
+    useEffect(() => {
+        const preference = accountTheme || cookieTheme;
+        if (preference) saveThemeCookie(preference);
+    }, [accountTheme, cookieTheme]);
 
     if (typeof document === "undefined") {
         return <>{children}</>;
@@ -70,6 +71,7 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
     const provider = {
         theme,
         changeTheme: (newTheme) => {
+            if (!normalizeTheme(newTheme)) return;
             setTheme(newTheme);
 
             // Update userState for persistence across re-auth
@@ -83,8 +85,7 @@ export function ThemeProvider({ children, savedTheme = "light" }) {
                 }));
             }
 
-            // Keep cookie for backward compatibility and SSR
-            document.cookie = `theme=${newTheme}; path=/`;
+            saveThemeCookie(newTheme);
         },
     };
 

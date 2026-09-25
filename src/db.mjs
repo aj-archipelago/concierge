@@ -206,6 +206,26 @@ export async function connectToDatabase() {
                         algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
                     },
                 },
+                lastMessagePreview: {
+                    encrypt: {
+                        bsonType: "string",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: {
+                keyId: [_key],
+            },
+        },
+        [`${dbName}.chat_messages`]: {
+            bsonType: "object",
+            properties: {
+                message: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
             },
             encryptMetadata: {
                 keyId: [_key],
@@ -361,6 +381,24 @@ export async function connectToDatabase() {
         [`${dbName}.tasks`]: {
             bsonType: "object",
             properties: {
+                assistantTeam: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                assistantOutcome: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+                assistantContext: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
                 data: {
                     encrypt: {
                         bsonType: "object",
@@ -389,6 +427,18 @@ export async function connectToDatabase() {
             encryptMetadata: {
                 keyId: [_key],
             },
+        },
+        [`${dbName}.assistantmessages`]: {
+            bsonType: "object",
+            properties: {
+                payload: {
+                    encrypt: {
+                        bsonType: "object",
+                        algorithm: "AEAD_AES_256_CBC_HMAC_SHA_512-Random",
+                    },
+                },
+            },
+            encryptMetadata: { keyId: [_key] },
         },
         [`${dbName}.mediaitems`]: {
             bsonType: "object",

@@ -6,6 +6,7 @@ import {
     createAssistantTextItem,
     createAssistantThinkingItem,
     createAssistantToolEventItem,
+    getAssistantMediaTasks,
 } from "../assistantInlinePayload";
 
 describe("buildModelPayloadFromStoredPayload", () => {
@@ -201,5 +202,60 @@ describe("extractSearchableText", () => {
             ),
         ];
         expect(extractSearchableText(payload)).toBe("");
+    });
+});
+
+describe("media task receipts", () => {
+    const receipt = {
+        taskId: "a".repeat(24),
+        type: "image",
+        model: "model",
+        name: "Model",
+    };
+    const event = createAssistantToolEventItem({
+        callId: "media-1",
+        status: "completed",
+        mediaTask: { ...receipt, url: "secret-url" },
+    });
+    it("keeps only durable pointers and deduplicates retries", () => {
+        expect(event.mediaTask).toEqual(receipt);
+        expect(
+            getAssistantMediaTasks([
+                event,
+                JSON.stringify(event),
+                { ...event, status: "failed" },
+            ]),
+        ).toEqual([receipt]);
+        expect(
+            getAssistantMediaTasks([
+                { ...event, mediaTask: { ...receipt, taskId: "../other" } },
+                { ...event, hideFromClient: true },
+            ]),
+        ).toEqual([]);
+    });
+    it("briefs the next turn without carrying tool logs or secrets into history or previews", () => {
+        const payload = [
+            JSON.stringify(event),
+            JSON.stringify(event),
+            JSON.stringify(
+                createAssistantTextItem("Your images are on their way."),
+            ),
+        ];
+        const history = buildModelPayloadFromStoredPayload(payload);
+        expect(history).toHaveLength(2);
+        expect(JSON.parse(history[0]).text).toContain(receipt.taskId);
+        expect(JSON.parse(history[0]).text).toContain("Media status");
+        expect(JSON.stringify(history)).not.toContain("secret-url");
+        expect(extractSearchableText(payload)).toBe(
+            "Your images are on their way.",
+        );
+        expect(extractPreviewTextFromStoredPayload(payload)).toBe(
+            "Your images are on their way.",
+        );
+        expect(
+            buildModelPayloadFromStoredPayload([
+                JSON.stringify({ ...event, hideFromModel: true }),
+            ]),
+        ).toBeNull();
     });
 });

@@ -20,10 +20,11 @@ function jsonNoStore(body, init = {}) {
 }
 
 async function assertPublishedAppletAccess(applet, user) {
+    const userId = user?._id;
     const access = await resolveShareAccess({
-        entityType: "applet",
+        entityType: "published_applet",
         entityId: applet._id,
-        userId: user?._id,
+        userId,
         ownerId: applet.owner,
     });
 

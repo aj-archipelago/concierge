@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
+import PageHeader from "../../../src/layout/PageHeader";
+import { HeaderTabs } from "../../../src/layout/HeaderControls";
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -255,6 +258,7 @@ const DEFAULT_APPLET = `<!DOCTYPE html>
 </html>`;
 
 export default function SdkPlaygroundPage() {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("playground");
     const [code, setCode] = useState(DEFAULT_APPLET);
     const [previewHtml, setPreviewHtml] = useState(DEFAULT_APPLET);
@@ -344,50 +348,24 @@ export default function SdkPlaygroundPage() {
     const sdkDetected = code.includes("applet-sdk.js");
 
     return (
-        <div
-            className="p-6 flex flex-col"
-            style={{ height: "calc(100vh - 100px)" }}
-        >
-            {/* Header */}
-            <div className="flex items-center justify-between flex-shrink-0 mb-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                        Concierge Applet SDK
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Documentation and interactive playground for the Applet
-                        SDK
-                    </p>
-                </div>
-                <span className="text-xs font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+        <div className="h-full min-h-0 p-4 flex flex-col">
+            <PageHeader
+                titleKey="Concierge Applet SDK"
+                descriptionKey="Documentation and interactive playground for the Applet SDK"
+            >
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                     v1.5.0
                 </span>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex items-center gap-0 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 mb-4">
-                <button
-                    onClick={() => setActiveTab("docs")}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === "docs"
-                            ? "border-sky-600 text-gray-900 dark:text-gray-100 dark:border-sky-400"
-                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                    }`}
-                >
-                    Documentation
-                </button>
-                <button
-                    onClick={() => setActiveTab("playground")}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === "playground"
-                            ? "border-sky-600 text-gray-900 dark:text-gray-100 dark:border-sky-400"
-                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                    }`}
-                >
-                    Playground
-                </button>
-            </div>
-
+                <HeaderTabs
+                    label={t("Concierge Applet SDK")}
+                    value={activeTab}
+                    onChange={setActiveTab}
+                    items={[
+                        { value: "docs", label: t("Documentation") },
+                        { value: "playground", label: t("Playground") },
+                    ]}
+                />
+            </PageHeader>
             {/* Tab content */}
             <div className="flex-1 min-h-0 overflow-hidden">
                 {/* Documentation tab */}

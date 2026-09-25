@@ -24,16 +24,19 @@ jest.mock("../utils/auth", () => ({
     getCurrentUser: jest.fn(),
 }));
 
-jest.mock("mongoose", () => ({
-    __esModule: true,
-    default: {
-        Types: {
-            ObjectId: {
-                isValid: jest.fn(),
-            },
+jest.mock("mongoose", () => {
+    const Types = {
+        ObjectId: {
+            isValid: jest.fn(),
         },
-    },
-}));
+    };
+
+    return {
+        __esModule: true,
+        default: { Types },
+        Types,
+    };
+});
 
 jest.mock("../models/applet", () => ({
     __esModule: true,
@@ -59,7 +62,39 @@ jest.mock("../models/workspace", () => ({
     __esModule: true,
     default: {
         findOne: jest.fn(),
+        findById: jest.fn(),
     },
+}));
+
+jest.mock("../models/share.js", () => ({
+    __esModule: true,
+    default: {
+        findOne: jest.fn(),
+    },
+    SHARE_ENTITY_TYPES: [
+        "chat",
+        "workspace",
+        "applet",
+        "published_applet",
+        "automation",
+        "article",
+    ],
+    SHARE_ROLES: ["viewer", "editor"],
+}));
+
+jest.mock("../models/chat.mjs", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/automation.js", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
+}));
+
+jest.mock("../models/article.js", () => ({
+    __esModule: true,
+    default: { findById: jest.fn() },
 }));
 
 jest.mock("../utils/shareAccess.js", () => ({
@@ -128,10 +163,9 @@ describe("applet model APIs", () => {
         App.findOne.mockReturnValue(createLeanQuery(null));
         const Workspace = require("../models/workspace").default;
         Workspace.findOne.mockReturnValue(createLeanQuery(null));
-        mockResolveShareAccess.mockResolvedValue({
-            canAccess: false,
-            isOwner: false,
-            role: null,
+        const Share = require("../models/share.js").default;
+        Share.findOne.mockReturnValue({
+            lean: jest.fn().mockResolvedValue(null),
         });
     });
 
@@ -299,6 +333,39 @@ describe("applet model APIs", () => {
                 falseLabel: "No Audio",
             },
         ]);
+    });
+
+    test("media SDK exposes default-mode options and retains conditional rules", async () => {
+        const mediaDefaultOverrides = [
+            {
+                when: { layerDecomposition: false },
+                mediaOptions: { image_size: ["1K", "2K"] },
+            },
+            {
+                when: { layerDecomposition: true },
+                mediaOptions: { image_size: ["1K", "1.5K", "2K", "auto"] },
+            },
+        ];
+        mockMetadata([
+            {
+                modelId: "replicate-seedream-5-pro",
+                category: "image",
+                mediaDefaults: { layerDecomposition: false, image_size: "2K" },
+                availableImageSizes: ["1K", "1.5K", "2K", "auto"],
+                mediaDefaultOverrides,
+            },
+        ]);
+        const res = await getModels({
+            url: `http://localhost/api/applet/models?appletId=${appletId}&kind=media`,
+        });
+        const { models } = await res.json();
+        expect(models[0].availableImageSizes).toEqual(["1K", "2K"]);
+        expect(
+            models[0].mediaControls
+                .find((control) => control.key === "image_size")
+                .options.map((option) => option.value),
+        ).toEqual(["1K", "2K"]);
+        expect(models[0].mediaDefaultOverrides).toEqual(mediaDefaultOverrides);
     });
 
     test("exposes Media-page option families as applet SDK controls", async () => {

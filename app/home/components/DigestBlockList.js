@@ -32,7 +32,6 @@ import {
 } from "../../queries/digest";
 import classNames from "../../utils/class-names";
 import DigestBlock from "./DigestBlock";
-import { convertMessageToMarkdown } from "../../../src/components/chat/ChatMessage";
 import EditDigestBlock from "./EditDigestBlock";
 
 export default function DigestBlockList() {
@@ -63,12 +62,7 @@ export default function DigestBlockList() {
 
     return (
         <>
-            <div className="flex justify-between items-start mb-2 gap-8">
-                {digest?.greeting && (
-                    <div>
-                        {convertMessageToMarkdown({ payload: digest.greeting })}
-                    </div>
-                )}
+            <div className="flex justify-end items-start mb-2">
                 <DropdownMenu>
                     <DropdownMenuTrigger>
                         <SettingsIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />

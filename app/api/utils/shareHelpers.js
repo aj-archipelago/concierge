@@ -3,6 +3,26 @@ import Share, { SHARE_ROLES } from "../models/share.js";
 import { isShareActive } from "@/components/share/shareUtils.js";
 import { notifyNewShareRecipients } from "./shareNotifications.js";
 
+export const VIEWER_ONLY_SHARE_ENTITY_TYPES = new Set([
+    "chat",
+    "workspace",
+    "published_applet",
+]);
+
+export function normalizeShareRole(entityType, role) {
+    if (VIEWER_ONLY_SHARE_ENTITY_TYPES.has(entityType)) {
+        return "viewer";
+    }
+    return SHARE_ROLES.includes(role) ? role : "viewer";
+}
+
+export function normalizeShareLink(entityType, link) {
+    return {
+        enabled: Boolean(link?.enabled),
+        role: normalizeShareRole(entityType, link?.role),
+    };
+}
+
 export function computeIsShared(shareDoc, { legacyPublic = false } = {}) {
     return isShareActive(shareDoc, { legacyShared: legacyPublic });
 }
@@ -71,15 +91,12 @@ export function sanitizeShareRecipients(raw, { ownerId, entityType }) {
         if (seen.has(key)) continue;
         seen.add(key);
 
-        let role = r.role || "viewer";
+        const role = r.role || "viewer";
         if (!SHARE_ROLES.includes(role)) {
             throw new Error("Invalid recipient role");
         }
-        if (entityType === "chat") {
-            role = "viewer";
-        }
 
-        out.push({ userId, role });
+        out.push({ userId, role: normalizeShareRole(entityType, role) });
     }
     return out;
 }
@@ -94,8 +111,14 @@ export async function upsertEntityShare({
     notificationUrl,
 }) {
     const update = { $set: { ownerId } };
-    if (recipients !== undefined) update.$set.recipients = recipients;
-    if (link !== undefined) update.$set.link = link;
+    if (recipients !== undefined) {
+        update.$set.recipients = recipients.map((recipient) => ({
+            ...recipient,
+            role: normalizeShareRole(entityType, recipient.role),
+        }));
+    }
+    if (link !== undefined)
+        update.$set.link = normalizeShareLink(entityType, link);
 
     const previousShare = await Share.findOne({ entityType, entityId })
         .select({ recipients: 1 })
@@ -112,7 +135,7 @@ export async function upsertEntityShare({
             entityType,
             entityId,
             previousRecipients: previousShare?.recipients || [],
-            nextRecipients: recipients,
+            nextRecipients: update.$set.recipients,
             sharedBy,
             url: notificationUrl,
         });
@@ -137,4 +160,12 @@ export async function syncChatLinkSharing({ chatId, ownerId, linkEnabled }) {
         },
         { upsert: true, setDefaultsOnInsert: true },
     );
+}
+
+export async function deleteEntityShare(entityType, entityId) {
+    if (!entityType || !entityId) {
+        return { deletedCount: 0 };
+    }
+
+    return Share.deleteMany({ entityType, entityId });
 }

@@ -1,5 +1,11 @@
 import React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+    act,
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import AppCatalogCard from "./AppCatalogCard";
 
@@ -59,6 +65,68 @@ describe("AppCatalogCard", () => {
         document.documentElement.removeAttribute("data-theme");
         document.documentElement.className = "";
         global.MutationObserver = originalMutationObserver;
+    });
+
+    test("replaces a failed cover with the default artwork and accepts a replacement URL", () => {
+        const { rerender } = render(
+            <AppCatalogCard title="Meeting minutes" imageUrl="/missing.png" />,
+        );
+        fireEvent.error(screen.getByTestId("app-catalog-card-image"));
+        expect(
+            screen.queryByTestId("app-catalog-card-image"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getByTestId("app-catalog-card-default-artwork"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("heading", { name: "Meeting minutes" }),
+        ).toBeVisible();
+
+        rerender(
+            <AppCatalogCard
+                title="Meeting minutes"
+                imageUrl="/replacement.png"
+            />,
+        );
+        expect(screen.getByTestId("app-catalog-card-image")).toHaveAttribute(
+            "src",
+            "/replacement.png",
+        );
+        expect(
+            screen.queryByTestId("app-catalog-card-default-artwork"),
+        ).not.toBeInTheDocument();
+    });
+
+    test("keeps a working theme cover when the other theme failed and does not retry the broken URL", () => {
+        const props = {
+            title: "Meeting minutes",
+            imageLightUrl: "/light.png",
+            imageDarkUrl: "/dark.png",
+            imageOverlayVariant: "app-library",
+        };
+        const { rerender } = render(
+            <AppCatalogCard {...props} themeOverride="dark" />,
+        );
+        fireEvent.error(screen.getByTestId("app-catalog-card-image"));
+        expect(
+            screen.getByTestId("app-catalog-card-default-artwork"),
+        ).toBeInTheDocument();
+        expect(
+            screen.getByRole("heading", { name: "Meeting minutes" }),
+        ).toHaveClass("text-white");
+
+        rerender(<AppCatalogCard {...props} themeOverride="light" />);
+        expect(screen.getByTestId("app-catalog-card-image")).toHaveAttribute(
+            "src",
+            "/light.png",
+        );
+        rerender(<AppCatalogCard {...props} themeOverride="dark" />);
+        expect(
+            screen.queryByTestId("app-catalog-card-image"),
+        ).not.toBeInTheDocument();
+        expect(
+            screen.getByTestId("app-catalog-card-default-artwork"),
+        ).toBeInTheDocument();
     });
 
     test("switches applet card artwork when the app theme changes", async () => {

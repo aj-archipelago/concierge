@@ -9,6 +9,7 @@ jest.mock("../../models/share.js", () => {
         "chat",
         "workspace",
         "applet",
+        "published_applet",
         "automation",
         "article",
     ];
@@ -111,7 +112,7 @@ describe("shareAccess", () => {
                 }),
             });
             const access = await resolveShareAccess({
-                entityType: "chat",
+                entityType: "automation",
                 entityId: newId(),
                 userId,
                 ownerId: newId(),
@@ -164,7 +165,7 @@ describe("shareAccess", () => {
                 }),
             });
             const access = await resolveShareAccess({
-                entityType: "workspace",
+                entityType: "automation",
                 entityId: newId(),
                 userId: newId(),
                 ownerId: newId(),
@@ -173,6 +174,29 @@ describe("shareAccess", () => {
                 canAccess: true,
                 isOwner: false,
                 role: "editor",
+            });
+        });
+
+        it("coerces stale viewer-only entity roles to viewer", async () => {
+            const userId = newId();
+            Share.findOne.mockReturnValue({
+                lean: jest.fn().mockResolvedValue({
+                    recipients: [{ userId, role: "editor" }],
+                    link: { enabled: true, role: "editor" },
+                }),
+            });
+
+            const access = await resolveShareAccess({
+                entityType: "workspace",
+                entityId: newId(),
+                userId,
+                ownerId: newId(),
+            });
+
+            expect(access).toEqual({
+                canAccess: true,
+                isOwner: false,
+                role: "viewer",
             });
         });
 

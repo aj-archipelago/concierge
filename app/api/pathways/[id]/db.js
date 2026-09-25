@@ -1,4 +1,4 @@
-import { getClient, MUTATIONS } from "../../../../src/graphql";
+import { getClient, MUTATIONS } from "../../utils/cortex-client.js";
 import Pathway, { generateRandomString } from "../../models/pathway";
 import { getCurrentUser } from "../../utils/auth";
 import mongoose from "mongoose";

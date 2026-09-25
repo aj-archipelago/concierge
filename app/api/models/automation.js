@@ -4,9 +4,10 @@ const automationScheduleSchema = new mongoose.Schema(
     {
         frequency: {
             type: String,
-            enum: ["manual", "hourly", "daily", "weekly"],
+            enum: ["manual", "hourly", "daily", "weekly", "files"],
             default: "manual",
         },
+        watchPath: { type: String, default: "" },
         interval: {
             type: Number,
             default: 1,
@@ -71,6 +72,10 @@ const automationSchema = new mongoose.Schema(
             required: true,
             index: true,
         },
+        entityId: { type: String, default: null, index: true },
+        watchFingerprint: { type: String, default: null },
+        watchCandidate: { type: String, default: null },
+        watchError: { type: String, default: null },
         slug: {
             type: String,
             required: true,
@@ -114,6 +119,13 @@ const automationSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        retainedRuns: {
+            type: Number,
+            default: 30,
+            min: 0,
+            max: 1000,
+            validate: Number.isInteger,
+        },
         pinnedToSidebar: {
             type: Boolean,
             default: false,
@@ -135,6 +147,11 @@ const automationSchema = new mongoose.Schema(
             type: String,
             default: null,
         },
+        latestWidgetHtmlOutputPath: {
+            type: String,
+            default: null,
+        },
+        schedulerLockToken: { type: String, default: null },
         schedulerLockedAt: {
             type: Date,
             default: null,
@@ -151,6 +168,7 @@ const automationSchema = new mongoose.Schema(
 
 automationSchema.index({ owner: 1, slug: 1 }, { unique: true });
 automationSchema.index({ enabled: 1, nextRunAt: 1 });
+automationSchema.index({ enabled: 1, nextRunAt: 1, _id: 1 });
 automationSchema.index({ owner: 1, pinnedToSidebar: 1, producesHtml: 1 });
 
 const Automation =

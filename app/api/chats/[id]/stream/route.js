@@ -1,7 +1,15 @@
+import { assistantChatContext } from "../../../utils/assistant-progress.mjs";
+import { issueAgentToolsToken } from "../../../utils/agent-tool-capabilities.mjs";
+import { requireColleague } from "../../../utils/colleagues.js";
+import { questionContext } from "../../../utils/assistant-coordination.mjs";
 import { NextResponse } from "next/server";
 import Chat from "../../../models/chat.mjs";
 import { getCurrentUser, handleError } from "../../../utils/auth";
-import { getClient, QUERIES, SUBSCRIPTIONS } from "../../../../../src/graphql";
+import {
+    getClient,
+    QUERIES,
+    SUBSCRIPTIONS,
+} from "../../../utils/cortex-client.js";
 import { StreamAccumulator } from "../../../utils/stream-accumulator.mjs";
 import {
     buildFileAccessPlan,
@@ -9,121 +17,20 @@ import {
 } from "../../../../../src/utils/fileAccessPlanUtils";
 import config from "../../../../../config";
 import {
-    sanitizeMessagesForPersistence,
-    prepareMessagesForPersistence,
     cleanupStaleStopRequestedIds,
     isSubscriptionStopped,
     removeStoppedSubscription,
     getEntrySubscriptionId,
-    buildLastMessagePreview,
     getChatForOwnerWrite,
 } from "../../_lib";
+import { appendChatMessage } from "../../message-store.js";
 import { buildModelPayloadFromStoredPayload } from "../../../../../src/utils/assistantInlinePayload";
 import { buildMcpAgentConfigForUser } from "../../../utils/mcp-agent-config";
+import { resolveChatEntitySelection } from "../../_lib/resolveChatEntitySelection";
 
 export const dynamic = "force-dynamic";
 
 const activeStreamRegistry = new Map();
-
-function parseEntitiesResult(rawResult) {
-    if (Array.isArray(rawResult)) {
-        return rawResult;
-    }
-
-    if (typeof rawResult !== "string" || rawResult.trim().length === 0) {
-        return [];
-    }
-
-    try {
-        const parsed = JSON.parse(rawResult);
-        return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-        console.warn("[SSE Stream] Failed to parse entities result:", error);
-        return [];
-    }
-}
-
-async function resolveChatEntitySelection({
-    graphqlClient,
-    currentUser,
-    requestedEntityId,
-    persistedEntityId,
-}) {
-    const requested = requestedEntityId || "";
-    const persisted = persistedEntityId || "";
-    const personalEntityId = currentUser?.personalEntityId || "";
-    const candidateEntityId = requested || persisted || personalEntityId || "";
-
-    if (!candidateEntityId) {
-        return {
-            entityId: "",
-            persistedEntityId: "",
-            repaired: false,
-        };
-    }
-
-    let entities = [];
-    if (currentUser?.contextId) {
-        try {
-            const entitiesResult = await graphqlClient.query({
-                query: QUERIES.SYS_GET_ENTITIES,
-                variables: {
-                    userId: currentUser.contextId,
-                    fresh: "true",
-                },
-                fetchPolicy: "network-only",
-            });
-            entities = parseEntitiesResult(
-                entitiesResult?.data?.sys_get_entities?.result,
-            );
-        } catch (error) {
-            console.warn(
-                "[SSE Stream] Failed to fetch entities for stream request:",
-                error,
-            );
-        }
-    }
-
-    const validEntityIds = new Set(
-        entities.map((entity) => entity?.id).filter(Boolean),
-    );
-    if (validEntityIds.size === 0) {
-        return {
-            entityId: candidateEntityId,
-            persistedEntityId: candidateEntityId,
-            repaired: false,
-        };
-    }
-
-    const defaultEntityId =
-        (personalEntityId && validEntityIds.has(personalEntityId)
-            ? personalEntityId
-            : null) ||
-        entities.find((entity) => entity?.isDefault)?.id ||
-        personalEntityId ||
-        "";
-
-    if (candidateEntityId && validEntityIds.has(candidateEntityId)) {
-        return {
-            entityId: candidateEntityId,
-            persistedEntityId: candidateEntityId,
-            repaired: false,
-        };
-    }
-
-    const repairedEntityId = defaultEntityId || candidateEntityId;
-    if (candidateEntityId && repairedEntityId !== candidateEntityId) {
-        console.warn(
-            `[SSE Stream] Repairing stale entityId ${candidateEntityId} to ${repairedEntityId || "(empty)"}`,
-        );
-    }
-
-    return {
-        entityId: repairedEntityId,
-        persistedEntityId: repairedEntityId,
-        repaired: repairedEntityId !== candidateEntityId,
-    };
-}
 
 function sanitizeConversationForModel(conversation = []) {
     if (!Array.isArray(conversation)) {
@@ -157,27 +64,6 @@ function sanitizeConversationForModel(conversation = []) {
             };
         })
         .filter(Boolean);
-}
-
-function serializeForDuplicateCheck(value) {
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return String(value);
-    }
-}
-
-function isDuplicateFinalAssistantMessage(existing, next) {
-    if (!existing || !next) return false;
-    if (existing.isStreaming) return false;
-    return (
-        existing.sender === "assistant" &&
-        next.sender === "assistant" &&
-        existing.direction === "incoming" &&
-        next.direction === "incoming" &&
-        serializeForDuplicateCheck(existing.payload) ===
-            serializeForDuplicateCheck(next.payload)
-    );
 }
 
 /**
@@ -305,8 +191,24 @@ export async function POST(req, { params }) {
             currentUser,
             requestedEntityId: entityId,
             persistedEntityId: chat.selectedEntityId,
+            getEntitiesQuery: QUERIES.SYS_GET_ENTITIES,
         });
         const finalEntityId = resolvedEntitySelection.entityId || "";
+        const entityOptions = finalEntityId
+            ? await requireColleague(currentUser, finalEntityId).catch(
+                  (error) => {
+                      // Legacy chats can still target the deployment default,
+                      // which is deliberately absent from assistant management.
+                      // Cortex validates that target before executing the chat.
+                      if (
+                          error.status === 404 &&
+                          !finalEntityId.startsWith("colleague-")
+                      )
+                          return null;
+                      throw error;
+                  },
+              )
+            : null;
 
         if (
             (chat.selectedEntityId || "") !==
@@ -345,25 +247,51 @@ export async function POST(req, { params }) {
             });
 
         // Make sys_entity_agent query to get subscriptionId
+        const taskQuestion = await questionContext(
+            currentUser,
+            chat,
+            finalEntityId,
+        );
+        const liveTasks = await assistantChatContext(
+            currentUser,
+            chat,
+            finalEntityId,
+        );
+        const taskContext = [taskQuestion, liveTasks]
+            .filter(Boolean)
+            .join("\n\n");
         const queryResult = await graphqlClient.query({
             query: QUERIES.SYS_ENTITY_AGENT,
             variables: {
-                chatHistory: sanitizedConversation,
+                chatHistory: taskContext
+                    ? [
+                          { role: "system", content: taskContext },
+                          ...sanitizedConversation,
+                      ]
+                    : sanitizedConversation,
                 fileAccessPlan,
                 contextId: runContext.contextId,
                 contextKey: runContext.contextKey,
                 aiName,
-                aiMemorySelfModify,
+                aiMemorySelfModify:
+                    entityOptions?.memoryLearning ?? aiMemorySelfModify,
                 title: title || chat.title,
                 chatId: chatId,
                 stream: true,
                 entityId: finalEntityId,
                 model:
+                    entityOptions?.model ||
                     model ||
                     currentUser.agentModel ||
                     config.cortex.defaultChatModel,
                 userInfo,
                 clientSideTools: clientSideTools || null,
+                agentToolsToken: await issueAgentToolsToken(
+                    currentUser,
+                    entityOptions?.id || currentUser.personalEntityId,
+                    undefined,
+                    { chatId },
+                ),
                 mcpConfig,
                 mcpAvailableServers,
             },
@@ -409,6 +337,7 @@ export async function POST(req, { params }) {
         const encoder = new TextEncoder();
         let clientConnected = true;
         let completionHandled = false; // Track if we've handled completion (progress=1 or error)
+        let completionPromise = null;
         let graphqlSubscription = null; // Store subscription for cleanup
 
         const stream = new ReadableStream({
@@ -469,6 +398,48 @@ export async function POST(req, { params }) {
                     }
                 };
 
+                const finishStream = (streamError = null) => {
+                    if (completionHandled) return completionPromise;
+                    completionHandled = true;
+                    unsubscribe();
+                    completionPromise = (async () => {
+                        try {
+                            const savedMessage = await persistMessage(
+                                chat,
+                                accumulator,
+                                finalEntityId,
+                                subscriptionId,
+                                Boolean(streamError),
+                            );
+                            if (streamError) {
+                                sendEvent("error", {
+                                    error: streamError,
+                                    code: "CHAT_STREAM_INTERRUPTED",
+                                    persisted: Boolean(savedMessage),
+                                });
+                            } else {
+                                sendEvent("complete", {
+                                    progress: 1,
+                                    persisted: Boolean(savedMessage),
+                                });
+                            }
+                        } catch (error) {
+                            console.error(
+                                "[SSE Stream] Final message save failed:",
+                                error,
+                            );
+                            sendEvent("error", {
+                                error: "The reply could not be saved. Copy it before leaving this page.",
+                                code: "CHAT_MESSAGE_SAVE_FAILED",
+                                persisted: false,
+                            });
+                        } finally {
+                            closeStream();
+                        }
+                    })();
+                    return completionPromise;
+                };
+
                 try {
                     // Send subscriptionId so client can inject messages / cancel
                     sendEvent("subscriptionId", { subscriptionId });
@@ -491,31 +462,26 @@ export async function POST(req, { params }) {
                                     error,
                                 } = result.data.requestProgress;
 
-                                // Handle errors
-                                if (error) {
-                                    completionHandled = true;
-                                    sendEvent("error", { error });
-                                    unsubscribe();
-                                    persistMessage(
-                                        chat,
-                                        accumulator,
-                                        finalEntityId,
-                                        subscriptionId,
-                                        true,
-                                    ).catch((err) =>
-                                        console.error(
-                                            "Error persisting on stream error:",
-                                            err,
-                                        ),
-                                    );
-                                    closeStream();
-                                    return;
-                                }
-
                                 // Process info block
                                 if (info) {
                                     accumulator.processInfo(info);
-                                    sendEvent("info", { info });
+                                    let clientInfo = info;
+                                    if (error) {
+                                        try {
+                                            clientInfo = JSON.stringify({
+                                                ...(typeof info === "string"
+                                                    ? JSON.parse(info)
+                                                    : info),
+                                                clientSideTool: false,
+                                            });
+                                        } catch {
+                                            clientInfo = null;
+                                        }
+                                    }
+                                    // Preserve terminal metadata without starting a new
+                                    // browser action after the provider has failed.
+                                    if (clientInfo)
+                                        sendEvent("info", { info: clientInfo });
                                 }
 
                                 // Process result block
@@ -529,71 +495,28 @@ export async function POST(req, { params }) {
                                     sendEvent("progress", { progress });
                                 }
 
-                                // Handle completion
-                                if (progress === 1) {
-                                    completionHandled = true;
-                                    unsubscribe();
-                                    // Persist message BEFORE telling client it's complete
-                                    // This ensures the message is in the database when the client refetches
-                                    try {
-                                        await persistMessage(
-                                            chat,
-                                            accumulator,
-                                            finalEntityId,
-                                            subscriptionId,
-                                            false,
-                                        );
-                                    } catch (err) {
-                                        console.error(
-                                            `[SSE Stream] Error persisting message for chat ${chat._id}:`,
-                                            err,
-                                        );
-                                    }
-                                    sendEvent("complete", { progress: 1 });
-                                    closeStream();
+                                // Terminal frames can contain both text and an error.
+                                // Accumulate that text before preserving the partial reply.
+                                if (error || progress === 1) {
+                                    await finishStream(error || null);
                                 }
                             },
                             error: (error) => {
-                                completionHandled = true;
                                 console.error("Subscription error:", error);
-                                unsubscribe();
-                                sendEvent("error", {
-                                    error: error.message || String(error),
-                                });
-                                closeStream();
-                                persistMessage(
-                                    chat,
-                                    accumulator,
-                                    finalEntityId,
-                                    subscriptionId,
-                                    true,
-                                ).catch((err) =>
-                                    console.error(
-                                        "Error persisting on subscription error:",
-                                        err,
-                                    ),
+                                return finishStream(
+                                    error.message || String(error),
                                 );
                             },
                             complete: () => {
-                                unsubscribe();
-                                closeStream();
-                                // Only clear loading if we haven't already handled completion
-                                // (progress=1 or error already set the appropriate state)
-                                if (!completionHandled) {
-                                    // Subscription ended unexpectedly (e.g., GraphQL server died)
-                                    Chat.findOneAndUpdate(
-                                        { _id: chat._id },
-                                        { isChatLoading: false },
-                                    ).catch((err) =>
-                                        console.error(
-                                            "Error clearing loading on unexpected subscription close:",
-                                            err,
-                                        ),
-                                    );
-                                }
+                                return finishStream(
+                                    "The connection ended before the reply finished.",
+                                );
                             },
                         });
-                    if (graphqlSubscription) {
+                    if (completionHandled) {
+                        // A terminal event can arrive before subscribe returns.
+                        unsubscribe();
+                    } else if (graphqlSubscription) {
                         activeStreamRegistry.set(subscriptionId, {
                             graphqlSubscription,
                             graphqlClient,
@@ -602,24 +525,7 @@ export async function POST(req, { params }) {
                     }
                 } catch (error) {
                     console.error("Error setting up subscription:", error);
-                    unsubscribe();
-                    sendEvent("error", {
-                        error: error.message || String(error),
-                    });
-                    closeStream();
-                    // Clear loading state on subscription setup error
-                    persistMessage(
-                        chat,
-                        accumulator,
-                        finalEntityId,
-                        subscriptionId,
-                        true,
-                    ).catch((err) =>
-                        console.error(
-                            "Error persisting on subscription setup error:",
-                            err,
-                        ),
-                    );
+                    await finishStream(error.message || String(error));
                 }
             },
             cancel() {
@@ -661,16 +567,14 @@ async function persistMessage(
     isError,
 ) {
     const clearLoading = () =>
-        Chat.findOneAndUpdate({ _id: chat._id }, { isChatLoading: false });
+        Chat.updateOne(
+            { _id: chat._id, activeSubscriptionId: subscriptionId },
+            { $set: { isChatLoading: false, activeSubscriptionId: null } },
+        );
 
     try {
         const finalMessage = accumulator.buildFinalMessage(entityId);
-        if (!finalMessage && !isError) {
-            await clearLoading();
-            return null;
-        }
-
-        if (isError) {
+        if (!finalMessage) {
             await clearLoading();
             return null;
         }
@@ -678,8 +582,7 @@ async function persistMessage(
         // Re-fetch chat to get latest state
         const currentChat = await Chat.findOne({ _id: chat._id });
         if (!currentChat) {
-            console.error(`[persistMessage] Chat ${chat._id} not found`);
-            return null;
+            throw new Error(`Chat ${chat._id} no longer exists`);
         }
 
         // Clean up stale stop requested IDs first
@@ -697,7 +600,7 @@ async function persistMessage(
                 subscriptionId,
             );
             await Chat.findOneAndUpdate(
-                { _id: chat._id },
+                { _id: chat._id, activeSubscriptionId: subscriptionId },
                 {
                     isChatLoading: false,
                     stopRequestedSubscriptionIds: updatedStopIds,
@@ -720,55 +623,35 @@ async function persistMessage(
             });
         if (hasChanged) {
             await Chat.findOneAndUpdate(
-                { _id: chat._id },
+                { _id: chat._id, activeSubscriptionId: subscriptionId },
                 { stopRequestedSubscriptionIds: cleanedStopIds },
             );
         }
 
-        const messages = sanitizeMessagesForPersistence([
-            ...(currentChat.messages || []),
-        ]);
-        const lastStreamingIndex = messages.findLastIndex((m) => m.isStreaming);
-        const messageToSave =
-            sanitizeMessagesForPersistence([finalMessage])[0] || finalMessage;
-
-        if (lastStreamingIndex !== -1) {
-            messages[lastStreamingIndex] = messageToSave;
-        } else if (
-            isDuplicateFinalAssistantMessage(messages.at(-1), messageToSave)
-        ) {
-            messages[messages.length - 1] = messageToSave;
-        } else {
-            messages.push(messageToSave);
+        if (isError) {
+            finalMessage.tool = JSON.stringify({
+                ...JSON.parse(finalMessage.tool || "{}"),
+                streamStatus: "interrupted",
+            });
         }
-
-        const prepared = prepareMessagesForPersistence(messages);
-
-        // Clear activeSubscriptionId when stream completes
-        const updateData = {
-            messages: prepared.messages,
-            isChatLoading: false,
-            activeSubscriptionId: null,
-            messageStorageBytes: prepared.messageStorageBytes,
-        };
-        if (prepared.messagesCompacted) {
-            updateData.messagesCompacted = true;
-            updateData.messagesCompactedAt = new Date();
-        }
-        const preview = buildLastMessagePreview([messageToSave]);
-        updateData.lastMessagePreview = preview.lastMessagePreview;
-        updateData.lastMessageSender = preview.lastMessageSender;
-        updateData.lastMessageAt = preview.lastMessageAt;
-
-        return await Chat.findOneAndUpdate({ _id: chat._id }, updateData, {
-            new: true,
-        });
+        const messageToSave = await appendChatMessage(
+            currentChat,
+            finalMessage,
+            {
+                dedupeKey: `stream:${subscriptionId}`,
+            },
+        );
+        // The reply is durable even if this metadata cleanup fails.
+        await clearLoading().catch((error) =>
+            console.error("[persistMessage] Loading cleanup failed:", error),
+        );
+        return messageToSave;
     } catch (error) {
         console.error(
             `[persistMessage] Error persisting message for chat ${chat._id}:`,
             error,
         );
         await clearLoading().catch(() => {});
-        return null;
+        throw error;
     }
 }

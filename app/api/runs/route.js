@@ -1,4 +1,4 @@
-import { getClient, QUERIES } from "../../../src/graphql";
+import { getClient, QUERIES } from "../utils/cortex-client.js";
 import Run from "../models/run";
 import Workspace from "../models/workspace";
 import { getCurrentUser } from "../utils/auth";

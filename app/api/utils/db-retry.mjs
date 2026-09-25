@@ -1,5 +1,11 @@
 const DEFAULT_MAX_DB_RETRY_DELAY_MS = 30_000;
+const DEFAULT_COSMOS_RETRY_ATTEMPTS = 3;
+const DEFAULT_COSMOS_RETRY_BASE_DELAY_MS = 250;
 const RETRY_AFTER_PATTERN = /RetryAfterMs=(\d+)/i;
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getErrorMessage(error) {
     if (!error) return "";
@@ -64,9 +70,61 @@ function formatDbErrorForLog(error) {
     return message;
 }
 
+/**
+ * Retry a DB operation when Cosmos returns 429 / Error=16500.
+ * Non-throttle errors fail immediately.
+ */
+async function withCosmosRetry(
+    operation,
+    {
+        label = "Database operation",
+        attempts = DEFAULT_COSMOS_RETRY_ATTEMPTS,
+        baseDelayMs = DEFAULT_COSMOS_RETRY_BASE_DELAY_MS,
+        sleepFn = sleep,
+        onRetry = null,
+    } = {},
+) {
+    const maxAttempts = Math.max(1, Math.floor(attempts));
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+            return await operation();
+        } catch (error) {
+            lastError = error;
+            const shouldRetry =
+                isCosmosRateLimitError(error) && attempt < maxAttempts;
+            if (!shouldRetry) {
+                throw error;
+            }
+
+            const delayMs = getDbRetryDelayMs(
+                error,
+                baseDelayMs * 2 ** (attempt - 1),
+            );
+            if (typeof onRetry === "function") {
+                onRetry({ error, attempt, attempts: maxAttempts, delayMs });
+            } else {
+                console.warn(
+                    `${label} was rate limited; retrying attempt ${
+                        attempt + 1
+                    }/${maxAttempts} in ${delayMs}ms: ${formatDbErrorForLog(
+                        error,
+                    )}`,
+                );
+            }
+            await sleepFn(delayMs);
+        }
+    }
+
+    throw lastError;
+}
+
 export {
+    DEFAULT_COSMOS_RETRY_ATTEMPTS,
     formatDbErrorForLog,
     getCosmosRetryAfterMs,
     getDbRetryDelayMs,
     isCosmosRateLimitError,
+    withCosmosRetry,
 };

@@ -16,7 +16,6 @@ import {
     isSupportedFileUrl,
     isBlobStorageUrl,
     getFilename,
-    hashMediaFile,
 } from "../../utils/mediaUtils";
 import { buildFileCollectionAttachments } from "./fileCollectionAttachments";
 import { uploadFileToMediaHelper } from "../../utils/fileUploadUtils";
@@ -208,10 +207,12 @@ export default function FileUploader({
                     return {
                         ...existing,
                         ...newFile,
-                        // Preserve upload state if file is being processed
-                        status: isProcessing
-                            ? existing.status
-                            : newFile.status || existing.status,
+                        // Parent entries can retain their original pending status
+                        // after this uploader has completed or failed the upload.
+                        status:
+                            isProcessing || newFile.status === "pending"
+                                ? existing.status
+                                : newFile.status || existing.status,
                         progress: existing.progress ?? 0,
                         preview: existing.preview || newFile.preview,
                     };
@@ -306,7 +307,9 @@ export default function FileUploader({
                     return {
                         id: file.id || generateFileId(index),
                         ...file,
-                        status: "pending",
+                        status:
+                            file.status ||
+                            (file.serverId ? "completed" : "pending"),
                         progress: 0,
                     };
                 });
@@ -317,6 +320,7 @@ export default function FileUploader({
                     (f) =>
                         (f.status === "uploading" ||
                             f.status === "processing") &&
+                        !removedFilesRef.current.has(f.id) &&
                         !newFiles.some((nf) => nf.id === f.id),
                 );
 
@@ -327,6 +331,15 @@ export default function FileUploader({
         }
     }, [files]);
 
+    // Sending waits for the whole batch, including queued files and retries.
+    useEffect(() => {
+        setIsUploadingMedia(
+            internalFiles.some((file) =>
+                ["pending", "uploading", "processing"].includes(file.status),
+            ),
+        );
+    }, [internalFiles, setIsUploadingMedia]);
+
     // Process pending files
     useEffect(() => {
         const pendingFiles = internalFiles.filter(
@@ -336,10 +349,8 @@ export default function FileUploader({
                 !processingFilesRef.current.has(f.id),
         );
         pendingFiles.forEach((file) => {
-            if (!isYoutubeUrl(file.source?.url)) {
-                processingFilesRef.current.add(file.id);
-                processFile(file);
-            }
+            processingFilesRef.current.add(file.id);
+            processFile(file);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [internalFiles.length]);
@@ -388,7 +399,6 @@ export default function FileUploader({
                     progress: 100,
                     serverId: url,
                 });
-                setIsUploadingMedia(false);
                 return;
             }
 
@@ -396,7 +406,6 @@ export default function FileUploader({
                 status: "processing",
                 progress: 0,
             });
-            setIsUploadingMedia(true);
 
             try {
                 const response = await axios.get(
@@ -404,7 +413,7 @@ export default function FileUploader({
                 );
                 if (response.data && response.data.url) {
                     const urlFilename = url.split("/").pop().split("?")[0];
-                    if (isFileRemoved(url) || isFileRemoved(urlFilename)) {
+                    if (isFileRemoved(fileId) || isFileRemoved(url)) {
                         processingFilesRef.current.delete(fileId);
                         updateFileStatus(fileId, {
                             status: "error",
@@ -412,7 +421,6 @@ export default function FileUploader({
                                 "File was removed before processing could complete.",
                             ),
                         });
-                        setIsUploadingMedia(false);
                         return;
                     }
 
@@ -428,7 +436,6 @@ export default function FileUploader({
                         progress: 100,
                         serverId: responseWithFilename.url,
                     });
-                    setIsUploadingMedia(false);
                 }
             } catch (err) {
                 console.error("Error fetching URL:", err);
@@ -437,17 +444,9 @@ export default function FileUploader({
                     status: "error",
                     error: t("Could not load file from URL"),
                 });
-                setIsUploadingMedia(false);
             }
         },
-        [
-            t,
-            serverUrl,
-            isFileRemoved,
-            updateFileStatus,
-            addUrl,
-            setIsUploadingMedia,
-        ],
+        [t, serverUrl, isFileRemoved, updateFileStatus, addUrl],
     );
 
     const processFile = useCallback(
@@ -463,7 +462,7 @@ export default function FileUploader({
                 return;
             }
 
-            if (isFileRemoved(fileObj.name)) {
+            if (isFileRemoved(fileId)) {
                 return;
             }
 
@@ -471,7 +470,6 @@ export default function FileUploader({
                 status: "processing",
                 progress: 0,
             });
-            setIsUploadingMedia(true);
 
             try {
                 // File validation
@@ -497,7 +495,6 @@ export default function FileUploader({
 
                 // Chat uploads should always create a fresh file entry so
                 // folder scoping and per-upload filenames are preserved.
-                const fileHash = await hashMediaFile(fileObj);
 
                 const storageTarget = createChatStorageTarget(
                     contextId,
@@ -584,7 +581,6 @@ export default function FileUploader({
                                     "Media file upload failed: Missing required storage URLs",
                                 ),
                             });
-                            setIsUploadingMedia(false);
                             return;
                         }
                     }
@@ -592,7 +588,7 @@ export default function FileUploader({
                     const responseWithFilename = {
                         ...responseData,
                         displayFilename: fileObj.name,
-                        hash: responseData.hash || fileHash,
+                        hash: responseData.hash || null,
                         mimeType:
                             responseData.mimeType ||
                             responseData.type ||
@@ -601,7 +597,7 @@ export default function FileUploader({
                     };
 
                     if (
-                        isFileRemoved(fileObj.name) ||
+                        isFileRemoved(fileId) ||
                         isFileRemoved(responseWithFilename.url)
                     ) {
                         processingFilesRef.current.delete(fileId);
@@ -611,7 +607,6 @@ export default function FileUploader({
                                 "File was removed before processing could complete.",
                             ),
                         });
-                        setIsUploadingMedia(false);
                         return;
                     }
 
@@ -622,7 +617,6 @@ export default function FileUploader({
                         serverId: responseWithFilename.url,
                     });
                     addUrl(responseWithFilename);
-                    setIsUploadingMedia(false);
                 } catch (error) {
                     if (cloudProgressInterval) {
                         clearInterval(cloudProgressInterval);
@@ -636,7 +630,6 @@ export default function FileUploader({
                         status: "error",
                         error: errorMessage,
                     });
-                    setIsUploadingMedia(false);
                 }
             } catch (error) {
                 processingFilesRef.current.delete(fileId);
@@ -644,7 +637,6 @@ export default function FileUploader({
                     status: "error",
                     error: error.message || t("Upload failed"),
                 });
-                setIsUploadingMedia(false);
             }
         },
         [
@@ -653,7 +645,6 @@ export default function FileUploader({
             isFileRemoved,
             updateFileStatus,
             addUrl,
-            setIsUploadingMedia,
             processUrlFile,
             contextId,
             chatId,
@@ -704,7 +695,6 @@ export default function FileUploader({
             return;
         }
 
-        setIsUploadingMedia(true);
         const newFile = {
             id: `url-${Date.now()}`,
             source: inputUrl,
@@ -716,7 +706,7 @@ export default function FileUploader({
         setFiles((prevFiles) => [...prevFiles, newFile]);
         setInputUrl("");
         setShowUrlInput(false);
-    }, [inputUrl, t, addUrl, setIsUploadingMedia, setFiles]);
+    }, [inputUrl, t, addUrl, setFiles]);
 
     const handleFileSelect = useCallback(
         (selectedFiles) => {
@@ -747,12 +737,6 @@ export default function FileUploader({
             if (file.id) {
                 removedFilesRef.current.add(file.id);
             }
-            if (file.filename) {
-                removedFilesRef.current.add(file.filename);
-            }
-            if (file.displayFilename) {
-                removedFilesRef.current.add(file.displayFilename);
-            }
             if (file.source?.url) {
                 removedFilesRef.current.add(file.source.url);
             }
@@ -768,6 +752,10 @@ export default function FileUploader({
                 uploadAbortControllersRef.current.delete(file.id);
             }
 
+            processingFilesRef.current.delete(file.id);
+            setInternalFiles((prevFiles) =>
+                prevFiles.filter((f) => f.id !== file.id),
+            );
             setFiles((prevFiles) =>
                 prevFiles.filter((f) => {
                     // Match by ID (most reliable - each file should have unique ID)
@@ -790,12 +778,7 @@ export default function FileUploader({
 
             if (file.serverId && setUrlsData) {
                 setUrlsData((prevUrls) =>
-                    prevUrls.filter(
-                        (url) =>
-                            url.url !== file.serverId &&
-                            url.filename !== file.filename &&
-                            url.displayFilename !== file.displayFilename,
-                    ),
+                    prevUrls.filter((url) => url.url !== file.serverId),
                 );
             }
 
@@ -803,16 +786,8 @@ export default function FileUploader({
                 URL.revokeObjectURL(file.preview);
                 blobUrlsRef.current.delete(file.preview);
             }
-
-            setFiles((prevFiles) => {
-                if (prevFiles.length === 0) {
-                    setIsUploadingMedia(false);
-                    removedFilesRef.current.clear();
-                }
-                return prevFiles;
-            });
         },
-        [setFiles, setIsUploadingMedia, setUrlsData],
+        [setFiles, setUrlsData],
     );
 
     const handleAttachFromCollection = useCallback(

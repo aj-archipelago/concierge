@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import sanitizeHtml from "sanitize-html";
+import { HTML_CITATION_RULES } from "../../../src/utils/htmlCitationRules.js";
 import Automation from "../models/automation.js";
 import {
     deleteMediaFile,
@@ -9,12 +10,13 @@ import {
     uploadBufferToMediaService,
 } from "../utils/media-service-utils.js";
 import { createAutomationStorageTarget } from "../../../src/utils/storageTargets.js";
+import { AUTOMATION_HOME_WIDGET_RULES } from "../../../src/utils/homeWidgetCraft.js";
 import { resolveShareAccess } from "../utils/shareAccess.js";
 import User from "../models/user.mjs";
 
 export const AUTOMATION_MD = "AUTOMATION.md";
 export const AUTOMATION_TASK_TYPE = "automation-run";
-const ACTIVE_TASK_STATUSES = ["pending", "in_progress"];
+const ACTIVE_TASK_STATUSES = ["pending", "in_progress", "waiting"];
 
 function stripJsonFence(value) {
     return String(value || "")
@@ -90,13 +92,17 @@ function coerceAutomationText(value) {
     }
 }
 
+function emptyAutomationParse(summary = "") {
+    return { summary, html: "", widgetHtml: "" };
+}
+
 export function parseAutomationResult(
     rawResult,
     producesHtml = false,
     depth = 0,
 ) {
     if (depth > 4) {
-        return { summary: coerceAutomationText(rawResult), html: "" };
+        return emptyAutomationParse(coerceAutomationText(rawResult));
     }
 
     if (rawResult && typeof rawResult === "object") {
@@ -107,6 +113,12 @@ export function parseAutomationResult(
                     rawResult.outputHtml ||
                     rawResult.renderedHtml,
             ) || "";
+        const widgetHtml =
+            coerceAutomationText(
+                rawResult.widgetHtml ||
+                    rawResult.widgetHtmlOutput ||
+                    rawResult.htmlWidget,
+            ) || "";
         const nestedCandidate =
             rawResult.result ||
             rawResult.output ||
@@ -115,7 +127,7 @@ export function parseAutomationResult(
             "";
         const nested = nestedCandidate
             ? parseAutomationResult(nestedCandidate, producesHtml, depth + 1)
-            : { summary: "", html: "" };
+            : emptyAutomationParse();
 
         return {
             summary:
@@ -123,12 +135,13 @@ export function parseAutomationResult(
                 nested.summary ||
                 (!html ? coerceAutomationText(nestedCandidate) : ""),
             html: html || nested.html,
+            widgetHtml: widgetHtml || nested.widgetHtml,
         };
     }
 
     const text = String(rawResult || "").trim();
     if (!text) {
-        return { summary: "", html: "" };
+        return emptyAutomationParse();
     }
 
     for (const candidate of getJsonParseCandidates(text)) {
@@ -141,7 +154,7 @@ export function parseAutomationResult(
     }
 
     if (!producesHtml) {
-        return { summary: text, html: "" };
+        return emptyAutomationParse(text);
     }
 
     const htmlMatch = text.match(/<!doctype html[\s\S]*|<html[\s\S]*/i);
@@ -154,10 +167,12 @@ export function parseAutomationResult(
               ? "Automation completed."
               : text,
         html: htmlMatch ? htmlMatch[0].trim() : looksLikeHtml ? text : "",
+        widgetHtml: "",
     };
 }
 
 export function parseAutomationTaskOutput(taskOrData) {
+    if (taskOrData?.outputExpiredAt) return emptyAutomationParse();
     const data = taskOrData?.data || taskOrData || {};
     const candidates = [
         data?.html,
@@ -169,21 +184,76 @@ export function parseAutomationTaskOutput(taskOrData) {
         data,
     ].filter((candidate) => candidate !== undefined && candidate !== null);
     let summary = "";
+    let html = "";
+    let widgetHtml = "";
+    let fallbackSummary = "";
 
     for (const candidate of candidates) {
         const parsed = parseAutomationResult(candidate, true);
-        if (!summary && parsed.summary) {
-            summary = parsed.summary;
+        if (!fallbackSummary && parsed.summary) {
+            fallbackSummary = parsed.summary;
         }
-        if (parsed.html) {
+        if (!html && parsed.html) {
+            html = parsed.html;
+            summary = parsed.summary || summary;
+        }
+        if (!widgetHtml && parsed.widgetHtml) {
+            widgetHtml = parsed.widgetHtml;
+            if (!summary && parsed.summary) {
+                summary = parsed.summary;
+            }
+        }
+        if (html && widgetHtml) {
             return {
-                summary: parsed.summary || summary,
-                html: parsed.html,
+                summary: summary || fallbackSummary,
+                html,
+                widgetHtml,
             };
         }
     }
 
-    return { summary, html: "" };
+    return {
+        summary: summary || fallbackSummary,
+        html,
+        widgetHtml,
+    };
+}
+
+export function buildAutomationHtmlOutputContract() {
+    return `Return ONLY a JSON object with this shape:
+{
+  "summary": "short Markdown summary of what you produced",
+  "html": "<!doctype html>...",
+  "widgetHtml": "<!doctype html>..."
+}
+
+The html field must be a complete, simple, self-contained HTML document. Do not include script tags or inline JavaScript.
+
+The widgetHtml field must also be a complete, simple, self-contained HTML document with no script tags or inline JavaScript.
+${AUTOMATION_HOME_WIDGET_RULES}
+
+Apply citation rules per field: summary uses Markdown :cd_source[searchResultId] citations; html and widgetHtml use HTML source links. Do not copy citation markers from a previous report into the new HTML.
+${HTML_CITATION_RULES}
+
+Both HTML documents must support light and dark themes. Use explicit colors for every background, text, border, card, table, form, icon/SVG, and shadow. Include CSS keyed off html[data-theme="dark"], plus an @media (prefers-color-scheme: dark) fallback so the document still works outside Concierge's theme wrapper. Do not rely on browser defaults for readability.`;
+}
+
+export function resolveAutomationRunHtml(task, { variant } = {}) {
+    const parsed = parseAutomationTaskOutput(task);
+    const fullPath = task?.automation?.htmlOutputPath || "";
+    const widgetPath = task?.automation?.widgetHtmlOutputPath || "";
+    if (variant === "widget" && (widgetPath || parsed.widgetHtml)) {
+        return {
+            blobPath: widgetPath || "",
+            html: parsed.widgetHtml || "",
+            source: "widget",
+        };
+    }
+    return {
+        blobPath: fullPath || "",
+        html: parsed.html || "",
+        source: "full",
+    };
 }
 
 const BASE_ALLOWED_TAGS = sanitizeHtml.defaults.allowedTags.filter(
@@ -391,7 +461,7 @@ function normalizeScheduleDays(input) {
 }
 
 export function normalizeSchedule(input = {}) {
-    const frequency = ["manual", "hourly", "daily", "weekly"].includes(
+    const frequency = ["manual", "hourly", "daily", "weekly", "files"].includes(
         input.frequency,
     )
         ? input.frequency
@@ -411,6 +481,14 @@ export function normalizeSchedule(input = {}) {
 
     return {
         frequency,
+        ...(frequency === "files"
+            ? {
+                  watchPath:
+                      typeof input.watchPath === "string"
+                          ? input.watchPath.trim()
+                          : "",
+              }
+            : {}),
         interval,
         time: times[0],
         times,
@@ -523,6 +601,8 @@ export function calculateNextRunAt(
 ) {
     const schedule = normalizeSchedule(scheduleInput);
     if (schedule.frequency === "manual") return null;
+    if (schedule.frequency === "files")
+        return new Date(fromDate.getTime() + 60000);
 
     if (schedule.frequency === "hourly") {
         if (schedule.hourlyMode === "clock") {

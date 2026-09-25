@@ -18,6 +18,7 @@ import {
     formatFileSize,
 } from "@/src/components/common/FileManager";
 import MediaThumbnail from "@/src/components/common/MediaThumbnail";
+import MediaPlayback from "../MediaPlayback";
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -210,8 +211,9 @@ function FileGridCard({
                         onPointerDown={stopCardSelection}
                     >
                         {playableKind === "video" ? (
-                            <video
+                            <MediaPlayback
                                 data-testid="media-inline-video-player"
+                                compact
                                 src={url}
                                 className="h-full w-full object-contain"
                                 controls
@@ -220,8 +222,10 @@ function FileGridCard({
                             />
                         ) : (
                             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-cyan-900 via-slate-900 to-fuchsia-950 p-3">
-                                <audio
+                                <MediaPlayback
+                                    as="audio"
                                     data-testid="media-inline-audio-player"
+                                    compact
                                     src={url}
                                     className="w-full"
                                     controls

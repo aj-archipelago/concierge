@@ -66,7 +66,20 @@ async function readStreamBody(res) {
 }
 
 describe("POST /api/applet/source-qa", () => {
+    it("reports an unconfigured source service without sending a query", async () => {
+        delete process.env.CORTEX_SOURCE_QA_ENABLED;
+        const response = await POST({
+            json: async () => ({
+                appletId: "applet-1",
+                question: "What is available?",
+            }),
+        });
+        expect(response.status).toBe(503);
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
     beforeEach(() => {
+        process.env.CORTEX_SOURCE_QA_ENABLED = "true";
         jest.clearAllMocks();
         const { getCurrentUser } = require("../utils/auth");
         getCurrentUser.mockResolvedValue({
@@ -78,7 +91,7 @@ describe("POST /api/applet/source-qa", () => {
         mockSubscribe.mockReset();
         mockQuery.mockResolvedValue({
             data: {
-                ask_aj: {
+                source_qa: {
                     result: "request-default",
                     resultData: null,
                     tool: null,
@@ -321,7 +334,7 @@ describe("POST /api/applet/source-qa", () => {
         const unsubscribe = jest.fn();
         mockQuery.mockResolvedValueOnce({
             data: {
-                ask_aj: {
+                source_qa: {
                     result: "request-1",
                     resultData: null,
                     tool: null,

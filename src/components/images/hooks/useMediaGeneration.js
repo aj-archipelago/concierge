@@ -11,8 +11,8 @@ import { AUDIO_EXTENSIONS } from "../../../utils/mediaUtils";
 const LOADING_STATE_DELAY_MS = 1000;
 const IMAGE_ONLY_AUDIO_PROMPT = "Image-only music generation";
 const REFERENCE_MEDIA_PROMPT = "Media generation from references";
-export const MAX_INPUT_IMAGE_REFERENCES = 14;
-export const MAX_INPUT_VIDEO_REFERENCES = 1;
+export const MAX_INPUT_IMAGE_REFERENCES = 30;
+export const MAX_INPUT_VIDEO_REFERENCES = 10;
 const VIDEO_EXTEND_REFERENCE_ROLE = "extend";
 
 function getInputImageFieldName(base, index) {
@@ -68,6 +68,7 @@ function isAudioMediaReference(media) {
 }
 
 export function hasUsableInputAudioUrl(media) {
+    if (Array.isArray(media)) return media.some(hasUsableInputAudioUrl);
     return (
         isAudioMediaReference(media) &&
         Boolean(
@@ -155,6 +156,16 @@ export function applyInputVideoReference(taskData, video, index, preferGcs) {
 }
 
 export function applyInputAudioReference(taskData, media) {
+    if (Array.isArray(media)) {
+        taskData.inputAudios = media
+            .filter(hasUsableInputAudioUrl)
+            .map((item) => ({
+                url: getInputAudioUrl(item),
+                blobPath: item.blobPath || item.converted?.blobPath,
+                hash: item.hash || item.converted?.hash,
+            }));
+        return applyInputAudioReference(taskData, media[0]);
+    }
     const url = getInputAudioUrl(media);
     if (!url) return;
 
@@ -206,6 +217,16 @@ export function applyStoredInputVideoReference(
 }
 
 export function applyStoredInputAudioReference(mediaItemData, media) {
+    if (Array.isArray(media)) {
+        mediaItemData.inputAudios = media
+            .filter(hasUsableInputAudioUrl)
+            .map((item) => ({
+                url: getStoredInputAudioUrl(item),
+                blobPath: item.blobPath || item.converted?.blobPath,
+                hash: item.hash || item.converted?.hash,
+            }));
+        return applyStoredInputAudioReference(mediaItemData, media[0]);
+    }
     const url = getStoredInputAudioUrl(media);
     if (!url) return;
 

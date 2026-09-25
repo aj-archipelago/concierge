@@ -483,6 +483,108 @@ describe("AppletMetadataDialog", () => {
         expect(screen.getByLabelText("Dark image URL")).toHaveValue("");
     });
 
+    test("retries Generate Images when the start request fails with a network error", async () => {
+        let generateCalls = 0;
+        const originalFetch = global.fetch;
+        global.fetch = jest.fn((url, options = {}) => {
+            if (
+                url ===
+                    "/api/canvas-applets/69f68d347999b2bbd8ffb91a/image/generate" &&
+                options.method === "POST"
+            ) {
+                generateCalls += 1;
+                if (generateCalls === 1) {
+                    return Promise.reject(new TypeError("Failed to fetch"));
+                }
+            }
+            return originalFetch(url, options);
+        });
+
+        render(
+            <AppletMetadataDialog
+                isOpen
+                applet={{
+                    _id: "69f68d347999b2bbd8ffb91a",
+                    name: "Storm Desk",
+                    app: {
+                        slug: "storm-desk",
+                        description: "Track active storm coverage.",
+                    },
+                }}
+                onClose={jest.fn()}
+                onSaved={jest.fn()}
+            />,
+        );
+
+        fireEvent.click(
+            screen.getByRole("button", { name: "Generate Images" }),
+        );
+
+        await act(async () => {
+            await jest.advanceTimersByTimeAsync(700);
+        });
+        await act(async () => {
+            await jest.advanceTimersByTimeAsync(1000);
+        });
+
+        await waitFor(() => {
+            expect(generateCalls).toBeGreaterThanOrEqual(2);
+        });
+        await waitFor(() => {
+            expect(screen.getByLabelText("Dark image URL")).toHaveValue(
+                "https://images.example/storm-dark.webp",
+            );
+        });
+        expect(
+            screen.queryByText(
+                "Network error while starting image generation. Please try again.",
+            ),
+        ).not.toBeInTheDocument();
+    });
+
+    test("keeps in-progress form edits when applet props update while open", async () => {
+        const applet = {
+            _id: "69f68d347999b2bbd8ffb91a",
+            name: "Storm Desk",
+            app: {
+                slug: "storm-desk",
+                description: "Track active storm coverage.",
+            },
+        };
+        const { rerender } = render(
+            <AppletMetadataDialog
+                isOpen
+                applet={applet}
+                onClose={jest.fn()}
+                onSaved={jest.fn()}
+            />,
+        );
+
+        fireEvent.change(screen.getByLabelText("Description"), {
+            target: { value: "Edited locally before save" },
+        });
+
+        rerender(
+            <AppletMetadataDialog
+                isOpen
+                applet={{
+                    ...applet,
+                    app: {
+                        ...applet.app,
+                        imageDarkUrl: "https://images.example/new-dark.webp",
+                        description: "Server description should not win",
+                    },
+                }}
+                onClose={jest.fn()}
+                onSaved={jest.fn()}
+            />,
+        );
+
+        expect(screen.getByLabelText("Description")).toHaveValue(
+            "Edited locally before save",
+        );
+    });
+
     test("generates metadata without overwriting custom image URLs", async () => {
         render(
             <AppletMetadataDialog

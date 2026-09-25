@@ -7,6 +7,48 @@ import {
     useQueryClient,
 } from "@tanstack/react-query";
 import axios from "../../app/utils/axios-client";
+import { useCallback, useEffect } from "react";
+import {
+    AUTOMATION_READ_RECEIPTS_STORAGE_KEY,
+    getAutomationReadReceipts,
+    getAutomationsLastViewedAt,
+    markAutomationRead,
+} from "../utils/automationsUnread";
+
+export function useAutomationReadReceipts() {
+    const queryClient = useQueryClient();
+    const query = useQuery({
+        queryKey: ["automations", "readReceipts"],
+        queryFn: getAutomationReadReceipts,
+        initialData: getAutomationReadReceipts,
+        staleTime: Infinity,
+    });
+    useEffect(() => {
+        const sync = (event) => {
+            if (
+                event.key === AUTOMATION_READ_RECEIPTS_STORAGE_KEY ||
+                event.key === null
+            ) {
+                queryClient.setQueryData(
+                    ["automations", "readReceipts"],
+                    getAutomationReadReceipts(),
+                );
+            }
+        };
+        window.addEventListener("storage", sync);
+        return () => window.removeEventListener("storage", sync);
+    }, [queryClient]);
+    const markRead = useCallback(
+        (automation) => {
+            queryClient.setQueryData(
+                ["automations", "readReceipts"],
+                (current) => markAutomationRead(automation, current),
+            );
+        },
+        [queryClient],
+    );
+    return { ...query, markRead };
+}
 
 export function useAutomations() {
     return useQuery({
@@ -18,14 +60,12 @@ export function useAutomations() {
     });
 }
 
-export function usePinnedAutomations() {
+export function useAutomationsLastViewedAt() {
     return useQuery({
-        queryKey: ["automations", "pinned"],
-        queryFn: async () => {
-            const { data } = await axios.get("/api/automations/pinned");
-            return data.automations || [];
-        },
-        staleTime: 60 * 1000,
+        queryKey: ["automations", "lastViewedAt"],
+        queryFn: () => getAutomationsLastViewedAt(),
+        staleTime: Infinity,
+        initialData: () => getAutomationsLastViewedAt(),
     });
 }
 
@@ -45,7 +85,7 @@ export function useAutomation(id) {
     });
 }
 
-export function useAutomationRuns(id) {
+export function useAutomationRuns(id, { pollUntilFirstRun = false } = {}) {
     return useInfiniteQuery({
         queryKey: ["automations", id, "runs"],
         enabled: !!id,
@@ -62,9 +102,9 @@ export function useAutomationRuns(id) {
             const runs =
                 query.state.data?.pages?.flatMap((page) => page.runs || []) ||
                 [];
-            return runs.some(
-                (run) =>
-                    run.status === "pending" || run.status === "in_progress",
+            if (!runs.length && pollUntilFirstRun) return 15000;
+            return runs.some((run) =>
+                ["pending", "in_progress", "waiting"].includes(run.status),
             )
                 ? 5000
                 : false;
@@ -124,10 +164,6 @@ export function useUpdateAutomation(id) {
                 exact: true,
             });
             queryClient.invalidateQueries({
-                queryKey: ["automations", "pinned"],
-                exact: true,
-            });
-            queryClient.invalidateQueries({
                 queryKey: ["currentUserDigest"],
             });
         },
@@ -146,9 +182,6 @@ export function useDeleteAutomation() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["automations"] });
             queryClient.invalidateQueries({
-                queryKey: ["automations", "pinned"],
-            });
-            queryClient.invalidateQueries({
                 queryKey: ["currentUserDigest"],
             });
         },
@@ -166,12 +199,13 @@ export function useRunAutomation(id) {
             return data;
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+            queryClient.invalidateQueries({ queryKey: ["inbox"] });
             queryClient.invalidateQueries({
                 queryKey: ["automations", id, "runs"],
             });
             queryClient.invalidateQueries({
-                queryKey: ["automations", "pinned"],
+                queryKey: ["automations"],
+                exact: true,
             });
             queryClient.invalidateQueries({
                 queryKey: ["currentUserDigest"],

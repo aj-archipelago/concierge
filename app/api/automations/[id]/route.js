@@ -1,7 +1,14 @@
+import { updateDigestBlocks } from "../../utils/digest-store.mjs";
+import { requireColleague, validateTaskWatch } from "../../utils/colleagues.js";
 import { NextResponse } from "next/server";
 import { getCurrentUser, handleError } from "../../utils/auth";
 import Automation from "../../models/automation";
+import {
+    isValidRetainedRunLimit,
+    retainedRunLimit,
+} from "../../../../src/utils/taskOutputRetention.js";
 import Digest from "../../models/digest.mjs";
+import { deleteEntityShare } from "../../utils/shareHelpers";
 import {
     automationEffectiveEnabled,
     calculateNextRunAt,
@@ -27,40 +34,29 @@ async function findHomeWidget(ownerId, automationId) {
 }
 
 async function setHomeWidget(ownerId, automation, pinned) {
-    // CSFLE rejects $push on the encrypted blocks array, so we always
-    // replace the full array via $set with a freshly-built list.
-    const existing = (await Digest.findOne({ owner: ownerId }).lean()) || {
-        owner: ownerId,
-        blocks: [],
-    };
-    const automationKey = String(automation._id);
-    const hasBlock = (existing.blocks || []).some(
-        (b) => String(b.automationId || "") === automationKey,
-    );
-
-    if (pinned && hasBlock) return;
-    if (!pinned && !hasBlock) return;
-
-    let nextBlocks;
-    if (pinned) {
-        nextBlocks = [
-            ...(existing.blocks || []),
-            {
-                title: automation.name || "Automation",
-                automationId: automation._id,
-            },
-        ];
-    } else {
-        nextBlocks = (existing.blocks || []).filter(
-            (b) => String(b.automationId || "") !== automationKey,
+    if (pinned && !(await Digest.findOne({ owner: ownerId }))) {
+        await Digest.findOneAndUpdate(
+            { _id: ownerId, owner: ownerId },
+            { $setOnInsert: { owner: ownerId, blocks: [] } },
+            { upsert: true },
         );
     }
-
-    await Digest.findOneAndUpdate(
-        { owner: ownerId },
-        { $set: { owner: ownerId, blocks: nextBlocks } },
-        { upsert: true, new: true },
-    );
+    const key = String(automation._id);
+    await updateDigestBlocks(ownerId, (blocks) => {
+        const hasBlock = blocks.some(
+            (b) => String(b.automationId || "") === key,
+        );
+        if (pinned === hasBlock) return null;
+        return pinned
+            ? [
+                  ...blocks,
+                  {
+                      title: automation.name || "Automation",
+                      automationId: automation._id,
+                  },
+              ]
+            : blocks.filter((b) => String(b.automationId || "") !== key);
+    });
 }
 
 export async function GET(request, { params }) {
@@ -140,6 +136,44 @@ export async function PUT(request, { params }) {
         }
 
         const body = await request.json();
+        if (body.retainedRuns !== undefined) {
+            if (!isValidRetainedRunLimit(body.retainedRuns)) {
+                return NextResponse.json(
+                    {
+                        error: "Retained runs must be an integer from 0 to 1000",
+                    },
+                    { status: 400 },
+                );
+            }
+            if (
+                !isOwner &&
+                body.retainedRuns !== retainedRunLimit(automation.retainedRuns)
+            ) {
+                return NextResponse.json(
+                    { error: "Only the owner can change output retention" },
+                    { status: 403 },
+                );
+            }
+            automation.retainedRuns = body.retainedRuns;
+        }
+        if (body.entityId !== undefined) {
+            if (!isOwner && body.entityId !== automation.entityId)
+                return NextResponse.json(
+                    { error: "Only the owner can assign a colleague" },
+                    { status: 403 },
+                );
+            if (isOwner)
+                automation.entityId = body.entityId
+                    ? (
+                          await requireColleague(user, body.entityId, {
+                              watch:
+                                  (body.schedule || automation.schedule)
+                                      ?.frequency === "files",
+                          })
+                      ).id
+                    : null;
+        }
+        const previousWatchPath = automation.schedule?.watchPath;
 
         if (body.name !== undefined) {
             automation.name = String(body.name || "").trim();
@@ -164,20 +198,33 @@ export async function PUT(request, { params }) {
         }
         if (body.producesHtml !== undefined) {
             automation.producesHtml = Boolean(body.producesHtml);
-            if (!automation.producesHtml) {
-                automation.pinnedToSidebar = false;
-            }
         }
-        if (body.pinnedToSidebar !== undefined) {
-            automation.pinnedToSidebar =
-                automation.producesHtml && Boolean(body.pinnedToSidebar);
-        }
+        // Sidebar pinning was removed; keep the field cleared for existing docs.
+        automation.pinnedToSidebar = false;
 
         automation.enabled = automationEffectiveEnabled(
             automation.enabled,
             automation.schedule,
         );
 
+        validateTaskWatch(automation.schedule, automation.entityId);
+        if (automation.schedule?.frequency === "files" && automation.entityId)
+            await requireColleague(
+                { contextId: storageContextId },
+                automation.entityId,
+                { watch: true },
+            );
+        if (previousWatchPath !== automation.schedule?.watchPath)
+            automation.watchFingerprint = null;
+        if (previousWatchPath !== automation.schedule?.watchPath)
+            automation.watchCandidate = null;
+
+        // An edit invalidates an in-flight scheduler claim. Its old next-run
+        // calculation must not overwrite the newly saved schedule.
+        automation.schedulerLockedAt = null;
+        automation.schedulerLockToken = null;
+        automation.markModified("schedulerLockedAt");
+        automation.markModified("schedulerLockToken");
         automation.nextRunAt = automation.enabled
             ? calculateNextRunAt(automation.schedule, automation.timezone)
             : null;
@@ -252,22 +299,14 @@ export async function DELETE(request, { params }) {
             _id: existing._id,
             owner: user._id,
         });
+        await deleteEntityShare("automation", existing._id);
 
-        // Drop any home widget that pointed at the now-deleted automation.
-        // Use $set with the full array; CSFLE blocks $push/$pull on the
-        // encrypted blocks array.
-        const digest = await Digest.findOne({ owner: user._id }).lean();
-        if (digest) {
-            const next = (digest.blocks || []).filter(
+        await updateDigestBlocks(user._id, (blocks) => {
+            const next = blocks.filter(
                 (b) => String(b.automationId || "") !== String(existing._id),
             );
-            if (next.length !== (digest.blocks || []).length) {
-                await Digest.findOneAndUpdate(
-                    { owner: user._id },
-                    { $set: { blocks: next } },
-                );
-            }
-        }
+            return next.length === blocks.length ? null : next;
+        });
 
         await deleteAutomationFolder(user.contextId, existing.slug);
 

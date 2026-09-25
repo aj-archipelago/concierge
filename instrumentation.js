@@ -4,7 +4,6 @@ import config from "./config/index";
 import Prompt from "./app/api/models/prompt";
 import App, { APP_TYPES } from "./app/api/models/app";
 import User from "./app/api/models/user.mjs";
-import { migrateStyleGuideFiles } from "./app/api/utils/style-guide-migration";
 import {
     ensureUniqueActiveAppletAppIndex,
     repairDuplicateAppletApps,
@@ -14,9 +13,16 @@ import {
     ensureBuiltInNativeApps,
 } from "./app/api/apps/native-apps";
 import { runStartupMigrations } from "./app/api/utils/startup-migrations.mjs";
+import { ensureChatMessageStorage } from "./app/api/models/chat-message.mjs";
 
 // Add a new id when a bootstrap task must run again for a later release.
 const STARTUP_MIGRATIONS = [
+    {
+        id: "20260827_create_partitioned_chat_message_storage",
+        name: "Create partitioned external chat message storage",
+        run: ensureChatMessageStorage,
+        critical: true,
+    },
     {
         id: "20240601_migrate_llms_to_model_ids",
         name: "Migrate prompt LLM references to model IDs",
@@ -177,19 +183,24 @@ export async function seedNativeApps() {
 }
 
 export async function migrateStyleGuideFilesForStartup() {
-    const result = await migrateStyleGuideFiles();
-
-    if (result.migrated > 0 || result.errors > 0) {
-        console.log(
-            `Style guide migration: ${result.migrated} migrated, ${result.errors} errors`,
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+        const { migrateStyleGuideFiles } = await import(
+            "./app/api/utils/style-guide-migration"
         );
-    }
+        const result = await migrateStyleGuideFiles();
 
-    if (result.errors > 0) {
-        throw new Error(
-            `Style guide migration completed with ${result.errors} error(s)`,
-        );
-    }
+        if (result.migrated > 0 || result.errors > 0) {
+            console.log(
+                `Style guide migration: ${result.migrated} migrated, ${result.errors} errors`,
+            );
+        }
 
-    return result;
+        if (result.errors > 0) {
+            throw new Error(
+                `Style guide migration completed with ${result.errors} error(s)`,
+            );
+        }
+
+        return result;
+    }
 }

@@ -1,5 +1,6 @@
 import {
     getProviderFromModelId,
+    isSelectableMediaModel,
     resolveAgentModelForSend,
 } from "./modelMetadata";
 
@@ -25,8 +26,8 @@ const agentModels = [
         isAgentic: true,
     },
     {
-        modelId: "claude-46-sonnet-vertex",
-        displayName: "Claude 4.6 Sonnet",
+        modelId: "claude-5-sonnet-vertex",
+        displayName: "Claude 5 Sonnet",
         provider: "anthropic",
         isAgentic: true,
     },
@@ -90,6 +91,17 @@ describe("resolveAgentModelForSend", () => {
         ).toBe("xai-grok-4-3");
     });
 
+    it("uses metadata redirects for older Claude Sonnet aliases", () => {
+        expect(
+            resolveAgentModelForSend(
+                "claude-46-sonnet-vertex",
+                agentModels,
+                { "claude-46-sonnet-vertex": "claude-5-sonnet-vertex" },
+                "cortex-agent-chat",
+            ),
+        ).toBe("claude-5-sonnet-vertex");
+    });
+
     it("maps a stale same-vendor model to the latest accepted matching family", () => {
         expect(
             resolveAgentModelForSend(
@@ -139,4 +151,18 @@ describe("getProviderFromModelId", () => {
     it("infers xAI for Grok aliases before metadata has resolved them", () => {
         expect(getProviderFromModelId("xai-grok-4", agentModels)).toBe("xai");
     });
+});
+
+test("only the picker hides retired models; history metadata is unchanged", () => {
+    const old = { modelId: "old", category: "video", isDeprecated: true };
+    const current = { modelId: "current", category: "video" };
+    const unavailable = {
+        modelId: "gated",
+        category: "image",
+        isAvailable: false,
+    };
+    expect([old, current, unavailable].filter(isSelectableMediaModel)).toEqual([
+        current,
+    ]);
+    expect(old.modelId).toBe("old");
 });

@@ -5,9 +5,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import CountBadge from "../common/CountBadge";
 import { BookOpen, Gift, Tag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useContext, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { AuthContext } from "../../App";
 import { getAllHelpItems, getUnseenCount } from "../../content/help-content";
@@ -20,7 +22,7 @@ import {
 
 const MAX_POPOVER_ITEMS = 10;
 
-export default function UpdatesButton() {
+export default function UpdatesButton({ buttonClassName, side = "bottom" }) {
     const { t, i18n } = useTranslation();
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
@@ -64,22 +66,26 @@ export default function UpdatesButton() {
 
     return (
         <Popover open={isOpen} onOpenChange={handleOpenChange}>
-            <PopoverTrigger className="relative mt-1">
+            <PopoverTrigger
+                aria-label={t("What's New")}
+                title={t("What's New")}
+                className={cn("relative mt-1", buttonClassName)}
+            >
                 <Gift
                     className="h-5 w-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                     stroke="#0284c7"
                     fill={isOpen ? "#0284c7" : "none"}
                 />
                 {unseenCount > 0 && (
-                    <>
-                        <span className="absolute -top-1 -end-1 h-4 w-4 rounded-full bg-red-500 animate-ping opacity-75" />
-                        <span className="absolute -top-1 -end-1 h-4 w-4 rounded-full bg-red-500 text-xs text-white flex items-center justify-center">
-                            {unseenCount > 9 ? "9+" : unseenCount}
-                        </span>
-                    </>
+                    <CountBadge pulse>
+                        {unseenCount > 9 ? "9+" : unseenCount}
+                    </CountBadge>
                 )}
             </PopoverTrigger>
-            <PopoverContent className="w-80">
+            <PopoverContent
+                side={side}
+                className="w-[min(20rem,calc(100vw-1rem))]"
+            >
                 <div className="space-y-4">
                     <h3 className="font-medium text-gray-900 dark:text-gray-100">
                         {t("What's New")}

@@ -1,5 +1,7 @@
 # V2 Applet Migration Plan
 
+This is the historical migration design, not a live inventory of implemented routes or deployment status. The "Current State" section describes the starting point for that migration. For current user behavior, see the [applet guide](../src/content/help-guides/creating-using-applets.md). Check the route implementations before applying migration procedures.
+
 ## Goal
 
 Make v2 canvas applets the only editable applet experience while preserving legacy applet behavior forever.

@@ -1,7 +1,8 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import OutputSandbox from "./OutputSandbox";
+import { legacy } from "../../utils/__tests__/fixtures/legacyWidgetBackground.js";
 
 jest.mock("react-i18next", () => ({
     useTranslation: () => ({
@@ -76,6 +77,20 @@ describe("OutputSandbox", () => {
         useSearchParams.mockReturnValue(new URLSearchParams(""));
     });
 
+    it("repairs legacy background generation in direct editor previews", async () => {
+        render(
+            <OutputSandbox
+                content={`<html><head></head><body><script>window.ConciergeSDK = {media: {ensureImage: async () => ({url: "https://example.test/image.png"})}};${legacy}</script></body></html>`}
+            />,
+        );
+        await waitForContentReady();
+        const iframe = screen.getByTitle("Output Sandbox");
+        const rendered =
+            iframe.contentDocument.documentElement.innerHTML || iframe.srcdoc;
+        expect(rendered).toContain("media.ensureImage");
+        expect(rendered).not.toContain("media.createImage(");
+    });
+
     it("should render iframe with content", async () => {
         const content = "<div>Test content</div>";
         render(<OutputSandbox content={content} />);
@@ -84,6 +99,19 @@ describe("OutputSandbox", () => {
         expect(iframe).toBeInTheDocument();
 
         await waitForContentReady();
+    });
+
+    it("does not write stale preview content twice in React strict mode", async () => {
+        render(
+            <React.StrictMode>
+                <OutputSandbox content="<script>const STRINGS = {};</script>" />
+            </React.StrictMode>,
+        );
+        const iframe = screen.getByTitle("Output Sandbox");
+        const writeSpy = jest.spyOn(iframe.contentDocument, "write");
+
+        await waitForContentReady();
+        expect(writeSpy).toHaveBeenCalledTimes(1);
     });
 
     it("should render loading state initially", async () => {
@@ -101,7 +129,7 @@ describe("OutputSandbox", () => {
         await waitForContentReady();
     });
 
-    it("should render pre elements with llm-output class without errors", async () => {
+    it("should replace llm-output bridge data with native output", async () => {
         const jsonContent = {
             markdown: "# Test Heading\n\nThis is a test paragraph.",
             citations: [
@@ -124,6 +152,12 @@ describe("OutputSandbox", () => {
         expect(iframe).toBeInTheDocument();
 
         await waitForContentReady();
+        const frame = within(iframe.contentDocument.body);
+        await waitFor(() => {
+            expect(frame.getByTestId("markdown-component")).toHaveTextContent(
+                "Mocked Markdown Component",
+            );
+        });
     });
 
     it("should have proper iframe attributes", async () => {
@@ -133,7 +167,7 @@ describe("OutputSandbox", () => {
         const iframe = screen.getByTitle("Output Sandbox");
         expect(iframe).toHaveAttribute(
             "sandbox",
-            "allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation",
+            "allow-scripts allow-popups allow-forms allow-same-origin allow-downloads allow-presentation allow-modals",
         );
         expect(iframe).toHaveAttribute("title", "Output Sandbox");
 

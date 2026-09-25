@@ -83,12 +83,39 @@ jest.mock("i18next-browser-languagedetector", () => ({
     },
 }));
 
+let mockCompletedUploads = [];
+
 // Mock the DynamicFileUploader component
 jest.mock(
     "./FileUploader",
     () => {
-        const MockFileUploader = ({ addUrl, files, setFiles }) => (
+        const MockFileUploader = ({
+            addUrl,
+            files,
+            setFiles,
+            setIsUploadingMedia,
+        }) => (
             <div data-testid="fileuploader-mock">
+                <button
+                    type="button"
+                    data-testid="start-upload-button"
+                    onClick={() => {
+                        setFiles([{ id: "upload", filename: "first.pdf" }]);
+                        setIsUploadingMedia(true);
+                    }}
+                >
+                    Start upload
+                </button>
+                <button
+                    type="button"
+                    data-testid="complete-uploads-button"
+                    onClick={() => {
+                        mockCompletedUploads.forEach(addUrl);
+                        setIsUploadingMedia(false);
+                    }}
+                >
+                    Complete uploads
+                </button>
                 <button
                     data-testid="add-url-button"
                     onClick={() =>
@@ -862,6 +889,151 @@ describe("MessageInput", () => {
     });
 
     describe("File upload functionality", () => {
+        it("keeps an active uploader mounted when the attachment panel is collapsed", () => {
+            renderMessageInput({
+                enableRag: true,
+                initialShowFileUpload: true,
+            });
+            fireEvent.click(screen.getByTestId("start-upload-button"));
+            fireEvent.change(screen.getByPlaceholderText("Send a message"), {
+                target: { value: "Read the file" },
+            });
+            fireEvent.click(screen.getByTestId("hide-file-upload-button"));
+            expect(screen.getByTestId("fileuploader-mock")).toBeInTheDocument();
+            expect(screen.getByTestId("fileuploader-mock")).not.toBeVisible();
+            expect(screen.getByTestId("chat-send-button")).toBeDisabled();
+            fireEvent.click(screen.getByTestId("file-plus-button"));
+            fireEvent.click(screen.getByTestId("complete-uploads-button"));
+            expect(screen.getByTestId("chat-send-button")).not.toBeDisabled();
+        });
+
+        it.each([
+            ["null", null],
+            ["missing", undefined],
+            ["empty", ""],
+            ["matching legacy", "same-content-hash"],
+        ])("sends every distinct uploaded file with %s hashes", (_, hash) => {
+            const mediaUtils = require("../../utils/mediaUtils");
+            mediaUtils.isSupportedFileUrl.mockReturnValue(true);
+            const consoleLog = jest
+                .spyOn(console, "log")
+                .mockImplementation(() => {});
+
+            try {
+                mockCompletedUploads = [
+                    {
+                        url: "https://example.com/first.pdf",
+                        displayFilename: "first.pdf",
+                        mimeType: "application/pdf",
+                        hash,
+                    },
+                    {
+                        url: "https://example.com/second.docx",
+                        displayFilename: "second.docx",
+                        mimeType:
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        hash,
+                        converted: {
+                            url: "https://example.com/second.md",
+                            blobPath: "chats/test/second.md",
+                        },
+                    },
+                    {
+                        url: "https://example.com/third.png",
+                        displayFilename: "third.png",
+                        mimeType: "image/png",
+                        hash,
+                    },
+                ];
+                renderMessageInput({
+                    enableRag: true,
+                    initialShowFileUpload: true,
+                });
+
+                fireEvent.click(screen.getByTestId("complete-uploads-button"));
+                fireEvent.change(
+                    screen.getByPlaceholderText("Send a message"),
+                    {
+                        target: { value: "Compare all three files" },
+                    },
+                );
+                fireEvent.click(screen.getByTestId("send-button"));
+
+                expect(mockOnSend).toHaveBeenCalledTimes(1);
+                const parts = mockOnSend.mock.calls[0][0].map((part) =>
+                    JSON.parse(part),
+                );
+                expect(parts.slice(1)).toEqual([
+                    expect.objectContaining({
+                        type: "file",
+                        file: "https://example.com/first.pdf",
+                        displayFilename: "first.pdf",
+                    }),
+                    expect.objectContaining({
+                        type: "file",
+                        file: "https://example.com/second.md",
+                        blobPath: "chats/test/second.md",
+                        displayFilename: "second.docx",
+                    }),
+                    expect.objectContaining({
+                        type: "image_url",
+                        image_url: { url: "https://example.com/third.png" },
+                        displayFilename: "third.png",
+                    }),
+                ]);
+            } finally {
+                mockCompletedUploads = [];
+                mediaUtils.isSupportedFileUrl.mockReset();
+                consoleLog.mockRestore();
+            }
+        });
+
+        it("attaches the same uploaded URL only once when completion is repeated", () => {
+            const mediaUtils = require("../../utils/mediaUtils");
+            mediaUtils.isSupportedFileUrl.mockReturnValue(true);
+            const consoleLog = jest
+                .spyOn(console, "log")
+                .mockImplementation(() => {});
+
+            try {
+                mockCompletedUploads = [
+                    {
+                        url: "https://example.com/first.pdf",
+                        mimeType: "application/pdf",
+                        hash: null,
+                    },
+                ];
+                renderMessageInput({
+                    enableRag: true,
+                    initialShowFileUpload: true,
+                });
+                fireEvent.click(screen.getByTestId("complete-uploads-button"));
+                fireEvent.click(screen.getByTestId("complete-uploads-button"));
+                fireEvent.change(
+                    screen.getByPlaceholderText("Send a message"),
+                    {
+                        target: { value: "Read the file" },
+                    },
+                );
+                fireEvent.click(screen.getByTestId("send-button"));
+
+                expect(mockOnSend).toHaveBeenCalledTimes(1);
+                const parts = mockOnSend.mock.calls[0][0].map((part) =>
+                    JSON.parse(part),
+                );
+                expect(parts.slice(1)).toEqual([
+                    expect.objectContaining({
+                        type: "file",
+                        file: "https://example.com/first.pdf",
+                    }),
+                ]);
+            } finally {
+                mockCompletedUploads = [];
+                mediaUtils.isSupportedFileUrl.mockReset();
+                consoleLog.mockRestore();
+            }
+        });
+
         it("should not show file upload button when enableRag is false", () => {
             renderMessageInput({ enableRag: false });
             expect(

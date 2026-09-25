@@ -264,6 +264,7 @@ export async function handleModifyImage(toolInfo, context) {
         // Default model for image modification (same as ModifyImageDialog)
         const defaultModel = "replicate-qwen-image-edit-plus";
 
+        const chatId = context?.chatId ? String(context.chatId) : null;
         const taskData = {
             type: "media-generation",
             prompt: prompt.trim(),
@@ -276,6 +277,8 @@ export async function handleModifyImage(toolInfo, context) {
                 quality: "draft",
             },
             source: "canvas_image_modify",
+            // Link the task to this chat so sidebar status dots can track it.
+            ...(chatId ? { chatId } : {}),
         };
 
         const result = await runTask.mutateAsync(taskData);

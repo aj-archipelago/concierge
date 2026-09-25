@@ -8,13 +8,65 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import axios from "../utils/axios-client";
 import {
     mergeFetchedChatResponse,
+    mergeOlderChatPage,
+    buildStreamFailureRecoveryUpdate,
     syncInFlightChatCache,
+    commitStreamCompleteAssistant,
+    chatContainsAssistantMessage,
     useDeleteChat,
     useGetActiveChats,
     useGetChatById,
     useSetActiveChatId,
     useUpdateChat,
 } from "./chats";
+
+describe("mergeOlderChatPage", () => {
+    it("prepends older messages without replacing or duplicating visible history", () => {
+        const cachedChat = {
+            _id: "chat-1",
+            messages: [
+                { _id: "m3", payload: "third" },
+                { _id: "m4", payload: "fourth" },
+            ],
+            hasMoreMessages: true,
+            messagesTruncated: true,
+        };
+        const olderPage = {
+            _id: "chat-1",
+            messages: [
+                { _id: "m1", payload: "first" },
+                { _id: "m2", payload: "second" },
+                { _id: "m3", payload: "third" },
+            ],
+            hasMoreMessages: false,
+            messagesTruncated: false,
+        };
+
+        const merged = mergeOlderChatPage(cachedChat, olderPage);
+
+        expect(merged.messages.map((message) => message._id)).toEqual([
+            "m1",
+            "m2",
+            "m3",
+            "m4",
+        ]);
+        expect(merged.hasMoreMessages).toBe(false);
+        expect(merged.messagesTruncated).toBe(false);
+    });
+});
+
+describe("buildStreamFailureRecoveryUpdate", () => {
+    it("clears stream metadata without replacing persisted history", () => {
+        expect(buildStreamFailureRecoveryUpdate("entity-1")).toEqual({
+            isChatLoading: false,
+            activeSubscriptionId: null,
+            selectedEntityId: "entity-1",
+        });
+        expect(buildStreamFailureRecoveryUpdate("entity-1")).not.toHaveProperty(
+            "messages",
+        );
+    });
+});
 
 jest.mock("../utils/axios-client", () => ({
     __esModule: true,
@@ -146,16 +198,13 @@ describe("useUpdateChat", () => {
         expect(finalChat.messages[0].payload).toBe("first");
     });
 
-    it("optimistically clears chat storage warning metadata when clearing messages", async () => {
+    it("optimistically clears messages", async () => {
         const chatId = "507f1f77bcf86cd799439015";
 
         queryClient.setQueryData(["chat", chatId], {
             _id: chatId,
             title: "Large chat",
             messages: [{ _id: "m1", sender: "user", payload: "hello" }],
-            messageStorageBytes: 1_800_000,
-            messagesCompacted: true,
-            messagesCompactedAt: "2026-04-28T00:00:00.000Z",
         });
 
         let resolveRequest;
@@ -168,9 +217,6 @@ describe("useUpdateChat", () => {
                                 _id: chatId,
                                 title: "",
                                 messages: [],
-                                messageStorageBytes: 0,
-                                messagesCompacted: false,
-                                messagesCompactedAt: null,
                             },
                         });
                 }),
@@ -187,9 +233,6 @@ describe("useUpdateChat", () => {
         await waitFor(() => expect(axios.put).toHaveBeenCalled());
         const optimisticChat = queryClient.getQueryData(["chat", chatId]);
         expect(optimisticChat.messages).toEqual([]);
-        expect(optimisticChat.messageStorageBytes).toBe(0);
-        expect(optimisticChat.messagesCompacted).toBe(false);
-        expect(optimisticChat.messagesCompactedAt).toBeNull();
 
         resolveRequest();
         await pending;
@@ -287,6 +330,45 @@ describe("useUpdateChat", () => {
 
         resolveRequest();
         await pending;
+    });
+
+    it("optimistically applies an atomic message patch", async () => {
+        const chatId = "507f1f77bcf86cd799439016";
+        const originalMessages = [
+            { _id: "m1", sender: "user", payload: "before" },
+            { _id: "m2", sender: "concierge", payload: "reply" },
+        ];
+        const updatedMessage = {
+            ...originalMessages[0],
+            payload: "after",
+        };
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            title: "Chat",
+            messages: originalMessages,
+        });
+        axios.put.mockResolvedValue({
+            data: {
+                _id: chatId,
+                title: "Chat",
+                messages: [updatedMessage, originalMessages[1]],
+            },
+        });
+
+        const { result } = renderHook(() => useUpdateChat(), { wrapper });
+        await act(async () => {
+            await result.current.mutateAsync({
+                chatId,
+                messageUpdates: [updatedMessage],
+            });
+        });
+
+        const finalChat = queryClient.getQueryData(["chat", chatId]);
+        expect(finalChat.messages.map((message) => message.payload)).toEqual([
+            "after",
+            "reply",
+        ]);
+        expect(finalChat.messageUpdates).toBeUndefined();
     });
 });
 
@@ -692,6 +774,102 @@ describe("mergeFetchedChatResponse", () => {
     });
 });
 
+describe("commitStreamCompleteAssistant", () => {
+    let queryClient;
+
+    beforeEach(() => {
+        queryClient = new QueryClient({
+            defaultOptions: {
+                queries: { retry: false },
+                mutations: { retry: false },
+            },
+        });
+    });
+
+    it("appends a local stream-complete assistant so stale fetches cannot drop it", () => {
+        const chatId = "507f1f77bcf86cd799439097";
+        const cachedChat = {
+            _id: chatId,
+            messages: [
+                {
+                    _id: "m1",
+                    sender: "user",
+                    payload: "hello",
+                    direction: "outgoing",
+                    position: "single",
+                },
+            ],
+            isChatLoading: true,
+        };
+        queryClient.setQueryData(["chat", chatId], cachedChat);
+
+        const assistantMessage = {
+            _id: null,
+            _clientId: `stream-end:${chatId}:1`,
+            sender: "concierge",
+            direction: "incoming",
+            position: "single",
+            payload: "local reply",
+            isServerGenerated: true,
+        };
+
+        const nextChat = commitStreamCompleteAssistant(
+            queryClient,
+            chatId,
+            assistantMessage,
+        );
+
+        expect(nextChat.messages).toHaveLength(2);
+        expect(nextChat.messages[1]).toMatchObject({
+            _clientId: `stream-end:${chatId}:1`,
+            payload: "local reply",
+        });
+        expect(nextChat.isChatLoading).toBe(false);
+        expect(chatContainsAssistantMessage(nextChat, assistantMessage)).toBe(
+            true,
+        );
+        expect(
+            chatContainsAssistantMessage(
+                { messages: cachedChat.messages },
+                assistantMessage,
+            ),
+        ).toBe(false);
+    });
+
+    it("replaces an existing stream-end assistant instead of duplicating it", () => {
+        const chatId = "507f1f77bcf86cd799439098";
+        const firstAssistant = {
+            _id: null,
+            _clientId: `stream-end:${chatId}:1`,
+            sender: "concierge",
+            direction: "incoming",
+            position: "single",
+            payload: "first",
+            isServerGenerated: true,
+        };
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [
+                { _id: "m1", sender: "user", payload: "hello" },
+                firstAssistant,
+            ],
+        });
+
+        const secondAssistant = {
+            ...firstAssistant,
+            payload: "updated",
+        };
+        const nextChat = commitStreamCompleteAssistant(
+            queryClient,
+            chatId,
+            secondAssistant,
+        );
+
+        expect(nextChat.messages).toHaveLength(2);
+        expect(nextChat.messages[1].payload).toBe("updated");
+    });
+});
+
 describe("syncInFlightChatCache", () => {
     let queryClient;
 
@@ -879,6 +1057,38 @@ describe("query polling callbacks", () => {
                 },
             }),
         ).toBe(false);
+    });
+
+    it("never refetches an unbounded external chat history", async () => {
+        const chatId = "507f1f77bcf86cd799439023";
+        queryClient.setQueryData(
+            ["chat", chatId],
+            {
+                _id: chatId,
+                messageStorageMode: "external",
+                messagesTruncated: false,
+                hasMoreMessages: false,
+                messages: [{ _id: "m1", payload: "loaded" }],
+            },
+            { updatedAt: 1 },
+        );
+        axios.get.mockResolvedValueOnce({
+            data: {
+                _id: chatId,
+                messageStorageMode: "external",
+                messagesTruncated: false,
+                hasMoreMessages: false,
+                messages: [{ _id: "m1", payload: "loaded" }],
+            },
+        });
+
+        renderHook(() => useGetChatById(chatId), { wrapper });
+
+        await waitFor(() =>
+            expect(axios.get).toHaveBeenCalledWith(
+                `/api/chats/${chatId}?limit=30`,
+            ),
+        );
     });
 });
 

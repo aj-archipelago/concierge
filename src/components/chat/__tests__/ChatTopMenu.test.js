@@ -38,13 +38,6 @@ jest.mock(
     }),
 );
 
-jest.mock("@/components/ui/tooltip", () => ({
-    Tooltip: ({ children }) => <>{children}</>,
-    TooltipTrigger: ({ children }) => <>{children}</>,
-    TooltipContent: ({ children }) => <div>{children}</div>,
-    TooltipProvider: ({ children }) => <>{children}</>,
-}));
-
 describe("ChatTopMenu", () => {
     beforeEach(() => {
         userFileCollectionProps = null;
@@ -83,40 +76,6 @@ describe("ChatTopMenu", () => {
         );
 
         expect(screen.getByRole("button", { name: /files/i })).toBeDisabled();
-    });
-
-    it("shows the storage warning icon for large chats", () => {
-        render(
-            <ChatTopMenu
-                chat={{
-                    _id: "chat-1",
-                    messages: [],
-                    messageStorageBytes: 1_800_000,
-                }}
-            />,
-        );
-
-        expect(screen.getByLabelText("Large chat")).toBeInTheDocument();
-        expect(
-            screen.getByText(
-                "This chat is large. Older messages may be removed automatically to keep the conversation available.",
-            ),
-        ).toBeInTheDocument();
-    });
-
-    it("does not show the storage warning icon for compacted chats below the warning threshold", () => {
-        render(
-            <ChatTopMenu
-                chat={{
-                    _id: "chat-1",
-                    messages: [],
-                    messagesCompacted: true,
-                    messageStorageBytes: 1_000,
-                }}
-            />,
-        );
-
-        expect(screen.queryByLabelText("Large chat")).not.toBeInTheDocument();
     });
 
     it("dispatches selected chat files to the message input attachment bridge", async () => {

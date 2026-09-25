@@ -19,13 +19,22 @@ import {
     Globe,
     GlobeLock,
     Loader2,
+    MoreVertical,
     Pencil,
+    RefreshCw,
     Settings,
     Trash2,
     X,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -47,6 +56,11 @@ import {
     clearActiveAppletSandbox,
 } from "@/src/utils/activeAppletSandbox";
 import OutputSandbox from "@/src/components/sandbox/OutputSandbox";
+import {
+    loadOrCreateWidgetHtml,
+    regenerateWidgetHtml,
+    saveAppletWidgetHtml,
+} from "@/src/utils/appletWidgetHtml";
 import ShareButton from "@/components/share/ShareButton";
 import AppletMetadataDialog from "@/src/components/apps/AppletMetadataDialog";
 import {
@@ -350,7 +364,7 @@ function ThrottledPreview({
             <iframe
                 ref={iframeRef}
                 title={title}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
                 className="absolute inset-0 w-full h-full border-0 bg-white"
                 scrolling="auto"
             />
@@ -385,11 +399,14 @@ const PreviewFrame = React.forwardRef(function PreviewFrame(
         workspacePath = null,
         fullscreen = false,
         frameless = false,
+        variant = "full",
+        padded = false,
     },
     ref,
 ) {
     const baseHref = getWorkspaceBaseHref(workspacePath);
     const documentUrl = getWorkspaceDocumentUrl(workspacePath);
+    const isWidgetPreview = variant === "widget" && !fullscreen;
 
     if (isGenerating) {
         return (
@@ -405,14 +422,20 @@ const PreviewFrame = React.forwardRef(function PreviewFrame(
     // Route through the same sandbox the published /applet page uses so the
     // canvas preview matches the deployed render exactly (theme, dark: class
     // filtering, Tailwind script, SDK injection — all shared via OutputSandbox).
-    return (
+    const frame = (
         <div
             className={
-                frameless
-                    ? "w-full h-full overflow-auto bg-white dark:bg-gray-800"
-                    : "w-full h-full border border-gray-200 dark:border-gray-700 rounded-lg overflow-auto bg-white dark:bg-gray-800"
+                frameless || isWidgetPreview
+                    ? "h-full w-full overflow-hidden bg-white dark:bg-gray-800"
+                    : "h-full w-full overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
             }
-            data-applet-preview={fullscreen ? "fullscreen" : "inline"}
+            data-applet-preview={
+                fullscreen
+                    ? "fullscreen"
+                    : isWidgetPreview
+                      ? "widget"
+                      : "inline"
+            }
         >
             <OutputSandbox
                 ref={ref}
@@ -426,6 +449,24 @@ const PreviewFrame = React.forwardRef(function PreviewFrame(
             />
         </div>
     );
+
+    if (isWidgetPreview) {
+        return (
+            <div
+                className={
+                    padded
+                        ? "flex h-full min-h-0 items-center justify-center overflow-auto bg-gray-50 p-6 sm:p-8 dark:bg-gray-900"
+                        : "flex h-full min-h-0 items-start justify-center overflow-auto bg-gray-100 p-4 dark:bg-gray-900"
+                }
+            >
+                <div className="h-80 w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 shadow-sm dark:border-gray-700">
+                    {frame}
+                </div>
+            </div>
+        );
+    }
+
+    return frame;
 });
 
 /**
@@ -441,13 +482,30 @@ export default function HtmlPreviewTabContent({
     initialContent,
     isActive,
     onContentChange,
+    onBrowseFiles,
     onCloseCanvas,
+    editorLayout,
 }) {
     const { t } = useTranslation();
-    const url = initialContent?.url;
+    // Saved previews retain file identity, not the inline body or a permanent
+    // signed URL. Resolve ordinary workspace files through the authenticated
+    // endpoint on every restore/retry. Applets keep their own access check.
+    const savedWorkspacePath =
+        initialContent?.workspacePath ||
+        (initialContent?.blobPath
+            ? `/workspace/files/${initialContent.blobPath.replace(/^\/+/, "")}`
+            : null);
+    const workspaceUrl =
+        !initialContent?.appletId &&
+        savedWorkspacePath?.startsWith("/workspace/files/")
+            ? `/api/workspace/file?${new URLSearchParams({ path: savedWorkspacePath })}`
+            : null;
+    const url = workspaceUrl || initialContent?.url;
+    const fileHash = !initialContent?.appletId
+        ? initialContent?.fileHash
+        : null;
     const inlineHtml = initialContent?.htmlContent;
     const htmlStatus = initialContent?.htmlStatus; // 'copying' | 'syncing' | 'generating' | 'error' | 'live' | null
-    const htmlError = initialContent?.htmlError;
     const title =
         initialContent?.title || initialContent?.filename || t("HTML Preview");
 
@@ -458,8 +516,11 @@ export default function HtmlPreviewTabContent({
         !inlineHtml
     );
     const fetchOptions = useMemo(
-        () => (initialContent?.appletId ? { cache: "no-store" } : undefined),
-        [initialContent?.appletId],
+        () =>
+            initialContent?.appletId || workspaceUrl
+                ? { cache: "no-store" }
+                : undefined,
+        [initialContent?.appletId, workspaceUrl],
     );
 
     // After a page refresh, the blob URL is stripped from persisted canvas state
@@ -487,11 +548,11 @@ export default function HtmlPreviewTabContent({
         retry: loadHtml,
     } = useContentLoader({
         url,
+        fileHash,
         inlineContent: shouldLoadDraftFromUrl ? undefined : inlineHtml,
         isActive,
-        emptyError: isRevalidating
-            ? null
-            : t("No URL provided") || "No URL provided",
+        emptyError: isRevalidating ? null : t("canvas.previewMissing"),
+        failureError: t("canvas.previewLoadFailed"),
         fetchOptions,
         reloadKey: shouldLoadDraftFromUrl ? inlineHtml : undefined,
     });
@@ -501,14 +562,20 @@ export default function HtmlPreviewTabContent({
         const appletId = initialContent?.appletId;
         if (
             !appletId ||
+            !isActive ||
             initialContent?.url ||
             initialContent?.htmlContent ||
             initialContent?.htmlStatus === "error"
         ) {
+            setIsRevalidating(false);
             return;
         }
-        fetch(`/api/canvas-applets/${appletId}`)
+        let cancelled = false;
+        const controller = new AbortController();
+        setIsRevalidating(true);
+        fetch(`/api/canvas-applets/${appletId}`, { signal: controller.signal })
             .then(async (res) => {
+                if (cancelled) return;
                 if (!res.ok) {
                     onContentChange?.(tabId, {
                         htmlStatus: "error",
@@ -519,6 +586,7 @@ export default function HtmlPreviewTabContent({
                     return;
                 }
                 const applet = await res.json();
+                if (cancelled) return;
                 if (applet.filePath) {
                     onContentChange?.(tabId, { url: applet.filePath });
                 } else {
@@ -531,15 +599,29 @@ export default function HtmlPreviewTabContent({
                 }
             })
             .catch(() => {
+                if (cancelled) return;
                 onContentChange?.(tabId, {
                     htmlStatus: "error",
                     htmlError:
                         t("Failed to load applet.") || "Failed to load applet.",
                 });
             })
-            .finally(() => setIsRevalidating(false));
+            .finally(() => {
+                if (!cancelled) setIsRevalidating(false);
+            });
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run once on mount — re-validation is a one-shot check
+    }, [
+        initialContent?.appletId,
+        initialContent?.url,
+        initialContent?.htmlContent,
+        initialContent?.htmlStatus,
+        isActive,
+        tabId,
+    ]);
 
     // Stamp the applet-id meta tag so the iframe knows its identity. The SDK
     // script and full sandbox wrapper come from OutputSandbox (same path the
@@ -555,6 +637,12 @@ export default function HtmlPreviewTabContent({
 
     // Track user edits to the code tab — null means "not edited yet"
     const [editedHtml, setEditedHtml] = useState(null);
+    const preferredView =
+        initialContent?.appletViewMode === "widget" ? "widget" : "full";
+    const [viewMode, setViewMode] = useState(preferredView);
+    const [editedWidgetHtml, setEditedWidgetHtml] = useState(null);
+    const [isGeneratingWidget, setIsGeneratingWidget] = useState(false);
+    const [widgetError, setWidgetError] = useState(null);
 
     // Ref to the inline (non-fullscreen) sandbox so the driver client-side
     // tools can reach into the applet iframe. The fullscreen preview is a
@@ -582,9 +670,24 @@ export default function HtmlPreviewTabContent({
         setEditedHtml(null);
     }, [htmlContent]);
 
-    const handleCodeChange = useCallback((value) => {
-        setEditedHtml(value ?? "");
-    }, []);
+    const handleCodeChange = useCallback(
+        (value) => {
+            if (viewMode === "widget") {
+                setEditedWidgetHtml(value ?? "");
+            } else {
+                setEditedHtml(value ?? "");
+            }
+        },
+        [viewMode],
+    );
+
+    const handleSetViewMode = useCallback(
+        (mode) => {
+            setViewMode(mode);
+            onContentChange?.(tabId, { appletViewMode: mode });
+        },
+        [onContentChange, tabId],
+    );
 
     // --- Canvas applet record (v2) ---
     // Resolve applet ID from initialContent prop or from <meta name="applet-id"> in the HTML
@@ -598,6 +701,28 @@ export default function HtmlPreviewTabContent({
         }
         return null;
     }, [initialContent?.appletId, rawHtmlContent]);
+
+    useEffect(() => {
+        setViewMode(
+            initialContent?.appletViewMode === "widget" ? "widget" : "full",
+        );
+        setEditedWidgetHtml(null);
+        setWidgetError(null);
+        setIsGeneratingWidget(false);
+    }, [resolvedAppletId, initialContent?.appletViewMode]);
+
+    useEffect(() => {
+        setEditedWidgetHtml(null);
+    }, [initialContent?.appletVersionKey]);
+
+    useEffect(() => {
+        if (typeof initialContent?.widgetHtml !== "string") return;
+        setAppletRecord((current) =>
+            current
+                ? { ...current, widgetHtml: initialContent.widgetHtml }
+                : { widgetHtml: initialContent.widgetHtml },
+        );
+    }, [initialContent?.widgetHtml]);
 
     // Register the inline sandbox iframe with the active-applet registry so
     // the chat driver tools (ClickAppletElement, FillAppletField, etc.) can
@@ -674,6 +799,54 @@ export default function HtmlPreviewTabContent({
         };
     }, [resolvedAppletId]);
 
+    const hasStoredWidgetHtml = Boolean(appletRecord?.widgetHtml);
+
+    useEffect(() => {
+        if (viewMode !== "widget" || !resolvedAppletId) return undefined;
+        if (editedWidgetHtml || hasStoredWidgetHtml) return undefined;
+        // Wait until GET /canvas-applets/:id finishes. Otherwise we start a
+        // load/create, the record arrives with existing widget HTML, this
+        // effect is cleaned up, and isGeneratingWidget stays true forever.
+        if (appletRecordStatus !== "settled") return undefined;
+
+        let cancelled = false;
+        setWidgetError(null);
+        loadOrCreateWidgetHtml(resolvedAppletId, t, {
+            onGenerating: () => {
+                if (!cancelled) setIsGeneratingWidget(true);
+            },
+        })
+            .then((html) => {
+                if (cancelled) return;
+                setAppletRecord((current) =>
+                    current
+                        ? { ...current, widgetHtml: html }
+                        : { widgetHtml: html },
+                );
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setWidgetError(err?.message || t("Generation failed"));
+            })
+            .finally(() => {
+                if (!cancelled) setIsGeneratingWidget(false);
+            });
+
+        return () => {
+            cancelled = true;
+            setIsGeneratingWidget(false);
+        };
+        // Keep this list a fixed length. Do not depend on the widget HTML
+        // document itself — it is huge and made React think the deps grew.
+    }, [
+        viewMode,
+        resolvedAppletId,
+        editedWidgetHtml,
+        hasStoredWidgetHtml,
+        appletRecordStatus,
+        t,
+    ]);
+
     // When Draft HTML changes or an applet management tool saves/publishes, the
     // applet record on the server may have new version state. Re-fetch so the
     // version dropdown / publish state stays current without a browser refresh.
@@ -694,6 +867,27 @@ export default function HtmlPreviewTabContent({
         initialContent?.appletVersionKey,
         resolvedAppletId,
         refetchAppletRecord,
+    ]);
+
+    useEffect(() => {
+        if (
+            editorLayout !== "applet-editor" ||
+            viewMode !== "widget" ||
+            !resolvedAppletId ||
+            !isActive
+        ) {
+            return undefined;
+        }
+        const intervalId = setInterval(() => {
+            refetchAppletRecord();
+        }, 2500);
+        return () => clearInterval(intervalId);
+    }, [
+        editorLayout,
+        isActive,
+        refetchAppletRecord,
+        resolvedAppletId,
+        viewMode,
     ]);
 
     useEffect(() => {
@@ -884,6 +1078,13 @@ export default function HtmlPreviewTabContent({
         selectedVersionIndex != null
             ? displaySelectedVersionContent
             : draftDisplayHtml;
+    const isWidgetView = viewMode === "widget";
+    const widgetDisplayHtml =
+        editedWidgetHtml ??
+        initialContent?.widgetHtml ??
+        appletRecord?.widgetHtml ??
+        "";
+    const activeDisplayHtml = isWidgetView ? widgetDisplayHtml : displayHtml;
     const previewWorkspacePath =
         appletRecord?.workspacePath || initialContent?.workspacePath || null;
     const hasEditedDraft = !!draftDisplayHtml && editedHtml != null;
@@ -918,28 +1119,27 @@ export default function HtmlPreviewTabContent({
             if (!resolvedAppletId || !displayHtml) return;
             setIsPublishing(true);
             try {
+                // Only send publishToAppStore when listing. Omitting false keeps an
+                // existing App Store slug intact while publishing via link/recipients.
                 const body = {
                     name: publishData.appletName,
-                    publishToAppStore: publishData.publishToAppStore === true,
                 };
-                if (!publishData.publishToAppStore) {
-                    if (publishData.publishViaLink === true) {
-                        body.publishViaLink = true;
-                    } else if (Array.isArray(publishData.publishRecipients)) {
-                        body.publishRecipients = publishData.publishRecipients;
-                    }
+                if (publishData.publishToAppStore === true) {
+                    body.publishToAppStore = true;
+                    body.appName = publishData.appName;
+                    body.appSlug = publishData.appSlug;
+                    body.appDescription = publishData.appDescription;
+                    body.appIcon = publishData.appIcon;
+                } else if (publishData.publishViaLink === true) {
+                    body.publishViaLink = true;
+                } else if (Array.isArray(publishData.publishRecipients)) {
+                    body.publishRecipients = publishData.publishRecipients;
                 }
                 if (activeVersionIndex != null) {
                     body.publishVersion = activeVersionIndex + 1;
                 } else {
                     body.publish = true;
                     body.html = displayHtml;
-                }
-                if (publishData.publishToAppStore) {
-                    body.appName = publishData.appName;
-                    body.appSlug = publishData.appSlug;
-                    body.appDescription = publishData.appDescription;
-                    body.appIcon = publishData.appIcon;
                 }
                 const res = await fetch(
                     `/api/canvas-applets/${resolvedAppletId}`,
@@ -1106,6 +1306,46 @@ export default function HtmlPreviewTabContent({
         setSelectedVersionIndex,
     ]);
 
+    const handleSaveWidget = useCallback(async () => {
+        const htmlToSave = editedWidgetHtml ?? appletRecord?.widgetHtml;
+        if (!resolvedAppletId || !htmlToSave) return;
+        setIsPublishing(true);
+        setWidgetError(null);
+        try {
+            await saveAppletWidgetHtml(resolvedAppletId, htmlToSave, t);
+            setEditedWidgetHtml(null);
+            setAppletRecord((current) =>
+                current ? { ...current, widgetHtml: htmlToSave } : current,
+            );
+            await refetchAppletRecord();
+        } catch (err) {
+            console.error("Error saving applet widget:", err);
+            setWidgetError(err?.message || t("Failed to save applet"));
+        } finally {
+            setIsPublishing(false);
+        }
+    }, [
+        appletRecord?.widgetHtml,
+        editedWidgetHtml,
+        refetchAppletRecord,
+        resolvedAppletId,
+        t,
+    ]);
+
+    const handleRegenerateWidget = useCallback(async () => {
+        if (!resolvedAppletId) return;
+        setIsGeneratingWidget(true);
+        setWidgetError(null);
+        try {
+            const html = await regenerateWidgetHtml(resolvedAppletId, t);
+            setEditedWidgetHtml(html);
+        } catch (err) {
+            setWidgetError(err?.message || t("Generation failed"));
+        } finally {
+            setIsGeneratingWidget(false);
+        }
+    }, [resolvedAppletId, t]);
+
     const handleRequestDeleteCurrentVersion = useCallback(() => {
         if (!resolvedAppletId) return;
         if (isViewingDraft) {
@@ -1209,13 +1449,18 @@ export default function HtmlPreviewTabContent({
         tabId,
     ]);
 
-    const canFullScreen = !isGenerating && !!displayHtml;
+    const canFullScreen = !isGenerating && !!activeDisplayHtml;
+    const isAppletEditor = editorLayout === "applet-editor";
     const isChromeHidden =
         initialContent?.canvasChrome === "hidden" && !resolvedAppletId;
     const isAppletRecordPending =
         !!resolvedAppletId && !appletRecord && appletRecordStatus !== "settled";
     const canShowHeaderControls =
-        !loading && !isGenerating && !!displayHtml && !isAppletRecordPending;
+        !loading &&
+        !isGenerating &&
+        !isGeneratingWidget &&
+        !!activeDisplayHtml &&
+        !isAppletRecordPending;
     const canEditAppletMetadata =
         !!appletRecord &&
         (appletRecord.isOwner === true || appletRecord.shareRole === "editor");
@@ -1359,19 +1604,69 @@ export default function HtmlPreviewTabContent({
         loadError ||
         htmlStatus === "error"
     ) {
+        if (isRevalidating || (loading && htmlStatus !== "error"))
+            return (
+                <TabContentLoader
+                    loading={
+                        isRevalidating || (loading && htmlStatus !== "error")
+                    }
+                    loadingLabel={t("Loading...") || "Loading..."}
+                />
+            );
+        const canRetry = htmlStatus !== "error" && !!(url || fileHash);
         return (
-            <TabContentLoader
-                loading={isRevalidating || (loading && htmlStatus !== "error")}
-                error={
-                    htmlStatus === "error"
-                        ? htmlError ||
-                          t("Failed to generate applet. Please try again.")
-                        : loadError
-                }
-                onRetry={htmlStatus === "error" ? undefined : loadHtml}
-                loadingLabel={t("Loading...") || "Loading..."}
-                retryLabel={t("Retry") || "Retry"}
-            />
+            <div
+                dir={layoutDirection}
+                className="flex h-full min-h-0 items-center justify-center overflow-auto p-5 sm:p-8"
+                role="status"
+            >
+                <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-gray-50 p-5 text-start dark:border-gray-700 dark:bg-gray-900/40">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                        {t("canvas.previewUnavailable")}
+                    </h2>
+                    <p className="mt-2 break-words text-sm text-gray-600 dark:text-gray-300">
+                        {title}
+                    </p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                        {t(
+                            canRetry
+                                ? "canvas.previewLoadFailed"
+                                : "canvas.previewMissing",
+                        )}
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                        {canRetry && (
+                            <Button
+                                type="button"
+                                className="min-h-10"
+                                onClick={loadHtml}
+                            >
+                                {t("Retry")}
+                            </Button>
+                        )}
+                        {onBrowseFiles && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="min-h-10"
+                                onClick={onBrowseFiles}
+                            >
+                                {t("canvas.chooseFile")}
+                            </Button>
+                        )}
+                        {onCloseCanvas && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="min-h-10"
+                                onClick={onCloseCanvas}
+                            >
+                                {t("Close")}
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </div>
         );
     }
 
@@ -1461,6 +1756,73 @@ export default function HtmlPreviewTabContent({
         );
     }
 
+    const canvasActionLabelClass = "hidden @[36rem]:inline";
+    const canvasPrimaryActionClass =
+        "flex h-8 w-8 items-center justify-center gap-2 px-0 @[36rem]:w-auto @[36rem]:min-w-0 @[36rem]:px-3";
+    const canShareApplet =
+        canShowHeaderControls &&
+        !isAppletEditor &&
+        !!resolvedAppletId &&
+        appletRecord?.isOwner === true;
+    const canShowMetadataAction =
+        canShowHeaderControls && !isAppletEditor && canEditAppletMetadata;
+    const canShowFullscreenAction = canShowHeaderControls && canFullScreen;
+    const canEditSavedVersion =
+        canShowHeaderControls &&
+        !isAppletEditor &&
+        !isWidgetView &&
+        !!resolvedAppletId &&
+        canEditAppletMetadata;
+    const canClearOrDeleteVersion = canEditSavedVersion;
+    const canRegenerateWidget =
+        isWidgetView && canEditAppletMetadata && !isAppletEditor;
+    const hasOverflowActions =
+        !isAppletEditor &&
+        (canShareApplet ||
+            canShowMetadataAction ||
+            canShowFullscreenAction ||
+            canEditSavedVersion ||
+            canClearOrDeleteVersion ||
+            canRegenerateWidget);
+    const overflowItemClass = "min-h-10 gap-2";
+    const overflowDangerItemClass =
+        "min-h-10 gap-2 text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-950/40 dark:focus:text-red-300";
+
+    const appletViewToggle = resolvedAppletId ? (
+        <div
+            role="group"
+            aria-label={t("Applet view")}
+            className="inline-flex w-fit max-w-full shrink-0 self-start overflow-hidden rounded-full bg-gray-100 ring-1 ring-black/[0.06] dark:bg-gray-800 dark:ring-white/10"
+        >
+            <button
+                type="button"
+                data-testid="applet-view-full"
+                aria-pressed={viewMode === "full"}
+                className={`inline-flex h-8 shrink-0 items-center whitespace-nowrap px-2.5 text-xs font-medium transition ${
+                    viewMode === "full"
+                        ? "bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-50"
+                        : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
+                }`}
+                onClick={() => handleSetViewMode("full")}
+            >
+                {t("Full page")}
+            </button>
+            <button
+                type="button"
+                data-testid="applet-view-widget"
+                aria-pressed={viewMode === "widget"}
+                className={`inline-flex h-8 shrink-0 items-center whitespace-nowrap px-2.5 text-xs font-medium transition ${
+                    viewMode === "widget"
+                        ? "bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-50"
+                        : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
+                }`}
+                onClick={() => handleSetViewMode("widget")}
+            >
+                {t("Home widget")}
+            </button>
+        </div>
+    ) : null;
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <Tabs
@@ -1469,268 +1831,429 @@ export default function HtmlPreviewTabContent({
             >
                 <div
                     dir={layoutDirection}
-                    className="flex-shrink-0 mb-4 border-b border-gray-200 dark:border-gray-700 flex w-full min-w-0 flex-wrap sm:flex-nowrap items-center justify-between gap-2"
+                    data-testid="applet-canvas-toolbar"
+                    className={
+                        isAppletEditor
+                            ? "flex w-full min-w-0 flex-shrink-0 flex-col items-start gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-700 sm:px-4"
+                            : "@container flex w-full min-w-0 flex-shrink-0 flex-col items-start gap-2 border-b border-gray-200 px-2 py-2 dark:border-gray-700"
+                    }
                 >
-                    <TabsList className="bg-transparent h-auto p-0 gap-0 w-fit min-w-0 flex-shrink-0">
-                        <TabsTrigger
-                            value="preview"
-                            className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-sky-600 dark:data-[state=active]:border-sky-400 rounded-none px-2 sm:px-4 py-2 border-b-2 border-transparent"
+                    <div className="flex w-full min-w-0 items-center gap-2 self-stretch">
+                        <TabsList className="h-auto w-fit min-w-0 flex-shrink-0 gap-0 bg-transparent p-0">
+                            <TabsTrigger
+                                value="preview"
+                                className="whitespace-nowrap rounded-none border-b-2 border-transparent px-2 py-2 data-[state=active]:border-sky-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-sky-400 sm:px-3"
+                            >
+                                {t("Preview") || "Preview"}
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="code"
+                                className="whitespace-nowrap rounded-none border-b-2 border-transparent px-2 py-2 data-[state=active]:border-sky-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none dark:data-[state=active]:border-sky-400 sm:px-3"
+                            >
+                                {t("Code") || "Code"}
+                            </TabsTrigger>
+                        </TabsList>
+                        <div
+                            className={
+                                isAppletEditor
+                                    ? "ms-auto flex min-w-0 shrink-0 select-none items-center justify-end gap-1 pe-0 sm:gap-1.5"
+                                    : "ms-auto flex min-w-0 shrink-0 select-none items-center justify-end gap-0.5 pe-0 sm:gap-1"
+                            }
                         >
-                            {t("Preview") || "Preview"}
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="code"
-                            className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-sky-600 dark:data-[state=active]:border-sky-400 rounded-none px-2 sm:px-4 py-2 border-b-2 border-transparent"
-                        >
-                            {t("Code") || "Code"}
-                        </TabsTrigger>
-                    </TabsList>
-                    <div className="ms-auto flex min-w-0 select-none items-center justify-end gap-1 overflow-x-auto pe-1 sm:gap-2">
-                        {canShowHeaderControls && versionBrowser && (
-                            <div className="grid flex-shrink-0 select-none grid-cols-[2rem_4.25rem_2rem] items-center gap-1 text-xs sm:grid-cols-[2rem_4.75rem_2rem]">
-                                <Button
-                                    onClick={versionBrowser.onPrev}
-                                    disabled={!versionBrowser.onPrev}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 justify-self-center"
-                                    title={
-                                        t("Previous version") ||
-                                        "Previous version"
-                                    }
-                                >
-                                    <ChevronLeft className="w-4 h-4 rtl:scale-x-[-1]" />
-                                </Button>
-                                {versionBrowser.onJumpToPublished ? (
-                                    <button
-                                        type="button"
-                                        onClick={
-                                            versionBrowser.onJumpToPublished
-                                        }
-                                        className="h-8 w-full inline-flex items-center justify-center text-gray-700 dark:text-gray-200 hover:text-sky-600 dark:hover:text-sky-400 whitespace-nowrap tabular-nums"
-                                        title={
-                                            t("Jump to published version") ||
-                                            "Jump to published version"
-                                        }
-                                    >
-                                        {versionBrowser.isLive
-                                            ? t("Draft") || "Draft"
-                                            : `v${versionBrowser.activeIndex + 1}/${versionBrowser.total}`}
-                                    </button>
-                                ) : (
-                                    <span
-                                        className={`h-8 w-full inline-flex items-center justify-center whitespace-nowrap tabular-nums ${
-                                            versionBrowser.isLive
-                                                ? "text-amber-700 dark:text-amber-300"
-                                                : versionBrowser.publishedIndex ===
-                                                    versionBrowser.activeIndex
-                                                  ? "text-gray-700 dark:text-gray-200 font-medium"
-                                                  : "text-gray-700 dark:text-gray-200"
-                                        }`}
-                                    >
-                                        {versionBrowser.isLive
-                                            ? t("Draft") || "Draft"
-                                            : `v${versionBrowser.activeIndex + 1}/${versionBrowser.total}`}
-                                    </span>
+                            {canShowHeaderControls &&
+                                !isAppletEditor &&
+                                !isWidgetView &&
+                                versionBrowser && (
+                                    <div className="grid flex-shrink-0 select-none grid-cols-[2rem_4.25rem_2rem] items-center gap-1 text-xs sm:grid-cols-[2rem_4.75rem_2rem]">
+                                        <Button
+                                            onClick={versionBrowser.onPrev}
+                                            disabled={!versionBrowser.onPrev}
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 justify-self-center"
+                                            title={
+                                                t("Previous version") ||
+                                                "Previous version"
+                                            }
+                                        >
+                                            <ChevronLeft className="w-4 h-4 rtl:scale-x-[-1]" />
+                                        </Button>
+                                        {versionBrowser.onJumpToPublished ? (
+                                            <button
+                                                type="button"
+                                                onClick={
+                                                    versionBrowser.onJumpToPublished
+                                                }
+                                                className="h-8 w-full inline-flex items-center justify-center text-gray-700 dark:text-gray-200 hover:text-sky-600 dark:hover:text-sky-400 whitespace-nowrap tabular-nums"
+                                                title={
+                                                    t(
+                                                        "Jump to published version",
+                                                    ) ||
+                                                    "Jump to published version"
+                                                }
+                                            >
+                                                {versionBrowser.isLive
+                                                    ? t("Draft") || "Draft"
+                                                    : `v${versionBrowser.activeIndex + 1}/${versionBrowser.total}`}
+                                            </button>
+                                        ) : (
+                                            <span
+                                                className={`h-8 w-full inline-flex items-center justify-center whitespace-nowrap tabular-nums ${
+                                                    versionBrowser.isLive
+                                                        ? "text-amber-700 dark:text-amber-300"
+                                                        : versionBrowser.publishedIndex ===
+                                                            versionBrowser.activeIndex
+                                                          ? "text-gray-700 dark:text-gray-200 font-medium"
+                                                          : "text-gray-700 dark:text-gray-200"
+                                                }`}
+                                            >
+                                                {versionBrowser.isLive
+                                                    ? t("Draft") || "Draft"
+                                                    : `v${versionBrowser.activeIndex + 1}/${versionBrowser.total}`}
+                                            </span>
+                                        )}
+                                        <Button
+                                            onClick={versionBrowser.onNext}
+                                            disabled={!versionBrowser.onNext}
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 justify-self-center"
+                                            title={
+                                                t("Next version") ||
+                                                "Next version"
+                                            }
+                                        >
+                                            <ChevronRight className="w-4 h-4 rtl:scale-x-[-1]" />
+                                        </Button>
+                                    </div>
                                 )}
-                                <Button
-                                    onClick={versionBrowser.onNext}
-                                    disabled={!versionBrowser.onNext}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 justify-self-center"
-                                    title={t("Next version") || "Next version"}
-                                >
-                                    <ChevronRight className="w-4 h-4 rtl:scale-x-[-1]" />
-                                </Button>
-                            </div>
-                        )}
-                        {canShowHeaderControls &&
-                            resolvedAppletId &&
-                            appletRecord?.isOwner === true && (
-                                <ShareButton
-                                    entityType="applet"
-                                    entityId={resolvedAppletId}
-                                    variant="ghost"
-                                    size="icon"
-                                    showLabel={false}
-                                    className="h-8 w-8"
-                                    label={t("Share") || "Share"}
-                                />
+                            {hasOverflowActions ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            title={t("More actions")}
+                                            aria-label={t("More actions")}
+                                            data-testid="applet-canvas-more-actions"
+                                        >
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        align="end"
+                                        className="min-w-[13rem]"
+                                    >
+                                        {canShareApplet ? (
+                                            <ShareButton
+                                                entityType="applet"
+                                                entityId={resolvedAppletId}
+                                                variant="ghost"
+                                                size="sm"
+                                                showLabel={true}
+                                                className="h-10 w-full justify-start px-2 font-normal"
+                                                label={t("Share") || "Share"}
+                                            />
+                                        ) : null}
+                                        {canShowMetadataAction ? (
+                                            <DropdownMenuItem
+                                                className={overflowItemClass}
+                                                onSelect={() =>
+                                                    setShowMetadataDialog(true)
+                                                }
+                                            >
+                                                <Settings className="h-4 w-4 shrink-0" />
+                                                {t("Edit metadata") ||
+                                                    "Edit metadata"}
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                        {canShowFullscreenAction ? (
+                                            <DropdownMenuItem
+                                                className={overflowItemClass}
+                                                onSelect={() =>
+                                                    setShowFullscreenPreview(
+                                                        true,
+                                                    )
+                                                }
+                                            >
+                                                <Expand className="h-4 w-4 shrink-0" />
+                                                {t("Full Screen") ||
+                                                    "Full Screen"}
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                        {canEditSavedVersion ? (
+                                            <DropdownMenuItem
+                                                className={overflowItemClass}
+                                                disabled={!canEditVersion}
+                                                onSelect={handleEditVersion}
+                                            >
+                                                {isRestoringVersion ? (
+                                                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                                                ) : (
+                                                    <Pencil className="h-4 w-4 shrink-0" />
+                                                )}
+                                                {t("Edit this version") ||
+                                                    "Edit this version"}
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                        {canRegenerateWidget ? (
+                                            <DropdownMenuItem
+                                                className={overflowItemClass}
+                                                disabled={
+                                                    isGeneratingWidget ||
+                                                    isPublishing
+                                                }
+                                                onSelect={
+                                                    handleRegenerateWidget
+                                                }
+                                            >
+                                                {isGeneratingWidget ? (
+                                                    <Loader2 className="me-2 h-4 w-4 shrink-0 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="me-2 h-4 w-4 shrink-0" />
+                                                )}
+                                                {t("Regenerate widget")}
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                        {canClearOrDeleteVersion ? (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className={
+                                                        overflowDangerItemClass
+                                                    }
+                                                    disabled={
+                                                        !canDeleteCurrentVersion
+                                                    }
+                                                    onSelect={
+                                                        handleRequestDeleteCurrentVersion
+                                                    }
+                                                >
+                                                    {isDeletingVersion ? (
+                                                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4 shrink-0" />
+                                                    )}
+                                                    {isViewingDraft
+                                                        ? t("Clear Draft") ||
+                                                          "Clear Draft"
+                                                        : t("Delete version") ||
+                                                          "Delete version"}
+                                                </DropdownMenuItem>
+                                            </>
+                                        ) : null}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : null}
+                            {canShowHeaderControls &&
+                                isAppletEditor &&
+                                canFullScreen && (
+                                    <Button
+                                        onClick={() =>
+                                            setShowFullscreenPreview(true)
+                                        }
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        title={
+                                            t("Full Screen") || "Full Screen"
+                                        }
+                                        aria-label={
+                                            t("Full Screen") || "Full Screen"
+                                        }
+                                    >
+                                        <Expand className="w-4 h-4" />
+                                    </Button>
+                                )}
+                            {isWidgetView && canEditAppletMetadata && (
+                                <>
+                                    <Button
+                                        type="button"
+                                        onClick={handleSaveWidget}
+                                        disabled={
+                                            isPublishing ||
+                                            isGeneratingWidget ||
+                                            !widgetDisplayHtml
+                                        }
+                                        variant="default"
+                                        size="sm"
+                                        className={
+                                            isAppletEditor
+                                                ? "flex h-8 items-center justify-center gap-2 bg-sky-600 px-3 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600"
+                                                : `${canvasPrimaryActionClass} bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600`
+                                        }
+                                        title={
+                                            isAppletEditor
+                                                ? t("Save this widget to Home")
+                                                : t("Save")
+                                        }
+                                        aria-label={
+                                            isAppletEditor
+                                                ? t("Save widget")
+                                                : t("Save")
+                                        }
+                                    >
+                                        {isPublishing ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <ArrowUpCircle className="h-4 w-4" />
+                                        )}
+                                        <span
+                                            className={
+                                                isAppletEditor
+                                                    ? "inline"
+                                                    : canvasActionLabelClass
+                                            }
+                                        >
+                                            {isAppletEditor
+                                                ? t("Save widget")
+                                                : t("Save")}
+                                        </span>
+                                    </Button>
+                                </>
                             )}
-                        {canShowHeaderControls && canEditAppletMetadata && (
-                            <Button
-                                onClick={() => setShowMetadataDialog(true)}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-gray-700 hover:bg-sky-50 hover:text-sky-700 dark:text-gray-200 dark:hover:bg-sky-950/40 dark:hover:text-sky-300"
-                                title={t("Edit metadata") || "Edit metadata"}
-                                aria-label={
-                                    t("Edit metadata") || "Edit metadata"
-                                }
-                            >
-                                <Settings className="w-4 h-4" />
-                            </Button>
-                        )}
-                        {canShowHeaderControls && canFullScreen && (
-                            <Button
-                                onClick={() => setShowFullscreenPreview(true)}
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                title={t("Full Screen") || "Full Screen"}
-                                aria-label={t("Full Screen") || "Full Screen"}
-                            >
-                                <Expand className="w-4 h-4" />
-                            </Button>
-                        )}
-                        {canShowHeaderControls &&
-                            resolvedAppletId &&
-                            canEditAppletMetadata && (
-                                <Button
-                                    onClick={handleEditVersion}
-                                    disabled={!canEditVersion}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-gray-700 hover:bg-sky-50 hover:text-sky-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-sky-950/40 dark:hover:text-sky-300 dark:disabled:text-gray-500"
-                                    title={
-                                        t("Edit this version") ||
-                                        "Edit this version"
-                                    }
-                                    aria-label={
-                                        t("Edit this version") ||
-                                        "Edit this version"
-                                    }
-                                >
-                                    {isRestoringVersion ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Pencil className="w-4 h-4" />
-                                    )}
-                                </Button>
-                            )}
-                        {canShowHeaderControls &&
-                            resolvedAppletId &&
-                            canEditAppletMetadata && (
-                                <Button
-                                    onClick={handleRequestDeleteCurrentVersion}
-                                    disabled={!canDeleteCurrentVersion}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-gray-700 hover:bg-red-50 hover:text-red-700 disabled:text-gray-400 disabled:hover:bg-transparent dark:text-gray-200 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:disabled:text-gray-500"
-                                    title={
-                                        isViewingDraft
-                                            ? t("Clear Draft") || "Clear Draft"
-                                            : t("Delete version") ||
-                                              "Delete version"
-                                    }
-                                    aria-label={
-                                        isViewingDraft
-                                            ? t("Clear Draft") || "Clear Draft"
-                                            : t("Delete version") ||
-                                              "Delete version"
-                                    }
-                                >
-                                    {isDeletingVersion ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Trash2 className="w-4 h-4" />
-                                    )}
-                                </Button>
-                            )}
-                        {canShowHeaderControls &&
-                            canPublish &&
-                            (shouldSaveDraftBeforePublish ? (
-                                <Button
-                                    onClick={handleSaveDraftVersion}
-                                    disabled={isPublishing}
-                                    variant="default"
-                                    size="sm"
-                                    className="flex items-center justify-center gap-2 h-8 w-8 px-0 lg:w-auto lg:min-w-[8.25rem] lg:px-3 bg-sky-600 hover:bg-sky-700 text-white dark:bg-sky-500 dark:hover:bg-sky-600"
-                                    aria-label={t("Save") || "Save"}
-                                >
-                                    {isPublishing ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <ArrowUpCircle className="w-4 h-4" />
-                                    )}
-                                    <span className="hidden lg:inline">
-                                        {t("Save") || "Save"}
-                                    </span>
-                                </Button>
-                            ) : isPublished && !hasUnpublishedChanges ? (
-                                <Button
-                                    onClick={() => setShowManageDialog(true)}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex items-center justify-center gap-2 h-8 w-8 px-0 lg:w-auto lg:min-w-[8.25rem] lg:px-3 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                                    aria-label={t("Published") || "Published"}
-                                >
-                                    <Globe className="w-4 h-4" />
-                                    <span className="hidden lg:inline">
-                                        {t("Published") || "Published"}
-                                    </span>
-                                    <Settings className="hidden lg:block w-3 h-3 opacity-60" />
-                                </Button>
-                            ) : isPublished ? (
-                                <Button
-                                    onClick={() => setShowPublishDialog(true)}
-                                    disabled={isPublishing}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex items-center justify-center gap-2 h-8 w-8 px-0 lg:w-auto lg:min-w-[8.25rem] lg:px-3 text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/40"
-                                    title={
-                                        t("Publish this version") ||
-                                        "Publish this version"
-                                    }
-                                    aria-label={t("Republish") || "Republish"}
-                                >
-                                    {isPublishing ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <ArrowUpCircle className="w-4 h-4" />
-                                    )}
-                                    <span className="hidden lg:inline">
-                                        {t("Republish") || "Republish"}
-                                    </span>
-                                </Button>
-                            ) : (
-                                <Button
-                                    onClick={() => setShowPublishDialog(true)}
-                                    disabled={isPublishing}
-                                    variant="default"
-                                    size="sm"
-                                    className="flex items-center justify-center gap-2 h-8 w-8 px-0 lg:w-auto lg:min-w-[8.25rem] lg:px-3 bg-sky-600 hover:bg-sky-700 text-white dark:bg-sky-500 dark:hover:bg-sky-600"
-                                    aria-label={t("Publish") || "Publish"}
-                                >
-                                    {isPublishing ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <GlobeLock className="w-4 h-4" />
-                                    )}
-                                    <span className="hidden lg:inline">
-                                        {t("Publish") || "Publish"}
-                                    </span>
-                                </Button>
-                            ))}
+                            {canShowHeaderControls &&
+                                !isAppletEditor &&
+                                !isWidgetView &&
+                                canPublish &&
+                                (shouldSaveDraftBeforePublish ? (
+                                    <Button
+                                        onClick={handleSaveDraftVersion}
+                                        disabled={isPublishing}
+                                        variant="default"
+                                        size="sm"
+                                        className={`${canvasPrimaryActionClass} bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600`}
+                                        aria-label={t("Save") || "Save"}
+                                    >
+                                        {isPublishing ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <ArrowUpCircle className="w-4 h-4" />
+                                        )}
+                                        <span
+                                            className={canvasActionLabelClass}
+                                        >
+                                            {t("Save") || "Save"}
+                                        </span>
+                                    </Button>
+                                ) : isPublished && !hasUnpublishedChanges ? (
+                                    <Button
+                                        onClick={() =>
+                                            setShowManageDialog(true)
+                                        }
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`${canvasPrimaryActionClass} text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300`}
+                                        aria-label={
+                                            t("Published") || "Published"
+                                        }
+                                    >
+                                        <Globe className="w-4 h-4" />
+                                        <span
+                                            className={canvasActionLabelClass}
+                                        >
+                                            {t("Published") || "Published"}
+                                        </span>
+                                        <Settings className="hidden h-3 w-3 opacity-60 @[36rem]:block" />
+                                    </Button>
+                                ) : isPublished ? (
+                                    <Button
+                                        onClick={() =>
+                                            setShowPublishDialog(true)
+                                        }
+                                        disabled={isPublishing}
+                                        variant="ghost"
+                                        size="sm"
+                                        className={`${canvasPrimaryActionClass} text-sky-600 hover:bg-sky-50 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-950/40 dark:hover:text-sky-300`}
+                                        title={
+                                            t("Publish this version") ||
+                                            "Publish this version"
+                                        }
+                                        aria-label={
+                                            t("Republish") || "Republish"
+                                        }
+                                    >
+                                        {isPublishing ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <ArrowUpCircle className="w-4 h-4" />
+                                        )}
+                                        <span
+                                            className={canvasActionLabelClass}
+                                        >
+                                            {t("Republish") || "Republish"}
+                                        </span>
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        onClick={() =>
+                                            setShowPublishDialog(true)
+                                        }
+                                        disabled={isPublishing}
+                                        variant="default"
+                                        size="sm"
+                                        className={`${canvasPrimaryActionClass} bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-600`}
+                                        aria-label={t("Publish") || "Publish"}
+                                    >
+                                        {isPublishing ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <GlobeLock className="w-4 h-4" />
+                                        )}
+                                        <span
+                                            className={canvasActionLabelClass}
+                                        >
+                                            {t("Publish") || "Publish"}
+                                        </span>
+                                    </Button>
+                                ))}
+                        </div>
                     </div>
+                    {appletViewToggle}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     <TabsContent
                         value="preview"
-                        className="flex-1 m-0 min-h-0 overflow-auto p-4 bg-white dark:bg-gray-800"
+                        className={
+                            isWidgetView
+                                ? isAppletEditor
+                                    ? "m-0 min-h-0 flex-1 overflow-hidden bg-gray-50 p-0 dark:bg-gray-900"
+                                    : "m-0 min-h-0 flex-1 overflow-hidden bg-gray-100 p-0 dark:bg-gray-900"
+                                : isAppletEditor
+                                  ? "m-0 min-h-0 flex-1 overflow-auto bg-white p-6 dark:bg-gray-800"
+                                  : "m-0 min-h-0 flex-1 overflow-auto bg-white p-4 dark:bg-gray-800"
+                        }
                     >
-                        <div className="relative w-full h-full min-h-0">
+                        <div className="relative h-full min-h-0 w-full">
                             <PreviewFrame
                                 ref={sandboxRef}
-                                content={displayHtml}
+                                content={activeDisplayHtml}
                                 title={title}
-                                isGenerating={isGenerating}
-                                frameKey={editedHtml ? undefined : contentKey}
+                                isGenerating={
+                                    isGenerating || isGeneratingWidget
+                                }
+                                frameKey={
+                                    isWidgetView
+                                        ? `widget:${appletRecord?.widgetHtmlUpdatedAt || ""}:${widgetDisplayHtml.length}:${editedWidgetHtml ? "edit" : "saved"}`
+                                        : editedHtml
+                                          ? undefined
+                                          : contentKey
+                                }
                                 theme={theme}
                                 workspacePath={previewWorkspacePath}
+                                variant={isWidgetView ? "widget" : "full"}
+                                padded={isAppletEditor}
                             />
-                            {isGenerating && <GeneratingAppletOverlay />}
+                            {(isGenerating || isGeneratingWidget) && (
+                                <GeneratingAppletOverlay />
+                            )}
+                            {widgetError && isWidgetView ? (
+                                <p className="absolute inset-x-4 bottom-4 rounded-md bg-red-50 px-3 py-2 text-center text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                                    {widgetError}
+                                </p>
+                            ) : null}
                         </div>
                     </TabsContent>
                     <TabsContent
@@ -1747,14 +2270,16 @@ export default function HtmlPreviewTabContent({
                                     fontSize: 12,
                                     readOnly:
                                         isGenerating ||
-                                        !isViewingDraft ||
-                                        !canEditAppletMetadata,
+                                        isGeneratingWidget ||
+                                        !canEditAppletMetadata ||
+                                        (!isWidgetView && !isViewingDraft),
                                     wordWrap: "on",
                                     minimap: { enabled: false },
                                 }}
-                                value={displayHtml || ""}
+                                value={activeDisplayHtml || ""}
                                 onChange={
-                                    isViewingDraft && canEditAppletMetadata
+                                    canEditAppletMetadata &&
+                                    (isWidgetView || isViewingDraft)
                                         ? handleCodeChange
                                         : undefined
                                 }
@@ -1763,6 +2288,30 @@ export default function HtmlPreviewTabContent({
                     </TabsContent>
                 </div>
             </Tabs>
+
+            {isAppletEditor && isWidgetView && canEditAppletMetadata ? (
+                <div
+                    className="flex shrink-0 items-center border-t border-gray-200 px-4 py-2.5 dark:border-gray-700"
+                    data-testid="applet-editor-widget-actions"
+                >
+                    <Button
+                        type="button"
+                        onClick={handleRegenerateWidget}
+                        disabled={isGeneratingWidget || isPublishing}
+                        variant="ghost"
+                        size="sm"
+                        className="h-9 gap-2 text-gray-700 dark:text-gray-200"
+                        data-testid="applet-regenerate-widget"
+                    >
+                        {isGeneratingWidget ? (
+                            <Loader2 className="me-2 h-4 w-4 shrink-0 animate-spin" />
+                        ) : (
+                            <RefreshCw className="me-2 h-4 w-4 shrink-0" />
+                        )}
+                        {t("Regenerate widget")}
+                    </Button>
+                </div>
+            ) : null}
 
             {showFullscreenPreview && (
                 <div
@@ -1792,9 +2341,11 @@ export default function HtmlPreviewTabContent({
                         </button>
                         <div className="w-full h-full p-0 sm:p-0 bg-gray-100 dark:bg-gray-950">
                             <PreviewFrame
-                                content={displayHtml}
+                                content={activeDisplayHtml}
                                 title={`${title} fullscreen`}
-                                isGenerating={isGenerating}
+                                isGenerating={
+                                    isGenerating || isGeneratingWidget
+                                }
                                 theme={theme}
                                 workspacePath={previewWorkspacePath}
                                 fullscreen={true}

@@ -8,6 +8,7 @@ import {
     AUTOMATION_TASK_TYPE,
     findAutomationForViewer,
     parseAutomationTaskOutput,
+    resolveAutomationRunHtml,
     sanitizeGeneratedHtml,
     scheduleAutomationRefIdBackfill,
 } from "../../../../utils";
@@ -109,16 +110,39 @@ export async function GET(request, { params }) {
             }
         }
 
-        let html = "";
-        if (task?.automation?.htmlOutputPath) {
-            const storageTarget = createAutomationStorageTarget(ownerContextId);
-            html = await readBlobContent(
-                task.automation.htmlOutputPath,
-                storageTarget,
+        const variant =
+            new URL(request.url).searchParams.get("variant") === "widget"
+                ? "widget"
+                : "full";
+
+        if (task?.outputExpiredAt) {
+            return NextResponse.json(
+                {
+                    error: "Output expired under this task's retention policy",
+                    code: "OUTPUT_EXPIRED",
+                },
+                { status: 410 },
             );
-        } else {
-            const parsed = parseAutomationTaskOutput(task);
-            html = parsed.html ? sanitizeGeneratedHtml(parsed.html) : "";
+        }
+        const storageTarget = createAutomationStorageTarget(ownerContextId);
+        async function loadResolvedHtml(resolved) {
+            if (resolved.blobPath) {
+                const fromBlob = await readBlobContent(
+                    resolved.blobPath,
+                    storageTarget,
+                );
+                if (fromBlob) return fromBlob;
+            }
+            return resolved.html ? sanitizeGeneratedHtml(resolved.html) : "";
+        }
+
+        let html = await loadResolvedHtml(
+            resolveAutomationRunHtml(task, { variant }),
+        );
+        if (!html && variant === "widget") {
+            html = await loadResolvedHtml(
+                resolveAutomationRunHtml(task, { variant: "full" }),
+            );
         }
 
         if (!html) {

@@ -19,7 +19,10 @@ global.Response = class Response {
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useStreamingMessages } from "../useStreamingMessages";
+import {
+    mergeStreamCache,
+    useStreamingMessages,
+} from "../useStreamingMessages";
 
 jest.mock("react-toastify", () => ({
     toast: { error: jest.fn() },
@@ -109,6 +112,7 @@ describe("useStreamingMessages – endStream cache write", () => {
             () =>
                 useStreamingMessages({
                     chat,
+                    currentEntityId: options.currentEntityId,
                     updateChatHook: { mutateAsync: jest.fn() },
                     onClientSideToolHeartbeat:
                         options.onClientSideToolHeartbeat || jest.fn(),
@@ -155,6 +159,7 @@ describe("useStreamingMessages – endStream cache write", () => {
     // ---------------------------------------------------------------
     it("endStream emits AI response when stream completes", async () => {
         const chatId = "chat_write_test";
+        queryClient.setQueryData(["inbox", false], { requests: [] });
         const onStreamComplete = jest.fn();
 
         // Pre-populate the chat cache with a user message
@@ -189,6 +194,9 @@ describe("useStreamingMessages – endStream cache write", () => {
         await waitFor(() => {
             expect(onStreamComplete).toHaveBeenCalled();
         });
+        expect(queryClient.getQueryState(["inbox", false]).isInvalidated).toBe(
+            true,
+        );
         expect(onStreamComplete.mock.calls.at(-1)?.[0]).toMatchObject({
             chatId,
             payload: expect.any(Array),
@@ -207,6 +215,38 @@ describe("useStreamingMessages – endStream cache write", () => {
                 duration: 0,
             },
         ]);
+        const cachedChat = queryClient.getQueryData(["chat", chatId]);
+        expect(cachedChat.messages.at(-1)).toMatchObject({
+            sender: "assistant",
+            _clientId: expect.stringMatching(/^stream-end:/),
+        });
+    });
+
+    it("reports a failed stream as an error and retains the executing colleague", async () => {
+        const chatId = "wisp-error";
+        const onStreamComplete = jest.fn();
+        const { result } = renderStreamHook(chatId, {
+            onStreamComplete,
+            currentEntityId: "colleague-a",
+        });
+        const { response, pushEvent } = createMockSSEStream();
+        act(() => result.current.setIsStreaming(true));
+        expect(queryClient.getQueryData(["stream", chatId]).entityId).toBe(
+            "colleague-a",
+        );
+        act(() => result.current.setSubscriptionId(response));
+        pushEvent("data", { result: "Partial reply" });
+        await waitFor(() =>
+            expect(
+                queryClient.getQueryData(["stream", chatId]).streamingContent,
+            ).toBe("Partial reply"),
+        );
+        pushEvent("error", { error: "Synthetic failure" });
+        await waitFor(() => expect(onStreamComplete).toHaveBeenCalled());
+        expect(onStreamComplete.mock.calls[0][0]).toMatchObject({
+            outcome: "error",
+            assistantMessage: { entityId: "colleague-a" },
+        });
     });
 
     it("endStream finishes when animation frames are paused", async () => {
@@ -441,6 +481,52 @@ describe("useStreamingMessages – endStream cache write", () => {
         ]);
     });
 
+    it("keeps live media receipts during streaming and in the completed chat cache", async () => {
+        const chatId = "chat_media";
+        const onStreamComplete = jest.fn();
+        const receipt = {
+            taskId: "a".repeat(24),
+            type: "image",
+            model: "model",
+            name: "Model",
+        };
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [],
+            isChatLoading: true,
+        });
+        const { response, pushEvent } = createMockSSEStream();
+        const { result } = renderStreamHook(chatId, { onStreamComplete });
+        act(() => result.current.setSubscriptionId(response));
+        for (const toolMessage of [
+            { type: "start", callId: "media-1", userMessage: "Creating" },
+            {
+                type: "finish",
+                callId: "media-1",
+                success: true,
+                mediaTask: { ...receipt, url: "secret" },
+            },
+        ])
+            pushEvent("info", { info: JSON.stringify({ toolMessage }) });
+        await waitFor(() => {
+            const items =
+                queryClient.getQueryData(["stream", chatId])
+                    ?.inlinePayloadItems || [];
+            expect(
+                items.map(JSON.parse).find((item) => item.callId === "media-1")
+                    ?.mediaTask,
+            ).toEqual(receipt);
+        });
+        pushEvent("data", { result: "Your images are on their way." });
+        pushEvent("complete", {});
+        await waitFor(() => expect(onStreamComplete).toHaveBeenCalled());
+        expect(
+            getAssistantPayload(onStreamComplete).find(
+                (item) => item.callId === "media-1",
+            ).mediaTask,
+        ).toEqual(receipt);
+    });
+
     it("preserves inline user presentation from streamed tool messages", async () => {
         const chatId = "chat_inline_user";
         const onStreamComplete = jest.fn();
@@ -636,6 +722,223 @@ describe("useStreamingMessages – endStream cache write", () => {
                 expect.objectContaining({
                     toolCallbackId: "cb-heartbeat",
                     toolCallbackName: "Navigate",
+                }),
+            );
+        });
+    });
+
+    it("keeps heartbeating while a client-side tool remains in progress", async () => {
+        jest.useFakeTimers();
+        try {
+            const chatId = "chat_client_tool_long_running";
+            let finishTool;
+            const onClientSideToolCall = jest.fn(
+                () =>
+                    new Promise((resolve) => {
+                        finishTool = resolve;
+                    }),
+            );
+            const onClientSideToolHeartbeat = jest.fn(() => Promise.resolve());
+
+            queryClient.setQueryData(["chat", chatId], {
+                _id: chatId,
+                messages: [{ _id: "m1", sender: "user", payload: "Inspect" }],
+                isChatLoading: true,
+            });
+
+            const { response, pushEvent } = createMockSSEStream();
+            const { result } = renderStreamHook(chatId, {
+                onClientSideToolCall,
+                onClientSideToolHeartbeat,
+            });
+
+            act(() => {
+                result.current.setSubscriptionId(response);
+            });
+            pushEvent("info", {
+                info: JSON.stringify({
+                    clientSideTool: true,
+                    toolCallbackId: "cb-long-running",
+                    toolCallbackName: "InspectCanvas",
+                }),
+            });
+
+            await act(async () => {
+                await jest.advanceTimersByTimeAsync(20);
+            });
+            expect(onClientSideToolCall).toHaveBeenCalledTimes(1);
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledTimes(1);
+
+            await act(async () => {
+                await jest.advanceTimersByTimeAsync(10_000);
+            });
+
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledTimes(3);
+
+            finishTool();
+            await act(async () => {
+                await Promise.resolve();
+                await jest.advanceTimersByTimeAsync(10_000);
+            });
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledTimes(3);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it("dispatches client tools while rendering is paused, without replaying them when paint resumes", async () => {
+        jest.useFakeTimers();
+        global.requestAnimationFrame = jest.fn(() => 1);
+        const chatId = "chat_paused_paint_tool";
+        const onClientSideToolCall = jest.fn(async () => {});
+        const onClientSideToolHeartbeat = jest.fn(async () => {});
+        try {
+            queryClient.setQueryData(["chat", chatId], {
+                _id: chatId,
+                messages: [],
+            });
+            const { response, pushEvent } = createMockSSEStream();
+            const { result } = renderStreamHook(chatId, {
+                onClientSideToolCall,
+                onClientSideToolHeartbeat,
+            });
+            act(() => result.current.setSubscriptionId(response));
+            for (let index = 0; index < 100; index++) {
+                pushEvent("data", { result: JSON.stringify("text ") });
+            }
+            const info = {
+                clientSideTool: true,
+                toolCallbackId: "cb-paused",
+                toolCallbackName: "LoadSkill",
+            };
+            pushEvent("info", { info: JSON.stringify(info) });
+            pushEvent("info", { info: JSON.stringify(info) });
+            // Drain network microtasks without allowing a paint or a timer.
+            await act(async () => {
+                for (let index = 0; index < 120; index++)
+                    await Promise.resolve();
+            });
+            expect(onClientSideToolCall).toHaveBeenCalledTimes(1);
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledTimes(1);
+            await act(async () => {
+                await jest.advanceTimersByTimeAsync(5_000);
+            });
+            expect(onClientSideToolCall).toHaveBeenCalledTimes(1);
+            await act(async () => {
+                await result.current.stopStreaming();
+            });
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    it("heartbeats with the Cortex subscription id, not unknown", async () => {
+        const chatId = "chat_client_tool_request_id";
+        const onClientSideToolHeartbeat = jest.fn(() => Promise.resolve());
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Inspect" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result } = renderStreamHook(chatId, {
+            onClientSideToolHeartbeat,
+        });
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+        pushEvent("subscriptionId", { subscriptionId: "sub-cortex-1" });
+        pushEvent("info", {
+            info: JSON.stringify({
+                clientSideTool: true,
+                toolCallbackId: "cb-request-id",
+                toolCallbackName: "GetAppletState",
+            }),
+        });
+
+        await waitFor(() => {
+            expect(onClientSideToolHeartbeat).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallbackId: "cb-request-id",
+                    requestId: "sub-cortex-1",
+                }),
+            );
+        });
+    });
+
+    it("retries a client-side tool once the handler mounts", async () => {
+        const chatId = "chat_client_tool_pending_handler";
+        const lateHandler = jest.fn(() => Promise.resolve());
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Open" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result, unmount } = renderHook(
+            ({ onClientSideToolCall }) =>
+                useStreamingMessages({
+                    chat: {
+                        _id: chatId,
+                        messages: [],
+                        isChatLoading: true,
+                    },
+                    updateChatHook: { mutateAsync: jest.fn() },
+                    onClientSideToolHeartbeat: jest.fn(),
+                    onClientSideToolCall,
+                    onStreamComplete: jest.fn(),
+                    onStreamDetached: jest.fn(),
+                }),
+            {
+                wrapper,
+                initialProps: { onClientSideToolCall: undefined },
+            },
+        );
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+        pushEvent("info", {
+            info: JSON.stringify({
+                clientSideTool: true,
+                toolCallbackId: "cb-pending",
+                toolCallbackName: "OpenCanvasFile",
+            }),
+        });
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(lateHandler).not.toHaveBeenCalled();
+
+        unmount();
+        renderHook(
+            () =>
+                useStreamingMessages({
+                    chat: {
+                        _id: chatId,
+                        messages: [],
+                        isChatLoading: true,
+                    },
+                    updateChatHook: { mutateAsync: jest.fn() },
+                    onClientSideToolHeartbeat: jest.fn(),
+                    onClientSideToolCall: lateHandler,
+                    onStreamComplete: jest.fn(),
+                    onStreamDetached: jest.fn(),
+                }),
+            { wrapper },
+        );
+
+        await waitFor(() => {
+            expect(lateHandler).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    toolCallbackId: "cb-pending",
+                    toolCallbackName: "OpenCanvasFile",
                 }),
             );
         });
@@ -1042,5 +1345,96 @@ describe("useStreamingMessages – endStream cache write", () => {
         expect(toast.error).not.toHaveBeenCalled();
         expect(queryClient.getQueryData(["stream", chatId])).toBeUndefined();
         expect(queryClient.getQueryData(["chatSending", chatId])).toBeNull();
+    });
+
+    it("finalizes streamed content when isChatLoading becomes false instead of discarding it", async () => {
+        const chatId = "chat_loading_false_finalize";
+        const onStreamComplete = jest.fn();
+
+        queryClient.setQueryData(["chat", chatId], {
+            _id: chatId,
+            messages: [{ _id: "m1", sender: "user", payload: "Hello" }],
+            isChatLoading: true,
+        });
+
+        const { response, pushEvent } = createMockSSEStream();
+        const { result, rerender } = renderHook(
+            ({ isChatLoading }) =>
+                useStreamingMessages({
+                    chat: {
+                        _id: chatId,
+                        messages: [],
+                        isChatLoading,
+                    },
+                    updateChatHook: { mutateAsync: jest.fn() },
+                    onClientSideToolHeartbeat: jest.fn(),
+                    onClientSideToolCall: jest.fn(),
+                    onStreamComplete,
+                    onStreamDetached: jest.fn(),
+                }),
+            {
+                wrapper,
+                initialProps: { isChatLoading: true },
+            },
+        );
+
+        act(() => {
+            result.current.setSubscriptionId(response);
+        });
+
+        pushEvent("data", { result: "Keep me" });
+        await waitFor(() => {
+            expect(
+                queryClient.getQueryData(["stream", chatId])?.streamingContent,
+            ).toBe("Keep me");
+        });
+
+        rerender({ isChatLoading: false });
+
+        await waitFor(() => {
+            expect(onStreamComplete).toHaveBeenCalled();
+        });
+        const cachedChat = queryClient.getQueryData(["chat", chatId]);
+        expect(cachedChat.messages.at(-1)).toMatchObject({
+            sender: "assistant",
+            _clientId: expect.stringMatching(/^stream-end:/),
+        });
+        expect(JSON.parse(cachedChat.messages.at(-1).payload[0])).toMatchObject(
+            {
+                type: "text",
+                text: "Keep me",
+            },
+        );
+    });
+});
+
+describe("mergeStreamCache", () => {
+    it("keeps isStreaming false when applying partial updates to empty state", () => {
+        expect(
+            mergeStreamCache(undefined, { streamingContent: "hello" }),
+        ).toMatchObject({
+            streamingContent: "hello",
+            isStreaming: false,
+            reader: null,
+        });
+    });
+
+    it("preserves an active stream when applying partial updates", () => {
+        expect(
+            mergeStreamCache(
+                { isStreaming: true, reader: { id: 1 }, streamingContent: "" },
+                { streamingContent: "hello" },
+            ),
+        ).toMatchObject({
+            streamingContent: "hello",
+            isStreaming: true,
+            reader: { id: 1 },
+        });
+    });
+
+    it("lets updates explicitly set isStreaming", () => {
+        expect(
+            mergeStreamCache({ isStreaming: true }, { isStreaming: false }),
+        ).toMatchObject({ isStreaming: false });
     });
 });

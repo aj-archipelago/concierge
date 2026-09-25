@@ -15,6 +15,7 @@ import {
     handleSetHomeApplet,
     handleUnpublishApplet,
     handleUpdateAppletMetadata,
+    handleUpdateAppletWidget,
 } from "../chatTools";
 
 describe("chat applet tools", () => {
@@ -578,9 +579,65 @@ describe("chat applet tools", () => {
         expect(result.data.recommendedAction).toBe(
             "No publish action needed unless the user asks to make a saved version live",
         );
+        expect(result.data.widget.exists).toBe(false);
+        expect(result.data.widget.note).toContain("UpdateAppletWidget");
         expect(global.fetch.mock.calls[1][0]).toBe(
             "/api/workspace/file?entityId=entity123&path=%2Fworkspace%2Ffiles%2Fapplets%2Fweather.html",
         );
+    });
+
+    test("advertises UpdateAppletWidget for Home tile HTML", () => {
+        const tool = CHAT_CONTEXTUAL_TOOLS.find(
+            (entry) => entry.function.name === "UpdateAppletWidget",
+        );
+        expect(tool).toBeTruthy();
+        expect(tool.function.description).toContain("widget HTML");
+        expect(tool.function.parameters.required).toEqual(
+            expect.arrayContaining(["html", "userMessage"]),
+        );
+    });
+
+    test("UpdateAppletWidget PUTs widgetHtml and refreshes the canvas tab", async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                _id: "applet123",
+                name: "Weather Applet",
+                widgetHtmlUpdatedAt: "2026-08-25T00:00:00.000Z",
+            }),
+        });
+        const dispatch = jest.fn();
+
+        const result = await handleUpdateAppletWidget(
+            {
+                toolArgs: {
+                    html: "<html><body>tile</body></html>",
+                    userMessage: "Fix the tile",
+                },
+            },
+            {
+                dispatch,
+                getActiveTabId: () => "tab-1",
+                getActiveHtmlContent: () => ({
+                    appletId: "applet123",
+                }),
+            },
+        );
+
+        expect(global.fetch).toHaveBeenCalledWith(
+            "/api/canvas-applets/applet123",
+            expect.objectContaining({
+                method: "PUT",
+                body: JSON.stringify({
+                    widgetHtml: "<html><body>tile</body></html>",
+                }),
+            }),
+        );
+        expect(result.success).toBe(true);
+        expect(result.data.contentLength).toBe(
+            "<html><body>tile</body></html>".length,
+        );
+        expect(dispatch).toHaveBeenCalled();
     });
 
     test("GetAppletState does not treat unavailable external published content as matching Draft", async () => {
@@ -1002,6 +1059,55 @@ describe("chat applet tools", () => {
             appTags: ["Storm", "Newsroom"],
             appCategory: "weather",
             appMetadataGeneratedAt: "2026-06-10T12:00:00.000Z",
+        });
+    });
+
+    test("UpdateAppletMetadata forwards strict publishToAppStore booleans only", async () => {
+        global.fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                _id: "applet123",
+                name: "Weather Applet",
+            }),
+        });
+
+        await handleUpdateAppletMetadata({
+            toolArgs: {
+                appletId: "applet123",
+                publishToAppStore: false,
+            },
+        });
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+            publishToAppStore: false,
+        });
+
+        global.fetch.mockClear();
+        await handleUpdateAppletMetadata({
+            toolArgs: {
+                appletId: "applet123",
+                publishToAppStore: true,
+                appName: "Storm Desk",
+                appSlug: "storm-desk",
+                appDescription: "Track storms",
+            },
+        });
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+            publishToAppStore: true,
+            appName: "Storm Desk",
+            appSlug: "storm-desk",
+            appDescription: "Track storms",
+        });
+
+        global.fetch.mockClear();
+        await handleUpdateAppletMetadata({
+            toolArgs: {
+                appletId: "applet123",
+                publishToAppStore: "true",
+                appName: "Storm Desk",
+            },
+        });
+        expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+            appName: "Storm Desk",
         });
     });
 

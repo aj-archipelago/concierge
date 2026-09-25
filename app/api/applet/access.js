@@ -1,9 +1,51 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 import mongoose from "mongoose";
 import Applet from "../models/applet.js";
 import App, { APP_STATUS, APP_TYPES } from "../models/app.js";
 import Workspace from "../models/workspace.js";
 import { resolveShareAccess } from "../utils/shareAccess.js";
+
+async function hasListedPublicApp(applet, workspace) {
+    const publicApplet = await App.findOne({
+        type: APP_TYPES.APPLET,
+        status: APP_STATUS.ACTIVE,
+        listedInStore: { $ne: false },
+        $or: [
+            { appletId: applet._id },
+            ...(workspace?._id ? [{ workspaceId: workspace._id }] : []),
+        ],
+    })
+        .select("_id")
+        .lean();
+
+    return Boolean(publicApplet);
+}
+
+async function hasSharedAppletAccess(applet, userId) {
+    const draftAccess = await resolveShareAccess({
+        entityType: "applet",
+        entityId: applet._id,
+        userId,
+        ownerId: applet.owner,
+    });
+
+    if (draftAccess.canAccess) {
+        return true;
+    }
+
+    if (applet.publishedVersionIndex == null) {
+        return false;
+    }
+
+    const publishedAccess = await resolveShareAccess({
+        entityType: "published_applet",
+        entityId: applet._id,
+        userId,
+        ownerId: applet.owner,
+    });
+
+    return publishedAccess.canAccess;
+}
 
 export async function validateAppletAccess(appletId, user) {
     if (!user?._id) {
@@ -32,28 +74,15 @@ export async function validateAppletAccess(appletId, user) {
         return null;
     }
 
+    if (await hasSharedAppletAccess(applet, user._id)) {
+        return null;
+    }
+
     if (applet.version === 2) {
-        const publicApp = await App.findOne({
-            type: APP_TYPES.APPLET,
-            status: APP_STATUS.ACTIVE,
-            appletId: applet._id,
-            listedInStore: { $ne: false },
-        })
-            .select("_id")
-            .lean();
-
-        if (publicApp && applet.publishedVersionIndex != null) {
-            return null;
-        }
-
-        const access = await resolveShareAccess({
-            entityType: "applet",
-            entityId: applet._id,
-            userId: user._id,
-            ownerId: applet.owner,
-        });
-
-        if (access.canAccess) {
+        if (
+            applet.publishedVersionIndex != null &&
+            (await hasListedPublicApp(applet))
+        ) {
             return null;
         }
 
@@ -63,18 +92,8 @@ export async function validateAppletAccess(appletId, user) {
     const workspace = await Workspace.findOne({ applet: applet._id })
         .select("_id")
         .lean();
-    const publicApplet = await App.findOne({
-        type: APP_TYPES.APPLET,
-        status: APP_STATUS.ACTIVE,
-        $or: [
-            { appletId: applet._id },
-            ...(workspace?._id ? [{ workspaceId: workspace._id }] : []),
-        ],
-    })
-        .select("_id")
-        .lean();
 
-    if (publicApplet) {
+    if (await hasListedPublicApp(applet, workspace)) {
         return null;
     }
 

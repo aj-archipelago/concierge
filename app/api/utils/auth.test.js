@@ -160,6 +160,7 @@ describe("getCurrentUser personal entity provisioning", () => {
         const storedUser = await User.findOne({ userId: "user-1" }).lean();
         expect(storedUser.personalEntityId).toBe("entity-123");
         expect(storedUser.personalEntityProvisioningAt).toBeUndefined();
+        expect(storedUser.homeLegacyDigestsMigrated).toBeUndefined();
     });
 
     test("concurrent first-login requests create exactly one user record", async () => {
@@ -188,6 +189,7 @@ describe("getCurrentUser personal entity provisioning", () => {
         for (const user of results) {
             expect(user.userId).toBe("new-user-1");
             expect(user.contextId).toBeTruthy();
+            expect(user.homeLegacyDigestsMigrated).toBe(true);
         }
 
         // All should share the same contextId (same record)
@@ -252,6 +254,66 @@ describe("getCurrentUser personal entity provisioning", () => {
 
         const storedUser = await User.findOne({ userId }).lean();
         expect(storedUser.username).toBe(username);
+    });
+
+    test("stores the Entra display name for a new user", async () => {
+        headers.mockReturnValue(
+            new Map([
+                ["X-MS-CLIENT-PRINCIPAL-ID", "named-user-1"],
+                ["X-MS-CLIENT-PRINCIPAL-NAME", "named@example.test"],
+                [
+                    "X-MS-CLIENT-PRINCIPAL",
+                    encodePrincipal([{ typ: "name", val: "Named User" }]),
+                ],
+            ]),
+        );
+        getClient.mockReturnValue({
+            query: jest.fn().mockResolvedValue({
+                data: {
+                    sys_entity_upsert_personal: {
+                        result: JSON.stringify({ id: "entity-named" }),
+                    },
+                },
+            }),
+        });
+
+        const user = await getCurrentUser(false);
+
+        expect(user.name).toBe("Named User");
+        const storedUser = await User.findOne({
+            userId: "named-user-1",
+        }).lean();
+        expect(storedUser.name).toBe("Named User");
+    });
+
+    test("upgrades an email-only stored name from the Entra display name", async () => {
+        await User.create({
+            userId: "user-1",
+            username: "user-1@example.com",
+            name: "USER-1@example.com",
+            contextId: "context-1",
+            contextKey: "context-key-1",
+            personalEntityId: "entity-existing",
+            aiMemorySelfModify: true,
+            aiName: "Concierge",
+            agentModel: "test-model",
+        });
+        headers.mockReturnValue(
+            new Map([
+                ["X-MS-CLIENT-PRINCIPAL-ID", "user-1"],
+                ["X-MS-CLIENT-PRINCIPAL-NAME", "user-1@example.com"],
+                [
+                    "X-MS-CLIENT-PRINCIPAL",
+                    encodePrincipal([{ typ: "name", val: "User One" }]),
+                ],
+            ]),
+        );
+
+        const user = await getCurrentUser(false);
+
+        expect(user.name).toBe("User One");
+        const storedUser = await User.findOne({ userId: "user-1" }).lean();
+        expect(storedUser.name).toBe("User One");
     });
 
     test("refreshes stale lastActiveAt without saving the whole user document", async () => {

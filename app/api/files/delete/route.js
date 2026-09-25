@@ -1,3 +1,4 @@
+import { authorizedMediaFetch } from "../../utils/cfh-client.mjs";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../utils/auth.js";
 import config from "../../../../config/index.js";
@@ -62,10 +63,11 @@ export async function DELETE(request) {
 
         const { routingParams } = await resolveAuthorizedMediaRouting({
             user,
+            action: "delete",
             routingInput,
         });
 
-        // Call CFH delete API — prefer blobPath and only fall back to hash on miss
+        // A supplied path is authoritative; never fall back to a hash on failure.
         let deleteResult = null;
         let failedResponse = null;
         for (const attempt of buildFileIdentifierAttempts({ blobPath, hash })) {
@@ -79,12 +81,15 @@ export async function DELETE(request) {
                 deleteUrl.searchParams.set(key, value);
             }
 
-            const deleteResponse = await fetch(deleteUrl.toString(), {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
+            const deleteResponse = await authorizedMediaFetch(
+                deleteUrl.toString(),
+                {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                 },
-            });
+            );
 
             if (deleteResponse.ok) {
                 deleteResult = await deleteResponse.json();
@@ -139,3 +144,101 @@ export async function DELETE(request) {
 }
 
 export const dynamic = "force-dynamic";
+
+// Bounded bulk deletion, with authorization applied to every file before any
+// mutation. Files sharing a scope use one CFH scan and retain per-file outcomes.
+export async function POST(request) {
+    try {
+        const user = await getCurrentUser();
+        if (!user)
+            return NextResponse.json(
+                { error: "Authentication required" },
+                { status: 401 },
+            );
+        const { files } = await request.json();
+        if (
+            !Array.isArray(files) ||
+            !files.length ||
+            files.length > 500 ||
+            files.some(
+                (file) =>
+                    !file ||
+                    typeof file.blobPath !== "string" ||
+                    !file.blobPath ||
+                    file.blobPath.length > 1024,
+            )
+        ) {
+            return NextResponse.json(
+                { error: "Provide 1 to 500 file locations" },
+                { status: 400 },
+            );
+        }
+        const groups = new Map();
+        for (let index = 0; index < files.length; index++) {
+            const file = files[index];
+            const { routingParams } = await resolveAuthorizedMediaRouting({
+                user,
+                action: "delete",
+                routingInput: {
+                    contextId: file.contextId,
+                    userId: file.userId,
+                    workspaceId: file.workspaceId,
+                    chatId: file.chatId,
+                    fileScope: file.fileScope,
+                },
+            });
+            const key = JSON.stringify(routingParams);
+            if (!groups.has(key)) groups.set(key, { routingParams, items: [] });
+            groups.get(key).items.push({ blobPath: file.blobPath, index });
+        }
+        const results = files.map((file) => ({
+            blobPath: file.blobPath,
+            deleted: false,
+            status: 500,
+        }));
+        for (const { routingParams, items } of groups.values()) {
+            try {
+                const url = new URL(config.endpoints.mediaHelperDirect());
+                for (const [key, value] of Object.entries(routingParams))
+                    url.searchParams.set(key, value);
+                const response = await authorizedMediaFetch(url.toString(), {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        blobPaths: items.map((item) => item.blobPath),
+                    }),
+                });
+                if (!response.ok) {
+                    items.forEach((item) => {
+                        results[item.index].status = response.status;
+                    });
+                    continue;
+                }
+                const data = await response.json();
+                const byPath = new Map(
+                    (data.results || []).map((result) => [
+                        result.blobPath,
+                        result,
+                    ]),
+                );
+                items.forEach((item) => {
+                    const result = byPath.get(item.blobPath);
+                    if (result)
+                        results[item.index] = {
+                            blobPath: item.blobPath,
+                            deleted: result.deleted === true,
+                            status: result.status,
+                        };
+                });
+            } catch {
+                /* Keep unconfirmed outcomes failed and retryable. */
+            }
+        }
+        return NextResponse.json({ results });
+    } catch (error) {
+        return NextResponse.json(
+            { error: "Unable to delete files" },
+            { status: error.status || 500 },
+        );
+    }
+}

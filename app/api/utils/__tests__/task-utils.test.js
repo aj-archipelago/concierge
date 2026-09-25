@@ -10,6 +10,7 @@ const mockClearTaskCancellation = jest.fn();
 jest.mock("bullmq", () => ({
     Queue: jest.fn(() => ({
         getJob: mockGetJob,
+        getJobs: jest.fn(async () => []),
     })),
 }));
 
@@ -29,17 +30,16 @@ jest.mock("../../models/task.mjs", () => ({
     __esModule: true,
     default: {
         findByIdAndUpdate: jest.fn(),
+        findOne: jest.fn(),
+        find: jest.fn(),
         findOneAndUpdate: jest.fn(),
     },
 }));
 
-jest.mock("../../chats/persistence.js", () => ({
-    prepareMessagesForPersistence: jest.fn((messages) => ({
-        messages,
-        messageStorageBytes: 0,
-    })),
+jest.mock("../../../../src/utils/task-loader.mjs", () => ({
+    loadTaskDefinition: jest.fn(async () => null),
 }));
-
+jest.mock("../../../../jobs/graphql.mjs", () => ({ getClient: jest.fn() }));
 const Task = require("../../models/task.mjs").default;
 
 describe("task utils", () => {
@@ -58,6 +58,31 @@ describe("task utils", () => {
         mockGetJob.mockResolvedValue(null);
     });
 
+    test("waiting tasks survive stale heartbeats and completed queue receipts", async () => {
+        const task = {
+            _id: "task-waiting",
+            jobId: "old-job",
+            status: "waiting",
+            lastHeartbeat: new Date(0),
+        };
+        mockGetJob.mockResolvedValue({ getState: async () => "completed" });
+        expect(await checkAndUpdateAbandonedTask(task)).toBe(task);
+        expect(await syncTaskWithBullMQJob(task)).toBe(task);
+        expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
+        expect(Task.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test("a continuation with an interrupted enqueue waits for reconciliation", async () => {
+        const task = {
+            _id: "continuation",
+            status: "pending",
+            assistantTurn: 1,
+            lastHeartbeat: new Date(0),
+        };
+        expect(await checkAndUpdateAbandonedTask(task)).toBe(task);
+        expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
     test("does not mark cancelled tasks as abandoned", async () => {
         const task = {
             _id: "task-1",
@@ -70,6 +95,58 @@ describe("task utils", () => {
         expect(result).toBe(task);
         expect(Task.findByIdAndUpdate).not.toHaveBeenCalled();
         expect(Task.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    test.each(["automation-run", "build-digest", "assistant-run"])(
+        "queue pickup does not mark %s started before worker admission",
+        async (type) => {
+            const task = {
+                _id: "not-yet-admitted",
+                jobId: "job-1",
+                type,
+                status: "pending",
+            };
+            mockGetJob.mockResolvedValue({ getState: async () => "active" });
+
+            expect(await syncTaskWithBullMQJob(task)).toBe(task);
+            expect(Task.findByIdAndUpdate).not.toHaveBeenCalled();
+        },
+    );
+
+    test.each(["waiting", "delayed"])(
+        "a %s receipt does not reset an admitted task's execution state",
+        async (state) => {
+            const task = {
+                _id: "already-admitted",
+                jobId: "job-1",
+                type: "automation-run",
+                status: "in_progress",
+                executionStartedAt: new Date(),
+            };
+            mockGetJob.mockResolvedValue({ getState: async () => state });
+
+            expect(await syncTaskWithBullMQJob(task)).toBe(task);
+            expect(Task.findByIdAndUpdate).not.toHaveBeenCalled();
+        },
+    );
+
+    test("interactive tasks still reflect queue pickup", async () => {
+        const task = {
+            _id: "interactive",
+            jobId: "job-1",
+            type: "media-generation",
+            status: "pending",
+        };
+        const updated = { ...task, status: "in_progress" };
+        mockGetJob.mockResolvedValue({ getState: async () => "active" });
+        Task.findByIdAndUpdate.mockResolvedValue(updated);
+
+        expect(await syncTaskWithBullMQJob(task)).toBe(updated);
+        expect(Task.findByIdAndUpdate).toHaveBeenCalledWith(
+            task._id,
+            { status: "in_progress" },
+            { new: true },
+        );
     });
 
     test("overlays Redis liveness instead of writing Mongo heartbeat state", async () => {
@@ -238,4 +315,41 @@ describe("task utils", () => {
             { new: true },
         );
     });
+});
+
+test("cancelling an originating task cancels its active child work under the same owner", async () => {
+    const { cancelTask } = await import("../task-utils.mjs");
+    const root = {
+        _id: "root",
+        owner: "owner",
+        assistantRootId: "root",
+        type: "assistant-run",
+        status: "waiting",
+    };
+    const child = {
+        _id: "child",
+        owner: "owner",
+        assistantRootId: "root",
+        type: "assistant-run",
+        status: "in_progress",
+    };
+    Task.findOne.mockImplementation(async ({ _id }) =>
+        _id === "root" ? root : child,
+    );
+    Task.find.mockResolvedValue([child]);
+    Task.findOneAndUpdate.mockImplementation(async ({ _id }) => ({
+        ...(_id === "root" ? root : child),
+        status: "cancelled",
+    }));
+    await cancelTask("root", "owner");
+    expect(Task.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+            owner: "owner",
+            assistantRootId: "root",
+            _id: { $ne: "root" },
+            status: { $in: ["pending", "in_progress", "waiting"] },
+        }),
+    );
+    expect(mockRequestTaskCancellation).toHaveBeenCalledWith("root");
+    expect(mockRequestTaskCancellation).toHaveBeenCalledWith("child");
 });

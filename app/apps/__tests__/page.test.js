@@ -217,13 +217,17 @@ describe("AppsPage", () => {
         render(<AppsPage />);
 
         expect(await screen.findByText("Applet Library")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Discover" })).toHaveClass(
-            "border-sky-500",
-        );
+        expect(
+            screen.getByRole("button", { name: "Discover" }),
+        ).toHaveAttribute("aria-pressed", "true");
         expect(screen.queryByRole("button", { name: "Installed" })).toBeNull();
         expect(await screen.findByText("Desk Brief")).toBeInTheDocument();
         expect(screen.queryByText("Home")).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
+        // Discover cards now surface a direct "Add" button (opens the
+        // placement dialog for home page / sidebar).
+        expect(
+            screen.getAllByRole("button", { name: "Add" }).length,
+        ).toBeGreaterThan(0);
         expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
         expect(
@@ -505,9 +509,9 @@ describe("AppsPage", () => {
 
         render(<AppsPage />);
 
-        expect(screen.getByRole("button", { name: "Discover" })).toHaveClass(
-            "border-sky-500",
-        );
+        expect(
+            screen.getByRole("button", { name: "Discover" }),
+        ).toHaveAttribute("aria-pressed", "true");
         expect(await screen.findByText("Desk Brief")).toBeInTheDocument();
     });
 

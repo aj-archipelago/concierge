@@ -1084,15 +1084,19 @@ describe("fetchShortLivedUrl", () => {
         });
         expect(global.fetch).toHaveBeenCalledWith(
             expect.stringContaining("checkHash=true"),
+            expect.objectContaining({ headers: expect.anything() }),
         );
         expect(global.fetch).toHaveBeenCalledWith(
             expect.stringContaining("shortLived=true"),
+            expect.objectContaining({ headers: expect.anything() }),
         );
         expect(global.fetch).toHaveBeenCalledWith(
             expect.stringContaining("duration=300"),
+            expect.objectContaining({ headers: expect.anything() }),
         );
         expect(global.fetch).toHaveBeenCalledWith(
             expect.stringContaining("contextId=context123"),
+            expect.objectContaining({ headers: expect.anything() }),
         );
     });
 
@@ -1257,6 +1261,7 @@ describe("fetchShortLivedUrl", () => {
 
         expect(global.fetch).toHaveBeenCalledWith(
             expect.not.stringContaining("contextId"),
+            expect.objectContaining({ headers: expect.anything() }),
         );
     });
 });

@@ -1,12 +1,21 @@
 "use client";
 
+import PageHeader from "../../layout/PageHeader";
+import { HeaderAction } from "../../layout/HeaderControls";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { convertMessageToMarkdown } from "../chat/ChatMessage";
 import { useAutomation, useAutomationRuns } from "../../hooks/useAutomations";
 import StatusBadge from "./StatusBadge";
-import { formatDate, getRunOutput, stringifyRunOutput } from "./runUtils";
+import TaskRunFailure from "./TaskRunFailure";
+import TaskRunWaiting from "./TaskRunWaiting";
+import {
+    formatDate,
+    getRunOutput,
+    isFailedRun,
+    stringifyRunOutput,
+} from "./runUtils";
 
 export default function AutomationTextRunPage({ automationId, taskId }) {
     const { t } = useTranslation();
@@ -43,13 +52,12 @@ export default function AutomationTextRunPage({ automationId, taskId }) {
                 <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {t("Automation not found")}
                 </h1>
-                <a
-                    href="/automations"
-                    className="inline-flex items-center gap-2 text-sm text-sky-600 hover:underline dark:text-sky-400"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    {t("Back to automations")}
-                </a>
+                <HeaderAction
+                    href="/colleagues?view=tasks"
+                    icon={ArrowLeft}
+                    iconClassName="rtl:rotate-180"
+                    label={t("Back to automations")}
+                />
             </div>
         );
     }
@@ -62,58 +70,67 @@ export default function AutomationTextRunPage({ automationId, taskId }) {
                 <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {t("Run not found")}
                 </h1>
-                <a
+                <HeaderAction
                     href={backHref}
-                    className="inline-flex items-center gap-2 text-sm text-sky-600 hover:underline dark:text-sky-400"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    {t("Back to automation")}
-                </a>
+                    icon={ArrowLeft}
+                    iconClassName="rtl:rotate-180"
+                    label={t("Back to automation")}
+                />
             </div>
         );
     }
 
     return (
-        <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-4xl flex-col px-4 py-6 sm:px-6">
-            <div className="mb-6 flex items-start justify-between gap-4">
-                <div>
-                    <a
-                        href={backHref}
-                        className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        {t("Back to automation")}
-                    </a>
-                    <h1 className="mt-3 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                        {automation.name}
-                    </h1>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <StatusBadge status={run.status} />
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {formatDate(run.completedAt || run.createdAt)}
-                        </span>
+        <div className="mx-auto flex min-h-full max-w-4xl flex-col px-4 py-2 sm:px-6">
+            <PageHeader
+                title={automation.name}
+                description={automation.description}
+            >
+                <HeaderAction
+                    href={backHref}
+                    icon={ArrowLeft}
+                    iconClassName="rtl:rotate-180"
+                    label={t("Back to automation")}
+                />
+                <StatusBadge status={run.status} />
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatDate(run.completedAt || run.createdAt)}
+                </span>
+            </PageHeader>
+
+            <TaskRunWaiting run={run} />
+            {run.outputExpiredAt ? (
+                <p
+                    role="status"
+                    className="rounded-lg border border-gray-200 bg-white p-4 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                >
+                    {t("automations.outputExpiredHelp")}
+                </p>
+            ) : isFailedRun(run) ? (
+                <TaskRunFailure run={run} />
+            ) : (
+                <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                    <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            {t("Summary")}
+                        </h2>
+                    </div>
+                    <div className="p-4 text-sm text-gray-700 dark:text-gray-300">
+                        {summary ? (
+                            convertMessageToMarkdown({
+                                payload: summary,
+                                tool: run?.data?.tool,
+                            })
+                        ) : (
+                            <p className="text-gray-500 dark:text-gray-400">
+                                {t("No output yet.")}
+                            </p>
+                        )}
                     </div>
                 </div>
-            </div>
+            )}
 
-            <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-                <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {t("Summary")}
-                    </h2>
-                </div>
-                <div className="p-4 text-sm text-gray-700 dark:text-gray-300">
-                    {summary ? (
-                        convertMessageToMarkdown({ payload: summary })
-                    ) : (
-                        <p className="text-gray-500 dark:text-gray-400">
-                            {t("No output yet.")}
-                        </p>
-                    )}
-                </div>
-            </div>
-
-            {rawOutput && rawOutput !== summary ? (
+            {!isFailedRun(run) && rawOutput && rawOutput !== summary ? (
                 <div className="mt-4 rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                     <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">

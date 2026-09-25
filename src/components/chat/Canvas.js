@@ -111,7 +111,7 @@ function buildArticleWorkspacePath(file) {
  * - No state leaks or race conditions between tabs
  * - Faster tab switching (components stay mounted)
  */
-export default function Canvas({ selectedEntityId }) {
+export default function Canvas({ selectedEntityId, editorLayout }) {
     const { t } = useTranslation();
     const dispatch = useDispatch();
     const { user } = useContext(AuthContext);
@@ -328,12 +328,14 @@ export default function Canvas({ selectedEntityId }) {
     const htmlAppletIdRef = useRef(null);
     const htmlAppletActiveVersionNumberRef = useRef(null);
     const htmlAppletIsViewingDraftRef = useRef(null);
+    const htmlAppletViewModeRef = useRef(null);
     useEffect(() => {
         const content = displayContent || canvasContent;
         if (content?.type === "html") {
             htmlWorkspacePathRef.current = content.workspacePath || null;
             htmlFilenameRef.current = content.filename || content.title || null;
             htmlAppletIdRef.current = content.appletId || null;
+            htmlAppletViewModeRef.current = content.appletViewMode || null;
             htmlAppletActiveVersionNumberRef.current =
                 typeof content.appletActiveVersionNumber === "number"
                     ? content.appletActiveVersionNumber
@@ -348,6 +350,7 @@ export default function Canvas({ selectedEntityId }) {
             htmlAppletIdRef.current = null;
             htmlAppletActiveVersionNumberRef.current = null;
             htmlAppletIsViewingDraftRef.current = null;
+            htmlAppletViewModeRef.current = null;
         }
     }, [
         displayContent,
@@ -364,6 +367,8 @@ export default function Canvas({ selectedEntityId }) {
         canvasContent?.appletActiveVersionNumber,
         displayContent?.appletIsViewingDraft,
         canvasContent?.appletIsViewingDraft,
+        displayContent?.appletViewMode,
+        canvasContent?.appletViewMode,
     ]);
 
     const getHtmlPageContextRef = useRef(() => {
@@ -381,9 +386,20 @@ export default function Canvas({ selectedEntityId }) {
             } else if (htmlAppletActiveVersionNumberRef.current) {
                 context += `- **Current applet view:** Saved version v${htmlAppletActiveVersionNumberRef.current}\n`;
             }
+            if (htmlAppletViewModeRef.current === "widget") {
+                context += `- **Canvas preview:** Home widget tile (~320px), not the full-page applet\n`;
+            }
         }
-        context += `\nYou can edit it using bash commands (e.g. \`cat ${path}\`, \`echo '...' > ${path}\`, or use sed/awk). Use this exact workspace path; do not substitute a guessed /global/ path. The canvas preview refreshes from the workspace automatically after tool runs.`;
+        context += `\nYou can edit it using bash commands (e.g. \`cat ${path}\`, \`echo '...' > ${path}\`, or use sed/awk). Use this exact workspace path; do not substitute a guessed /global/ path.`;
+        if (htmlAppletViewModeRef.current === "widget") {
+            context += ` The canvas Home widget preview does **not** refresh from that workspace file.`;
+        } else {
+            context += ` The canvas preview refreshes from the workspace automatically after tool runs.`;
+        }
         if (htmlAppletIdRef.current) {
+            if (htmlAppletViewModeRef.current === "widget") {
+                context += ` The user is editing the **Home widget** tile. InspectCanvas and applet driver tools target the widget iframe. GetAppletState returns \`widget.html\` — that is the source of the tile. After editing it, call **UpdateAppletWidget { html }** with the complete widget document. Do not tell the user the tile is fixed after only editing the Draft workspace file.`;
+            }
             context += ` Because this HTML tab is linked to an applet Draft (id: ${htmlAppletIdRef.current}), use **GetAppletState** to inspect Draft/version/publish state, **SaveAppletDraftAsVersion** to checkpoint Draft as an immutable version, **CopyAppletVersionToDraft** to copy a saved version into Draft, **PublishAppletVersion { version }** only when the user explicitly asks to promote a saved version live, and **DeleteApplet** to remove it (the user will be asked to confirm). If the current applet view is a saved version and the user asks to edit that version, call **CopyAppletVersionToDraft**; if they only need the current Draft, call **OpenAppletDraft**. Use **InspectCanvas** only when you need a screenshot, console errors, or network failures.`;
         } else {
             context += ` The user will see the changes automatically. Use **GetCanvasState** for state or **InspectCanvas** if you need a screenshot.`;
@@ -1218,9 +1234,9 @@ export default function Canvas({ selectedEntityId }) {
                         checkHash: false,
                     });
 
-                    if (uploadResult?.url && uploadResult?.hash) {
+                    if (uploadResult?.url) {
                         finalUrl = uploadResult.url;
-                        finalHash = uploadResult.hash;
+                        finalHash = uploadResult.hash || null;
                         finalBlobPath = uploadResult.blobPath || null;
                     }
                 } catch (error) {
@@ -1888,16 +1904,18 @@ export default function Canvas({ selectedEntityId }) {
 
     const contentType = displayContent?.type;
     const isArticleType = contentType === "story" || contentType === "article";
+    const isAppletEditorChrome = editorLayout === "applet-editor";
     const isCanvasChromeHidden =
-        contentType === "html" &&
-        displayContent?.canvasChrome === "hidden" &&
-        !displayContent?.appletId;
+        isAppletEditorChrome ||
+        (contentType === "html" &&
+            displayContent?.canvasChrome === "hidden" &&
+            !displayContent?.appletId);
 
     return (
         <div
             className={`flex flex-col h-full ${isCanvasChromeHidden ? "border-0 bg-white dark:bg-gray-800 p-0" : isMobile ? "border-0 bg-white dark:bg-gray-800" : "border-s border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4"} relative`}
         >
-            {!isMobile && (
+            {!isMobile && !isAppletEditorChrome && (
                 <div
                     className="absolute top-0 bottom-0 start-0 w-1 cursor-ew-resize hover:bg-sky-500 dark:hover:bg-sky-400 z-20 transition-colors"
                     onMouseDown={handleResizeStart}
@@ -2055,6 +2073,7 @@ export default function Canvas({ selectedEntityId }) {
                             isGeneratingApplet={isGeneratingApplet}
                             refreshKey={fileBrowserRefreshKey}
                             isMobile={isMobile}
+                            editorLayout={editorLayout}
                             onCloseCanvas={() => {
                                 dispatch(closeCanvas());
                                 dispatch(setCanvasVisibility(false));

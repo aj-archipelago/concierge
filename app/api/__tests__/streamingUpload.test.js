@@ -114,6 +114,29 @@ describe("Streaming Upload Handler", () => {
         });
     });
 
+    test("preserves UTF-8 filenames in browser multipart uploads", async () => {
+        const result = await parseStreamingMultipart(
+            createMockMultipartRequest("تقرير قطر.txt", "text/plain", 32),
+            mockUser,
+        );
+        expect(result.success).toBe(true);
+        expect(result.data.metadata.filename).toBe("تقرير قطر.txt");
+    });
+
+    test("accepts an SRT multipart upload with a generic browser MIME type", async () => {
+        const request = createMockMultipartRequest(
+            "captions.srt",
+            "application/octet-stream",
+            100,
+        );
+        const result = await handleStreamingFileUpload(request, mockOptions);
+        expect(result.error).toBeUndefined();
+        const File = require("../models/file");
+        expect(File).toHaveBeenCalledWith(
+            expect.objectContaining({ mimeType: "application/x-subrip" }),
+        );
+    });
+
     describe("Request validation", () => {
         test("should reject non-multipart requests", async () => {
             const mockRequest = {
@@ -341,6 +364,7 @@ describe("Streaming Upload Handler", () => {
 
             expect(result.success).toBe(true);
             expect(result.data.metadata.filename).toBe("reference.py");
+            expect(result.data.metadata.hash).toBeUndefined();
         });
     });
 

@@ -130,6 +130,38 @@ export const CHAT_CONTEXTUAL_TOOLS = [
     },
     {
         type: "function",
+        icon: "🧩",
+        function: {
+            name: "UpdateAppletWidget",
+            description:
+                "Save the Home widget HTML for an applet. The Home tile and the canvas Home widget preview use this stored widget HTML, which is separate from the full-page Draft workspace file. When the canvas is on Home widget, inspect GetAppletState.widget.html, edit it, then call this tool with the complete widget HTML. Editing the Draft workspace file does not change the Home tile. appletId defaults to the active canvas applet.",
+            descriptionAr:
+                "احفظ HTML ودجة الصفحة الرئيسية للتطبيق. بلاطة الصفحة الرئيسية ومعاينة الودجة تستخدمان هذا HTML المخزّن، وهو منفصل عن ملف مسودة الصفحة الكاملة. عند عرض ودجة الصفحة الرئيسية، اقرأ GetAppletState.widget.html ثم احفظ HTML الودجة الكامل بهذه الأداة. تعديل ملف المسودة لا يغيّر البلاطة.",
+            parameters: {
+                type: "object",
+                properties: {
+                    appletId: {
+                        type: "string",
+                        description:
+                            "Optional Mongo applet ID. If omitted, the currently active canvas applet is used.",
+                    },
+                    html: {
+                        type: "string",
+                        description:
+                            "Complete Home widget HTML document to store and preview.",
+                    },
+                    userMessage: {
+                        type: "string",
+                        description:
+                            "A user-friendly message about updating the Home widget",
+                    },
+                },
+                required: ["html", "userMessage"],
+            },
+        },
+    },
+    {
+        type: "function",
         icon: "💾",
         function: {
             name: "SaveAppletDraftAsVersion",
@@ -759,6 +791,7 @@ async function syncActiveAppletCanvas(
         appletName,
         workspacePath,
         htmlContent,
+        widgetHtml,
         versionSaved = false,
         versionDeleted = false,
         latestVersionIndex = null,
@@ -817,6 +850,10 @@ async function syncActiveAppletCanvas(
                 nextTabContent.appletActiveVersionNumber = null;
                 nextTabContent.appletIsViewingDraft = true;
             }
+        }
+
+        if (typeof widgetHtml === "string") {
+            nextTabContent.widgetHtml = widgetHtml;
         }
 
         dispatch(
@@ -1456,6 +1493,79 @@ export async function handleGetAppletState(toolInfo, context) {
                       ? "Draft matches the latest saved version. "
                       : "") +
                 `Recommended action: ${recommendedAction}.`,
+            widget: summarizeAppletWidget(applet),
+        },
+    };
+}
+
+const MAX_WIDGET_HTML_IN_TOOL = 150000;
+
+function summarizeAppletWidget(applet) {
+    const html =
+        typeof applet?.widgetHtml === "string" ? applet.widgetHtml : "";
+    const truncated = html.length > MAX_WIDGET_HTML_IN_TOOL;
+    return {
+        exists: Boolean(html.trim()),
+        updatedAt: applet?.widgetHtmlUpdatedAt || null,
+        contentLength: html.length,
+        truncated,
+        html: truncated ? html.slice(0, MAX_WIDGET_HTML_IN_TOOL) : html,
+        note: html.trim()
+            ? "This is the Home tile HTML. Update it with UpdateAppletWidget; Draft workspace edits do not change the tile."
+            : "No Home widget HTML is stored yet. Open Home widget in canvas to generate one, or pass complete widget HTML to UpdateAppletWidget.",
+    };
+}
+
+export async function handleUpdateAppletWidget(toolInfo, context) {
+    const toolArgs = getToolArgs(toolInfo);
+    const { appletId, activeApplet } = resolveRequestedAppletId(
+        toolArgs,
+        context,
+    );
+    const html = typeof toolArgs.html === "string" ? toolArgs.html : "";
+    if (!html.trim()) {
+        throw new Error("html is required and must be a non-empty string");
+    }
+
+    const response = await fetch(
+        `/api/canvas-applets/${encodeURIComponent(appletId)}`,
+        {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ widgetHtml: html }),
+        },
+    );
+    if (!response.ok) {
+        let errorMessage = `Failed to update applet widget (${response.status})`;
+        try {
+            const data = await response.json();
+            errorMessage = data.error || errorMessage;
+        } catch {
+            // Ignore JSON parse failures and use the fallback error.
+        }
+        throw new Error(errorMessage);
+    }
+
+    const updatedApplet = await response.json();
+    const appletName =
+        updatedApplet?.name || activeApplet.appletName || "Applet";
+
+    if (activeApplet.appletId === appletId) {
+        await syncActiveAppletCanvas(context, {
+            appletId,
+            appletName,
+            widgetHtml: html,
+        });
+    }
+
+    return {
+        success: true,
+        data: {
+            appletId,
+            name: appletName,
+            widgetHtmlUpdatedAt: updatedApplet?.widgetHtmlUpdatedAt || null,
+            contentLength: html.length,
+            description: `Updated Home widget HTML for "${appletName}". The Home widget preview and Home tile use this HTML, not the full-page Draft.`,
         },
     };
 }
@@ -1643,13 +1753,16 @@ async function handleAppletUpdate(toolInfo, context) {
         updatedFields.push("name");
     }
 
-    const publishToAppStore = hasOwn(toolArgs, "publishToAppStore")
-        ? toolArgs.publishToAppStore === true
-        : undefined;
-
-    if (publishToAppStore !== undefined) {
-        requestBody.publishToAppStore = publishToAppStore;
-        updatedFields.push("publishToAppStore");
+    // Only forward strict booleans. Coercing other values with `=== true` would
+    // turn typos/"true" strings into false and accidentally unlist the app.
+    if (hasOwn(toolArgs, "publishToAppStore")) {
+        if (
+            toolArgs.publishToAppStore === true ||
+            toolArgs.publishToAppStore === false
+        ) {
+            requestBody.publishToAppStore = toolArgs.publishToAppStore;
+            updatedFields.push("publishToAppStore");
+        }
     }
     if (hasOwn(toolArgs, "appName")) {
         requestBody.appName = toolArgs.appName;
@@ -2493,6 +2606,7 @@ export const CHAT_TOOL_HANDLERS = {
     getapplet: handleGetApplet,
     sethomeapplet: handleSetHomeApplet,
     getappletstate: handleGetAppletState,
+    updateappletwidget: handleUpdateAppletWidget,
     openappletdraft: handleOpenAppletDraft,
     saveappletdraftasversion: handleSaveAppletDraftAsVersion,
     publishappletversion: handlePublishAppletVersion,
